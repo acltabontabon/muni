@@ -1,1 +1,18 @@
-{ "compilerOptions": { "target": "ES2022", "module": "ESNext", "moduleResolution": "bundler", "lib": ["ES2022"], "types": ["./worker-configuration.d.ts", "@cloudflare/vitest-pool-workers/types"], "strict": true, "noEmit": true, "skipLibCheck": true, "isolatedModules": true, "noUnusedLocals": true }, "include": ["src", "test", "worker-configuration.d.ts"] }
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "ESNext",
+    "moduleResolution": "bundler",
+    "lib": ["ES2022"],
+    "types": ["./worker-configuration.d.ts", "@cloudflare/vitest-pool-workers/types"],
+    "strict": true,
+    "noEmit": true,
+    "skipLibCheck": true,
+    "isolatedModules": true,
+    "noUnusedLocals": true,
+    // The encryption tests use the web client's crypto (../web/src/lib/e2ee). Its libraries resolve
+    // from the worker's own devDependencies, so CI doesn't need the web app installed here.
+    "paths": { "@noble/*": ["./node_modules/@noble/*"] }
+  },
+  "include": ["src", "test", "worker-configuration.d.ts"]
+}

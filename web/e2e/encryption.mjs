@@ -92,7 +92,7 @@ try {
 
   // Before the reveal, Maya holds no sprint key; the owner can't see her thoughts.
   const mk = (await api(maya, 'GET', `/api/sprints/${sprintId}/keys`)).body
-  check('While collecting, Maya holds no sprint key', mk.my_wraps.length === 0)
+  check('While collecting, Maya can’t open the sprint', mk.my_wraps.length === 0)
   check('While collecting, shared thoughts are refused', (await api(owner, 'GET', `/api/sprints/${sprintId}/entries`)).status === 409)
 
   // Owner closes collection from the sprint guide: the reveal happens on their device.
@@ -103,7 +103,7 @@ try {
   await owner.waitForSelector(`text=${SECRET}`, { timeout: 10000 })
   check('After the reveal, the facilitator reads the thought', true)
   const mk2 = (await api(maya, 'GET', `/api/sprints/${sprintId}/keys`)).body
-  check('After the reveal, Maya holds the sprint key', mk2.my_wraps.length === 1)
+  check('After the reveal, Maya can open the sprint', mk2.my_wraps.length === 1)
 
   // A theme created in preparation is sealed too.
   await owner.fill('input[aria-label="New theme title"]', `Synthetic-${tag} staging ownership`)

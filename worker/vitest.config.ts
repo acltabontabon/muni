@@ -17,6 +17,8 @@ export default defineConfig(async () => {
         },
       }),
     ],
+    // See tsconfig.json: the web client's crypto imports @noble/* from the worker's devDependencies.
+    resolve: { alias: [{ find: /^@noble\/(.*)$/, replacement: path.join(import.meta.dirname, 'node_modules/@noble/$1') }] },
     test: { setupFiles: ['./test/setup.ts'], testTimeout: 30_000, hookTimeout: 60_000 },
   }
 })
