@@ -40,7 +40,7 @@ export function EntranceShell({ progress = PROGRESS.email, children }: { progres
             <span>Keep the <em>thought</em>.</span> <span className="soft">Bring it to the conversation.</span>
           </p>
           <p className="entrance-lede">Capture what matters during the sprint, while it’s still fresh.</p>
-          <p className="entrance-kicker"><i lang="tl">muni-muni</i> (Filipino): to reflect, to turn a thought over — often at dusk, by the water.</p>
+          <p className="entrance-kicker"><i lang="tl">muni-muni</i> · Filipino · to reflect; to ponder.</p>
         </div>
         <div className="entrance-scene">
           <DuyanScene progress={progress} />

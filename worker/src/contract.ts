@@ -102,6 +102,8 @@ export interface SprintSummary {
   facilitator_name: string | null
   is_facilitator: boolean
   is_participant: boolean
+  reminders_enabled: boolean
+  my_reminders_opt_out: boolean
 }
 export interface Participant {
   account_id: string
@@ -114,8 +116,6 @@ export interface SprintDetail extends SprintSummary {
   ai_processing: boolean
   ai_locked: boolean
   ai_provider: string
-  reminders_enabled: boolean
-  my_reminders_opt_out: boolean
   vote_budget: number
   include_facilitator_in_rotation: boolean
   participants: Participant[]

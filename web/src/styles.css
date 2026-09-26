@@ -39,17 +39,18 @@
 }
 
 :root {
-  --paper: #f6f6f9;
+  /* Dapithapon, late afternoon: warm paper, crisp ink, one violet. */
+  --paper: #faf8f4;
   --card: #ffffff;
-  --card-2: #f0f0f5;
-  --ink: #1b1b23;
-  --ink-soft: #55556a;
-  --ink-faint: #8b8b9c;
-  --line: #e4e4ec;
-  --line-strong: #cfcfdb;
-  --accent: #4f46e5;
-  --accent-soft: #eceefe;
-  --accent-ink: #3730a3;
+  --card-2: #f4f1eb;
+  --ink: #17151f;
+  --ink-soft: #4d4a5c;
+  --ink-faint: #6e6b80;
+  --line: #e9e4db;
+  --line-strong: #d3ccc0;
+  --accent: #5b47e6;
+  --accent-soft: #eeebff;
+  --accent-ink: #3f2fb8;
   --cat-proud: #b45309;
   --cat-keep: #047857;
   --cat-improve: #1d4ed8;
@@ -59,21 +60,36 @@
   --ok: #047857;
   --warn: #b45309;
   --danger: #b91c1c;
+  /* The entrance's scene, shared by every illustration in the app. */
+  --sky-top: #ebe7f8;
+  --sky-glow: #ffd3bd;
+  --sun-a: #ffe1c4;
+  --sun-b: #ff8e74;
+  --halo: #ffb59a;
+  --sea-a: #b8aed8;
+  --sea-b: #8a80b8;
+  --land: #221b36;
+  --glint: #fff4ea;
+  --light: #6f5cff;
+  --star: #ffffff;
+  --e-panel: #ffffff;
+  --glow: color-mix(in oklab, var(--sky-glow) 30%, transparent);
   color-scheme: light;
 }
 
 .dark {
-  --paper: #0f1014;
-  --card: #17181e;
-  --card-2: #1f2129;
-  --ink: #f2f2f6;
-  --ink-soft: #a7a8b6;
-  --ink-faint: #6e6f7d;
-  --line: #262832;
-  --line-strong: #363945;
-  --accent: #a5b4fc;
-  --accent-soft: #23264a;
-  --accent-ink: #c7d2fe;
+  /* Gabi, moonlit: quiet surfaces, clear type, the night violet. */
+  --paper: #0c0c13;
+  --card: #14141d;
+  --card-2: #1b1b26;
+  --ink: #f1f0f7;
+  --ink-soft: #b3b2c6;
+  --ink-faint: #8a89a0;
+  --line: #262635;
+  --line-strong: #37374c;
+  --accent: #9b93ff;
+  --accent-soft: #221f45;
+  --accent-ink: #c9c4ff;
   --cat-proud: #fbbf24;
   --cat-keep: #34d399;
   --cat-improve: #60a5fa;
@@ -83,6 +99,19 @@
   --ok: #34d399;
   --warn: #fbbf24;
   --danger: #f87171;
+  --sky-top: #0b0a15;
+  --sky-glow: #2b2158;
+  --sun-a: #fdfcff;
+  --sun-b: #cfc8ff;
+  --halo: #9b93ff;
+  --sea-a: #1a1633;
+  --sea-b: #07070d;
+  --land: #020205;
+  --glint: #c7c0ff;
+  --light: #f6e38a;
+  --star: #ece9ff;
+  --e-panel: #13131c;
+  --glow: color-mix(in oklab, #2b2158 55%, transparent);
   color-scheme: dark;
 }
 
@@ -100,12 +129,27 @@ body {
   background: var(--paper);
   color: var(--ink);
 }
+/* The app's page: warm paper with the faintest dusk (or moonlit) glow at the top edge. */
+.app-bg {
+  background:
+    radial-gradient(1100px 380px at 50% -160px, var(--glow), transparent 70%),
+    var(--paper);
+}
 
 /* Headings: the same sans, tighter, heavier. Sized by context, never by volume. */
 .font-display {
   font-family: var(--font-display);
   font-weight: 600;
   letter-spacing: -0.015em;
+}
+/* The entrance's voice, used sparingly: one serif-italic word in a sans heading. */
+.font-display em, .serif-em {
+  font-family: var(--font-wordmark);
+  font-style: italic;
+  font-weight: 400;
+  letter-spacing: -0.01em;
+  color: var(--accent-ink);
+  padding-right: 0.04em;
 }
 .font-wordmark {
   font-family: var(--font-wordmark);
@@ -188,12 +232,121 @@ body {
 @media (prefers-reduced-motion: reduce) { .anim-reflect { animation: fade 120ms ease-out both; } }
 
 /* The writing surface: no box inside the box. */
-.writing { width: 100%; resize: none; border: 0; background: transparent; padding: 0; font-size: 1.125rem; line-height: 1.55; min-height: 7.5rem; field-sizing: content; max-height: 60vh; }
+.writing { width: 100%; resize: none; border: 0; background: transparent; padding: 0; font-size: 1.125rem; line-height: 1.55; min-height: 5.5rem; field-sizing: content; max-height: 60vh; }
 .writing:focus { outline: none; }
 .writing::placeholder { color: var(--ink-faint); }
-@media (max-width: 639px) { .writing { font-size: 1.0625rem; min-height: 6.5rem; } }
+@media (max-width: 639px) { .writing { font-size: 1.0625rem; min-height: 4.5rem; } }
 
 .line-clamp-4 { display: -webkit-box; -webkit-line-clamp: 4; -webkit-box-orient: vertical; overflow: hidden; }
+.line-clamp-7 { display: -webkit-box; -webkit-line-clamp: 7; -webkit-box-orient: vertical; overflow: hidden; }
+
+/* ── The composer: the page's main surface. One field, no box inside the box. ─────────────── */
+.composer {
+  background: var(--card);
+  border-radius: 24px;
+  box-shadow: 0 0 0 1px var(--line), 0 1px 2px rgb(23 21 40 / 0.04), 0 18px 40px -28px rgb(60 40 140 / 0.35);
+  transition: box-shadow 200ms ease;
+}
+.composer:focus-within { box-shadow: 0 0 0 1.5px color-mix(in oklab, var(--accent) 70%, transparent), 0 0 0 5px color-mix(in oklab, var(--accent) 12%, transparent), 0 18px 40px -28px rgb(60 40 140 / 0.45); }
+.dark .composer { box-shadow: 0 0 0 1px var(--line), 0 18px 40px -30px rgb(0 0 0 / 0.8); }
+.composer-title label { cursor: text; }
+.kbd-hint { display: none; }
+@media (pointer: fine) { .kbd-hint { display: inline-flex; } }
+
+/* ── Saved thoughts: thought bubbles. A regular grid, stable order, text first. ───────────── */
+.bubbles { display: grid; gap: 30px 16px; grid-template-columns: repeat(auto-fill, minmax(min(100%, 15.5rem), 1fr)); align-items: start; }
+.bubble {
+  --tone: var(--line-strong);
+  position: relative;
+  background: var(--card);
+  border-radius: 22px;
+  padding: 16px 18px 10px;
+  box-shadow: 0 0 0 1px var(--line), 0 1px 2px rgb(23 21 40 / 0.04), 0 10px 26px -22px rgb(60 40 140 / 0.35);
+}
+/* The tail: two small circles trailing toward the collection's corner, like the scene's bubble.
+   Decoration only — pseudo-elements, never focusable or read out. */
+.bubble::before, .bubble::after {
+  content: '';
+  position: absolute;
+  border-radius: 999px;
+  pointer-events: none;
+  background: color-mix(in oklab, var(--tone) 22%, var(--card));
+  box-shadow: 0 0 0 1px color-mix(in oklab, var(--tone) 50%, var(--line));
+}
+.bubble::before { width: 11px; height: 11px; left: 26px; bottom: -15px; }
+.bubble::after { width: 6px; height: 6px; left: 17px; bottom: -24px; }
+.bubble[data-state='queued'], .bubble[data-state='sending'] {
+  background: color-mix(in oklab, var(--accent) 4%, var(--card));
+  box-shadow: none;
+  outline: 1.5px dashed color-mix(in oklab, var(--accent) 60%, transparent);
+  outline-offset: -1.5px;
+}
+.bubble[data-state='attention'] {
+  background: color-mix(in oklab, var(--warn) 6%, var(--card));
+  box-shadow: 0 0 0 1.5px color-mix(in oklab, var(--warn) 55%, transparent);
+}
+.bubble[data-editing] { box-shadow: 0 0 0 1.5px var(--accent), 0 0 0 5px color-mix(in oklab, var(--accent) 12%, transparent); }
+.bubble-text { font-size: 0.98rem; line-height: 1.6; white-space: pre-wrap; overflow-wrap: anywhere; }
+.bubble-text a { color: var(--accent-ink); text-decoration: underline; text-decoration-color: color-mix(in oklab, var(--accent) 40%, transparent); text-underline-offset: 2px; }
+.bubble-gone { border-radius: 22px; border: 1.5px dashed var(--line-strong); padding: 14px 18px; }
+.icon-btn { display: inline-grid; place-items: center; width: 36px; height: 36px; border-radius: 999px; color: var(--ink-soft); transition: background 150ms, color 150ms; }
+.icon-btn:hover { background: color-mix(in oklab, var(--ink) 6%, transparent); color: var(--ink); }
+.icon-btn:disabled { opacity: 0.4; pointer-events: none; }
+.icon-btn--danger:hover { background: color-mix(in oklab, var(--danger) 10%, transparent); color: var(--danger); }
+
+/* The stage before the reveal: thoughts folded on the waterline, and their reflection. */
+.sealed { position: relative; padding: 44px 24px 16px; border-radius: 22px; background: linear-gradient(180deg, color-mix(in oklab, var(--sky-glow) 22%, var(--card)) 0%, var(--card) 58%, color-mix(in oklab, var(--sea-a) 30%, var(--card)) 58%, var(--card) 100%); overflow: hidden; }
+.sealed-row { display: flex; flex-wrap: wrap; justify-content: center; gap: 8px; }
+.sealed-line { height: 1px; margin: 12px -24px 0; background: linear-gradient(90deg, transparent, color-mix(in oklab, var(--accent) 55%, transparent) 20%, color-mix(in oklab, var(--accent) 55%, transparent) 80%, transparent); }
+.sealed-row--mirror { margin-top: 8px; opacity: 0.22; transform: scaleY(-1); filter: blur(0.6px); max-height: 44px; overflow: hidden; align-content: flex-end; }
+.sealed-bubble { width: 36px; height: 24px; border-radius: 999px; background: var(--card); box-shadow: 0 0 0 1px var(--line-strong); animation: pulse-soft 3.6s ease-in-out infinite; }
+@media (prefers-reduced-motion: reduce) { .sealed-bubble { animation: none; } }
+
+/* ── Postcards: the entrance's scene, small, at a few deliberate moments. ─────────────────── */
+.postcard {
+  position: relative;
+  overflow: hidden;
+  isolation: isolate;
+  border-radius: 18px;
+  background: linear-gradient(180deg, var(--sky-top) 0%, color-mix(in oklab, var(--sky-top) 55%, var(--sky-glow)) 64%, var(--sea-a) 64%, var(--sea-b) 100%);
+  box-shadow: inset 0 0 0 1px color-mix(in oklab, var(--land) 10%, transparent);
+}
+.dark .postcard { box-shadow: inset 0 0 0 1px var(--line); }
+.postcard svg { display: block; width: 100%; height: 100%; }
+
+/* The horizon band: a workspace's identity, a strip of evening — never a hero. */
+.horizon { position: relative; overflow: hidden; isolation: isolate; border-radius: 24px; min-height: 132px; }
+.horizon > svg { position: absolute; inset: 0; width: 100%; height: 100%; z-index: -1; }
+.horizon-text { text-shadow: 0 1px 0 color-mix(in oklab, var(--sky-top) 70%, transparent); }
+.dark .horizon-text { text-shadow: 0 1px 12px rgb(0 0 0 / 0.6); }
+
+/* ── Lifecycle guidance ───────────────────────────────────────────────────────────────────── */
+.steps { display: flex; gap: 6px; align-items: center; }
+.steps li { display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--ink-faint); white-space: nowrap; }
+.steps li + li::before { content: ''; width: 14px; height: 1px; background: var(--line-strong); }
+.steps li[data-done] { color: var(--ink-soft); }
+.steps li[aria-current] { color: var(--accent-ink); font-weight: 600; }
+.steps .pip { width: 8px; height: 8px; border-radius: 999px; box-shadow: inset 0 0 0 1.5px currentColor; }
+.steps li[data-done] .pip, .steps li[aria-current] .pip { background: currentColor; }
+/* The facilitator's area: plainly marked, apart from writing a thought. */
+.fac-area {
+  border-radius: 20px;
+  background: color-mix(in oklab, var(--accent) 5%, var(--card-2));
+  box-shadow: inset 0 0 0 1px color-mix(in oklab, var(--accent) 16%, var(--line));
+}
+.dark .fac-area { background: color-mix(in oklab, var(--accent) 7%, var(--card)); }
+
+/* On a tall enough desktop the composer stays in reach while the collection scrolls. */
+@media (min-width: 1024px) and (min-height: 820px) { .home-compose { position: sticky; top: 5.5rem; } }
+
+/* Quiet section header row: an eyebrow over content. */
+.eyebrow { font-size: 12px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; color: var(--ink-faint); }
+
+/* Tabs under a page title (Overview · People · Settings). */
+.subnav { display: flex; gap: 4px; overflow-x: auto; scrollbar-width: none; }
+.subnav a { display: inline-flex; align-items: center; height: 36px; padding: 0 14px; border-radius: 999px; font-size: 14px; color: var(--ink-soft); white-space: nowrap; }
+.subnav a:hover { color: var(--ink); background: color-mix(in oklab, var(--ink) 5%, transparent); }
+.subnav a[aria-current='page'] { color: var(--ink); background: var(--card); box-shadow: 0 0 0 1px var(--line); font-weight: 500; }
 .pb-safe { padding-bottom: max(1.5rem, env(safe-area-inset-bottom)); }
 .pt-safe { padding-top: env(safe-area-inset-top); }
 
@@ -384,7 +537,7 @@ body {
 }
 @keyframes glow { from { opacity: 0.55; transform: scale(0.85); } to { opacity: 1; transform: scale(1.15); } }
 
-.entrance[data-paused] .scene * { animation-play-state: paused !important; }
+.entrance[data-paused] .scene *, .entrance-art[data-paused] .scene * { animation-play-state: paused !important; }
 
 /* ── The auth side: readable UI type only ────────────────────────────────────────────────── */
 .entrance-step h1 { font-family: var(--font-display); font-weight: 600; font-size: 1.8rem; line-height: 1.15; letter-spacing: -0.025em; }

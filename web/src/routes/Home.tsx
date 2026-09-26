@@ -1,43 +1,34 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react'
 import { Link, useNavigate, useSearchParams } from 'react-router'
-import { clsx } from 'clsx'
-import { ArrowRight, CalendarClock, ChevronRight, History, Radio } from 'lucide-react'
+import { ArrowRight, ChevronRight, Radio } from 'lucide-react'
 import { get } from '@/api/client'
 import type { CaptureTarget, Experiment, Me, SprintSummary, Workspace } from '@/api/types'
 import { useAuth } from '@/lib/auth'
 import { OUTCOME_LABEL } from '@/lib/categories'
+import { pickDestination } from '@/lib/destination'
 import { isComposerDirty } from '@/lib/dirty'
+import { STATUS_PHRASE } from '@/lib/lifecycle'
 import { useLocal, type Destination } from '@/lib/local/LocalProvider'
 import type { ContextSprint } from '@/lib/local/store'
 import { readPrefs, writePrefs } from '@/lib/prefs'
+import { shortDate } from '@/lib/schedule'
 import { chooseWorkspace, useCurrentWorkspace } from '@/lib/workspace'
-import { Badge, Button, Dialog, Spinner, useDocumentTitle } from '@/ui'
-import { Composer, LocalThought, MyThoughts } from '@/ui/capture'
+import { Button, Spinner, useDocumentTitle } from '@/ui'
+import { Composer, LocalThoughtList, MyThoughts } from '@/ui/capture'
 import { NewWorkspaceDialog } from '@/ui/menus'
 import { AppShell } from '@/ui/shell'
-import { Mark } from '@/brand/Mark'
+import { Postcard } from '@/ui/art'
+import { RetroWhen } from '@/ui/when'
 
 type Sprintish = Pick<SprintSummary, 'id' | 'workspace_id' | 'name' | 'status' | 'retro_local' | 'timezone'> & Partial<SprintSummary>
 type Loaded = { capture: CaptureTarget | null; sprints: SprintSummary[] | null; experiments: Experiment[] | null; cached: { sprint: ContextSprint; workspaceName: string | null; fetchedAt: number }[]; offline: boolean }
 
 const toDest = (s: Sprintish): Destination => ({ workspaceId: s.workspace_id, sprintId: s.id, sprintName: s.name })
 
-/** "Mon 28 Sep 2026, 14:00 (UTC+08:00)" plus the reader's own time when it differs. */
-export function RetroWhen({ s }: { s: Sprintish }) {
-  const deviceTz = Intl.DateTimeFormat().resolvedOptions().timeZone
-  const yours = s.retro_at && s.timezone !== deviceTz ? new Date(s.retro_at).toLocaleString(undefined, { weekday: 'short', hour: '2-digit', minute: '2-digit' }) : null
-  return (
-    <span>
-      Retro {s.retro_local.replace(/ \d{4},/, ',')}
-      {yours ? <span className="text-ink-faint"> · {yours} your time</span> : null}
-    </span>
-  )
-}
-
 /**
- * The participant's home: the sprint you're in, a place to write, and your thoughts. It adapts to
- * where the sprint is (collecting, closed, live, done) without ever navigating away from text
- * you're still writing.
+ * The participant's home: where you are (workspace, sprint, its status and retro time), one place
+ * to write, and your thoughts. It adapts to where the sprint is — collecting, closed, live, done —
+ * without ever navigating away from text you're still writing.
  */
 export function Home() {
   useDocumentTitle('')
@@ -106,8 +97,7 @@ export function Home() {
     }
   }, [data?.capture, offline, local, me])
 
-  // One destination opens directly; several need an explicit choice (a remembered one counts).
-  const dest = collectingHere.length === 1 ? collectingHere[0] : collectingHere.find((s) => s.id === chosen) ?? null
+  const dest = pickDestination(collectingHere, chosen)
   const [sticky, setSticky] = useState<Sprintish | null>(null)
   useEffect(() => {
     if (dest) setSticky(dest)
@@ -134,110 +124,182 @@ export function Home() {
     )
 
   const myCommitments = (data.experiments ?? []).filter((e) => e.owner_account_id === me.account_id && (e.status === 'proposed' || e.status === 'accepted'))
-  const aside = <Aside ws={ws!} commitments={myCommitments} elsewhere={elsewhere} me={me} />
+  const offlineNote = offline ? (
+    <p className="mb-5 flex items-start gap-2 rounded-2xl bg-ink/5 px-3.5 py-2.5 text-sm text-ink-soft" role="status">
+      <span className="dot dot--queued mt-1.5" aria-hidden />
+      <span>
+        You’re offline. {composerFor ? `Thoughts you save wait on this device${local.kind === 'memory' ? ' (in this tab)' : ''} and are sent when Muni reconnects.` : 'Muni will catch up when you reconnect.'}
+        {data.cached.length && !data.capture ? <span className="text-ink-faint"> Sprint details from {new Date(Math.max(...data.cached.map((c) => c.fetchedAt))).toLocaleString(undefined, { weekday: 'short', hour: '2-digit', minute: '2-digit' })}.</span> : null}
+      </span>
+    </p>
+  ) : null
+  const extras = (
+    <>
+      {unsentElsewhere.length ? (
+        <section className="mt-12" aria-labelledby="unsent">
+          <h2 id="unsent" className="font-display text-lg">Not sent yet <span className="ml-1 text-sm font-normal text-ink-faint">{unsentElsewhere.length}</span></h2>
+          <p className="mb-5 text-sm text-ink-soft">Kept on this device for other sprints.</p>
+          <LocalThoughtList items={unsentElsewhere} moveChoices={moveChoices} showDestination />
+        </section>
+      ) : null}
+      {myCommitments.length ? <Commitments items={myCommitments} me={me} /> : null}
+    </>
+  )
 
-  const wide = myCommitments.length > 0 || elsewhere.length > 0
+  // ── Collecting: the composer and the collection side by side when there's room.
+  if (composerFor)
+    return (
+      <AppShell workspace={ws} wide>
+        {offlineNote}
+        {live ? <LiveBanner s={live} /> : null}
+        <Context ws={ws} s={composerFor} status={dest ? 'collecting' : 'closed-now'} elsewhere={elsewhere} me={me} several={collectingHere.length > 1} />
+        <div className="grid gap-12 lg:grid-cols-[minmax(0,29rem)_minmax(0,1fr)] xl:grid-cols-[minmax(0,34rem)_minmax(0,1fr)] xl:gap-14">
+          <div className="home-compose min-w-0 space-y-4 self-start">
+            <Composer
+              key={`${composerFor.id}:${local.cleared}`}
+              dest={dest ? toDest(dest) : null}
+              choices={choices}
+              onChoose={choose}
+              closed={!dest ? <>This sprint stopped collecting. Your text is still here — copy it{choices.length ? ', or choose another sprint above' : ''}.</> : undefined}
+            />
+            {composerFor.is_facilitator ? (
+              <div className="fac-area flex flex-wrap items-center gap-x-4 gap-y-2 px-4 py-3 text-sm">
+                <span className="eyebrow">Facilitator</span>
+                <span className="min-w-0 flex-1 text-ink-soft">You’re facilitating this sprint. Close collection from its guide when the sprint wraps up.</span>
+                <Link to={`/sprints/${composerFor.id}`} className="inline-flex items-center gap-1 font-medium text-accent-ink hover:underline">Sprint guide <ArrowRight className="size-4" aria-hidden /></Link>
+              </div>
+            ) : null}
+          </div>
+          <div className="min-w-0">
+            <MyThoughts sprintId={composerFor.id} editable={!!dest && !offline} moveChoices={moveChoices} online={!offline} />
+            {extras}
+          </div>
+        </div>
+      </AppShell>
+    )
+
+  // ── Everything else: one readable column, the current state first.
   return (
     <AppShell workspace={ws}>
-      <div className={clsx(!wide && 'mx-auto max-w-2xl')}>
-      {offline ? (
-        <p className="mb-5 flex items-center gap-2 rounded-xl bg-ink/5 px-3 py-2 text-sm text-ink-soft" role="status">
-          <span className="dot dot--queued" aria-hidden /> You’re offline. {composerFor ? `Thoughts you save wait on this device${local.kind === 'memory' ? ' (in this tab)' : ''} and are sent when Muni reconnects.` : 'Muni will catch up when you reconnect.'}
-          {data.cached.length && !data.capture ? <span className="text-ink-faint"> Sprint details from {new Date(Math.max(...data.cached.map((c) => c.fetchedAt))).toLocaleString(undefined, { weekday: 'short', hour: '2-digit', minute: '2-digit' })}.</span> : null}
-        </p>
-      ) : null}
-      {live ? (
-        <Link to={`/sprints/${live.id}/room`} className="card mb-6 flex items-center gap-4 border-accent/40 p-4 hover:border-accent">
-          <Radio className="size-5 shrink-0 text-accent" />
-          <div className="min-w-0 flex-1">
-            <div className="font-medium [overflow-wrap:anywhere]">{live.name} is live</div>
-            <div className="text-sm text-ink-soft">Join the retro on this device</div>
+      <div className="mx-auto max-w-3xl">
+        {offlineNote}
+        {collectingHere.length > 1 ? (
+          <ChooseDestination ws={ws} sprints={collectingHere} onChoose={(s) => choose(toDest(s))} />
+        ) : live ? (
+          <State s={live} ws={ws} kicker="Retro live" title={<>The retro is <em>happening</em> now</>} body="Collection is closed. Follow the conversation and take part from this device." action={<Link to={`/sprints/${live.id}/room`}><Button variant="primary">Join the retro <ArrowRight className="size-4" /></Button></Link>}>
+            <MyThoughts className="mt-12" sprintId={live.id} editable={false} moveChoices={moveChoices} online={!offline} />
+          </State>
+        ) : closed ? (
+          <State s={closed} ws={ws} kicker={STATUS_PHRASE[closed.status]} title="Collection is closed" body={closed.status === 'ready' ? 'Thoughts are read-only. The retro starts when the facilitator begins it.' : 'Thoughts are read-only while the facilitator prepares the discussion.'} action={<Link to={`/sprints/${closed.id}`} className="inline-flex items-center gap-1 text-sm font-medium text-accent-ink hover:underline">Sprint guide <ArrowRight className="size-4" /></Link>}>
+            <MyThoughts className="mt-12" sprintId={closed.id} editable={false} moveChoices={moveChoices} online={!offline} />
+          </State>
+        ) : recentDone ? (
+          <State s={recentDone} ws={ws} kicker="Retro complete" title={<>What we’re <em>taking with us</em></>} body="The last retro is done. Here’s what the team agreed to try." action={<Link to={`/sprints/${recentDone.id}/outcomes`}><Button>Outcomes and recap</Button></Link>} art={<Postcard framing="wide" lights={4} className="aspect-[2.1/1] w-full" />}>
+            <ExperimentList items={(data.experiments ?? []).filter((e) => e.sprint_id === recentDone.id && e.status !== 'proposed')} me={me} empty="No experiments were agreed in this retro — sometimes the conversation is the outcome." />
+          </State>
+        ) : (
+          <div className="pt-2">
+            <Postcard framing="wide" className="aspect-[2.1/1] w-full" />
+            <p className="mt-6 text-sm text-ink-soft">{ws?.name}</p>
+            <h1 className="font-display mt-1 text-2xl leading-tight sm:text-[28px]">Nothing to write for <em>yet</em></h1>
+            <p className="mt-2 max-w-prose text-ink-soft">When a sprint in {ws?.name ?? 'this workspace'} opens for thoughts, you’ll write them here.</p>
+            {!offline && ws ? (
+              <p className="mt-4 text-sm">
+                <Link to={`/workspaces/${ws.id}/sprints/new`} className="text-ink-soft underline underline-offset-4 hover:text-ink">Set up a sprint</Link>
+              </p>
+            ) : null}
           </div>
-          <span className="inline-flex items-center gap-1 text-sm font-medium text-accent-ink">Join <ArrowRight className="size-4" /></span>
-        </Link>
-      ) : null}
-      </div>
-
-      <div className={clsx('grid gap-10', wide ? 'lg:grid-cols-[minmax(0,1fr)_280px]' : 'mx-auto max-w-2xl')}>
-        <div className="min-w-0">
-          {composerFor ? (
-            <>
-              <header className="mb-5">
-                <p className="flex items-center gap-2 text-sm text-accent-ink"><span className="dot dot--submitted" aria-hidden /> Collecting</p>
-                <h1 className="font-display mt-1 text-2xl leading-tight [overflow-wrap:anywhere] sm:text-[28px]">{collectingHere.length > 1 && !dest ? 'Where should your thought go?' : composerFor.name}</h1>
-                <p className="mt-1 flex items-center gap-1.5 text-sm text-ink-soft"><CalendarClock className="size-4 shrink-0" /> <RetroWhen s={composerFor} /></p>
-                {!dest ? <p className="mt-2 rounded-xl bg-warn/10 px-3 py-2 text-sm">This sprint stopped collecting. Your text is still here — copy it, or send it to another sprint below.</p> : null}
-              </header>
-              <Composer key={local.cleared} dest={dest ? toDest(dest) : null} choices={choices} onChoose={choose} />
-              <MyThoughts sprintId={composerFor.id} editable={!!dest && !offline} moveChoices={moveChoices} online={!offline} />
-            </>
-          ) : collectingHere.length > 1 ? (
-            <ChooseDestination sprints={collectingHere} onChoose={(s) => choose(toDest(s))} />
-          ) : live ? (
-            <State title={`${live.name}`} kicker="Retro live" body="Thoughts are closed; the conversation is happening now." action={<Link to={`/sprints/${live.id}/room`}><Button variant="primary">Join the retro</Button></Link>}>
-              <MyThoughts sprintId={live.id} editable={false} moveChoices={moveChoices} online={!offline} />
-            </State>
-          ) : closed ? (
-            <State title={closed.name} kicker="Collection closed" body={<><RetroWhen s={closed} />. Thoughts are closed while the facilitator prepares the conversation.</>} action={<Link to={`/sprints/${closed.id}`} className="text-sm underline underline-offset-4">Open the sprint</Link>}>
-              <MyThoughts sprintId={closed.id} editable={false} moveChoices={moveChoices} online={!offline} />
-            </State>
-          ) : recentDone ? (
-            <State title={recentDone.name} kicker="Completed" body="Here’s what the team agreed to try." action={<Link to={`/sprints/${recentDone.id}/outcomes`}><Button>Outcomes and recap</Button></Link>}>
-              <ExperimentList items={(data.experiments ?? []).filter((e) => e.sprint_id === recentDone.id && e.status !== 'proposed')} me={me} empty="No experiments were agreed in this retro." />
-            </State>
-          ) : (
-            <State
-              title="Nothing to write for yet"
-              kicker={ws?.name}
-              body={`When someone in ${ws?.name ?? 'this workspace'} opens a sprint for you, you’ll write your thoughts here.`}
-              action={!offline && ws ? <Link to={`/workspaces/${ws.id}/sprints/new`} className="text-sm text-ink-soft underline underline-offset-4 hover:text-ink">Set up a sprint</Link> : undefined}
-            />
-          )}
-
-          {unsentElsewhere.length ? (
-            <section className="mt-10" aria-labelledby="unsent">
-              <h2 id="unsent" className="font-display mb-3 text-lg">Not sent yet <span className="ml-1 text-sm font-normal text-ink-faint">{unsentElsewhere.length}</span></h2>
-              <ul className="space-y-2.5">{unsentElsewhere.map((i) => <LocalThought key={i.id} item={i} moveChoices={moveChoices} showDestination />)}</ul>
-            </section>
-          ) : null}
-
-          <MobileMore ws={ws} commitments={myCommitments} elsewhere={elsewhere} me={me} />
-        </div>
-        {myCommitments.length || elsewhere.length ? <div className="hidden lg:block">{aside}</div> : null}
+        )}
+        {extras}
       </div>
     </AppShell>
   )
 }
 
-function State({ title, kicker, body, action, children }: { title: string; kicker?: string; body: React.ReactNode; action?: React.ReactNode; children?: React.ReactNode }) {
+/** Where you are: status, workspace › sprint, and the retro time. */
+function Context({ ws, s, status, elsewhere, me, several }: { ws: Me['workspaces'][number] | null; s: Sprintish; status: 'collecting' | 'closed-now'; elsewhere: SprintSummary[]; me: Me; several: boolean }) {
+  return (
+    <div className="mb-7 flex flex-col gap-2">
+      <div className="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1.5 text-sm">
+        {status === 'collecting' ? (
+          <span className="inline-flex items-center gap-1.5 rounded-full bg-accent-soft px-2.5 py-0.5 text-[13px] font-medium text-accent-ink"><span className="dot dot--submitted" aria-hidden /> Collecting</span>
+        ) : (
+          <span className="inline-flex items-center gap-1.5 rounded-full bg-warn/12 px-2.5 py-0.5 text-[13px] font-medium text-warn"><span className="dot dot--attention" aria-hidden /> Collection closed</span>
+        )}
+        <nav aria-label="You are here" className="min-w-0 text-ink-soft">
+          {ws ? <Link to={`/workspaces/${ws.id}`} className="hover:text-ink hover:underline">{ws.name}</Link> : null}
+          <span aria-hidden className="mx-1.5 text-ink-faint">/</span>
+          {several ? <span className="text-ink">{status === 'collecting' ? 'choose a sprint below' : s.name}</span> : <Link to={`/sprints/${s.id}`} className="font-medium text-ink [overflow-wrap:anywhere] hover:underline">{s.name}</Link>}
+        </nav>
+      </div>
+      {s.retro_at && !several ? <RetroWhen s={{ retro_at: s.retro_at, timezone: s.timezone }} className="text-sm text-ink-soft" /> : null}
+      {elsewhere.length ? (
+        <p className="text-sm text-ink-soft">
+          Also collecting:{' '}
+          {elsewhere.map((o, i) => (
+            <span key={o.id}>
+              {i ? ', ' : ''}
+              <button className="font-medium text-ink underline decoration-line-strong underline-offset-2 hover:decoration-accent" onClick={() => { chooseWorkspace(o.workspace_id); writePrefs({ lastSprint: o.id }) }}>
+                {o.name}
+              </button>{' '}
+              <span className="text-ink-faint">in {me.workspaces.find((w) => w.id === o.workspace_id)?.name}</span>
+            </span>
+          ))}
+        </p>
+      ) : null}
+    </div>
+  )
+}
+
+function LiveBanner({ s }: { s: Sprintish }) {
+  return (
+    <Link to={`/sprints/${s.id}/room`} className="fac-area mb-6 flex items-center gap-4 p-4 hover:brightness-[0.98]">
+      <Radio className="size-5 shrink-0 text-accent" aria-hidden />
+      <div className="min-w-0 flex-1">
+        <div className="font-medium [overflow-wrap:anywhere]">The {s.name} retro is live</div>
+        <div className="text-sm text-ink-soft">Join from this device</div>
+      </div>
+      <span className="inline-flex items-center gap-1 text-sm font-medium text-accent-ink">Join <ArrowRight className="size-4" /></span>
+    </Link>
+  )
+}
+
+function State({ s, ws, title, kicker, body, action, children, art }: { s: Sprintish; ws: Me['workspaces'][number] | null; title: ReactNode; kicker: string; body: ReactNode; action?: ReactNode; children?: ReactNode; art?: ReactNode }) {
   return (
     <div>
-      <header className="mb-2">
-        {kicker ? <p className="text-sm text-ink-soft">{kicker}</p> : null}
-        <h1 className="font-display mt-1 text-2xl leading-tight [overflow-wrap:anywhere] sm:text-[28px]">{title}</h1>
-        <p className="mt-2 text-ink-soft measure">{body}</p>
-        {action ? <div className="mt-4">{action}</div> : null}
-      </header>
+      {art ? <div className="mb-7">{art}</div> : null}
+      <p className="flex flex-wrap items-center gap-x-2 text-sm text-ink-soft">
+        <span className="font-medium text-accent-ink">{kicker}</span>
+        <span aria-hidden className="text-ink-faint">·</span>
+        {ws ? <Link to={`/workspaces/${ws.id}`} className="hover:text-ink hover:underline">{ws.name}</Link> : null}
+        <span aria-hidden className="text-ink-faint">/</span>
+        <Link to={`/sprints/${s.id}`} className="text-ink [overflow-wrap:anywhere] hover:underline">{s.name}</Link>
+      </p>
+      <h1 className="font-display mt-2 text-2xl leading-tight [overflow-wrap:anywhere] sm:text-[30px]">{title}</h1>
+      <p className="mt-2 max-w-prose text-ink-soft">{body}</p>
+      {s.retro_at && s.status !== 'completed' ? <RetroWhen s={{ retro_at: s.retro_at, timezone: s.timezone }} className="mt-2 text-sm text-ink-soft" /> : null}
+      {action ? <div className="mt-5">{action}</div> : null}
       {children}
     </div>
   )
 }
 
-function ChooseDestination({ sprints, onChoose }: { sprints: Sprintish[]; onChoose: (s: Sprintish) => void }) {
+function ChooseDestination({ ws, sprints, onChoose }: { ws: Me['workspaces'][number] | null; sprints: Sprintish[]; onChoose: (s: Sprintish) => void }) {
   return (
     <div>
-      <p className="text-sm text-ink-soft">More than one sprint is collecting</p>
-      <h1 className="font-display mt-1 text-2xl leading-tight sm:text-[28px]">Where should your thought go?</h1>
-      <ul className="mt-5 space-y-2">
+      <p className="text-sm text-ink-soft">{ws?.name} · {sprints.length} sprints are collecting</p>
+      <h1 className="font-display mt-1 text-2xl leading-tight sm:text-[30px]">Where should your thought <em>go</em>?</h1>
+      <p className="mt-2 text-ink-soft">Pick the sprint it belongs to. Muni remembers your choice on this device.</p>
+      <ul className="mt-6 space-y-2">
         {sprints.map((s) => (
           <li key={s.id}>
-            <button className="card flex w-full items-center gap-3 p-4 text-left hover:border-ink/30" onClick={() => onChoose(s)}>
-              <span className="dot dot--queued" aria-hidden />
+            <button className="card flex w-full items-center gap-3 rounded-2xl p-4 text-left hover:border-ink/30" onClick={() => onChoose(s)}>
+              <span className="dot dot--submitted" aria-hidden />
               <span className="min-w-0 flex-1">
                 <span className="block font-medium [overflow-wrap:anywhere]">{s.name}</span>
-                <span className="block text-sm text-ink-soft"><RetroWhen s={s} /></span>
+                {s.retro_at ? <RetroWhen s={{ retro_at: s.retro_at, timezone: s.timezone }} icon={false} className="text-sm text-ink-soft" /> : null}
               </span>
-              <ChevronRight className="size-4 text-ink-faint" />
+              <ChevronRight className="size-4 text-ink-faint" aria-hidden />
             </button>
           </li>
         ))}
@@ -247,78 +309,36 @@ function ChooseDestination({ sprints, onChoose }: { sprints: Sprintish[]; onChoo
 }
 
 function ExperimentList({ items, me, empty }: { items: Experiment[]; me: Me; empty?: string }) {
-  if (!items.length) return empty ? <p className="mt-4 text-sm text-ink-soft">{empty}</p> : null
+  if (!items.length) return empty ? <p className="mt-6 text-sm text-ink-soft">{empty}</p> : null
   return (
-    <ul className="mt-4 space-y-2">
+    <ul className="mt-6 divide-y divide-line rounded-2xl bg-card shadow-[0_0_0_1px_var(--line)]">
       {items.map((e) => (
-        <li key={e.id} className="card p-4">
+        <li key={e.id} className="p-4">
           <p className="font-medium [overflow-wrap:anywhere]">{e.change_to_try}</p>
-          <div className="mt-1.5 flex flex-wrap items-center gap-2 text-xs text-ink-soft">
-            <Badge tone={e.status === 'proposed' ? 'accent' : e.status === 'helped' ? 'ok' : 'neutral'}>{e.status === 'proposed' && e.owner_account_id === me.account_id ? 'Waiting for you to accept' : OUTCOME_LABEL[e.status]}</Badge>
-            {e.owner_name ? <span>{e.owner_account_id === me.account_id ? 'You own this' : `Owner ${e.owner_name}`}</span> : null}
-            <span className="text-ink-faint">Review {new Date(e.review_on + 'T00:00:00').toLocaleDateString(undefined, { day: 'numeric', month: 'short' })}</span>
-          </div>
+          <p className="mt-1 text-sm text-ink-soft">
+            {e.status === 'proposed' && e.owner_account_id === me.account_id ? (
+              <span className="font-medium text-accent-ink">You’ve been asked to own this — accept it in the outcomes · </span>
+            ) : (
+              <>
+                {e.status !== 'accepted' ? `${OUTCOME_LABEL[e.status]} · ` : ''}
+                {e.owner_name ? (e.owner_account_id === me.account_id ? 'You own this' : e.owner_name) : 'No owner yet'} ·{' '}
+              </>
+            )}
+            revisit {shortDate(e.review_on)}
+          </p>
         </li>
       ))}
     </ul>
   )
 }
 
-function Aside({ ws, commitments, elsewhere, me }: { ws: Me['workspaces'][number]; commitments: Experiment[]; elsewhere: SprintSummary[]; me: Me }) {
+function Commitments({ items, me }: { items: Experiment[]; me: Me }) {
   return (
-    <aside className="space-y-8">
-      {commitments.length ? (
-        <section>
-          <h2 className="text-sm font-medium text-ink-soft">Your commitments</h2>
-          <ExperimentList items={commitments} me={me} />
-        </section>
-      ) : null}
-      {elsewhere.length ? (
-        <section>
-          <h2 className="text-sm font-medium text-ink-soft">Also collecting</h2>
-          <ul className="mt-2 space-y-1.5">
-            {elsewhere.map((s) => (
-              <li key={s.id}>
-                <button className="flex w-full items-center gap-2 rounded-xl px-2 py-2 text-left text-sm hover:bg-ink/5" onClick={() => { chooseWorkspace(s.workspace_id); writePrefs({ lastSprint: s.id }) }}>
-                  <span className="dot dot--queued" aria-hidden />
-                  <span className="min-w-0 flex-1 truncate">{s.name}</span>
-                  <span className="truncate text-xs text-ink-faint">{me.workspaces.find((w) => w.id === s.workspace_id)?.name}</span>
-                </button>
-              </li>
-            ))}
-          </ul>
-        </section>
-      ) : null}
-      <Link to={`/workspaces/${ws.id}`} className="inline-flex items-center gap-2 text-sm text-ink-soft hover:text-ink">
-        <History className="size-4" /> Past sprints and outcomes
-      </Link>
-    </aside>
-  )
-}
-
-/** On small screens the secondary column becomes one labelled row that opens a sheet. */
-function MobileMore({ ws, commitments, elsewhere, me }: { ws: Me['workspaces'][number] | null; commitments: Experiment[]; elsewhere: SprintSummary[]; me: Me }) {
-  const [open, setOpen] = useState(false)
-  if (!ws) return null
-  const label = [commitments.length ? `${commitments.length} commitment${commitments.length === 1 ? '' : 's'}` : null, elsewhere.length ? `${elsewhere.length} more collecting` : null].filter(Boolean).join(' · ')
-  return (
-    <div className="mt-10 lg:hidden">
-      {label ? (
-        <button className="card flex w-full items-center gap-3 p-4 text-left" onClick={() => setOpen(true)}>
-          <span className="min-w-0 flex-1">
-            <span className="block text-sm font-medium">Commitments &amp; other sprints</span>
-            <span className="block text-sm text-ink-soft">{label}</span>
-          </span>
-          <ChevronRight className="size-4 text-ink-faint" />
-        </button>
-      ) : null}
-      <Link to={`/workspaces/${ws.id}`} className="mt-4 inline-flex items-center gap-2 text-sm text-ink-soft hover:text-ink">
-        <History className="size-4" /> Past sprints and outcomes
-      </Link>
-      <Dialog open={open} onOpenChange={setOpen} title="Commitments & other sprints">
-        <Aside ws={ws} commitments={commitments} elsewhere={elsewhere} me={me} />
-      </Dialog>
-    </div>
+    <section className="mt-12" aria-labelledby="commitments">
+      <h2 id="commitments" className="font-display text-lg">Your commitments</h2>
+      <p className="text-sm text-ink-soft">Experiments you own, until the team revisits them.</p>
+      <ExperimentList items={items} me={me} />
+    </section>
   )
 }
 
@@ -328,12 +348,12 @@ function Welcome() {
   const [creating, setCreating] = useState(false)
   return (
     <AppShell workspace={null}>
-      <div className="mx-auto max-w-xl py-10 text-center">
-        <Mark size={52} className="mx-auto text-ink" />
-        <h1 className="font-display mt-6 text-3xl">Welcome to Muni</h1>
-        <p className="mt-3 text-lg text-ink-soft">If you were invited to a team, open the link from your invitation email — it brings you straight to your sprint.</p>
-        <p className="mt-8 text-sm text-ink-soft">
-          Starting a team yourself? <button className="underline underline-offset-4 hover:text-ink" onClick={() => setCreating(true)}>Create a workspace</button>
+      <div className="mx-auto max-w-2xl pt-2">
+        <Postcard framing="wide" className="aspect-[2.1/1] w-full" />
+        <h1 className="font-display mt-8 text-3xl">Welcome to <em>Muni</em></h1>
+        <p className="mt-3 max-w-prose text-lg text-ink-soft">If you were invited to a team, open the link in your invitation email — it brings you straight to your sprint.</p>
+        <p className="mt-6 text-sm text-ink-soft">
+          Starting a team yourself? <button className="font-medium text-ink underline underline-offset-4 hover:decoration-accent" onClick={() => setCreating(true)}>Create a workspace</button>
         </p>
       </div>
       <NewWorkspaceDialog open={creating} onClose={() => setCreating(false)} onCreated={async (w: Workspace) => { setCreating(false); await refresh(); chooseWorkspace(w.id); nav(`/workspaces/${w.id}`) }} />

@@ -7,9 +7,9 @@
  * Decoration only: aria-hidden, no text, nothing interactive. Motion is CSS on transforms and
  * opacity, paused while the tab is hidden and still under prefers-reduced-motion.
  */
-import { useEffect, useState, type CSSProperties } from 'react'
+import { useEffect, useId, useState, type CSSProperties } from 'react'
 
-const HORIZON = 272
+export const HORIZON = 272
 const SHORE = 1.3
 
 /** A palm frond: a drooping crescent from the crown. */
@@ -52,7 +52,7 @@ function Palm({ x, y, topX, topY, lean, className }: { x: number; y: number; top
 }
 
 /** The shore: two palms, the duyan between them, and the person resting in it. */
-function Land() {
+export function Land() {
   return (
     <g className="scene-land">
       {/* A low bank of sand at the water's edge. */}
@@ -118,53 +118,57 @@ function useCompact() {
   return compact
 }
 
-export function DuyanScene({ progress, className }: { progress: number; className?: string }) {
-  const compact = useCompact()
+/** `frame` crops the same drawing for the app's small postcards (a viewBox in scene units). */
+export function DuyanScene({ progress, className, frame }: { progress: number; className?: string; frame?: string }) {
+  const compact = useCompact() && !frame
   // 0 → 1 across the steps: the sun (or moon) settles, and one light is kept per finished step.
   const kept = progress >= 1 ? 4 : progress >= 0.8 ? 2 : progress >= 0.5 ? 1 : 0
   const sunY = 196 + progress * 52
+  // Ids are per instance, so the scene can appear more than once on a page.
+  const u = useId().replace(/:/g, '')
+  const id = (n: string) => `${u}-${n}`
   return (
-    <svg className={`scene ${className ?? ''}`} viewBox={compact ? '100 138 540 196' : '0 0 640 400'} preserveAspectRatio={compact ? 'xMidYMid slice' : 'xMidYMax meet'} aria-hidden focusable="false">
+    <svg className={`scene ${className ?? ''}`} viewBox={frame ?? (compact ? '100 138 540 196' : '0 0 640 400')} preserveAspectRatio={frame || compact ? 'xMidYMid slice' : 'xMidYMax meet'} aria-hidden focusable="false">
       <defs>
-        <linearGradient id="scene-glow" x1="0" y1="0" x2="0" y2="1">
+        <linearGradient id={id("glow")} x1="0" y1="0" x2="0" y2="1">
           <stop offset="0" style={{ stopColor: 'var(--sky-top)', stopOpacity: 0 }} />
           <stop offset="1" style={{ stopColor: 'var(--sky-glow)' }} />
         </linearGradient>
-        <linearGradient id="scene-sea" x1="0" y1="0" x2="0" y2="1">
+        <linearGradient id={id("sea")} x1="0" y1="0" x2="0" y2="1">
           <stop offset="0" style={{ stopColor: 'var(--sea-a)' }} />
           <stop offset="1" style={{ stopColor: 'var(--sea-b)' }} />
         </linearGradient>
-        <radialGradient id="scene-sun" cx="0.5" cy="0.42" r="0.6">
+        <radialGradient id={id("sun")} cx="0.5" cy="0.42" r="0.6">
           <stop offset="0" style={{ stopColor: 'var(--sun-a)' }} />
           <stop offset="1" style={{ stopColor: 'var(--sun-b)' }} />
         </radialGradient>
-        <radialGradient id="scene-halo">
+        <radialGradient id={id("halo")}>
           <stop offset="0" style={{ stopColor: 'var(--halo)', stopOpacity: 0.55 }} />
           <stop offset="1" style={{ stopColor: 'var(--halo)', stopOpacity: 0 }} />
         </radialGradient>
-        <radialGradient id="scene-light">
+        <radialGradient id={id("light")}>
           <stop offset="0" style={{ stopColor: 'var(--light)' }} />
           <stop offset="0.35" style={{ stopColor: 'var(--light)', stopOpacity: 0.6 }} />
           <stop offset="1" style={{ stopColor: 'var(--light)', stopOpacity: 0 }} />
         </radialGradient>
-        <clipPath id="scene-sky">
+        <clipPath id={id("sky")}>
           <rect x="-960" y="-400" width="2560" height={HORIZON + 400} />
         </clipPath>
-        <clipPath id="scene-water">
+        <clipPath id={id("water")}>
           <rect x="-960" y={HORIZON} width="2560" height={400 - HORIZON + 200} />
         </clipPath>
-        <filter id="scene-ripple" x="-5%" y="-5%" width="110%" height="110%">
+        <filter id={id("ripple")} x="-5%" y="-5%" width="110%" height="110%">
           <feTurbulence type="fractalNoise" baseFrequency="0.01 0.16" numOctaves="2" seed="7" result="n" />
           <feDisplacementMap in="SourceGraphic" in2="n" scale="9" xChannelSelector="R" yChannelSelector="G" />
         </filter>
         {/* The shore, drawn at 1:1 and shown 1.3× larger, anchored on the waterline. */}
-        <g id="scene-shore" transform={`translate(0 ${-HORIZON * (SHORE - 1)}) scale(${SHORE})`}>
+        <g id={id("shore")} transform={`translate(0 ${-HORIZON * (SHORE - 1)}) scale(${SHORE})`}>
           <Land />
         </g>
       </defs>
 
       {/* Sky: the glow gathers at the horizon; stars at night, birds by day. */}
-      <rect x="-960" y="-400" width="2560" height={HORIZON + 400} fill="url(#scene-glow)" />
+      <rect x="-960" y="-400" width="2560" height={HORIZON + 400} fill={`url(#${id("glow")})`} />
       <g className="scene-stars">
         {STARS.map(([x, y, r], i) => (
           <circle key={i} cx={x} cy={y} r={r} style={{ animationDelay: `${(i * 0.73) % 5}s` } as CSSProperties} />
@@ -176,13 +180,13 @@ export function DuyanScene({ progress, className }: { progress: number; classNam
       </g>
 
       {/* The sun (moon at night), settling as steps are done, and its path of light on the water. */}
-      <g clipPath="url(#scene-sky)">
+      <g clipPath={`url(#${id("sky")})`}>
         <g className="scene-sun" style={{ transform: `translateY(${sunY - 196}px)` }}>
-          <circle cx="470" cy="196" r="80" fill="url(#scene-halo)" />
-          <circle cx="470" cy="196" r="34" fill="url(#scene-sun)" />
+          <circle cx="470" cy="196" r="80" fill={`url(#${id("halo")})`} />
+          <circle cx="470" cy="196" r="34" fill={`url(#${id("sun")})`} />
         </g>
       </g>
-      <rect x="-960" y={HORIZON} width="2560" height={400 - HORIZON + 200} fill="url(#scene-sea)" />
+      <rect x="-960" y={HORIZON} width="2560" height={400 - HORIZON + 200} fill={`url(#${id("sea")})`} />
       <g className="scene-glints" transform={`translate(170 ${HORIZON})`}>
         {GLINTS.map(([x, w], i) => (
           <rect key={i} x={x - w / 2} y={6 + i * 11} width={w * (1 + i * 0.12)} height="1.6" rx="0.8" style={{ animationDelay: `${i * 0.37}s` } as CSSProperties} />
@@ -190,10 +194,10 @@ export function DuyanScene({ progress, className }: { progress: number; classNam
       </g>
 
       {/* The shore and its reflection. */}
-      <use href="#scene-shore" className="scene-shore" />
-      <g clipPath="url(#scene-water)">
-        <g transform={`translate(0 ${HORIZON * 2}) scale(1 -1)`} className="scene-mirror" filter="url(#scene-ripple)">
-          <use href="#scene-shore" />
+      <use href={`#${id("shore")}`} className="scene-shore" />
+      <g clipPath={`url(#${id("water")})`}>
+        <g transform={`translate(0 ${HORIZON * 2}) scale(1 -1)`} className="scene-mirror" filter={`url(#${id("ripple")})`}>
+          <use href={`#${id("shore")}`} />
         </g>
       </g>
       <line x1="-960" x2="1600" y1={HORIZON} y2={HORIZON} className="scene-horizon" />
@@ -221,7 +225,7 @@ export function DuyanScene({ progress, className }: { progress: number; classNam
       <g className="scene-kept">
         {KEPT.slice(0, kept).map(([x, y], i) => (
           <g key={i} className="scene-keep" style={{ '--from-x': `${BUBBLE.x - x}px`, '--from-y': `${BUBBLE.y - y}px` } as CSSProperties}>
-            <circle cx={x} cy={y} r="11" fill="url(#scene-light)" />
+            <circle cx={x} cy={y} r="11" fill={`url(#${id("light")})`} />
             <circle cx={x} cy={y} r="2.2" className="scene-keep-core" />
           </g>
         ))}

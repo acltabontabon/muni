@@ -94,7 +94,7 @@ export function Prepare() {
     <AppShell wide>
       <PageTitle
         eyebrow={<Link to={`/sprints/${sprintId}`} className="hover:underline">{s.name}</Link>}
-        title="Prepare the conversation"
+        title={<>Prepare the <em>conversation</em></>}
         actions={
           <>
             {s.status === 'preparing' ? (
@@ -111,7 +111,7 @@ export function Prepare() {
           </>
         }
       >
-        {g.total_entries} entries, {themes.length} themes, {g.ungrouped.length} ungrouped. Entries are anonymous and in random order. Group by meaning; a lone entry can still be a theme.
+        {g.total_entries} {g.total_entries === 1 ? 'thought' : 'thoughts'}, {themes.length} {themes.length === 1 ? 'theme' : 'themes'}, {g.ungrouped.length} not grouped yet. Thoughts are anonymous, in random order, and stay exactly as written — themes only gather them. {s.status === 'preparing' ? 'Mark ready when the discussion has a shape.' : ''}
         {g.voting_open ? <span className="ml-2 text-warn">A voting round is open — changing the theme set will ask you to reset it.</span> : null}
       </PageTitle>
 

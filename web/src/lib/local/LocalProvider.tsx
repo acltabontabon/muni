@@ -51,6 +51,10 @@ export const useLocal = () => {
 const memory = memoryStore()
 let device: LocalStore | null = null
 const channel = typeof BroadcastChannel !== 'undefined' ? new BroadcastChannel('muni-local') : null
+// Bumped (synchronously) whenever local data is cleared, before anything is removed. A composer
+// that outlives the clear — it's being torn down — compares against it and writes nothing back.
+let generation = 0
+export const localGeneration = () => generation
 
 export function hasDeviceStorage() {
   return typeof indexedDB !== 'undefined'
@@ -245,6 +249,7 @@ export function LocalProvider({ accountId, children }: { accountId: string | nul
       },
       async clearLocal() {
         if (!accountId) return
+        generation++
         await memory.clearAccount(accountId)
         if (device) await device.clearAccount(accountId).catch(() => {})
         setCleared((n) => n + 1)

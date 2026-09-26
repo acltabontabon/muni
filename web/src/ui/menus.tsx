@@ -6,7 +6,7 @@ import { useEffect, useState, type FormEvent, type ReactNode } from 'react'
 import { Link, useNavigate } from 'react-router'
 import * as Popover from '@radix-ui/react-popover'
 import { clsx } from 'clsx'
-import { Check, ChevronDown, Download, LogOut, Monitor, Moon, Plus, Settings2, Shield, Sun, Trash2 } from 'lucide-react'
+import { Check, ChevronDown, Download, LayoutList, LogOut, Monitor, Moon, Plus, Settings2, Shield, Sun, Trash2, UserRound, Users } from 'lucide-react'
 import { ApiError, post } from '@/api/client'
 import type { Me, Workspace } from '@/api/types'
 import { useAuth } from '@/lib/auth'
@@ -64,12 +64,21 @@ export function WorkspaceSwitcher({ current }: { current: Me['workspaces'][numbe
             {current ? (
               <>
                 <Link to={`/workspaces/${current.id}`} className={item} onClick={() => setOpen(false)}>
-                  <Settings2 className="size-4 text-ink-soft" /> Workspace overview
+                  <LayoutList className="size-4 text-ink-soft" /> Sprints &amp; outcomes
                 </Link>
+                <Link to={`/workspaces/${current.id}/people`} className={item} onClick={() => setOpen(false)}>
+                  <Users className="size-4 text-ink-soft" /> People
+                </Link>
+                {current.role === 'owner' ? (
+                  <Link to={`/workspaces/${current.id}/settings`} className={item} onClick={() => setOpen(false)}>
+                    <Settings2 className="size-4 text-ink-soft" /> Workspace settings
+                  </Link>
+                ) : null}
+                <div className="my-1 h-px bg-line" />
                 {/* Any member may set up a sprint in their workspace (the server checks membership). */}
                 {!offline ? (
                   <Link to={`/workspaces/${current.id}/sprints/new`} className={item} onClick={() => setOpen(false)}>
-                    <Plus className="size-4 text-ink-soft" /> New sprint in {current.name}
+                    <Plus className="size-4 text-ink-soft" /> New sprint
                   </Link>
                 ) : null}
               </>
@@ -161,7 +170,7 @@ export function AccountMenu() {
             </div>
             <div className="my-1 h-px bg-line" />
             <Link to="/account" className={item} onClick={() => setOpen(false)}>
-              <Settings2 className="size-4 text-ink-soft" /> Name, devices &amp; preferences
+              <UserRound className="size-4 text-ink-soft" /> Account, devices &amp; notifications
             </Link>
             <div className="flex items-center gap-2 px-3 py-2" role="group" aria-label="Theme">
               {([['system', Monitor], ['light', Sun], ['dark', Moon]] as const).map(([t, Icon]) => (
@@ -178,19 +187,6 @@ export function AccountMenu() {
                   <Icon className="size-3.5" /> {t}
                 </button>
               ))}
-            </div>
-            <div className="px-3">
-              <Switch
-                id="keep-local"
-                checked={local.keepLocal}
-                disabled={typeof indexedDB === 'undefined'}
-                onCheckedChange={async (on) => {
-                  if (on) await local.setKeepLocal(true).catch(() => {})
-                  else close('keep-off')
-                }}
-                label="Keep drafts on this device"
-                description="Recover drafts after closing Muni and write without a connection. For a personal device: anyone who uses it could read them."
-              />
             </div>
             {local.storageError ? <p className="px-3 pb-1 text-xs text-danger">{local.storageError}</p> : null}
             <div className="my-1 h-px bg-line" />

@@ -3,7 +3,7 @@ import { useAuth } from './lib/auth'
 import { SignIn } from './routes/SignIn'
 import { Invite } from './routes/Invite'
 import { Home } from './routes/Home'
-import { WorkspacePage } from './routes/Workspace'
+import { WorkspacePage, WorkspacePeople, WorkspaceSettings } from './routes/Workspace'
 import { SprintSetup } from './routes/SprintSetup'
 import { SprintHome } from './routes/SprintHome'
 import { Prepare } from './routes/Prepare'
@@ -82,6 +82,8 @@ export function App() {
       <Route path="/capture" element={<Protected><Home /></Protected>} />
       <Route path="/account" element={<Protected><Account /></Protected>} />
       <Route path="/workspaces/:workspaceId" element={<Protected><WorkspacePage /></Protected>} />
+      <Route path="/workspaces/:workspaceId/people" element={<Protected><WorkspacePeople /></Protected>} />
+      <Route path="/workspaces/:workspaceId/settings" element={<Protected><WorkspaceSettings /></Protected>} />
       <Route path="/workspaces/:workspaceId/sprints/new" element={<Protected><SprintSetup /></Protected>} />
       <Route path="/sprints/:sprintId" element={<Protected><SprintHome /></Protected>} />
       <Route path="/sprints/:sprintId/setup" element={<Protected><SprintSetup /></Protected>} />

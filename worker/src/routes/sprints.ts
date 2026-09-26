@@ -64,7 +64,7 @@ const iso = (n: number | null | undefined) => (n === null || n === undefined ? n
 async function summary(db: D1Database, r: FullRow, me: string) {
   const participant_count = await count(db, 'SELECT count(*) AS n FROM sprint_participants WHERE sprint_id = ?', r.id)
   const fac = await one<{ display_name: string }>(db, 'SELECT a.display_name FROM sprint_participants sp JOIN accounts a ON a.id = sp.account_id WHERE sp.sprint_id = ? AND sp.is_facilitator = 1 LIMIT 1', r.id)
-  const mine = await one<{ is_facilitator: number }>(db, 'SELECT is_facilitator FROM sprint_participants WHERE sprint_id = ? AND account_id = ?', r.id, me)
+  const mine = await one<{ is_facilitator: number; reminders_opt_out: number }>(db, 'SELECT is_facilitator, reminders_opt_out FROM sprint_participants WHERE sprint_id = ? AND account_id = ?', r.id, me)
   return {
     id: r.id,
     workspace_id: r.workspace_id,
@@ -84,6 +84,8 @@ async function summary(db: D1Database, r: FullRow, me: string) {
     facilitator_name: fac?.display_name ?? null,
     is_facilitator: !!mine && bool(mine.is_facilitator),
     is_participant: !!mine,
+    reminders_enabled: bool(r.reminders_enabled),
+    my_reminders_opt_out: !!mine && bool(mine.reminders_opt_out),
   }
 }
 
@@ -95,7 +97,6 @@ export async function detail(env: HonoEnv['Bindings'], ctx: SprintCtx) {
   const sealed = r.status === 'draft' || r.status === 'collecting'
   const entry_count = sealed ? null : await count(db, 'SELECT count(*) AS n FROM entries WHERE sprint_id = ?', r.id)
   const theme_count = await count(db, 'SELECT count(*) AS n FROM themes WHERE sprint_id = ?', r.id)
-  const opt = await one<{ reminders_opt_out: number }>(db, 'SELECT reminders_opt_out FROM sprint_participants WHERE sprint_id = ? AND account_id = ?', r.id, ctx.auth.account.id)
   const ws = await one<{ name: string }>(db, 'SELECT name FROM workspaces WHERE id = ?', r.workspace_id)
   const prev = await one<{ id: string }>(db, `SELECT id FROM sprints WHERE workspace_id = ? AND id <> ? AND status IN ('completed','archived') AND starts_on <= ? ORDER BY starts_on DESC, created_at DESC LIMIT 1`, r.workspace_id, r.id, r.starts_on)
   return {
@@ -104,8 +105,6 @@ export async function detail(env: HonoEnv['Bindings'], ctx: SprintCtx) {
     ai_processing: bool(r.ai_processing),
     ai_locked: bool(r.ai_locked),
     ai_provider: config(env).ai,
-    reminders_enabled: bool(r.reminders_enabled),
-    my_reminders_opt_out: !!opt && bool(opt.reminders_opt_out),
     vote_budget: r.vote_budget,
     include_facilitator_in_rotation: bool(r.include_facilitator_in_rotation),
     participants: prows.map((p) => ({ account_id: p.id, display_name: p.display_name, is_facilitator: bool(p.is_facilitator), is_you: p.id === ctx.auth.account.id })),

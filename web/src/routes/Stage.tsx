@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router'
 import { clsx } from 'clsx'
 import * as Popover from '@radix-ui/react-popover'
-import { ChevronLeft, ChevronRight, Menu, MonitorPlay, Pause, Play, Users, X } from 'lucide-react'
+import { ChevronLeft, ChevronRight, Menu, MonitorPlay, Pause, Play, Users } from 'lucide-react'
 import { ApiError, patch, post, put } from '@/api/client'
 import type { Experiment, SharedEntry, StageSnapshot, ThemeView } from '@/api/types'
 import { OUTCOME_LABEL, PHASE_LABEL, categoryMeta } from '@/lib/categories'
@@ -13,6 +13,7 @@ import { ReconnectingBar } from '@/ui/status'
 import { CategoryMarks, Observation, ObservationList } from '@/ui/observations'
 import { ExperimentEditor } from '@/ui/experiments'
 import { Mark } from '@/brand/Mark'
+import { Postcard } from '@/ui/art'
 
 /**
  * The shared stage. One idea per screen; the conversation, not the chrome, gets
@@ -361,16 +362,9 @@ function Discover({ themes, ungrouped, total, revealed, onReveal, controls, pres
   const round = votes?.current ?? null
   const closed = votes?.previous.find((r) => r.status === 'closed') ?? null
   const show = revealed || total <= 1 || themes.length === 0
-  const notes = useMemo(() => {
-    // One sealed note per thought (up to 48), placed by a hash of its id: stable, and unrelated to author or order.
-    const all = themes.flatMap((t) => t.entries).concat(ungrouped)
-    const sample = all.slice(0, 48)
-    return sample.map((e) => {
-      let h = 7
-      for (const ch of e.id) h = (h * 33 + ch.charCodeAt(0)) >>> 0
-      return { id: e.id, x: (h % 1000) / 10, rot: ((h >> 10) % 21) - 10, delay: (h >> 16) % 300 }
-    })
-  }, [themes, ungrouped])
+  // One folded bubble per thought (up to 36), in a fixed row on the waterline: nothing is readable,
+  // nothing is placed by author or order.
+  const folded = Math.min(themes.reduce((n, t) => n + t.entries.length, 0) + ungrouped.length, 36)
   const counts = `${total} ${total === 1 ? 'thought' : 'thoughts'} · ${themes.length} ${themes.length === 1 ? 'theme' : 'themes'}`
   return (
     <div>
@@ -406,13 +400,17 @@ function Discover({ themes, ungrouped, total, revealed, onReveal, controls, pres
 
       {!show ? (
         <div className="relative">
-          <div className="relative h-40 overflow-hidden rounded-xl border border-line bg-card-2/60" aria-hidden>
-            {notes.map((n, i) => (
-              <span key={n.id} className="absolute h-10 w-14 rounded-md border border-line bg-card shadow-[var(--shadow-card)] anim-pulse" style={{ left: `calc(${n.x}% - 28px)`, top: `${16 + ((i * 37) % 88)}px`, transform: `rotate(${n.rot}deg)`, animationDelay: `${n.delay}ms` }} />
-            ))}
+          <div className="sealed" aria-hidden>
+            <div className="sealed-row">
+              {Array.from({ length: folded }, (_, i) => <span key={i} className="sealed-bubble" style={{ animationDelay: `${(i % 12) * 140}ms` }} />)}
+            </div>
+            <div className="sealed-line" />
+            <div className="sealed-row sealed-row--mirror">
+              {Array.from({ length: folded }, (_, i) => <span key={i} className="sealed-bubble" />)}
+            </div>
           </div>
           <div className="mt-4 flex flex-wrap items-center gap-3">
-            <p className="text-sm text-ink-soft">{total > 48 ? `A sample of the ${total} sealed thoughts.` : `${total} sealed thoughts, still folded.`}</p>
+            <p className="text-sm text-ink-soft">{total > 36 ? `${total} thoughts, still folded (36 shown).` : `${total} ${total === 1 ? 'thought' : 'thoughts'}, still folded.`}</p>
             {controls ? <Button variant="primary" onClick={onReveal}>Open the sprint <span className="ml-1 text-xs opacity-70">R</span></Button> : <span className="text-sm text-ink-faint">The facilitator opens them.</span>}
           </div>
         </div>
@@ -657,7 +655,10 @@ function Leave({ stage, experiments, themes, controls, onComplete }: { stage: St
   const parked = themes.filter((t) => t.parked || (!stage.discussed_theme_ids.includes(t.id) && stage.agenda.some((a) => a.theme_id === t.id)))
   return (
     <div>
-      <Heading kicker="Leave" title="Here’s what we’re taking with us." />
+      <div className="mb-8 grid items-end gap-6 md:grid-cols-[minmax(0,1fr)_18rem]">
+        <Heading kicker="Leave" title={<>Here’s what we’re <em>taking with us</em>.</>} />
+        <Postcard framing="wide" lights={4} className="hidden aspect-[2.1/1] w-full md:block" />
+      </div>
       <div className="grid gap-8 lg:grid-cols-2">
         <section>
           <h2 className="mb-3 text-xs uppercase tracking-wider text-ink-faint">Commitments</h2>
@@ -691,7 +692,6 @@ function Leave({ stage, experiments, themes, controls, onComplete }: { stage: St
           <span className="text-sm text-ink-faint">Outcomes stay editable afterwards. The recap is never published without you.</span>
         </div>
       ) : <p className="mt-10 text-ink-soft">Thanks for being here.</p>}
-      <X className="hidden" />
     </div>
   )
 }
