@@ -168,6 +168,8 @@ try {
     await page.waitForSelector('text=You’re invited.')
     const hash = new URL(page.url()).hash
     check('Invitation page names the invited address (masked)', (await page.locator('text=This invitation is for').innerText()).includes('•••'))
+    // Joining asks first whether this person already uses Muni (so nobody starts a second account by accident).
+    await page.click('button:has-text("I’m new to Muni")')
     await signIn(page, email, 'Ivy Invitee')
     await page.waitForSelector('text=Join Synthetic team?')
     check('Invitation kept through email, code and name', new URL(page.url()).hash === hash && new URL(page.url()).pathname === '/invite')

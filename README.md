@@ -78,7 +78,7 @@ configured.
 
 - Early software with a single maintainer; expect changes to the data model and API.
 - Cloudflare only (Workers, D1, Durable Objects).
-- Email one-time codes are the only sign-in; no SSO or passkeys.
+- Sign-in is passkeys (WebAuthn) or email one-time codes; email codes always remain available. No SSO or social login.
 - English only.
 - Tested mostly in Chromium; Safari/iOS and Firefox less thoroughly.
 - Encryption covers new sprints' content only, trusts the delivered frontend, and hasn't been

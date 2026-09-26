@@ -29,6 +29,81 @@ export interface Me {
   session_expires_at: string
   email_transport: string
   ai_provider: string
+  /** How many passkeys the account has (0 until one is added; email codes always work). */
+  passkeys: number
+  /** How the current session signed in; null right after a sign-in response. */
+  auth_method: 'email' | 'passkey' | null
+  /** Until when security-sensitive changes are allowed without confirming again. */
+  recent_auth_until: string
+  pending_join_requests: { id: string; workspace_name: string; created_at: string }[]
+  /** Only on sign-in responses: whether that verification created a new account. */
+  created?: boolean
+}
+export interface PasskeyInfo {
+  id: string
+  name: string
+  created_at: string
+  last_used_at: string | null
+  /** A multi-device passkey that may sync through a password manager. */
+  synced: boolean
+}
+export interface SessionInfo {
+  id: string
+  current: boolean
+  created_at: string
+  last_seen_at: string
+  expires_at: string
+  method: 'email' | 'passkey'
+  label: string | null
+  passkey_name: string | null
+}
+export interface SecurityEventInfo {
+  id: number
+  kind: string
+  meta: Record<string, string | number | boolean | null>
+  created_at: string
+}
+export interface JoinPreview {
+  valid: boolean
+  signed_in: boolean
+  includes_sprint?: boolean
+  workspace_name?: string
+  state?: 'member' | 'pending' | 'none' | 'full'
+  request_id?: string
+  workspace_id?: string
+  sprint_id?: string | null
+}
+export interface JoinLinkInfo {
+  id: string
+  sprint_id: string | null
+  sprint_name: string | null
+  role: string
+  created_by_name: string
+  created_at: string
+  expires_at: string
+  max_requests: number
+  request_count: number
+}
+export interface JoinRequestInfo {
+  id: string
+  display_name: string
+  email: string
+  account_created_at: string
+  requested_at: string
+  sprint_id: string | null
+  sprint_name: string | null
+  previously_member: boolean
+  matches_email_invitation: boolean
+  link_turned_off: boolean
+}
+export interface MyJoinRequest {
+  id: string
+  status: 'pending' | 'approved' | 'declined' | 'withdrawn' | 'expired'
+  workspace_name: string
+  created_at: string
+  decided_at: string | null
+  workspace_id: string | null
+  sprint_id: string | null
 }
 export interface CodeSent {
   sent: boolean

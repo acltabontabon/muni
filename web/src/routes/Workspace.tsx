@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState, type FormEvent, type ReactNode } from 'react'
 import { Link, useNavigate, useParams } from 'react-router'
-import { ArrowRight, MoreHorizontal, Plus, UserPlus } from 'lucide-react'
+import { ArrowRight, Copy, MoreHorizontal, Plus, QrCode, UserPlus } from 'lucide-react'
 import * as Popover from '@radix-ui/react-popover'
 import { ApiError, del, get, patch, post } from '@/api/client'
 import type { AuditEvent, Experiment, SprintDetail, SprintSummary, WorkspaceDetail } from '@/api/types'
@@ -16,6 +16,7 @@ import { AppShell } from '@/ui/shell'
 import { HorizonBand, Postcard } from '@/ui/art'
 import { StepPips } from '@/ui/guide'
 import { RetroWhen } from '@/ui/when'
+import { ActiveCodes, InviteQrDialog, JoinRequests } from '@/ui/invite-qr'
 
 type Tab = 'overview' | 'people' | 'settings'
 
@@ -268,6 +269,8 @@ export function WorkspacePeople() {
   const { refresh } = useAuth()
   const toast = useToast()
   const [inviting, setInviting] = useState(false)
+  const [qr, setQr] = useState(false)
+  const [codesVersion, setCodesVersion] = useState(0)
   const [sprints, setSprints] = useState<SprintSummary[]>([])
   const [removing, setRemoving] = useState<WorkspaceDetail['members'][number] | null>(null)
   useDocumentTitle(ws ? `People · ${ws.workspace.name}` : 'People')
@@ -288,7 +291,18 @@ export function WorkspacePeople() {
   }
   const facilitating = sprints.filter((s) => s.is_facilitator && !['completed', 'archived'].includes(s.status))
   return (
-    <Frame ws={ws} tab="people" aside={ws.can_invite ? <Button size="sm" variant="primary" onClick={() => setInviting(true)}><UserPlus className="size-4" /> Invite</Button> : null}>
+    <Frame
+      ws={ws}
+      tab="people"
+      aside={
+        ws.can_invite ? (
+          <span className="flex gap-2">
+            <Button size="sm" onClick={() => setQr(true)}><QrCode className="size-4" /> Show invite QR</Button>
+            <Button size="sm" variant="primary" onClick={() => setInviting(true)}><UserPlus className="size-4" /> Invite by email</Button>
+          </span>
+        ) : null
+      }
+    >
       <div className="max-w-3xl">
         <p className="mb-5 text-ink-soft">
           {ws.members.length} {ws.members.length === 1 ? 'person' : 'people'} in this workspace.{' '}
@@ -324,6 +338,12 @@ export function WorkspacePeople() {
             </li>
           ))}
         </ul>
+        {ws.can_invite ? (
+          <div className="mt-10">
+            <JoinRequests key={codesVersion} workspaceId={workspaceId} onDecided={() => { void reload(); setCodesVersion((v) => v + 1) }} />
+          </div>
+        ) : null}
+        {ws.can_invite ? <ActiveCodes workspaceId={workspaceId} version={codesVersion} onChanged={() => setCodesVersion((v) => v + 1)} /> : null}
         {ws.can_invite && ws.pending_invitations.length ? (
           <section className="mt-10" aria-labelledby="pending">
             <h2 id="pending" className="font-display text-lg">Invited</h2>
@@ -343,6 +363,7 @@ export function WorkspacePeople() {
         ) : null}
       </div>
       <InviteDialog open={inviting} onClose={() => setInviting(false)} workspaceId={workspaceId} sprints={facilitating} onInvited={reload} />
+      <InviteQrDialog open={qr} onClose={() => { setQr(false); setCodesVersion((v) => v + 1) }} workspaceId={workspaceId} workspaceName={ws.workspace.name} canWorkspace={ws.can_invite} sprints={facilitating} onChanged={() => { void reload(); setCodesVersion((v) => v + 1) }} />
       <Dialog open={!!removing} onOpenChange={(o) => !o && setRemoving(null)} title={`Remove ${removing?.display_name ?? ''}?`} description="They lose access to this workspace immediately, including any sprint in progress.">
         <p className="text-sm text-ink-soft">Thoughts they already submitted stay in their sprints, still without their name. They can be invited again later.</p>
         <div className="mt-6 flex justify-end gap-2">
@@ -359,7 +380,7 @@ export function InviteDialog({ open, onClose, workspaceId, sprints, onInvited, d
   const [sprint, setSprint] = useState(defaultSprint ?? '')
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
-  const [done, setDone] = useState<string[]>([])
+  const [done, setDone] = useState<{ text: string; link?: string }[]>([])
   useEffect(() => {
     if (open) {
       setSprint(defaultSprint ?? '')
@@ -376,8 +397,8 @@ export function InviteDialog({ open, onClose, workspaceId, sprints, onInvited, d
           setBusy(true)
           setError('')
           try {
-            const r = await post<{ already_member: boolean; email: string }>(`/api/workspaces/${workspaceId}/invitations`, { email, sprint_id: sprint || undefined })
-            setDone((d) => [...d, r.already_member ? `${r.email} is already a member${sprint ? ' and was added to the sprint' : ''}.` : `Invitation sent to ${r.email}.`])
+            const r = await post<{ already_member: boolean; email: string; link?: string }>(`/api/workspaces/${workspaceId}/invitations`, { email, sprint_id: sprint || undefined })
+            setDone((d) => [...d, r.already_member ? { text: `${r.email} is already a member${sprint ? ' and was added to the sprint' : ''}.` } : { text: `Invitation sent to ${r.email}.`, link: r.link }])
             setEmail('')
             onInvited()
           } catch (err) {
@@ -403,7 +424,21 @@ export function InviteDialog({ open, onClose, workspaceId, sprints, onInvited, d
           </div>
         ) : null}
         <ErrorText>{error}</ErrorText>
-        {done.length ? <ul className="space-y-1 text-sm text-ok" role="status">{done.map((d, i) => <li key={i}>{d}</li>)}</ul> : null}
+        {done.length ? (
+          <ul className="space-y-1 text-sm text-ok" role="status">
+            {done.map((d, i) => (
+              <li key={i} className="flex flex-wrap items-center gap-x-3">
+                {d.text}
+                {d.link ? (
+                  <button type="button" className="inline-flex items-center gap-1 text-ink-soft underline underline-offset-2" onClick={() => navigator.clipboard.writeText(d.link!).catch(() => window.prompt('Copy this invite link', d.link))}>
+                    <Copy className="size-3.5" aria-hidden /> Copy invite link
+                  </button>
+                ) : null}
+              </li>
+            ))}
+          </ul>
+        ) : null}
+        {done.some((d) => d.link) ? <p className="text-xs text-ink-soft">The link works only for that email address, whoever opens it.</p> : null}
         <div className="flex justify-end gap-2">
           <Button type="button" variant="ghost" onClick={onClose}>Done</Button>
           <Button type="submit" variant="primary" busy={busy}>{done.length ? 'Invite another' : 'Send invitation'}</Button>

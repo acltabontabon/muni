@@ -32,6 +32,9 @@
     "ALLOW_DEMO_SEED": "true",
     // Local development signs in many throwaway accounts from one address (and e2e runs do).
     "SIGNIN_CODES_PER_NETWORK_DAILY": "100000",
-    "SIGNIN_EMAILS_DAILY_LIMIT": "100000"
+    "SIGNIN_EMAILS_DAILY_LIMIT": "100000",
+    // Passkeys: the RP ID defaults to PUBLIC_ORIGIN's host (localhost). The Vite dev server is a
+    // second origin on the same RP ID; listed explicitly because origins never come from requests.
+    "WEBAUTHN_EXTRA_ORIGINS": "http://localhost:5173"
   }
 }

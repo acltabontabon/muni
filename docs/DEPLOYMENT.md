@@ -58,6 +58,12 @@ Pull, rebuild the web app, then `pnpm migrate:remote && pnpm run deploy`. Migrat
 `pnpm exec wrangler rollback --config wrangler.production.jsonc` restores the previous Worker
 version; migrations are not reversed.
 
+**Passkeys** (`0004_passkeys_and_join.sql`) need no new secret: the relying-party ID is rendered
+from `MUNI_DOMAIN` as `WEBAUTHN_RP_ID`, and the Worker refuses to start if it isn't exactly
+`PUBLIC_ORIGIN`'s host. Passkeys registered on one host can't be used on another, so moving the
+app to a new domain means people sign in with an email code there and add a passkey again.
+Rollout, rollback and the real-device test matrix: [PASSKEYS.md](PASSKEYS.md#8-rollout-and-rollback).
+
 ## Deploying from GitHub Actions (optional)
 
 `.github/workflows/deploy.yml` is manual-only and runs only in the repository it names. For your

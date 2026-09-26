@@ -17,8 +17,10 @@ of every bundled package to `third-party-licenses.txt` (see `web/scripts/third-p
 | lucide-react (icons) | ISC | Lucide Icons and Contributors |
 | clsx | MIT | Luke Edwards |
 | tslib | 0BSD | Microsoft Corporation |
+| @simplewebauthn/browser — passkey ceremonies in the browser | MIT | Matthew Miller |
+| qrcode-generator — draws the invite QR code in the page | MIT | Kazuhiko Arase |
 
-The exact list (59 packages at the time of writing) comes from the production dependency tree at
+The exact list (63 packages at the time of writing) comes from the production dependency tree at
 build time.
 
 ## Deployed with the Worker (runs on the server, not distributed)
@@ -26,6 +28,11 @@ build time.
 | component | license |
 | --- | --- |
 | Hono | MIT — Yusuke Wada and Hono contributors |
+| @simplewebauthn/server — WebAuthn (passkey) verification | MIT — Matthew Miller |
+| its dependencies: @peculiar/* ASN.1 and X.509 packages, @levischuck/tiny-cbor, @hexagon/base64, pvtsutils, pvutils, tsyringe | MIT |
+| asn1js | BSD-3-Clause — Peculiar Ventures, LLC |
+| reflect-metadata | Apache-2.0 — Microsoft Corporation |
+| tslib | 0BSD — Microsoft Corporation |
 
 ## Not redistributed
 

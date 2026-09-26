@@ -136,6 +136,7 @@ export function Home() {
   ) : null
   const extras = (
     <>
+      <div className="xl:pl-[7.5rem]"><PendingJoins /></div>
       {unsentElsewhere.length ? (
         <section className="mt-14 xl:pl-[7.5rem]" aria-labelledby="unsent">
           <h2 id="unsent" className="font-display text-lg">Not sent yet <span className="ml-1 font-normal text-ink-faint">{unsentElsewhere.length}</span></h2>
@@ -362,6 +363,25 @@ function Commitments({ items, me }: { items: Experiment[]; me: Me }) {
   )
 }
 
+/** Requests to join a team that someone on it hasn't decided yet (made from an invite QR or link). */
+function PendingJoins() {
+  const { me } = useAuth()
+  const list = me?.pending_join_requests ?? []
+  if (!list.length) return null
+  return (
+    <ul className="mt-6 grid gap-2">
+      {list.map((r) => (
+        <li key={r.id}>
+          <Link to={`/join/requests/${r.id}`} className="flex items-center gap-2 rounded-xl bg-accent-soft/60 px-3.5 py-2.5 text-sm text-ink hover:bg-accent-soft" role="status">
+            <span className="dot dot--queued" aria-hidden />
+            <span>Waiting for approval to join <strong className="font-medium">{r.workspace_name}</strong></span>
+          </Link>
+        </li>
+      ))}
+    </ul>
+  )
+}
+
 function Welcome() {
   const { refresh } = useAuth()
   const nav = useNavigate()
@@ -373,7 +393,8 @@ function Welcome() {
         <h1 className="journal-title mt-2">Welcome to <em>Muni</em></h1>
       </JournalScene>
       <div className="mt-4 max-w-2xl">
-        <p className="max-w-prose text-lg text-ink-soft">If you were invited to a team, open the link in your invitation email — it brings you straight to your sprint.</p>
+        <PendingJoins />
+        <p className="mt-6 max-w-prose text-lg text-ink-soft">If you were invited to a team, open the link in your invitation email or scan the team’s invite QR — it brings you straight to your sprint.</p>
         <p className="mt-6 text-sm text-ink-soft">
           Starting a team yourself? <button className="font-medium text-ink underline underline-offset-4 hover:decoration-accent" onClick={() => setCreating(true)}>Create a workspace</button>
         </p>

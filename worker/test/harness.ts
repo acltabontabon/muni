@@ -186,3 +186,54 @@ export async function openSocket(user: User, sprintId: string): Promise<{ socket
 }
 
 export const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms))
+
+// ------------------------------------------------------------------ passkeys
+
+/** A request with an arbitrary cookie header (the ceremony binding cookie, old sessions, …). */
+export async function rawReq<T = any>(method: string, path: string, opts: { cookie?: string; csrf?: string; json?: unknown; origin?: string } = {}): Promise<Res<T>> {
+  const headers: Record<string, string> = { origin: opts.origin ?? ORIGIN }
+  if (opts.json !== undefined) headers['content-type'] = 'application/json'
+  if (opts.cookie) headers.cookie = opts.cookie
+  if (opts.csrf) headers['x-csrf-token'] = opts.csrf
+  const r = await SELF.fetch(`https://muni.test${path}`, { method, headers, body: opts.json !== undefined ? JSON.stringify(opts.json) : undefined })
+  const text = await r.text()
+  let body: unknown = text
+  try {
+    body = text ? JSON.parse(text) : null
+  } catch {
+    /* text */
+  }
+  return { status: r.status, body: body as T, headers: r.headers }
+}
+export const setCookie = (r: Res, name: string) => (r.headers.getSetCookie?.() ?? []).find((c) => c.startsWith(`${name}=`))?.split(';')[0].split('=')[1] ?? null
+const userFrom = (r: Res<any>): User => ({ email: r.body.email, session: setCookie(r, 'muni_session')!, csrf: setCookie(r, 'muni_csrf')!, account_id: r.body.account_id })
+
+/** Sign-in options → the authenticator → verify, with the browser's binding cookie. */
+export async function passkeyLogin(
+  auth: { assert: (o: any, id?: string, over?: any) => Promise<any> },
+  opts: { credId?: string; over?: Record<string, unknown>; presented?: User; tamper?: (resp: any) => void } = {},
+): Promise<Res<any> & { user?: User; response?: any; binding?: string }> {
+  const o = await rawReq('POST', '/api/auth/passkey/login/options', { json: {} })
+  if (o.status !== 200) return o
+  const binding = setCookie(o, 'muni_wa')!
+  const response = await auth.assert(o.body, opts.credId, opts.over)
+  opts.tamper?.(response)
+  const cookie = [`muni_wa=${binding}`, opts.presented ? `muni_session=${opts.presented.session}` : ''].filter(Boolean).join('; ')
+  const r = await rawReq('POST', '/api/auth/passkey/login/verify', { cookie, json: { response } })
+  return { ...r, user: r.status === 200 ? userFrom(r) : undefined, response, binding }
+}
+/** Replays a verify with a given response and binding (for replay and concurrency tests). */
+export const passkeyVerify = (response: unknown, binding: string) => rawReq('POST', '/api/auth/passkey/login/verify', { cookie: `muni_wa=${binding}`, json: { response } })
+
+export async function addPasskeyTo(user: User, auth: { register: (o: any, over?: any) => Promise<any> }, opts: { over?: Record<string, unknown>; name?: string; as?: User } = {}): Promise<Res<any> & { response?: any }> {
+  const o = await post('/api/auth/passkey/register/options', user)
+  if (o.status !== 200) return o
+  const response = await auth.register(o.body, opts.over)
+  const r = await post('/api/auth/passkey/register/verify', opts.as ?? user, { response, name: opts.name ?? 'Test passkey' })
+  return { ...r, response }
+}
+/** Makes the session look like it signed in long ago (beyond the recent-authentication window). */
+export async function ageSession(user: User, minutes = 60) {
+  const { sha256Hex } = await import('../src/lib/crypto')
+  await env.DB.prepare('UPDATE sessions SET authenticated_at = authenticated_at - ? WHERE token_hash = ?').bind(minutes * 60_000, await sha256Hex(user.session)).run()
+}

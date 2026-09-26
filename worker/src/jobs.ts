@@ -182,6 +182,13 @@ export async function retention(env: AppEnv) {
     db.prepare("DELETE FROM jobs WHERE status IN ('succeeded','cancelled') AND finished_at < ?").bind(now - 30 * 86_400_000),
     db.prepare("DELETE FROM jobs WHERE status = 'failed' AND finished_at < ?").bind(now - 90 * 86_400_000),
     db.prepare('DELETE FROM rate_events WHERE at < ?').bind(now - 86_400_000),
+    // Passkey challenges are single-use and live five minutes; keep a day for diagnosis at most.
+    db.prepare('DELETE FROM webauthn_challenges WHERE expires_at < ?').bind(now - 86_400_000),
+    db.prepare('DELETE FROM security_events WHERE created_at < ?').bind(now - 365 * 86_400_000),
+    // Open requests nobody decided become expired; decided ones and dead invite codes go after 180 days.
+    db.prepare("UPDATE join_requests SET status = 'expired' WHERE status = 'pending' AND created_at < ?").bind(now - 14 * 86_400_000),
+    db.prepare("DELETE FROM join_requests WHERE status <> 'pending' AND COALESCE(decided_at, created_at) < ?").bind(now - 180 * 86_400_000),
+    db.prepare('DELETE FROM join_links WHERE COALESCE(revoked_at, expires_at) < ? AND NOT EXISTS (SELECT 1 FROM join_requests r WHERE r.link_id = join_links.id)').bind(now - 180 * 86_400_000),
     db.prepare('DELETE FROM ai_usage WHERE at < ?').bind(now - 2 * 86_400_000),
     db.prepare('DELETE FROM dev_mail WHERE created_at < ?').bind(now - 86_400_000),
   ])

@@ -12,6 +12,7 @@ import { keyring } from '@/lib/e2ee/keyring'
 import { useDeviceKeys } from '@/lib/e2ee/E2eeProvider'
 import { ApiError } from '@/api/client'
 import { Button, Dialog, ErrorText, useToast } from '@/ui'
+import { useReauth } from '@/ui/reauth'
 
 function RecoveryKeyView({ value }: { value: string }) {
   const toast = useToast()
@@ -45,6 +46,7 @@ function RecoveryKeyView({ value }: { value: string }) {
 
 /** First device: create the keys, show the recovery key once, and ask that it's saved. */
 export function SetupDialog({ open, onClose, replace }: { open: boolean; onClose: () => void; replace?: boolean }) {
+  const reauth = useReauth()
   const [recovery, setRecovery] = useState<string | null>(null)
   const [saved, setSaved] = useState(false)
   const [busy, setBusy] = useState(false)
@@ -95,7 +97,8 @@ export function SetupDialog({ open, onClose, replace }: { open: boolean; onClose
                 setBusy(true)
                 setError('')
                 try {
-                  setRecovery(await keyring.setup({ replace }))
+                  const r = await reauth.run(() => keyring.setup({ replace }))
+                  if (r) setRecovery(r)
                 } catch (e) {
                   setError(e instanceof ApiError && e.status === 409 ? 'This account already has a key. Unlock it with your recovery key instead.' : e instanceof Error ? e.message : 'Couldn’t set up encryption.')
                 } finally {
@@ -108,6 +111,7 @@ export function SetupDialog({ open, onClose, replace }: { open: boolean; onClose
           </div>
         </>
       )}
+      {reauth.dialog}
     </Dialog>
   )
 }
@@ -200,6 +204,7 @@ function Row({ children, action }: { children: ReactNode; action: ReactNode }) {
 }
 
 export function NewRecoveryDialog({ open, onClose }: { open: boolean; onClose: () => void }) {
+  const reauth = useReauth()
   const [value, setValue] = useState<string | null>(null)
   const [saved, setSaved] = useState(false)
   const [busy, setBusy] = useState(false)
@@ -226,10 +231,11 @@ export function NewRecoveryDialog({ open, onClose }: { open: boolean; onClose: (
           <ErrorText>{error}</ErrorText>
           <div className="mt-4 flex justify-end gap-2">
             <Button variant="ghost" onClick={close}>Cancel</Button>
-            <Button variant="primary" busy={busy} onClick={async () => { setBusy(true); try { setValue(await keyring.newRecovery()) } catch (e) { setError(e instanceof Error ? e.message : 'Couldn’t make a new key') } finally { setBusy(false) } }}>Make a new recovery key</Button>
+            <Button variant="primary" busy={busy} onClick={async () => { setBusy(true); try { const v = await reauth.run(() => keyring.newRecovery()); if (v) setValue(v) } catch (e) { setError(e instanceof Error ? e.message : 'Couldn’t make a new key') } finally { setBusy(false) } }}>Make a new recovery key</Button>
           </div>
         </>
       )}
+      {reauth.dialog}
     </Dialog>
   )
 }

@@ -6,7 +6,7 @@
   X-Frame-Options: DENY
   X-Content-Type-Options: nosniff
   Referrer-Policy: same-origin
-  Permissions-Policy: camera=(), microphone=(), geolocation=(), payment=(), usb=()
+  Permissions-Policy: camera=(), microphone=(), geolocation=(), payment=(), usb=(), publickey-credentials-create=(self), publickey-credentials-get=(self)
   Strict-Transport-Security: max-age=31536000; includeSubDomains
 
 # The service worker must always be re-checked, or updates would wait on the HTTP cache.

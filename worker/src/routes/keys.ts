@@ -7,7 +7,7 @@
 import { Hono } from 'hono'
 import type { HonoEnv } from '../env'
 import { config } from '../lib/config'
-import { requireAuth, requireMember, requireParticipant, requireSprint, type SprintCtx } from '../lib/auth'
+import { requireAuth, requireMember, requireParticipant, requireRecentAuth, requireSprint, securityEvent, type SprintCtx } from '../lib/auth'
 import { all, audit, count, one, run } from '../lib/db'
 import { bad, conflict, forbidden } from '../lib/errors'
 import { isEncrypted, publicKey, recoveryBlob, wrapped } from '../lib/sealed'
@@ -38,10 +38,13 @@ keys.put('/api/me/keys', async (c) => {
   const existing = await one<KeyRow>(c.env.DB, 'SELECT * FROM account_keys WHERE account_id = ?', a.account.id)
   if (existing && existing.public_key === pk) return c.json({ ok: true, key_version: existing.key_version })
   if (existing && body.replace !== true) throw conflict('this account already has a key — unlock it with your recovery key, or confirm replacing it')
+  // Replacing the account key is destructive for content access: it needs a recent sign-in.
+  if (existing) requireRecentAuth(a)
   if (existing) {
     await run(c.env.DB, 'UPDATE account_keys SET public_key = ?, recovery_blob = ?, recovery_confirmed_at = NULL, key_version = key_version + 1, updated_at = ? WHERE account_id = ?', pk, blob, now, a.account.id)
     const ws = await all<{ workspace_id: string }>(c.env.DB, 'SELECT workspace_id FROM memberships WHERE account_id = ? AND revoked_at IS NULL', a.account.id)
     for (const w of ws) await audit(c.env.DB, w.workspace_id, null, a.account.id, 'keys.replaced')
+    await securityEvent(c.env.DB, a.account.id, 'keys.replaced')
   } else {
     await run(c.env.DB, 'INSERT INTO account_keys (account_id, public_key, recovery_blob, key_version, created_at, updated_at) VALUES (?,?,?,1,?,?)', a.account.id, pk, blob, now, now)
   }
@@ -55,6 +58,9 @@ keys.post('/api/me/keys/recovery', async (c) => {
   const body = (await c.req.json().catch(() => ({}))) as { recovery_blob?: unknown; confirmed?: boolean }
   const k = await one<KeyRow>(c.env.DB, 'SELECT * FROM account_keys WHERE account_id = ?', a.account.id)
   if (!k) throw conflict('set up encryption on a device first')
+  // A new recovery key replaces the old one (a recovery setting): it needs a recent sign-in.
+  if (body.recovery_blob !== undefined) requireRecentAuth(a)
+  if (body.recovery_blob !== undefined) await securityEvent(c.env.DB, a.account.id, 'keys.recovery_replaced')
   if (body.recovery_blob !== undefined) await run(c.env.DB, 'UPDATE account_keys SET recovery_blob = ?, recovery_confirmed_at = NULL, updated_at = ? WHERE account_id = ?', recoveryBlob(body.recovery_blob), Date.now(), a.account.id)
   if (body.confirmed === true) await run(c.env.DB, 'UPDATE account_keys SET recovery_confirmed_at = ? WHERE account_id = ?', Date.now(), a.account.id)
   return c.json({ ok: true })

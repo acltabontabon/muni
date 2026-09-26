@@ -1,6 +1,6 @@
 import { useEffect, useState, type ReactNode } from 'react'
 import { Link } from 'react-router'
-import { ApiError, get, patch, post } from '@/api/client'
+import { ApiError, get, patch } from '@/api/client'
 import type { CaptureTarget, SprintSummary } from '@/api/types'
 import { useAuth } from '@/lib/auth'
 import { applyTheme, readPrefs, writePrefs } from '@/lib/prefs'
@@ -8,8 +8,8 @@ import { Button, ErrorText, Help, Input, Label, Switch, useDocumentTitle, useToa
 import { DeviceControls } from '@/ui/menus'
 import { AppShell, PageTitle } from '@/ui/shell'
 import { EncryptionSettings } from '@/ui/keys'
+import { SecurityActivity, Sessions, SignInMethods } from '@/ui/security'
 
-type SessionInfo = { id: string; current: boolean; created_at: string; last_seen_at: string }
 
 function Block({ id, title, lead, children }: { id: string; title: string; lead?: ReactNode; children: ReactNode }) {
   return (
@@ -23,18 +23,16 @@ function Block({ id, title, lead, children }: { id: string; title: string; lead?
   )
 }
 
-/** You: your name, the emails Muni sends you, how it looks, this device, and your other devices. */
+/** You: your name, how you sign in, encryption, the emails Muni sends you, how it looks, this device, and your sessions. */
 export function Account() {
   useDocumentTitle('Account')
   const { me, refresh } = useAuth()
   const toast = useToast()
   const [name, setName] = useState(me?.display_name ?? '')
   const [nameError, setNameError] = useState('')
-  const [sessions, setSessions] = useState<SessionInfo[]>([])
   const [sprints, setSprints] = useState<SprintSummary[] | null>(null)
   const [theme, setTheme] = useState(readPrefs().theme ?? 'system')
   useEffect(() => {
-    get<SessionInfo[]>('/api/auth/sessions').then(setSessions).catch(() => {})
     get<CaptureTarget>('/api/me/capture-target').then((c) => setSprints([...c.collecting, ...c.upcoming])).catch(() => setSprints([]))
   }, [])
   if (!me) return null
@@ -65,6 +63,10 @@ export function Account() {
             <Button type="submit" variant="primary">Save</Button>
           </form>
           <ErrorText>{nameError}</ErrorText>
+        </Block>
+
+        <Block id="sign-in" title="Signing in" lead="Passkeys for quick, phishing-resistant sign-in; email codes as the fallback that always works.">
+          <SignInMethods />
         </Block>
 
         <Block id="encryption" title="Encryption" lead="Encrypted sprints are sealed on your team’s devices. Your key lives on your devices and, locked with your recovery key, nowhere else.">
@@ -113,30 +115,13 @@ export function Account() {
           <DeviceControls />
         </Block>
 
-        <Block id="devices" title="Other devices" lead="Every device signed in with your email is the same account, with one set of votes.">
-          <ul className="divide-y divide-line rounded-2xl bg-card text-sm shadow-[0_0_0_1px_var(--line)]">
-            {sessions.map((s) => (
-              <li key={s.id} className="flex items-center justify-between gap-3 px-4 py-3">
-                <span>{s.current ? 'This device' : 'Another device'} <span className="text-ink-soft">· active {new Date(s.last_seen_at).toLocaleString(undefined, { weekday: 'short', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}</span></span>
-                {s.current ? <span className="text-xs text-ink-faint">current</span> : null}
-              </li>
-            ))}
-          </ul>
-          {sessions.length > 1 ? (
-            <Button
-              className="mt-4"
-              variant="danger"
-              size="sm"
-              onClick={async () => {
-                await post('/api/auth/logout-others')
-                setSessions((s) => s.filter((x) => x.current))
-                toast('Other devices signed out')
-              }}
-            >
-              Sign out everywhere else
-            </Button>
-          ) : null}
+        <Block id="sessions" title="Signed-in sessions" lead="Every browser or installed app signed in to your account. Same account, same votes.">
+          <Sessions />
           <Help>Who can see your thoughts and when, what the operator can access, and how long things are kept: <Link to="/privacy" className="underline underline-offset-2">Privacy &amp; data</Link>.</Help>
+        </Block>
+
+        <Block id="activity" title="Security activity" lead="Recent sign-ins and changes to how you sign in. Codes, keys and passkeys themselves are never recorded.">
+          <SecurityActivity />
         </Block>
       </div>
     </AppShell>

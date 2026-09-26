@@ -4,6 +4,7 @@
  * mutating request. Errors surface as ApiError with the server's message.
  */
 import { CLIENT_REVISION } from '@/lib/local/outbox'
+import { SIGN_IN_PATHS, clearPendingSignOut } from '@/lib/signout'
 
 export class ApiError extends Error {
   status: number
@@ -18,10 +19,29 @@ export class ApiError extends Error {
   }
 }
 
-export function csrfToken(): string {
-  // `__Host-muni_csrf` over HTTPS (production); `muni_csrf` on http://localhost.
-  const m = document.cookie.match(/(?:^|;\s*)(?:__Host-)?muni_csrf=([^;]*)/)
-  return m ? decodeURIComponent(m[1]) : ''
+/**
+ * `__Host-muni_csrf` over HTTPS (production); `muni_csrf` on http://localhost. Over HTTPS the plain
+ * name is never ours any more: browsers that signed in before the prefix was introduced still hold
+ * a readable `muni_csrf` from the old session, listed first (older cookies come first), and sending
+ * it made every change — signing out included — fail with a stale-token 403. Over plain HTTP
+ * (development) the plain cookie is the server's, and a prefixed one can only be a leftover.
+ */
+export function csrfToken(cookies: string = document.cookie, https: boolean = location.protocol === 'https:'): string {
+  const found: Record<string, string> = {}
+  for (const part of cookies.split(';')) {
+    const i = part.indexOf('=')
+    if (i < 0) continue
+    const name = part.slice(0, i).trim()
+    if ((name === '__Host-muni_csrf' || name === 'muni_csrf') && !(name in found)) found[name] = part.slice(i + 1).trim()
+  }
+  return safeDecode((https ? found['__Host-muni_csrf'] : (found.muni_csrf ?? found['__Host-muni_csrf'])) ?? '')
+}
+const safeDecode = (v: string) => {
+  try {
+    return decodeURIComponent(v)
+  } catch {
+    return v
+  }
 }
 
 type Listener = () => void
@@ -84,6 +104,8 @@ export async function api<T>(path: string, init: RequestInit & { json?: unknown;
     const { error, code, ...details } = body
     throw new ApiError(res.status, code ?? 'error', error ?? `Something went wrong (${res.status}).`, details)
   }
+  // A new sign-in on this device supersedes a sign-out that was still waiting to reach the server.
+  if (SIGN_IN_PATHS.has(path)) clearPendingSignOut()
   if (init.raw) return (await res.text()) as unknown as T
   if (res.status === 204) return undefined as T
   const data = await res.json()

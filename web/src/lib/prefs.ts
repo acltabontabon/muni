@@ -11,6 +11,10 @@ type Prefs = {
   keepLocal?: boolean
   /** The install hint was dismissed; never shown again unprompted. */
   installHintDismissed?: boolean
+  /** A passkey was used or added in this browser: the entrance offers it first. A hint, never proof. */
+  passkeyHint?: boolean
+  /** "Not now" to adding a passkey after an email sign-in, per account; not asked again here. */
+  passkeyOfferDismissedFor?: string[]
 }
 
 export function readPrefs(): Prefs {

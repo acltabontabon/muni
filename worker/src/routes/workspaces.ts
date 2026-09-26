@@ -19,7 +19,7 @@ export async function loadWorkspace(env: HonoEnv['Bindings'], id: string, role: 
   return { id: w.id, name: w.name, role, retention_days: w.retention_days, outcome_retention_days: w.outcome_retention_days, ai_enabled_default: bool(w.ai_enabled_default), ai_provider: config(env).ai, is_demo: bool(w.is_demo), created_at: new Date(w.created_at).toISOString() }
 }
 
-async function canInvite(db: D1Database, workspaceId: string, accountId: string, role: string) {
+export async function canInvite(db: D1Database, workspaceId: string, accountId: string, role: string) {
   if (role === 'owner') return true
   const n = await count(db, `SELECT count(*) AS n FROM sprint_participants sp JOIN sprints s ON s.id = sp.sprint_id WHERE s.workspace_id = ? AND sp.account_id = ? AND sp.is_facilitator = 1 AND s.status NOT IN ('completed','archived')`, workspaceId, accountId)
   return n > 0
@@ -103,13 +103,14 @@ workspaces.post('/api/workspaces/:workspaceId/invitations', async (c) => {
   }
   const token = randomToken(32)
   const id = uuid()
-  await run(c.env.DB, 'INSERT INTO invitations (id, workspace_id, email, token_hash, invited_by, sprint_id, expires_at, created_at) VALUES (?,?,?,?,?,?,?,?)', id, m.workspaceId, email, await sha256Hex(token), m.auth.account.id, body.sprint_id ?? null, Date.now() + 14 * 86_400_000, Date.now())
+  await run(c.env.DB, 'INSERT INTO invitations (id, workspace_id, email, token_hash, invited_by, sprint_id, expires_at, created_at, role) VALUES (?,?,?,?,?,?,?,?,\'member\')', id, m.workspaceId, email, await sha256Hex(token), m.auth.account.id, body.sprint_id ?? null, Date.now() + 14 * 86_400_000, Date.now())
   const ws = await one<{ name: string }>(c.env.DB, 'SELECT name FROM workspaces WHERE id = ?', m.workspaceId)
   const mail = templates.invitation(email, ws?.name ?? 'your team', m.auth.account.display_name, `${cfg.publicOrigin}/invite#${token}`)
   await enqueue(c.env.DB, 'email', { to: mail.to, subject: mail.subject, body: mail.body }, Date.now(), `invite:${id}`)
   runSoon(c, c.env)
   await audit(c.env.DB, m.workspaceId, body.sprint_id ?? null, m.auth.account.id, 'invitation.sent', { invitation_id: id })
-  return c.json({ invitation_id: id, email, already_member: false })
+  // The inviter may copy the link too; it still only works for this address.
+  return c.json({ invitation_id: id, email, already_member: false, link: `${cfg.publicOrigin}/invite#${token}` })
 })
 
 workspaces.delete('/api/workspaces/:workspaceId/invitations/:invitationId', async (c) => {

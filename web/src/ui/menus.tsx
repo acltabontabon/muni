@@ -15,6 +15,7 @@ import { applyTheme, forgetSignedInState, readPrefs, writePrefs } from '@/lib/pr
 import { installInstructions, promptInstall, usePwa } from '@/lib/pwa'
 import { chooseWorkspace } from '@/lib/workspace'
 import { keyring } from '@/lib/e2ee/keyring'
+import { announceSignOut, markSignedOutLocally } from '@/lib/signout'
 import { useDeviceKeys } from '@/lib/e2ee/E2eeProvider'
 import { Button, Dialog, ErrorText, Input, Label, Switch, useToast } from '@/ui'
 
@@ -144,7 +145,7 @@ export function NewWorkspaceDialog({ open, onClose, onCreated }: { open: boolean
 // ------------------------------------------------------------------ account
 
 export function AccountMenu() {
-  const { me, offline } = useAuth()
+  const { me } = useAuth()
   const local = useLocal()
   const pwa = usePwa()
   const [open, setOpen] = useState(false)
@@ -211,8 +212,8 @@ export function AccountMenu() {
             <button className={item} onClick={() => close('clear')}>
               <Trash2 className="size-4 text-ink-soft" /> Clear local data
             </button>
-            <button className={item} onClick={() => close('signout')} disabled={offline}>
-              <LogOut className="size-4 text-ink-soft" /> {offline ? 'Sign out (needs a connection)' : 'Sign out'}
+            <button className={item} onClick={() => close('signout')}>
+              <LogOut className="size-4 text-ink-soft" /> Sign out
             </button>
           </Popover.Content>
         </Popover.Portal>
@@ -231,7 +232,9 @@ export function AccountMenu() {
 
 /**
  * Signing out or clearing local data: unsent work and drafts are named, and discarding them is
- * explicit. Signing out ends the session on the server first; local data goes only once it has.
+ * explicit. Signing out ends the session on the server first. If that fails, nothing is removed
+ * and the reason is shown; the person may then sign out on this device only, which forgets the
+ * account here now and ends the server session the next time the device is online (lib/signout.ts).
  * `stay` keeps the current page (the invitation page signs in again in place).
  */
 export function LeaveDialog({ kind, onClose, stay }: { kind: 'signout' | 'clear' | null; onClose: () => void; stay?: boolean }) {
@@ -241,15 +244,27 @@ export function LeaveDialog({ kind, onClose, stay }: { kind: 'signout' | 'clear'
   const nav = useNavigate()
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
+  /** Set when the server couldn't end the session: offers signing out on this device only. */
+  const [serverFailed, setServerFailed] = useState<null | 'offline' | 'refused'>(null)
   const [drafts, setDrafts] = useState(0)
   useEffect(() => {
     if (kind) local.draftCount().then(setDrafts, () => setDrafts(0))
+    setError('')
+    setServerFailed(null)
   }, [kind, local])
   const queued = local.items.length
   const unsent = queued + drafts
   const { state: keys } = useDeviceKeys()
   // Signing out removes this device's key. If the recovery key was never saved, that may be the only copy.
   const onlyCopy = kind === 'signout' && keys.kind === 'ready' && !keys.recoverySaved
+  const forgetHere = async () => {
+    await local.clearLocal()
+    await keyring.forget()
+    forgetSignedInState()
+    announceSignOut()
+    signOutLocal()
+    if (!stay) nav('/signin')
+  }
   const act = async () => {
     setBusy(true)
     setError('')
@@ -258,21 +273,29 @@ export function LeaveDialog({ kind, onClose, stay }: { kind: 'signout' | 'clear'
         try {
           await post('/api/auth/logout')
         } catch (e) {
-          // 401: the session had already ended. Anything else: still signed in, so keep everything.
+          // 401: the session had already ended — carry on. Anything else: still signed in, keep everything.
           if (!(e instanceof ApiError && e.status === 401)) {
-            setError('Couldn’t reach Muni to sign out, so nothing was removed. Try again.')
+            const offline = e instanceof ApiError && e.status === 0
+            setServerFailed(offline ? 'offline' : 'refused')
+            setError(offline ? 'Muni can’t be reached, so your session couldn’t be ended on the server. Nothing was removed.' : `Muni couldn’t end your session: ${e instanceof ApiError ? sentence(e.message) : 'something went wrong.'} Nothing was removed.`)
             return
           }
         }
-        await local.clearLocal()
-        await keyring.forget()
-        forgetSignedInState()
-        signOutLocal()
-        if (!stay) nav('/signin')
+        await forgetHere()
       } else {
         await local.clearLocal()
         toast('Cleared from this device. Nothing was deleted from Muni.')
       }
+      onClose()
+    } finally {
+      setBusy(false)
+    }
+  }
+  const signOutHereOnly = async () => {
+    setBusy(true)
+    try {
+      markSignedOutLocally()
+      await forgetHere()
       onClose()
     } finally {
       setBusy(false)
@@ -300,12 +323,24 @@ export function LeaveDialog({ kind, onClose, stay }: { kind: 'signout' | 'clear'
         </p>
       ) : null}
       <ErrorText>{error}</ErrorText>
+      {serverFailed ? (
+        <p className="mt-3 text-sm text-ink-soft">
+          You can sign out on this device only: it forgets your account now{unsent > 0 ? ' (and discards what’s listed above)' : ''}, and Muni ends the session the next time this device is online. Until then the session stays valid on Muni’s servers — if this device may be in someone else’s hands, use “Sign out everywhere else” from another device.
+        </p>
+      ) : null}
       <div className="mt-6 flex flex-wrap justify-end gap-2">
         <Button variant="ghost" onClick={onClose}>Cancel</Button>
         {unsent > 0 ? <Button onClick={() => local.retry()}>Try sending now</Button> : null}
-        <Button variant={unsent > 0 ? 'danger' : 'primary'} busy={busy} onClick={act}>
-          {unsent > 0 ? (kind === 'signout' ? 'Discard and sign out' : 'Discard and clear') : kind === 'signout' ? 'Sign out' : 'Clear'}
-        </Button>
+        {serverFailed ? (
+          <>
+            <Button busy={busy} onClick={act}>Try again</Button>
+            <Button variant="danger" busy={busy} onClick={signOutHereOnly}>Sign out on this device</Button>
+          </>
+        ) : (
+          <Button variant={unsent > 0 ? 'danger' : 'primary'} busy={busy} onClick={act}>
+            {unsent > 0 ? (kind === 'signout' ? 'Discard and sign out' : 'Discard and clear') : kind === 'signout' ? 'Sign out' : 'Clear'}
+          </Button>
+        )}
       </div>
     </Dialog>
   )
@@ -367,4 +402,10 @@ function KeepOffDialog({ open, onClose }: { open: boolean; onClose: () => void }
       </div>
     </Dialog>
   )
+}
+
+/** Server messages are lower-case fragments; show them as sentences. */
+function sentence(m: string) {
+  const t = m.trim()
+  return t ? t[0].toUpperCase() + t.slice(1) + (/[.!?]$/.test(t) ? '' : '.') : t
 }

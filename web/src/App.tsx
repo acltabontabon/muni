@@ -2,6 +2,7 @@ import { Navigate, Route, Routes, useLocation } from 'react-router'
 import { useAuth } from './lib/auth'
 import { SignIn } from './routes/SignIn'
 import { Invite } from './routes/Invite'
+import { Join, JoinStatus } from './routes/Join'
 import { Home } from './routes/Home'
 import { WorkspacePage, WorkspacePeople, WorkspaceSettings } from './routes/Workspace'
 import { SprintSetup } from './routes/SprintSetup'
@@ -74,6 +75,9 @@ export function App() {
       {/* Invitation links carry the token in the fragment (/invite#token), which never reaches a server. */}
       <Route path="/invite" element={<Invite />} />
       <Route path="/invite/:token" element={<Invite />} />
+      {/* A shared team QR or link: /join#token. Asks to join; someone on the team approves. */}
+      <Route path="/join" element={<Join />} />
+      <Route path="/join/requests/:requestId" element={<Protected><JoinStatus /></Protected>} />
       <Route path="/privacy" element={<Privacy />} />
       {/* The privacy page's earlier address. */}
       <Route path="/about" element={<ToPrivacy />} />

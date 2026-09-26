@@ -6,6 +6,7 @@ import { Hono } from 'hono'
 import type { AppEnv, HonoEnv } from './env'
 import { config, ConfigError } from './lib/config'
 import { AppError } from './lib/errors'
+import { expireLegacyCookies } from './lib/auth'
 import { auth } from './routes/auth'
 import { workspaces } from './routes/workspaces'
 import { sprints } from './routes/sprints'
@@ -18,6 +19,8 @@ import { exportsRoutes } from './routes/exports'
 import { ai } from './routes/ai'
 import { demo } from './routes/demo'
 import { keys } from './routes/keys'
+import { passkeys } from './routes/passkeys'
+import { join } from './routes/join'
 import { scheduled } from './jobs'
 
 export { MeetingRoom } from './room'
@@ -48,6 +51,7 @@ app.use('*', async (c, next) => {
   const client = Number(c.req.header('x-muni-client'))
   if (client && client < MIN_CLIENT_REVISION) return c.json({ error: 'Muni has been updated. Reload to continue — anything you haven’t sent is kept on this device.', code: 'upgrade_required' }, 426)
   await next()
+  expireLegacyCookies(c, config(c.env))
   c.header('x-content-type-options', 'nosniff')
   c.header('referrer-policy', 'same-origin')
   c.header('cache-control', 'no-store')
@@ -75,6 +79,8 @@ app.route('/', exportsRoutes)
 app.route('/', ai)
 app.route('/', demo)
 app.route('/', keys)
+app.route('/', passkeys)
+app.route('/', join)
 
 app.notFound((c) => c.json({ error: 'not found', code: 'not_found' }, 404))
 app.onError((err, c) => {

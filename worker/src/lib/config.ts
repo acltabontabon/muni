@@ -24,6 +24,8 @@ export interface Config {
   aiGlobalDailyLimit: number
   signinEmailsDailyLimit: number
   signinCodesPerNetworkDaily: number
+  /** WebAuthn relying party: an explicit RP ID and the exact origins allowed to use it. */
+  webauthn: { rpId: string; rpName: string; origins: string[] }
 }
 
 export interface ConfigVars {
@@ -45,6 +47,9 @@ export interface ConfigVars {
   AI_GLOBAL_DAILY_LIMIT?: string
   SIGNIN_EMAILS_DAILY_LIMIT?: string
   SIGNIN_CODES_PER_NETWORK_DAILY?: string
+  WEBAUTHN_RP_ID?: string
+  /** Extra exact origins (comma-separated) allowed for passkeys; development only, e.g. the Vite server. */
+  WEBAUTHN_EXTRA_ORIGINS?: string
 }
 
 const truthy = (v: string | undefined, dflt: boolean) => (v === undefined || v === '' ? dflt : v === 'true' || v === '1')
@@ -73,6 +78,7 @@ export function config(vars: ConfigVars): Config {
   if (ai === 'anthropic' && !vars.ANTHROPIC_API_KEY) throw new ConfigError('ANTHROPIC_API_KEY is required when AI_PROVIDER=anthropic')
   const allowDemoSeed = truthy(vars.ALLOW_DEMO_SEED, !prod)
   if (prod && allowDemoSeed) throw new ConfigError('ALLOW_DEMO_SEED cannot be enabled in production')
+  const webauthn = webauthnConfig(vars, env, publicOrigin)
   const c: Config = {
     env,
     publicOrigin,
@@ -94,7 +100,39 @@ export function config(vars: ConfigVars): Config {
     // this keeps the rest for invitations and reminders when someone floods the sign-in form.
     signinEmailsDailyLimit: num(vars.SIGNIN_EMAILS_DAILY_LIMIT, 60),
     signinCodesPerNetworkDaily: num(vars.SIGNIN_CODES_PER_NETWORK_DAILY, 30),
+    webauthn,
   }
   cached = { key, config: c }
   return c
+}
+
+/**
+ * The passkey relying party. Nothing here comes from a request: the RP ID and origins are
+ * configuration. By default the RP ID is PUBLIC_ORIGIN's own host (act.munimuni.app in the
+ * hosted deployment), the narrowest scope: passkeys can't be exercised from munimuni.app, previews
+ * or any other subdomain. Production requires exactly that, and exactly one https origin.
+ */
+function webauthnConfig(vars: ConfigVars, env: Config['env'], publicOrigin: string): Config['webauthn'] {
+  const host = new URL(publicOrigin).hostname
+  const rpId = (vars.WEBAUTHN_RP_ID || host).trim().toLowerCase()
+  const extra = (vars.WEBAUTHN_EXTRA_ORIGINS ?? '').split(',').map((o) => o.trim().replace(/\/+$/, '')).filter(Boolean)
+  const origins = [publicOrigin, ...extra.filter((o) => o !== publicOrigin)]
+  if (env === 'production') {
+    // Broadening the RP ID to a parent domain would let passkeys work on every sibling host; the
+    // app has no need for that, so production refuses it rather than documenting an exception.
+    if (rpId !== host) throw new ConfigError(`WEBAUTHN_RP_ID must equal PUBLIC_ORIGIN's host (${host}) in production`)
+    if (extra.length) throw new ConfigError('WEBAUTHN_EXTRA_ORIGINS is for development only')
+  }
+  for (const o of origins) {
+    let u: URL
+    try {
+      u = new URL(o)
+    } catch {
+      throw new ConfigError(`passkey origin ${o} is not a URL`)
+    }
+    if (u.origin !== o) throw new ConfigError(`passkey origin ${o} must be a bare origin (scheme://host[:port])`)
+    if (u.protocol !== 'https:' && !(env !== 'production' && u.hostname === 'localhost')) throw new ConfigError(`passkey origin ${o} must be https`)
+    if (u.hostname !== rpId && !u.hostname.endsWith(`.${rpId}`)) throw new ConfigError(`passkey origin ${o} is not within WEBAUTHN_RP_ID ${rpId}`)
+  }
+  return { rpId, rpName: 'Muni', origins }
 }

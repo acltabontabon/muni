@@ -4,7 +4,7 @@ import { post, ApiError } from '@/api/client'
 import type { InvitationPreview } from '@/api/types'
 import { useAuth } from '@/lib/auth'
 import { Button, ErrorText, Spinner, useDocumentTitle } from '@/ui'
-import { AuthFlow, EntranceShell, NameStep, PROGRESS, Step } from '@/ui/entrance'
+import { AuthFlow, EntranceShell, JoinDoors, NameStep, PROGRESS, Step } from '@/ui/entrance'
 import { LeaveDialog } from '@/ui/menus'
 
 /**
@@ -23,6 +23,7 @@ export function Invite() {
   const [preview, setPreview] = useState<InvitationPreview | null>(null)
   const [loadError, setLoadError] = useState('')
   const [progress, setProgress] = useState<number>(PROGRESS.email)
+  const [intent, setIntent] = useState<'signin' | 'create' | null>(null)
   const load = useCallback(() => {
     setLoadError('')
     return post<InvitationPreview>('/api/invitations/preview', { token })
@@ -52,11 +53,20 @@ export function Invite() {
         <p className="quiet mt-6">{me ? <Link to="/" className="entrance-link">Go to Muni</Link> : <>Already a member? <Link to="/signin" className="entrance-link">Sign in</Link></>}</p>
       </Step>
     )
+  else if (!me && !intent)
+    body = (
+      <JoinDoors
+        title="You’re invited."
+        lead={<>This invitation is for <span className="email-line">{preview.email_hint}</span>. Already use Muni with that address? Sign in, so you join as you.</>}
+        onChoose={setIntent}
+      />
+    )
   else if (!me)
     body = (
       <AuthFlow
+        intent={intent ?? undefined}
         onProgress={setProgress}
-        intro={{ title: 'You’re invited.', lead: <>This invitation is for <span className="email-line">{preview.email_hint}</span>. Enter that address to continue.</> }}
+        intro={{ title: intent === 'create' ? 'Create your account.' : 'Welcome back.', lead: <>This invitation is for <span className="email-line">{preview.email_hint}</span>. {intent === 'create' ? 'Enter that address — we’ll send a code to confirm it’s yours.' : 'Continue with a passkey, or enter that address for a code.'}</> }}
         onDone={async () => {
           await refresh()
         }}

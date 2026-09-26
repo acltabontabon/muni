@@ -1,11 +1,12 @@
 /**
  * Sessions, cookies, CSRF and the authorization contexts every protected
- * handler uses. Identity = control of a mailbox, stated to users as such.
+ * handler uses. Identity = control of a mailbox (email codes) or of a passkey registered to the
+ * account while signed in. Signing in proves only that: membership and content keys are separate.
  */
 import type { Context } from 'hono'
 import { constantTimeEqual, randomToken, sha256Hex } from './crypto'
 import { bool, one, run } from './db'
-import { forbidden, notFound, unauthorized } from './errors'
+import { AppError, forbidden, notFound, unauthorized } from './errors'
 import type { Config } from './config'
 
 export const SESSION_COOKIE = 'muni_session'
@@ -19,6 +20,9 @@ export const sessionCookie = (cfg: Config) => (cfg.cookieSecure ? `__Host-${SESS
 export const csrfCookie = (cfg: Config) => (cfg.cookieSecure ? `__Host-${CSRF_COOKIE}` : CSRF_COOKIE)
 export const CSRF_HEADER = 'x-csrf-token'
 export const CODE_TTL_MS = 10 * 60_000
+/** Security-sensitive changes (adding or removing a passkey, recovery settings) need a sign-in this recent. */
+export const RECENT_AUTH_MS = 10 * 60_000
+export type AuthMethod = 'email' | 'passkey'
 
 export interface Account {
   id: string
@@ -28,6 +32,9 @@ export interface Account {
 export interface Auth {
   account: Account
   sessionId: string
+  authMethod: AuthMethod
+  /** When this session last proved control of the account (a code or a passkey). */
+  authenticatedAt: number
 }
 export type Role = 'owner' | 'member'
 export interface Member {
@@ -73,12 +80,41 @@ export function cookie(name: string, value: string, secure: boolean, maxAgeSecs:
   return c
 }
 
-export async function createSession(db: D1Database, accountId: string, ttlDays: number): Promise<{ token: string; csrf: string }> {
+export interface NewSession {
+  method: AuthMethod
+  credentialRef?: string | null
+  clientLabel?: string | null
+}
+
+/** Always a fresh token (never an adopted one), so a planted cookie can't become a session. */
+export async function createSession(db: D1Database, accountId: string, ttlDays: number, s: NewSession = { method: 'email' }): Promise<{ token: string; csrf: string; id: string }> {
   const token = randomToken(32)
   const csrf = randomToken(24)
   const now = Date.now()
-  await run(db, 'INSERT INTO sessions (id, account_id, token_hash, csrf_token, created_at, last_seen_at, expires_at) VALUES (?,?,?,?,?,?,?)', crypto.randomUUID(), accountId, await sha256Hex(token), csrf, now, now, now + ttlDays * 86_400_000)
-  return { token, csrf }
+  const id = crypto.randomUUID()
+  await run(
+    db,
+    'INSERT INTO sessions (id, account_id, token_hash, csrf_token, created_at, last_seen_at, expires_at, auth_method, authenticated_at, credential_ref, client_label) VALUES (?,?,?,?,?,?,?,?,?,?,?)',
+    id, accountId, await sha256Hex(token), csrf, now, now, now + ttlDays * 86_400_000, s.method, now, s.credentialRef ?? null, s.clientLabel ?? null,
+  )
+  return { token, csrf, id }
+}
+
+/**
+ * A coarse, human label for the account holder's own session list ("Safari on iOS"). Never used
+ * to decide anything, never shown to anyone else, and not a fingerprint: browser family and OS only.
+ */
+export function clientLabel(req: Request, installed = false): string {
+  const ua = req.headers.get('user-agent') ?? ''
+  const os = /iPhone|iPod/.test(ua) ? 'iPhone' : /iPad/.test(ua) ? 'iPad' : /Android/.test(ua) ? 'Android' : /CrOS/.test(ua) ? 'ChromeOS' : /Mac OS X|Macintosh/.test(ua) ? 'macOS' : /Windows/.test(ua) ? 'Windows' : /Linux/.test(ua) ? 'Linux' : ''
+  const browser = /Edg\//.test(ua) ? 'Edge' : /SamsungBrowser/.test(ua) ? 'Samsung Internet' : /Firefox\/|FxiOS/.test(ua) ? 'Firefox' : /Chrome\/|CriOS/.test(ua) ? 'Chrome' : /Safari\//.test(ua) ? 'Safari' : ''
+  const app = installed ? 'Muni app' : browser || 'A browser'
+  return os ? `${app} on ${os}` : app
+}
+
+/** The account holder's security history: ids and coarse labels only, never secrets or content. */
+export async function securityEvent(db: D1Database, accountId: string, kind: string, meta: Record<string, string | number | boolean | null> = {}) {
+  await run(db, 'INSERT INTO security_events (account_id, kind, meta, created_at) VALUES (?,?,?,?)', accountId, kind, JSON.stringify(meta), Date.now())
 }
 
 export function setSessionCookies(c: Context, cfg: Config, s: { token: string; csrf: string }) {
@@ -86,6 +122,18 @@ export function setSessionCookies(c: Context, cfg: Config, s: { token: string; c
   c.header('set-cookie', cookie(sessionCookie(cfg), s.token, cfg.cookieSecure, secs, true), { append: true })
   c.header('set-cookie', cookie(csrfCookie(cfg), s.csrf, cfg.cookieSecure, secs, false), { append: true })
 }
+/**
+ * Before the `__Host-` prefix (deployed 2026-09-27), production set plain `muni_session` and a
+ * readable `muni_csrf`. Browsers keep those for up to 30 days next to the new ones, and a client
+ * that read the old CSRF value had every change refused. Over HTTPS the plain names are never
+ * ours any more, so any that arrive are expired on the way out.
+ */
+export function expireLegacyCookies(c: Context, cfg: Config) {
+  if (!cfg.cookieSecure) return
+  for (const [name, httpOnly] of [[SESSION_COOKIE, true], [CSRF_COOKIE, false]] as const)
+    if (readCookie(c.req.raw, name) !== null) c.header('set-cookie', cookie(name, '', true, 0, httpOnly), { append: true })
+}
+
 export function clearSessionCookies(c: Context, cfg: Config) {
   c.header('set-cookie', cookie(sessionCookie(cfg), '', cfg.cookieSecure, 0, true), { append: true })
   c.header('set-cookie', cookie(csrfCookie(cfg), '', cfg.cookieSecure, 0, false), { append: true })
@@ -96,6 +144,9 @@ interface SessionRow {
   csrf_token: string
   expires_at: number
   last_seen_at: number
+  auth_method: AuthMethod
+  authenticated_at: number | null
+  created_at: number
   aid: string
   email: string
   display_name: string
@@ -105,13 +156,16 @@ export async function loadSession(db: D1Database, rawToken: string | null): Prom
   if (!rawToken || rawToken.length > 128) return null
   const row = await one<SessionRow>(
     db,
-    `SELECT s.id, s.csrf_token, s.expires_at, s.last_seen_at, a.id AS aid, a.email, a.display_name
+    `SELECT s.id, s.csrf_token, s.expires_at, s.last_seen_at, s.auth_method, s.authenticated_at, s.created_at, a.id AS aid, a.email, a.display_name
      FROM sessions s JOIN accounts a ON a.id = s.account_id WHERE s.token_hash = ? AND s.revoked_at IS NULL`,
     await sha256Hex(rawToken),
   )
   if (!row || row.expires_at < Date.now()) return null
   if (Date.now() - row.last_seen_at > 5 * 60_000) await run(db, 'UPDATE sessions SET last_seen_at = ? WHERE id = ?', Date.now(), row.id)
-  return { auth: { account: { id: row.aid, email: row.email, display_name: row.display_name }, sessionId: row.id }, csrf: row.csrf_token }
+  return {
+    auth: { account: { id: row.aid, email: row.email, display_name: row.display_name }, sessionId: row.id, authMethod: row.auth_method, authenticatedAt: row.authenticated_at ?? row.created_at },
+    csrf: row.csrf_token,
+  }
 }
 
 export async function revokeSession(db: D1Database, sessionId: string) {
@@ -151,6 +205,15 @@ export async function requireAuth(c: Context, cfg: Config, db: D1Database): Prom
     if (!constantTimeEqual(header, s.csrf)) throw forbidden('missing or stale CSRF token — reload and try again')
   }
   return s.auth
+}
+
+/**
+ * Adding or removing sign-in methods and changing recovery settings need a recent sign-in on this
+ * session, so a borrowed unlocked laptop or a stolen cookie can't quietly add an attacker's passkey.
+ */
+export function requireRecentAuth(a: Auth) {
+  if (Date.now() - a.authenticatedAt > RECENT_AUTH_MS)
+    throw new AppError(403, 'reauth_required', 'confirm it’s you first — sign in again with a passkey or an email code', { recent_auth_minutes: RECENT_AUTH_MS / 60_000 })
 }
 
 export async function membershipRole(db: D1Database, workspaceId: string, accountId: string): Promise<Role | null> {
