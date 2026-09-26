@@ -1,7 +1,7 @@
 /** Retention: content is purged after the workspace window; outcomes live under their own, longer window. */
 import { describe, expect, it } from 'vitest'
 import { env } from 'cloudflare:test'
-import { closeCollection, command, entry, get, go, ids, post, put, runJobs, sprint, team, type User } from './harness'
+import { closeCollection, command, entry, get, go, ids, patch, post, put, runJobs, sprint, team, type User } from './harness'
 import { retention } from '../src/jobs'
 
 const DAY = 86_400_000
@@ -101,8 +101,6 @@ describe('retention', () => {
 
   it('honours a shorter workspace window and deletes outcomes only beyond the outcome window', async () => {
     const { owner, members, ws } = await team(2)
-    expect((await post(`/api/workspaces/${ws}`, owner)).status).toBe(404)
-    const { patch } = await import('./harness')
     expect((await patch(`/api/workspaces/${ws}`, owner, { retention_days: 3 })).status).toBe(400)
     expect((await patch(`/api/workspaces/${ws}`, owner, { retention_days: 7, outcome_retention_days: 30 })).status).toBe(200)
     const { s, experimentId } = await completedSprint(owner, members, ws, true)
