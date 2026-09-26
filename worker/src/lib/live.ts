@@ -39,3 +39,22 @@ export async function revokeLive(env: { ROOMS: DurableObjectNamespace }, sprintI
 }
 
 export const roomCall = call
+
+/** The only client headers a room needs to accept a socket; nothing else (cookies, CSRF, auth) is passed on. */
+const SOCKET_HEADERS = ['upgrade', 'connection', 'sec-websocket-key', 'sec-websocket-version', 'sec-websocket-protocol', 'sec-websocket-extensions']
+
+/**
+ * Headers for the room's `/ws` request: the WebSocket handshake plus who is connecting, as
+ * established by the Worker. The session cookie stays behind, so it never appears in the room's
+ * request (or in a log of it).
+ */
+export function roomSocketHeaders(client: Headers, accountId: string, isFacilitator: boolean): Headers {
+  const out = new Headers()
+  for (const name of SOCKET_HEADERS) {
+    const v = client.get(name)
+    if (v !== null) out.set(name, v)
+  }
+  out.set('x-muni-account', accountId)
+  out.set('x-muni-fac', isFacilitator ? '1' : '0')
+  return out
+}

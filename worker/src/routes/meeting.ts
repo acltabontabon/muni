@@ -10,7 +10,7 @@ import { checkSocketOrigin, requireFacilitator, requireParticipant, requireSprin
 import { uuid } from '../lib/crypto'
 import { all, audit, bool, count, one, run } from '../lib/db'
 import { conflict, notFound } from '../lib/errors'
-import { hint, room, roomCall } from '../lib/live'
+import { hint, room, roomCall, roomSocketHeaders } from '../lib/live'
 import { nonempty, optional } from '../lib/util'
 import type { RoomState } from '../room'
 import { PHASES } from '../room'
@@ -99,10 +99,7 @@ meeting.get('/api/sprints/:sprintId/ws', async (c) => {
   requireParticipant(ctx)
   checkSocketOrigin(c.req.raw, config(c.env))
   if (c.req.header('upgrade')?.toLowerCase() !== 'websocket') return c.json({ error: 'expected a websocket', code: 'bad_request' }, 426)
-  const headers = new Headers(c.req.raw.headers)
-  headers.set('x-muni-account', ctx.auth.account.id)
-  headers.set('x-muni-fac', ctx.isFacilitator ? '1' : '0')
-  return room(c.env, ctx.sprint.id).fetch('https://room/ws', { headers })
+  return room(c.env, ctx.sprint.id).fetch('https://room/ws', { headers: roomSocketHeaders(c.req.raw.headers, ctx.auth.account.id, ctx.isFacilitator) })
 })
 
 /** Facilitator commands applied by the room only if `expected_version` matches. Content-side effects (context release, discussed flags) live here in D1. */
