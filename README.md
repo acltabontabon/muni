@@ -9,12 +9,16 @@ collection revealed as one anonymous batch, manual (optionally AI-drafted) theme
 private votes, a paced live retro with a gentle speaking invitation, and one to
 three experiments that come back first next time.
 
+Live at **https://act.munimuni.app** (installable as an app; capture keeps working offline) ·
+marketing site **https://munimuni.app** · how to use it: [`docs/USING.md`](docs/USING.md).
+
 ## What is here
 
 | path | what |
 | --- | --- |
 | `worker/` | **The application backend**: a Cloudflare Worker (TypeScript, Hono) with D1 (SQLite) for durable data and a `MeetingRoom` Durable Object per sprint for live meeting state and hibernating WebSockets. Also serves the built web app as static assets. |
-| `web/` | The React 19 + Vite + Tailwind 4 client (capture, studio, stage, companion, outcomes). |
+| `web/` | The React 19 + Vite + Tailwind 4 client (capture, studio, stage, companion, outcomes), an installable PWA. `web/src/lib/local/` holds the device store and send queue for offline capture; `web/src/sw.ts` is the service worker. |
+| `site/` | The marketing site (static), published to munimuni.app by `.github/workflows/pages.yml`. |
 | `worker/src/contract.ts` | The typed API contract shared by both. |
 | `worker/test/` | Integration tests that run inside the Workers runtime (`@cloudflare/vitest-pool-workers`). |
 | `server/`, `Dockerfile`, `docker-compose*.yml` | The earlier Rust/Axum/PostgreSQL backend and its Docker packaging. **Retired, not maintained**: kept in history for reference until the Cloudflare version is established. Do not deploy it. |
@@ -37,7 +41,8 @@ and invitations land in a dev inbox at `GET /api/dev/inbox`), `AI_PROVIDER=fake`
 keyword grouper, clearly labelled as provisional), `ALLOW_DEMO_SEED=true`
 (`POST /api/demo/seed` builds a fictional eight-person sprint for the signed-in user).
 
-Checks: `cd worker && pnpm typecheck && pnpm test` · `cd web && npm run typecheck && npm run lint && npm run build`.
+Checks: `cd worker && pnpm typecheck && pnpm test` · `cd web && npm run typecheck && npm run lint && npm test && npm run build`.
+Offline end-to-end (needs `wrangler dev` serving the production build): `cd web && npm run build && node e2e/offline.mjs`.
 
 ## Deploy to Cloudflare (free plan)
 
@@ -81,4 +86,4 @@ associate activity with accounts. Your wording can still reveal who you are. See
 
 ## Status
 
-Early pilot preparation. See the handoff notes in `docs/HANDOFF.md`.
+Pilot, live since 2026-09-26. See the handoff notes in `docs/HANDOFF.md`.
