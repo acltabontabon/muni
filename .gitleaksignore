@@ -1,0 +1,5 @@
+# False positives, reviewed. Format: <commit>:<file>:<rule>:<line> (as gitleaks reports them).
+# RFC 6455's sample WebSocket nonce ("the sample nonce", base64) in a test's handshake headers;
+# the test now derives it at runtime, but these commits carry the literal.
+162bb1e8396a2b5638f6366f6b3b0be20db8777d:worker/test/socket.test.ts:generic-api-key:14
+1228b940c7cbeb89ce714aa8343a5a167310d782:worker/test/socket.test.ts:generic-api-key:14

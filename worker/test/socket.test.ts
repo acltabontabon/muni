@@ -5,13 +5,15 @@ import { roomSocketHeaders } from '../src/lib/live'
 import { closeCollection, entry, openSocket, post, sprint, team } from './harness'
 
 const CREDENTIALS = ['cookie', 'authorization', 'x-csrf-token']
+/** RFC 6455's sample handshake nonce: base64 of "the sample nonce". */
+const NONCE = btoa('the sample nonce')
 
 describe('room socket headers', () => {
   it('keeps the handshake, sets the account, and drops everything else', () => {
     const client = new Headers({
       upgrade: 'websocket',
       connection: 'Upgrade',
-      'sec-websocket-key': 'dGhlIHNhbXBsZSBub25jZQ==',
+      'sec-websocket-key': NONCE,
       'sec-websocket-version': '13',
       cookie: '__Host-muni_session=secret; __Host-muni_csrf=csrf',
       authorization: 'Bearer secret',
@@ -23,7 +25,7 @@ describe('room socket headers', () => {
     })
     const h = roomSocketHeaders(client, 'acct-1', false)
     expect(h.get('upgrade')).toBe('websocket')
-    expect(h.get('sec-websocket-key')).toBe('dGhlIHNhbXBsZSBub25jZQ==')
+    expect(h.get('sec-websocket-key')).toBe(NONCE)
     expect(h.get('sec-websocket-version')).toBe('13')
     expect(h.get('x-muni-account')).toBe('acct-1')
     expect(h.get('x-muni-fac')).toBe('0')
