@@ -207,8 +207,8 @@ export function AccountMenu() {
                 <Download className="size-4 text-ink-soft" /> Install Muni
               </button>
             ) : null}
-            <Link to="/about" className={item} onClick={() => setOpen(false)}>
-              <Shield className="size-4 text-ink-soft" /> Privacy &amp; how Muni works
+            <Link to="/privacy" className={item} onClick={() => setOpen(false)}>
+              <Shield className="size-4 text-ink-soft" /> Privacy &amp; data
             </Link>
             <button className={item} onClick={() => close('clear')}>
               <Trash2 className="size-4 text-ink-soft" /> Clear local data
@@ -301,6 +301,39 @@ export function LeaveDialog({ kind, onClose, stay }: { kind: 'signout' | 'clear'
         </Button>
       </div>
     </Dialog>
+  )
+}
+
+/**
+ * The same device-storage controls as the account menu, laid out for a page (Privacy & data):
+ * keeping drafts on this device, and clearing what it holds for this account.
+ */
+export function DeviceControls() {
+  const local = useLocal()
+  const [dialog, setDialog] = useState<null | 'clear' | 'keep-off'>(null)
+  return (
+    <div className="space-y-4">
+      <Switch
+        id="keep-local-page"
+        checked={local.keepLocal}
+        disabled={typeof indexedDB === 'undefined'}
+        onCheckedChange={async (on) => {
+          if (on) await local.setKeepLocal(true).catch(() => {})
+          else setDialog('keep-off')
+        }}
+        label="Keep drafts on this device"
+        description="Recover drafts after closing Muni and write without a connection. For a personal device: anyone who uses it could read them."
+      />
+      {local.storageError ? <p className="text-sm text-danger">{local.storageError}</p> : null}
+      <div>
+        <Button size="sm" onClick={() => setDialog('clear')}>
+          <Trash2 className="size-4" /> Clear local data
+        </Button>
+        <p className="mt-1.5 text-sm text-ink-soft">Removes what this device keeps for your account. Nothing is deleted from Muni’s servers.</p>
+      </div>
+      <LeaveDialog kind={dialog === 'clear' ? 'clear' : null} onClose={() => setDialog(null)} />
+      <KeepOffDialog open={dialog === 'keep-off'} onClose={() => setDialog(null)} />
+    </div>
   )
 }
 

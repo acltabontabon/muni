@@ -195,9 +195,10 @@ export function Composer({ dest, choices, onChoose }: { dest: Destination | null
           </p>
         ) : null}
         <div className="flex flex-col-reverse gap-3 sm:flex-row sm:items-center sm:justify-between">
-          <p className="text-xs text-ink-faint">
-            Hidden from teammates until collection closes. <Link to="/about" className="underline underline-offset-2 hover:text-ink">How anonymity works</Link>
-            <span className="hidden whitespace-nowrap lg:inline"> · <Kbd>{navigator.platform.includes('Mac') ? '⌘' : 'Ctrl'}</Kbd> <Kbd>Enter</Kbd> to save</span>
+          <p className="text-[13px] leading-snug text-ink-soft sm:max-w-md">
+            Hidden from your team — the facilitator too — until collection closes. Then shared with the sprint, without your name.{' '}
+            <Link to="/privacy#visibility" className="whitespace-nowrap text-ink underline decoration-line-strong underline-offset-2 hover:decoration-accent">How privacy works</Link>
+            <span className="hidden whitespace-nowrap text-ink-faint lg:inline"> · <Kbd>{navigator.platform.includes('Mac') ? '⌘' : 'Ctrl'}</Kbd> <Kbd>Enter</Kbd> to save</span>
           </p>
           <Button type="submit" variant="primary" busy={busy} disabled={!p.body.trim() || !dest} className="w-full sm:w-auto sm:min-w-36">
             Save thought
@@ -350,7 +351,7 @@ export function MyThoughts({ sprintId, editable, moveChoices, online }: { sprint
       <div className="waterline" />
       <div className="mb-3 mt-4 flex flex-col gap-0.5 sm:flex-row sm:items-baseline sm:justify-between sm:gap-3">
         <h2 id="my-thoughts" className="font-display text-lg">My thoughts{count ? <span className="ml-2 text-sm font-normal text-ink-faint">{count}</span> : null}</h2>
-        <span className="text-xs text-ink-faint">{editable ? 'Only you can see these until collection closes' : online ? 'Collection closed · read-only' : 'Offline · editing what you submitted needs a connection'}</span>
+        <span className="text-xs text-ink-soft">{editable ? 'Hidden from your team until collection closes' : online ? 'Collection closed · read-only' : 'Offline · editing what you submitted needs a connection'}</span>
       </div>
       <ul className="space-y-2.5">
         {mine.map((i) => <LocalThought key={i.id} item={i} moveChoices={moveChoices} />)}

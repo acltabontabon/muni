@@ -146,9 +146,9 @@ export function SprintHome() {
           <section>
             <SectionTitle>Privacy & reminders</SectionTitle>
             <div className="card p-4 text-sm text-ink-soft">
-              <p>Your identity is verified to access this sprint. Your entries and votes are shown without your identity to teammates and facilitators. The service operator may technically be able to associate activity with accounts. Your wording can still reveal who you are.</p>
+              <p>Thoughts stay hidden from everyone, the facilitator included, until collection closes. Then the sprint sees them in random order, without names. Muni’s servers do record who wrote each one, and your wording can still give you away. <Link to="/privacy#visibility" className="underline underline-offset-2">How privacy works</Link></p>
               <p className="mt-2">
-                AI assistance for this sprint: <strong className="text-ink">{s.ai_processing ? `on (${s.ai_provider})` : 'off'}</strong>{s.ai_locked ? ' — decided before collection started.' : '.'} <Link to="/about" className="underline">Details</Link>
+                AI assistance for this sprint: <strong className="text-ink">{s.ai_processing ? `on (${s.ai_provider})` : 'off'}</strong>{s.ai_locked ? ' — decided before collection started.' : '.'} <Link to="/privacy#ai" className="underline underline-offset-2">About AI</Link>
               </p>
               {s.reminders_enabled ? (
                 <div className="mt-2">

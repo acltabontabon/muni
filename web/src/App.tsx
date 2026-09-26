@@ -11,7 +11,7 @@ import { Stage } from './routes/Stage'
 import { Companion } from './routes/Companion'
 import { Outcomes } from './routes/Outcomes'
 import { Account } from './routes/Account'
-import { About } from './routes/About'
+import { Privacy } from './routes/Privacy'
 import { useState } from 'react'
 import { Spinner, useDocumentTitle } from './ui'
 import { EntranceShell, NameStep, PROGRESS } from './ui/entrance'
@@ -35,6 +35,11 @@ function Protected({ children }: { children: React.ReactElement }) {
   // so the deep link is kept and nothing else is reachable first.
   if (me.needs_name && !offline) return <NameGate />
   return children
+}
+
+function ToPrivacy() {
+  const { hash } = useLocation()
+  return <Navigate to={`/privacy${hash}`} replace />
 }
 
 function NameGate() {
@@ -69,7 +74,9 @@ export function App() {
       {/* Invitation links carry the token in the fragment (/invite#token), which never reaches a server. */}
       <Route path="/invite" element={<Invite />} />
       <Route path="/invite/:token" element={<Invite />} />
-      <Route path="/about" element={<About />} />
+      <Route path="/privacy" element={<Privacy />} />
+      {/* The privacy page's earlier address. */}
+      <Route path="/about" element={<ToPrivacy />} />
       <Route path="/" element={<Protected><Home /></Protected>} />
       {/* The old bookmarkable capture link opens the same home (a ?sprint= deep link is kept). */}
       <Route path="/capture" element={<Protected><Home /></Protected>} />

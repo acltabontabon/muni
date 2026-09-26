@@ -1,35 +1,213 @@
-import { Link } from 'react-router'
-import { Mark } from '@/brand/Mark'
+import { useEffect, type ReactNode } from 'react'
+import { Link, useLocation } from 'react-router'
+import { Wordmark } from '@/brand/Mark'
+import { useAuth } from '@/lib/auth'
 import { useDocumentTitle } from '@/ui'
+import { DeviceControls } from '@/ui/menus'
+import { AppShell } from '@/ui/shell'
 
-export function About() {
-  useDocumentTitle('Privacy & how Muni works')
+/**
+ * Privacy & data: the one full explanation of what Muni collects, who can see it, who processes it,
+ * what protects it and what doesn't. Public, so the sign-in screen and munimuni.app can link here.
+ *
+ * Every statement is backed by code, configuration or a stated commitment: docs/privacy-claims.md
+ * maps each one to its evidence. Change them together.
+ *
+ * The facts below describe this deployment (act.munimuni.app): its operator, contact and service
+ * providers. Another deployment must change them, and the provider paragraphs that name Cloudflare,
+ * Resend, GitHub Pages and Google Fonts.
+ */
+const OPERATOR = 'Alvin Cris Tabontabon'
+const CONTACT = 'me@acltabontabon.com'
+const UPDATED = '27 September 2026'
+
+const SECTIONS = [
+  ['collect', 'What Muni collects, and why'],
+  ['visibility', 'Who can see what you write'],
+  ['authorship', 'Can someone tell it was you?'],
+  ['operator', 'What the operator can access'],
+  ['providers', 'Service providers'],
+  ['ai', 'AI'],
+  ['encryption', 'Encryption, and its limits'],
+  ['device', 'What stays on your device'],
+  ['retention', 'How long things are kept'],
+  ['controls', 'What you can do'],
+  ['contact', 'Questions'],
+] as const
+
+export function Privacy() {
+  useDocumentTitle('Privacy & data')
+  const { me } = useAuth()
+  const { hash } = useLocation()
+  // Links like /privacy#visibility land on their section (the router doesn't scroll for us).
+  useEffect(() => {
+    if (hash) document.getElementById(decodeURIComponent(hash.slice(1)))?.scrollIntoView()
+  }, [hash])
+  const page = <Page signedIn={!!me} />
+  if (me) return <AppShell>{page}</AppShell>
   return (
-    <div className="mx-auto max-w-2xl px-4 py-10">
-      <Link to="/" className="inline-flex items-center gap-2 text-ink"><Mark size={28} /> <span className="font-wordmark text-xl">muni</span></Link>
-      <h1 className="font-display mt-8 text-3xl leading-tight">A moment to reflect. A chance to improve.</h1>
-      <p className="mt-4 text-lg text-ink-soft">
-        <em>Muni</em> takes its name from the Filipino <em>muni-muni</em>: to reflect, to turn something over in your mind. Muni is a place to set a thought down while it’s fresh, look back on it together, and decide what to try next.
-      </p>
+    <div className="min-h-dvh">
+      <header className="pt-safe border-b border-line/70">
+        <div className="mx-auto flex h-14 max-w-5xl items-center justify-between px-4">
+          <Link to="/" className="rounded-md px-1 text-ink" aria-label="Muni home"><Wordmark size={20} /></Link>
+          <Link to="/signin" className="rounded-full px-3 py-1.5 text-sm font-medium text-ink hover:bg-ink/5">Sign in</Link>
+        </div>
+      </header>
+      <main className="pb-safe px-4 pt-8">{page}</main>
+    </div>
+  )
+}
 
-      <h2 className="font-display mt-10 text-2xl">The privacy promise, exactly</h2>
-      <blockquote className="mt-3 border-l-2 border-accent pl-4 text-ink">
-        Your identity is verified to access this sprint. Your entries and votes are shown without your identity to teammates and facilitators. The service operator may technically be able to associate activity with accounts. Your wording can still reveal who you are.
-      </blockquote>
-      <div className="prose-muni mt-6 space-y-4 text-ink-soft">
-        <p><strong className="text-ink">What is hidden.</strong> Shared screens, the facilitator’s preparation view, the meeting stage and exports never include who wrote an entry, who voted for what, when something was submitted, or any stable nickname that would let a reader connect one person’s entries. Entries are revealed as one batch in a random order when collection closes.</p>
-        <p><strong className="text-ink">What the facilitator can see.</strong> Nothing during collection except their own entries. After they close collection: everyone’s entries, anonymously, plus who is present at the retro and who owns an experiment. Owning an experiment never implies writing the observation behind it.</p>
-        <p><strong className="text-ink">What the operator could see.</strong> Muni stores which account saved each entry so that only you can edit yours. Someone with direct database or backup access could join those records. There is no button for it, and workspace owners don’t get one either. This is application-level anonymity, not cryptography. Our hosting provider encrypts stored data and connections, but that protects disks and networks, not your words from the service itself: Muni is not end-to-end encrypted.</p>
-        <p><strong className="text-ink">What stays true regardless.</strong> On a small team, or with a distinctive turn of phrase, people may recognise your writing. Write what you’re comfortable having read aloud.</p>
-        <p><strong className="text-ink">AI.</strong> If a sprint has AI assistance turned on (decided before collection starts, never afterwards), entry text and opaque ids are sent to the configured provider to draft themes. Names, emails, attendance and authorship are not sent. Drafts are proposals the facilitator edits; originals are never replaced.</p>
-        <p><strong className="text-ink">Retention.</strong> Once a sprint is finished, its raw entries and everything derived from them are deleted after the workspace’s retention window (90 days by default). A sprint that is never finished keeps its entries until it is. Accepted experiments and published recaps are kept longer under a separate, visible setting, because next sprint needs them. Deleted data stays recoverable from the database’s point-in-time backups for up to 30 days, and copies already exported or sent to an AI provider can’t be recalled. Your account and email address are kept while you have an account; there isn’t a self-service way to delete an account yet.</p>
-        <p><strong className="text-ink">What this device keeps.</strong> Only if you turn on “Keep drafts on this device” (account menu): the draft you’re writing, thoughts waiting to be sent, and a few details of the sprints they’re for, stored in this browser for your account only. That lets you recover a draft after closing Muni and write without a connection. Anyone who can use this device and browser profile could read them, so it’s meant for a personal device. It isn’t a backup and can be lost if the browser clears its storage. Signing out or “Clear local data” removes it; that never deletes anything from Muni’s servers. If your access to a sprint ends while this device is offline, what’s stored here stays until Muni reconnects and learns about it. With the setting off, drafts live only as long as the tab.</p>
-        <p><strong className="text-ink">Sign-in.</strong> A six-digit code proves you control a mailbox. It doesn’t prove a mailbox belongs to exactly one person. Invitations are for one address; forwarding a link doesn’t let someone else join.</p>
-      </div>
-      <p className="mt-10 text-sm text-ink-soft">
+function Page({ signedIn }: { signedIn: boolean }) {
+  return (
+    <article className="mx-auto max-w-2xl pb-16">
+      <h1 className="font-display text-3xl leading-tight">Privacy &amp; data</h1>
+      <p className="mt-3 text-lg text-ink-soft">
+        What Muni keeps about you and what you write, who can see it, who else handles it, and what protects it — including where that protection stops.
+      </p>
+      <p className="mt-2 text-sm text-ink-soft">This describes Muni as run at act.munimuni.app. Last updated {UPDATED}.</p>
+
+      <section aria-labelledby="short-title" className="mt-8 rounded-[var(--radius-card)] border border-line bg-card p-5 sm:p-6">
+        <h2 id="short-title" className="font-display text-lg">In short</h2>
+        <ul className="mt-3 space-y-2.5 text-[15.5px] leading-relaxed">
+          <Point>Until collection closes, nobody on your team can read your thoughts — not the facilitator, not workspace owners.</Point>
+          <Point>Afterwards, the people in that sprint see them in random order, without your name.</Point>
+          <Point>Muni itself records who wrote each thought, so this is privacy from your team, not from the service. It isn’t end-to-end encrypted, and your wording can still give you away.</Point>
+          <Point>Muni uses your account information and what you write to provide and protect the service. We don’t sell personal data, use your contributions for advertising, or use them to train AI models.</Point>
+        </ul>
+      </section>
+
+      <nav aria-label="On this page" className="mt-8">
+        <h2 className="text-sm font-medium text-ink-soft">On this page</h2>
+        <ol className="mt-2 grid gap-x-6 gap-y-1 text-[15px] sm:grid-cols-2">
+          {SECTIONS.map(([id, title]) => (
+            <li key={id}><a href={`#${id}`} className="inline-block py-1 text-ink underline decoration-line-strong underline-offset-4 hover:decoration-accent">{title}</a></li>
+          ))}
+        </ol>
+      </nav>
+
+      <Section id="collect">
+        <Item title="Your email address">To sign you in — Muni emails you a one-time code; there’s no password — to deliver invitations to a team, and to send a sprint’s two reminders. It isn’t used for newsletters or marketing.</Item>
+        <Item title="Your display name">So teammates know who’s in a workspace, whose turn it is to speak in a retro, and who owns an experiment. It’s never shown with a thought or a vote.</Item>
+        <Item title="What you write">Thoughts — the text, plus any category, impact, “what might help” and “when in the sprint” you add — context you add during a retro, and your votes. Each is stored with a private note of which account made it, so that only you can edit or delete your thoughts and so vote limits work.</Item>
+        <Item title="What your team builds from it">Themes, discussion notes, experiments and who owns them, and recaps.</Item>
+        <Item title="Account and workspace records">Your sign-ins (a token stored only as a one-way hash, and when it was created and last used), memberships and roles, pending invitations (the invited address), and a log of administrative actions such as closing collection or changing settings. That log records who did it and to which item, never any text.</Item>
+        <Item title="Abuse protection">To limit repeated sign-in attempts, Muni keeps scrambled (hashed) forms of email and network addresses for 24 hours.</Item>
+        <P>Muni doesn’t store your IP address or device details with your account. Our hosting provider’s request logs do record them, briefly — see <a href="#providers" className="underline underline-offset-2">Service providers</a>.</P>
+      </Section>
+
+      <Section id="visibility">
+        <Item title="While collection is open">Only you can see your thoughts in Muni. Teammates, the facilitator and workspace owners get no list, no count and no sign that you’ve written anything. You can edit or delete a thought until collection closes.</Item>
+        <Item title="Closing collection">Only the sprint’s facilitator can close collection, and Muni asks them to confirm first. From then on nobody can edit or delete a thought, including you.</Item>
+        <Item title="After it closes">Everyone taking part in that sprint sees all the thoughts at once, in random order: the text and any category, impact, “what might help” and “when in the sprint” you added. They appear without your name, email, the time you wrote them, or anything that links your thoughts to each other — on screen, on the shared stage and in exports. Workspace owners who aren’t taking part in the sprint can’t read them.</Item>
+        <Item title="Downloads">The facilitator can download the thoughts (Markdown or CSV), and everyone in the sprint can download a summary. These files carry no names either, but once downloaded they’re outside Muni.</Item>
+        <Item title="Reopening">If the facilitator reopens collection, what people have already seen stays visible to them.</Item>
+        <Item title="Votes and added context">Votes are private: only totals are shown, after a voting round closes. Context you add during a retro appears under its topic without your name, once the facilitator releases it.</Item>
+        <Item title="Where your name does appear">In the workspace’s member list, the sprint’s list of participants and who is present at the retro, when you’re invited to speak, and on experiments you own. The facilitator also sees who has passed in the speaking round. None of these is linked to a thought.</Item>
+      </Section>
+
+      <Section id="authorship">
+        <P>Nobody on your team has a way in Muni to look up who wrote a thought. There’s no button or report for it — not for facilitators, and not for workspace owners.</P>
+        <P>People can still work it out from the thought itself: a detail only you would know, the way you write, or a small team where everyone knows who works on what. Numbers can hint too — a lone vote, or a thought that only appears after collection was reopened. Write what you’d be comfortable having read aloud.</P>
+      </Section>
+
+      <Section id="operator">
+        <P>Muni is run by one developer, {OPERATOR}. The database records which account wrote each thought — that’s how only you can edit yours. So anyone with access to the database or its backups — the operator, or Cloudflare, which hosts it — can technically read what you wrote, see email addresses, and connect thoughts to accounts.</P>
+        <P>Our rule is to access data only when it’s needed to keep Muni running and secure, to investigate abuse, or to act on a request from you — never to read thoughts out of curiosity or to find out who wrote something. That’s a commitment, not a technical barrier, and Muni keeps no separate record of when the operator looks at data.</P>
+        <P>Workspace owners manage members and settings. Owning a workspace doesn’t let them read a sprint they aren’t part of, or find out who wrote anything.</P>
+      </Section>
+
+      <Section id="providers">
+        <P>Muni relies on a few companies to run. Each receives what its job needs.</P>
+        <Item title="Cloudflare">Hosts the app, its database and the live retro connection, so it processes everything you send to Muni. Its request logs keep, for up to 7 days, when each request happened, the address requested (which contains only ids, never text or email addresses) and technical details such as your IP address and browser. What you type isn’t in them. Muni’s own logging records failures only: the page and a short error, never what you wrote or your email address.</Item>
+        <Item title="Resend">Delivers Muni’s emails. It receives your email address and the message: a sign-in code, an invitation (the workspace’s name, the inviter’s name and a link), or a reminder (the sprint’s name and a link). Never a thought. Resend keeps delivery records under its own terms.</Item>
+        <Item title="GitHub and Google (munimuni.app only)">The website at munimuni.app — not the app — is hosted on GitHub Pages, reached through Cloudflare, and loads its fonts from Google Fonts, so those companies receive a visitor’s IP address and browser details. The app serves its own fonts.</Item>
+        <P>There are no analytics, advertising, session-recording or error-reporting services. The app’s security settings don’t let it load code from, or send data to, any other website. We don’t sell personal data, and your email address isn’t added to any mailing list.</P>
+      </Section>
+
+      <Section id="ai">
+        <P>The hosted Muni has no AI service switched on. Grouping thoughts into themes is done by people, and no thought is sent to an AI provider. Muni doesn’t train AI models on what you write.</P>
+        <P>Muni’s code has an optional feature that asks an AI provider (Anthropic) to draft themes. If it’s ever offered here, this page will say so first. Even then it would only apply to a sprint whose facilitator turned it on before collection opened — it can’t be switched on later — and it would send the thoughts’ text, with any category, impact and “what might help”, after collection closes and without names, email addresses or who wrote what. The provider’s own terms would govern what it keeps, and a copy that has been sent can’t be recalled.</P>
+      </Section>
+
+      <Section id="encryption">
+        <P>Connections between your device and Muni are encrypted (HTTPS). Stored data is encrypted on Cloudflare’s disks (AES-256), with keys that Cloudflare manages.</P>
+        <P>That protects against a stolen disk or an intercepted connection. It doesn’t stop the running app, the operator or Cloudflare from reading the data, and Muni adds no encryption of its own on top. <strong className="font-medium text-ink">Muni is not end-to-end encrypted:</strong> its servers can read your thoughts, which is how they show them to your team.</P>
+        <P>Email addresses are stored readable, because Muni needs them to send you codes. Sign-in codes and sign-in tokens are stored only as one-way hashes.</P>
+      </Section>
+
+      <Section id="device">
+        <Item title="Keep drafts on this device: off">The default. Your draft and any thoughts waiting to be sent exist only in the open tab, and closing it loses anything unsent — Muni tells you when that applies.</Item>
+        <Item title="Keep drafts on this device: on">A choice per person, per browser. Your draft, thoughts waiting to be sent, the names and retro times of the sprints they’re for, and your name and workspaces (so Muni can open offline) are stored in this browser. Anyone who can use this browser profile could read them, so turn it on only on a personal device.</Item>
+        <Item title="Either way">The browser keeps a few preferences, such as your theme and the last sprint you opened, and a copy of the app so it opens quickly and offline. Your sign-in is a secure cookie that the page itself can’t read. Muni never stores other people’s thoughts on your device.</Item>
+        <P>Signing out, or “Clear local data”, removes what this device keeps for your account, and warns you first if something hasn’t been sent. Neither deletes anything from Muni’s servers. If you lose access to a sprint while a device is offline, its copies stay there until it reconnects — Muni can’t erase a device remotely.</P>
+      </Section>
+
+      <Section id="retention">
+        <Item title="Finished sprints">About 90 days after a sprint is finished — the default; workspace owners can choose from 7 to 3,650 days — its thoughts, themes, votes, notes, added context and any unpublished recap are deleted. Agreed experiments and published recaps are kept longer, 730 days by default, so later retros can look back at them. The sprint’s name and dates remain.</Item>
+        <Item title="Unfinished sprints">A sprint that is never finished isn’t deleted automatically yet: its thoughts stay until it is.</Item>
+        <Item title="A thought you delete">While collection is open, deleting a thought removes it from Muni’s live database; backups keep it for up to 30 days, as below.</Item>
+        <Item title="Your account">Your email address and name are kept while your account exists. There isn’t a way to delete an account, or to leave a workspace yourself, in Muni yet — write to {CONTACT} and we’ll tell you what can be removed. If an owner removes you from a workspace, what you wrote stays in its sprints, without your name.</Item>
+        <Item title="Housekeeping">Sign-in codes are deleted about a day after they expire. A sign-in lasts 30 days and its record is deleted a week after it ends. The hashed abuse-protection records last 24 hours. An email’s address and message are cleared from Muni’s send queue once it has been sent. The log of administrative actions (no text) is kept.</Item>
+        <Item title="Backups, logs and copies">Deleted data can remain in Cloudflare’s database backups for up to 30 days, and in request logs for up to 7 days. Resend keeps delivery records under its own terms. Files people have downloaded, screenshots, and copies on someone’s device can’t be recalled.</Item>
+      </Section>
+
+      <Section id="controls">
+        {signedIn ? (
+          <div className="rounded-[var(--radius-card)] border border-line bg-card p-5">
+            <h3 className="font-medium text-ink">On this device</h3>
+            <div className="mt-3"><DeviceControls /></div>
+          </div>
+        ) : (
+          <P><Link to="/signin?next=%2Fprivacy%23controls" className="underline underline-offset-2">Sign in</Link> to change what this device keeps. After signing in these controls also live in the account menu.</P>
+        )}
+        <Item title="Your thoughts">Edit or delete them while collection is open, under “My thoughts”.</Item>
+        <Item title="Reminders">Turn a sprint’s reminder emails off on that sprint’s page.</Item>
+        <Item title="Your name and other devices">{signedIn ? <><Link to="/account" className="underline underline-offset-2">Account</Link>: change your name, and sign out every other device.</> : 'Account (in the account menu): change your name, and sign out every other device.'}</Item>
+        <Item title="Workspace owners">Choose how long finished sprints are kept, on the workspace page, and remove members.</Item>
+        <Item title="Not available yet">Deleting your account, leaving a workspace yourself, and downloading everything you’ve written. Until then, write to {CONTACT}.</Item>
+      </Section>
+
+      <Section id="contact">
+        <P>Write to <a href={`mailto:${CONTACT}`} className="font-medium text-ink underline underline-offset-2">{CONTACT}</a> with questions about privacy or requests about your data. Muni is run by one person, so a reply may take a few days.</P>
+        <P>This page changes when the way Muni handles data changes; the date at the top says when it last did.</P>
+      </Section>
+
+      <p className="mt-12 border-t border-line pt-6 text-sm text-ink-soft">
         Muni is an independently maintained project, built and operated by one developer. ·{' '}
         <a href="/third-party-licenses.txt" className="underline underline-offset-4 hover:text-ink">Third-party licenses</a>
       </p>
-    </div>
+    </article>
+  )
+}
+
+function Section({ id, children }: { id: (typeof SECTIONS)[number][0]; children: ReactNode }) {
+  const title = SECTIONS.find(([s]) => s === id)![1]
+  return (
+    <section id={id} aria-labelledby={`${id}-title`} className="mt-10 scroll-mt-20">
+      <h2 id={`${id}-title`} className="font-display text-xl">{title}</h2>
+      <div className="mt-3 space-y-3">{children}</div>
+    </section>
+  )
+}
+
+function Item({ title, children }: { title: string; children: ReactNode }) {
+  return (
+    <p className="text-[15.5px] leading-relaxed text-ink-soft">
+      <strong className="font-medium text-ink">{title}.</strong> {children}
+    </p>
+  )
+}
+
+function P({ children }: { children: ReactNode }) {
+  return <p className="text-[15.5px] leading-relaxed text-ink-soft">{children}</p>
+}
+
+function Point({ children }: { children: ReactNode }) {
+  return (
+    <li className="flex gap-3">
+      <span aria-hidden className="dot dot--submitted mt-[0.55em]" />
+      <span>{children}</span>
+    </li>
   )
 }

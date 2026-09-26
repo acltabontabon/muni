@@ -150,7 +150,7 @@ try {
     check('Name step resumes on a deep link, URL kept', new URL(page.url()).pathname === '/account')
     await page.fill('input[autocomplete="name"]', 'Remy Resumed')
     await page.click('button:has-text("Continue")')
-    await page.waitForSelector('text=Account & privacy')
+    await page.waitForSelector('h1:text-is("Account")')
     check('…and then the deep link opens', new URL(page.url()).pathname === '/account')
     const n = await page.evaluate(async (e) => (await fetch('/api/auth/me').then((r) => r.json())).email === e, email)
     check('Same account throughout', n)

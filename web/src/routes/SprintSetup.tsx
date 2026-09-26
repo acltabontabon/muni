@@ -221,7 +221,7 @@ export function SprintSetup() {
             <p className="text-sm text-ink-soft">
               Entries stay sealed until you close collection; then they’re revealed to participants as one anonymous batch. Your identity as facilitator is visible; authorship never is.
             </p>
-            <Switch id="ai" checked={f.ai_processing} onCheckedChange={(v) => set('ai_processing', v)} disabled={!aiAvailable || locked} label="Use AI to draft themes after collection closes" description={!aiAvailable ? 'No AI provider is configured on this server, so grouping is manual.' : locked ? 'Locked once collection has started. Changes apply to the next sprint.' : `Entry text and opaque ids go to the configured provider (${ws.workspace.ai_provider}); never names, emails or authorship. Participants see this choice before they write.`} />
+            <Switch id="ai" checked={f.ai_processing} onCheckedChange={(v) => set('ai_processing', v)} disabled={!aiAvailable || locked} label="Use AI to draft themes after collection closes" description={!aiAvailable ? 'No AI provider is configured on this server, so grouping is manual.' : locked ? 'Locked once collection has started. Changes apply to the next sprint.' : `Entry text and opaque ids go to the configured provider (${ws.workspace.ai_provider}); never names, emails or authorship. Participants can see this choice on the sprint page.`} />
             <Switch id="rem" checked={f.reminders_enabled} onCheckedChange={(v) => set('reminders_enabled', v)} label="Send two gentle reminders" description="Mid-sprint and the day before the retro, to everyone who hasn’t opted out. Never based on who has or hasn’t written." />
             <div className="grid gap-3 pt-2 sm:grid-cols-2">
               <div>

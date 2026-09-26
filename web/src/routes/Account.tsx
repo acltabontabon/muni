@@ -21,7 +21,7 @@ export function Account() {
   if (!me) return null
   return (
     <AppShell>
-      <PageTitle title="Account & privacy">Your name is shown when you’re invited to speak and on experiments you own. It is never shown with entries or votes.</PageTitle>
+      <PageTitle title="Account">Your name is shown when you’re invited to speak and on experiments you own. It is never shown with entries or votes.</PageTitle>
       <div className="grid gap-6 md:grid-cols-2">
         <section className="card p-6">
           <h2 className="font-display text-xl">Name</h2>
@@ -77,9 +77,9 @@ export function Account() {
           </div>
         </section>
         <section className="card p-6 md:col-span-2">
-          <h2 className="font-display text-xl">Privacy, in one paragraph</h2>
+          <h2 className="font-display text-xl">Privacy &amp; data</h2>
           <p className="mt-2 text-ink-soft">
-            Your identity is verified to access each sprint. Your entries and votes are shown without your identity to teammates and facilitators. The service operator may technically be able to associate activity with accounts. Your wording can still reveal who you are. <Link to="/about" className="underline">The full explanation</Link>.
+            Who can see your thoughts and when, what the operator and service providers can access, what this device keeps, and how long everything is kept. <Link to="/privacy" className="underline underline-offset-2">Privacy &amp; data</Link>
           </p>
         </section>
       </div>

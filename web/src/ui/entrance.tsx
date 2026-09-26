@@ -49,9 +49,9 @@ export function EntranceShell({ progress = PROGRESS.email, children }: { progres
       <div className="entrance-side">
         <main className="entrance-auth">{children}</main>
         <footer className="entrance-footer">
-          <p>Your entries are shown to your team without your name.</p>
+          <p>Thoughts stay hidden until collection closes, then are shared without names.</p>
           <nav aria-label="About Muni">
-            <Link to="/about" className="entrance-link">Privacy</Link>
+            <Link to="/privacy" className="entrance-link">Privacy &amp; data</Link>
             <a href="https://munimuni.app" className="entrance-link">What is Muni?</a>
           </nav>
         </footer>
@@ -183,6 +183,10 @@ function EmailStep({ email: initialEmail, initial, intro, onSent }: { email: str
         <ErrorText>{error}</ErrorText>
         <Button type="submit" variant="primary" size="lg" className="mt-5 w-full" busy={busy}>Send me a code</Button>
         <p id={`${id}-how`} className="quiet mt-4">We’ll email you a six-digit code. There’s no password.{intro ? null : <> Joining a team? Open the link in your invitation email.</>}</p>
+        <p className="quiet mt-2">
+          Muni uses your email to sign you in, deliver team invitations and send sprint reminders — never for marketing, and it’s never shown with your thoughts.{' '}
+          <Link to="/privacy#collect" className="entrance-link">How privacy works</Link>
+        </p>
       </form>
     </Step>
   )
