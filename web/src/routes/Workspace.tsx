@@ -175,7 +175,7 @@ export function WorkspacePage() {
           {me?.workspaces.length && !ws.workspace.is_demo ? null : null}
         </div>
       </div>
-      <InviteDialog open={inviting} onClose={() => setInviting(false)} workspaceId={workspaceId} sprints={current} onInvited={load} />
+      <InviteDialog open={inviting} onClose={() => setInviting(false)} workspaceId={workspaceId} sprints={current.filter((s) => s.is_facilitator)} onInvited={load} />
     </AppShell>
   )
 }

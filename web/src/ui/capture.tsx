@@ -47,16 +47,21 @@ export function Composer({ dest, choices, onChoose }: { dest: Destination | null
     }).catch(() => {})
   }, [sprintId, local])
 
-  // Keep the draft as it's written. Local only; saving a draft never submits it.
+  // Keep the draft as it's written. Local only; saving a draft never submits it. Runs on edits
+  // only — not whenever the local store changes — so clearing local data can't write it back.
+  const saveRef = useRef(local)
+  useEffect(() => {
+    saveRef.current = local
+  }, [local])
   useEffect(() => {
     setComposerDirty(hasText(p))
     if (!sprintId) return
     const t = window.setTimeout(() => {
-      if (hasText(p)) local.saveDraft(sprintId, p).catch(() => {})
-      else local.clearDraft(sprintId).catch(() => {})
+      if (hasText(p)) saveRef.current.saveDraft(sprintId, p).catch(() => {})
+      else saveRef.current.clearDraft(sprintId).catch(() => {})
     }, 400)
     return () => window.clearTimeout(t)
-  }, [p, sprintId, local])
+  }, [p, sprintId])
   useEffect(() => () => setComposerDirty(false), [])
 
   useEffect(() => {

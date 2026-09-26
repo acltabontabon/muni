@@ -2,7 +2,7 @@
  * The two header menus. Workspace switcher: the workspaces you belong to, plus the secondary
  * things you're allowed to do there. Account menu: you, this device, and leaving.
  */
-import { useState, type FormEvent, type ReactNode } from 'react'
+import { useEffect, useState, type FormEvent, type ReactNode } from 'react'
 import { Link, useNavigate } from 'react-router'
 import * as Popover from '@radix-ui/react-popover'
 import { clsx } from 'clsx'
@@ -11,7 +11,7 @@ import { ApiError, post } from '@/api/client'
 import type { Me, Workspace } from '@/api/types'
 import { useAuth } from '@/lib/auth'
 import { useLocal } from '@/lib/local/LocalProvider'
-import { applyTheme, readPrefs, writePrefs } from '@/lib/prefs'
+import { applyTheme, forgetSignedInState, readPrefs, writePrefs } from '@/lib/prefs'
 import { installInstructions, promptInstall, usePwa } from '@/lib/pwa'
 import { chooseWorkspace } from '@/lib/workspace'
 import { Button, Dialog, ErrorText, Input, Label, Switch, useToast } from '@/ui'
@@ -231,23 +231,46 @@ export function AccountMenu() {
   )
 }
 
-/** Signing out or clearing local data: unsent work is named, and discarding it is explicit. */
-function LeaveDialog({ kind, onClose }: { kind: 'signout' | 'clear' | null; onClose: () => void }) {
+/**
+ * Signing out or clearing local data: unsent work and drafts are named, and discarding them is
+ * explicit. Signing out ends the session on the server first; local data goes only once it has.
+ * `stay` keeps the current page (the invitation page signs in again in place).
+ */
+export function LeaveDialog({ kind, onClose, stay }: { kind: 'signout' | 'clear' | null; onClose: () => void; stay?: boolean }) {
   const { signOutLocal } = useAuth()
   const local = useLocal()
   const toast = useToast()
   const nav = useNavigate()
   const [busy, setBusy] = useState(false)
-  const unsent = local.items.length
+  const [error, setError] = useState('')
+  const [drafts, setDrafts] = useState(0)
+  useEffect(() => {
+    if (kind) local.draftCount().then(setDrafts, () => setDrafts(0))
+  }, [kind, local])
+  const queued = local.items.length
+  const unsent = queued + drafts
   const act = async () => {
     setBusy(true)
+    setError('')
     try {
-      await local.clearLocal()
       if (kind === 'signout') {
-        await post('/api/auth/logout').catch(() => {})
+        try {
+          await post('/api/auth/logout')
+        } catch (e) {
+          // 401: the session had already ended. Anything else: still signed in, so keep everything.
+          if (!(e instanceof ApiError && e.status === 401)) {
+            setError('Couldn’t reach Muni to sign out, so nothing was removed. Try again.')
+            return
+          }
+        }
+        await local.clearLocal()
+        forgetSignedInState()
         signOutLocal()
-        nav('/signin')
-      } else toast('Cleared from this device. Nothing was deleted from Muni.')
+        if (!stay) nav('/signin')
+      } else {
+        await local.clearLocal()
+        toast('Cleared from this device. Nothing was deleted from Muni.')
+      }
       onClose()
     } finally {
       setBusy(false)
@@ -255,11 +278,12 @@ function LeaveDialog({ kind, onClose }: { kind: 'signout' | 'clear' | null; onCl
   }
   const title = kind === 'signout' ? 'Sign out of Muni?' : 'Clear local data?'
   let body: ReactNode
+  const what = [queued ? (queued === 1 ? '1 thought hasn’t been sent' : `${queued} thoughts haven’t been sent`) : '', drafts ? (drafts === 1 ? '1 draft is unfinished' : `${drafts} drafts are unfinished`) : ''].filter(Boolean).join(' and ')
   if (unsent > 0)
     body = (
       <>
         <p className="text-[15px]">
-          <strong>{unsent === 1 ? '1 thought hasn’t' : `${unsent} thoughts haven’t`} been sent</strong> to {unsent === 1 ? 'its sprint' : 'their sprints'} yet. {kind === 'signout' ? 'Signing out' : 'Clearing'} removes {unsent === 1 ? 'it' : 'them'} from this device for good.
+          <strong>{what}.</strong> {kind === 'signout' ? 'Signing out' : 'Clearing'} removes {unsent === 1 ? 'it' : 'them'} from this device for good.
         </p>
         <p className="mt-2 text-sm text-ink-soft">Try sending first, or copy anything you want to keep.</p>
       </>
@@ -268,6 +292,7 @@ function LeaveDialog({ kind, onClose }: { kind: 'signout' | 'clear' | null; onCl
   return (
     <Dialog open={!!kind} onOpenChange={(o) => !o && onClose()} title={title}>
       {body}
+      <ErrorText>{error}</ErrorText>
       <div className="mt-6 flex flex-wrap justify-end gap-2">
         <Button variant="ghost" onClick={onClose}>Cancel</Button>
         {unsent > 0 ? <Button onClick={() => local.retry()}>Try sending now</Button> : null}

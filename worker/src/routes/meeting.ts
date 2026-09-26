@@ -6,7 +6,7 @@
 import { Hono } from 'hono'
 import type { HonoEnv } from '../env'
 import { config } from '../lib/config'
-import { requireFacilitator, requireParticipant, requireSprint, type SprintCtx } from '../lib/auth'
+import { checkSocketOrigin, requireFacilitator, requireParticipant, requireSprint, type SprintCtx } from '../lib/auth'
 import { uuid } from '../lib/crypto'
 import { all, audit, bool, count, one, run } from '../lib/db'
 import { conflict, notFound } from '../lib/errors'
@@ -97,6 +97,7 @@ meeting.get('/api/sprints/:sprintId/meeting', async (c) => {
 meeting.get('/api/sprints/:sprintId/ws', async (c) => {
   const ctx = await requireSprint(c, config(c.env), c.env.DB, c.req.param('sprintId'))
   requireParticipant(ctx)
+  checkSocketOrigin(c.req.raw, config(c.env))
   if (c.req.header('upgrade')?.toLowerCase() !== 'websocket') return c.json({ error: 'expected a websocket', code: 'bad_request' }, 426)
   const headers = new Headers(c.req.raw.headers)
   headers.set('x-muni-account', ctx.auth.account.id)
@@ -130,6 +131,8 @@ meeting.post('/api/sprints/:sprintId/meeting/command', async (c) => {
     return c.json(await snapshot(c.env, ctx))
   }
   if (cmd.type === 'mark_discussed') {
+    // The theme must belong to this sprint: discussion_notes is keyed by theme id alone.
+    if (!(await count(db, 'SELECT count(*) AS n FROM themes WHERE id = ? AND sprint_id = ?', String(cmd.theme_id), ctx.sprint.id))) throw notFound('theme not found')
     await run(db, 'INSERT INTO discussion_notes (theme_id, sprint_id, discussed, updated_at) VALUES (?,?,?,?) ON CONFLICT(theme_id) DO UPDATE SET discussed=excluded.discussed, updated_at=excluded.updated_at', String(cmd.theme_id), ctx.sprint.id, cmd.discussed ? 1 : 0, Date.now())
     await hint(c.env, ctx.sprint.id, 'meeting')
     await hint(c.env, ctx.sprint.id, 'themes')

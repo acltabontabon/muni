@@ -168,7 +168,7 @@ export function Home() {
                 <p className="mt-1 flex items-center gap-1.5 text-sm text-ink-soft"><CalendarClock className="size-4 shrink-0" /> <RetroWhen s={composerFor} /></p>
                 {!dest ? <p className="mt-2 rounded-xl bg-warn/10 px-3 py-2 text-sm">This sprint stopped collecting. Your text is still here — copy it, or send it to another sprint below.</p> : null}
               </header>
-              <Composer dest={dest ? toDest(dest) : null} choices={choices} onChoose={choose} />
+              <Composer key={local.cleared} dest={dest ? toDest(dest) : null} choices={choices} onChoose={choose} />
               <MyThoughts sprintId={composerFor.id} editable={!!dest && !offline} moveChoices={moveChoices} online={!offline} />
             </>
           ) : collectingHere.length > 1 ? (

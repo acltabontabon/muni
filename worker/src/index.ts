@@ -26,7 +26,9 @@ export { MeetingRoom } from './room'
  * backward compatible. (Not exported: every named export of a Worker's main module must be a
  * handler or Durable Object class, or the runtime refuses to start.)
  */
-const MIN_CLIENT_REVISION = 1
+// 2: invitation tokens moved to request bodies and production cookies gained the __Host- prefix
+// (a revision-1 client can't read the renamed CSRF cookie).
+const MIN_CLIENT_REVISION = 2
 
 const app = new Hono<HonoEnv>()
 

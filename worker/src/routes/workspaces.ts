@@ -87,8 +87,14 @@ workspaces.post('/api/workspaces/:workspaceId/invitations', async (c) => {
   if (!email) throw bad('enter a valid email address')
   await limit(c.env.DB, `invite:${m.workspaceId}`, 60, 3_600_000)
   if (body.sprint_id) {
-    const n = await count(c.env.DB, 'SELECT count(*) AS n FROM sprints WHERE id = ? AND workspace_id = ?', body.sprint_id, m.workspaceId)
-    if (!n) throw notFound('sprint not found')
+    // Adding someone to a sprint is the facilitator's call for that sprint (as with POST /participants),
+    // and only while it's unfinished. Facilitating one sprint, or owning the workspace, doesn't open
+    // other sprints — otherwise anyone could invite themselves into a sprint they aren't part of.
+    const sp = await one<{ status: string }>(c.env.DB, 'SELECT status FROM sprints WHERE id = ? AND workspace_id = ?', body.sprint_id, m.workspaceId)
+    if (!sp) throw notFound('sprint not found')
+    const fac = await count(c.env.DB, 'SELECT count(*) AS n FROM sprint_participants WHERE sprint_id = ? AND account_id = ? AND is_facilitator = 1', body.sprint_id, m.auth.account.id)
+    if (!fac) throw forbidden('only this sprint’s facilitator can add people to it')
+    if (['completed', 'archived'].includes(sp.status)) throw conflict('this sprint is finished')
   }
   const existing = await one<{ id: string }>(c.env.DB, 'SELECT a.id FROM accounts a JOIN memberships mm ON mm.account_id = a.id WHERE a.email = ? AND mm.workspace_id = ? AND mm.revoked_at IS NULL', email, m.workspaceId)
   if (existing) {
@@ -99,7 +105,7 @@ workspaces.post('/api/workspaces/:workspaceId/invitations', async (c) => {
   const id = uuid()
   await run(c.env.DB, 'INSERT INTO invitations (id, workspace_id, email, token_hash, invited_by, sprint_id, expires_at, created_at) VALUES (?,?,?,?,?,?,?,?)', id, m.workspaceId, email, await sha256Hex(token), m.auth.account.id, body.sprint_id ?? null, Date.now() + 14 * 86_400_000, Date.now())
   const ws = await one<{ name: string }>(c.env.DB, 'SELECT name FROM workspaces WHERE id = ?', m.workspaceId)
-  const mail = templates.invitation(email, ws?.name ?? 'your team', m.auth.account.display_name, `${cfg.publicOrigin}/invite/${token}`)
+  const mail = templates.invitation(email, ws?.name ?? 'your team', m.auth.account.display_name, `${cfg.publicOrigin}/invite#${token}`)
   await enqueue(c.env.DB, 'email', { to: mail.to, subject: mail.subject, body: mail.body }, Date.now(), `invite:${id}`)
   runSoon(c, c.env)
   await audit(c.env.DB, m.workspaceId, body.sprint_id ?? null, m.auth.account.id, 'invitation.sent', { invitation_id: id })
@@ -139,6 +145,10 @@ workspaces.patch('/api/workspaces/:workspaceId/members/:accountId', async (c) =>
   requireOwner(m)
   const body = (await c.req.json().catch(() => ({}))) as { role?: string }
   if (body.role !== 'owner' && body.role !== 'member') throw bad('role must be owner or member')
+  if (body.role === 'member') {
+    const owners = await all<{ account_id: string }>(c.env.DB, "SELECT account_id FROM memberships WHERE workspace_id = ? AND role = 'owner' AND revoked_at IS NULL", m.workspaceId)
+    if (owners.length <= 1 && owners[0]?.account_id === c.req.param('accountId')) throw conflict('a workspace needs at least one owner')
+  }
   await run(c.env.DB, 'UPDATE memberships SET role = ? WHERE workspace_id = ? AND account_id = ? AND revoked_at IS NULL', body.role, m.workspaceId, c.req.param('accountId'))
   return c.json({ ok: true })
 })

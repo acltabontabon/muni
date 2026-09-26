@@ -34,9 +34,13 @@ function Protected({ children }: { children: React.ReactElement }) {
 export function App() {
   const { me } = useAuth()
   return (
-    <LocalProvider accountId={me?.account_id ?? null}>
+    // Keyed by account: switching people on a device starts every view afresh, so text typed by
+    // one person can never be saved or sent under another.
+    <LocalProvider key={me?.account_id ?? 'signed-out'} accountId={me?.account_id ?? null}>
     <Routes>
       <Route path="/signin" element={<SignIn />} />
+      {/* Invitation links carry the token in the fragment (/invite#token), which never reaches a server. */}
+      <Route path="/invite" element={<Invite />} />
       <Route path="/invite/:token" element={<Invite />} />
       <Route path="/about" element={<About />} />
       <Route path="/" element={<Protected><Home /></Protected>} />

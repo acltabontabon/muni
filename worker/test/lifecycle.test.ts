@@ -191,7 +191,7 @@ describe('lifecycle', () => {
     expect((await post(`/api/workspaces/${ws}/invitations`, owner, { email, sprint_id: s })).status).toBe(200)
     const token = await inviteToken(email)
     const u = await signin(email, 'Direct')
-    expect((await post(`/api/invitations/${token}/accept`, u)).status).toBe(200)
+    expect((await post('/api/invitations/accept', u, { token: token })).status).toBe(200)
     expect((await get(`/api/sprints/${s}`, u)).status).toBe(200)
     expect((await get(`/api/sprints/${s}`, u)).body.is_participant).toBe(true)
   })

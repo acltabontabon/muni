@@ -59,12 +59,14 @@ async function execute(env: AppEnv, job: JobRow) {
   const payload = JSON.parse(job.payload || '{}') as Record<string, unknown>
   try {
     await Promise.race([dispatch(env, job.kind, payload), new Promise((_, rej) => setTimeout(() => rej(new Error('timed out')), 25_000))])
-    await run(env.DB, "UPDATE jobs SET status='succeeded', finished_at=?, locked_at=NULL WHERE id=?", Date.now(), job.id)
+    // An email job's payload is the recipient's address and the message (an invitation's link is the
+    // only copy of its token). Once it's sent or given up on, only the bookkeeping stays.
+    await run(env.DB, "UPDATE jobs SET status='succeeded', finished_at=?, locked_at=NULL, payload=CASE WHEN kind='email' THEN '{}' ELSE payload END WHERE id=?", Date.now(), job.id)
   } catch (e) {
     // Never log payloads: they may contain an email address or AI input.
     const summary = String(e instanceof Error ? e.message : e).slice(0, 500)
     if (job.attempts >= job.max_attempts) {
-      await run(env.DB, "UPDATE jobs SET status='failed', finished_at=?, locked_at=NULL, last_error=? WHERE id=?", Date.now(), summary, job.id)
+      await run(env.DB, "UPDATE jobs SET status='failed', finished_at=?, locked_at=NULL, last_error=?, payload=CASE WHEN kind='email' THEN '{}' ELSE payload END WHERE id=?", Date.now(), summary, job.id)
       if (job.kind === 'ai_grouping') await markAiFailed(env, payload, summary)
     } else {
       const backoff = 15_000 * 2 ** Math.min(job.attempts, 6)

@@ -5,9 +5,9 @@
  */
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { csrfToken } from '@/api/client'
-import { readPrefs, writePrefs } from '@/lib/prefs'
+import { adoptLegacyKeep, keptAccounts, setKeepsLocal } from '@/lib/prefs'
 import { flush, nextDue, type FlushResult } from './outbox'
-import { deviceStore, destroyDeviceStore, emptyPayload, memoryStore, RECORD_VERSION, StorageError, type ContextSprint, type Draft, type LocalStore, type OutboxItem, type Payload } from './store'
+import { deviceStore, destroyDeviceStore, emptyPayload, hasText, memoryStore, RECORD_VERSION, StorageError, type ContextSprint, type Draft, type LocalStore, type OutboxItem, type Payload } from './store'
 
 export type SyncState = 'idle' | 'sending' | 'offline' | 'signed_out' | 'upgrade'
 export type Destination = { workspaceId: string; sprintId: string; sprintName: string }
@@ -32,6 +32,10 @@ type LocalApi = {
   cacheContext: (sprint: ContextSprint, workspaceName: string | null) => Promise<void>
   cachedContexts: () => Promise<{ sprint: ContextSprint; workspaceName: string | null; fetchedAt: number }[]>
   clearLocal: () => Promise<void>
+  /** Drafts with text kept for this account (in this tab or on this device). */
+  draftCount: () => Promise<number>
+  /** Bumped whenever local data is cleared, so views holding text in memory start over. */
+  cleared: number
   unsentCount: number
 }
 
@@ -53,7 +57,13 @@ export function hasDeviceStorage() {
 }
 
 export function LocalProvider({ accountId, children }: { accountId: string | null; children: ReactNode }) {
-  const [keepLocal, setKeep] = useState(() => !!readPrefs().keepLocal && hasDeviceStorage())
+  // The provider is keyed by account (App.tsx), so this reads the choice of the person signed in here.
+  const [kept, setKept] = useState(() => {
+    if (accountId) adoptLegacyKeep(accountId)
+    return keptAccounts()
+  })
+  const keepLocal = !!accountId && kept.includes(accountId) && hasDeviceStorage()
+  const [cleared, setCleared] = useState(0)
   const [storageError, setStorageError] = useState<string | null>(null)
   const [items, setItems] = useState<OutboxItem[]>([])
   const [sync, setSync] = useState<SyncState>('idle')
@@ -124,6 +134,13 @@ export function LocalProvider({ accountId, children }: { accountId: string | nul
     return () => window.clearTimeout(t)
   }, [items, sync, run])
 
+  // Another tab changed who keeps drafts here (e.g. turned it off): follow it rather than recreate the store.
+  useEffect(() => {
+    const onStorage = (e: StorageEvent) => e.key === 'muni.prefs' && setKept(keptAccounts())
+    window.addEventListener('storage', onStorage)
+    return () => window.removeEventListener('storage', onStorage)
+  }, [])
+
   const guard = useCallback(async <T,>(fn: () => Promise<T>): Promise<T> => {
     try {
       const out = await fn()
@@ -178,11 +195,16 @@ export function LocalProvider({ accountId, children }: { accountId: string | nul
             for (const d of await device.listDrafts(accountId)) await memory.putDraft(d)
             for (const i of await device.listOutbox(accountId)) await memory.enqueue(i)
           }
-          await destroyDeviceStore().catch(() => {})
-          device = null
+          // Only this person's records go. Someone else who keeps drafts here keeps theirs; the
+          // database itself is removed once nobody does.
+          if (accountId && device) await device.clearAccount(accountId).catch(() => {})
+          if (!keptAccounts().some((a) => a !== accountId)) {
+            await destroyDeviceStore().catch(() => {})
+            device = null
+          }
         }
-        writePrefs({ keepLocal: on })
-        setKeep(on)
+        if (accountId) setKeepsLocal(accountId, on)
+        setKept(keptAccounts())
       },
       loadDraft: (sprintId) => (accountId ? store.getDraft(accountId, sprintId) : Promise.resolve(null)),
       saveDraft: (sprintId, payload) => guard(() => store.putDraft({ accountId: need(), sprintId, payload, updatedAt: Date.now() })),
@@ -225,11 +247,17 @@ export function LocalProvider({ accountId, children }: { accountId: string | nul
         if (!accountId) return
         await memory.clearAccount(accountId)
         if (device) await device.clearAccount(accountId).catch(() => {})
+        setCleared((n) => n + 1)
         await reload()
         channel?.postMessage('changed')
       },
+      async draftCount() {
+        if (!accountId) return 0
+        return (await store.listDrafts(accountId).catch(() => [])).filter((d) => hasText(d.payload)).length
+      },
+      cleared,
     }
-  }, [accountId, guard, items, keepLocal, recentlySubmitted, reload, run, storageError, store, sync])
+  }, [accountId, cleared, guard, items, keepLocal, recentlySubmitted, reload, run, storageError, store, sync])
 
   return <Ctx.Provider value={api}>{children}</Ctx.Provider>
 }

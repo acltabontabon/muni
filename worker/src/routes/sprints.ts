@@ -304,7 +304,8 @@ export async function ensureRoom(env: HonoEnv['Bindings'], ctx: SprintCtx) {
     sprint_id: ctx.sprint.id,
     plan: defaultPlan(ctx.sprint.retro_duration_min),
     agenda: themes.map((t) => ({ theme_id: t.id, reason: t.order_reason })),
-    controller: ctx.auth.account.id,
+    // Only a facilitator becomes the controller; a participant's read that re-initialises the room leaves it open.
+    controller: ctx.isFacilitator ? ctx.auth.account.id : null,
   })
 }
 

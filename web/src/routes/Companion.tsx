@@ -55,7 +55,7 @@ export function Companion() {
       await post(`/api/sprints/${sprintId}/meeting/context`, { theme_id: themeId, body: context, idempotency_key: ctxKey })
       setContext('')
       setCtxKey(newKey())
-      toast('Sent. The facilitator releases new context in a batch — nobody sees who wrote it.')
+      toast('Sent. The facilitator releases new context in a batch — it’s shown without your name.')
       st.reload()
     } catch (e) {
       toast(e instanceof ApiError ? e.message : 'Couldn’t send — your text is still here', 'danger')

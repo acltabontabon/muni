@@ -16,7 +16,8 @@ export class ApiError extends Error {
 }
 
 export function csrfToken(): string {
-  const m = document.cookie.match(/(?:^|;\s*)muni_csrf=([^;]*)/)
+  // `__Host-muni_csrf` over HTTPS (production); `muni_csrf` on http://localhost.
+  const m = document.cookie.match(/(?:^|;\s*)(?:__Host-)?muni_csrf=([^;]*)/)
   return m ? decodeURIComponent(m[1]) : ''
 }
 

@@ -74,9 +74,9 @@ export async function runJobs() {
 export async function inviteToken(email: string): Promise<string> {
   await runJobs()
   const m = await lastMailTo(email)
-  const line = m?.body.split('\n').find((l) => l.trim().startsWith('http://localhost:5173/invite/'))
+  const line = m?.body.split('\n').find((l) => l.trim().startsWith('http://localhost:5173/invite#'))
   if (!line) throw new Error('no invite mail')
-  return line.trim().replace('http://localhost:5173/invite/', '')
+  return line.trim().replace('http://localhost:5173/invite#', '')
 }
 
 /** Owner + workspace + `n` invited-and-joined members. */
@@ -92,7 +92,7 @@ export async function team(n: number): Promise<{ owner: User; members: User[]; w
     if (inv.status !== 200) throw new Error(`invite ${inv.status}`)
     const token = await inviteToken(email)
     const u = await signin(email, `Member ${i}`)
-    const acc = await post(`/api/invitations/${token}/accept`, u)
+    const acc = await post('/api/invitations/accept', u, { token })
     if (acc.status !== 200) throw new Error(`accept ${acc.status} ${JSON.stringify(acc.body)}`)
     members.push(u)
   }
@@ -158,7 +158,7 @@ export async function roomCancel(sprintId: string): Promise<void> {
 
 /** Opens the live-hint socket as `user`; messages are collected as strings. */
 export async function openSocket(user: User, sprintId: string): Promise<{ socket: WebSocket; messages: string[]; waitFor: (pred: (m: string) => boolean, ms?: number) => Promise<boolean> }> {
-  const res = await SELF.fetch(`https://muni.test/api/sprints/${sprintId}/ws`, { headers: { upgrade: 'websocket', cookie: `muni_session=${user.session}; muni_csrf=${user.csrf}` } })
+  const res = await SELF.fetch(`https://muni.test/api/sprints/${sprintId}/ws`, { headers: { upgrade: 'websocket', origin: ORIGIN, cookie: `muni_session=${user.session}; muni_csrf=${user.csrf}` } })
   if (res.status !== 101 || !res.webSocket) throw new Error(`ws upgrade ${res.status}`)
   const socket = res.webSocket
   const messages: string[] = []

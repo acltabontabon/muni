@@ -1,5 +1,9 @@
 # Muni — architecture and privacy note
 
+> The privacy rules below still hold; implementation details that name Rust, SQLx, SSE or SMTP describe
+> the retired `server/`. The current implementation, its verified boundaries and known gaps are in
+> `docs/SECURITY.md`.
+
 Muni (from the Filipino *muni-muni*, to reflect) is a sprint-retrospective tool built around one loop:
 capture observations while they are fresh → reveal the sprint's themes → choose
 worthwhile conversations → invite everyone to contribute → agree on a few

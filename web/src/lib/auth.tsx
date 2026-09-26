@@ -1,7 +1,7 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { ApiError, get, onUnauthorized } from '@/api/client'
 import type { Me } from '@/api/types'
-import { readPrefs } from '@/lib/prefs'
+import { adoptLegacyKeep, keepsLocal, keptAccounts, readPrefs } from '@/lib/prefs'
 import { deviceStore } from '@/lib/local/store'
 import { hasDeviceStorage } from '@/lib/local/LocalProvider'
 
@@ -24,10 +24,12 @@ type AuthState = {
 const Ctx = createContext<AuthState>({ me: null, loading: true, offline: false, sessionEnded: false, refresh: async () => null, signOutLocal: () => {} })
 
 async function cachedIdentity(): Promise<Me | null> {
-  if (!readPrefs().keepLocal || !hasDeviceStorage()) return null
+  const legacy = !!readPrefs().keepLocal && readPrefs().keepLocalFor === undefined
+  if ((!keptAccounts().length && !legacy) || !hasDeviceStorage()) return null
   try {
     const i = await deviceStore().getIdentity()
-    if (!i) return null
+    // Only someone who chose to keep drafts on this device can open Muni from it offline.
+    if (!i || (!legacy && !keptAccounts().includes(i.account_id))) return null
     return { account_id: i.account_id, display_name: i.display_name, email: '', workspaces: i.workspaces.map((w) => ({ ...w, is_demo: false })), session_expires_at: '', email_transport: '', ai_provider: '' }
   } catch {
     return null
@@ -49,7 +51,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setMe(m)
       setOffline(false)
       setSessionEnded(false)
-      if (readPrefs().keepLocal && hasDeviceStorage())
+      adoptLegacyKeep(m.account_id)
+      if (keepsLocal(m.account_id) && hasDeviceStorage())
         deviceStore()
           .putIdentity({ account_id: m.account_id, display_name: m.display_name, workspaces: m.workspaces.map((w) => ({ id: w.id, name: w.name, role: w.role })), savedAt: Date.now() })
           .catch(() => {})

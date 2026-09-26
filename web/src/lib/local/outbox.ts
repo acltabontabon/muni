@@ -10,7 +10,7 @@
 import type { LocalStore, OutboxItem, AttentionReason } from './store'
 
 /** Sent as `x-muni-client`. Raise together with the server's MIN_CLIENT_REVISION. */
-export const CLIENT_REVISION = 1
+export const CLIENT_REVISION = 2
 /** A send that has been "in flight" this long was interrupted (tab closed, device slept). */
 const STALE_SENDING_MS = 2 * 60_000
 const BACKOFF_MS = [5_000, 15_000, 45_000, 2 * 60_000, 5 * 60_000, 10 * 60_000]

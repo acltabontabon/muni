@@ -88,7 +88,7 @@ async function sendQueued() {
   const dbs = await indexedDB.databases?.()
   if (dbs && !dbs.some((d) => d.name === 'muni-device')) return
   const cookies = sw.cookieStore
-  const result = await flush({ store: deviceStore(), fetch: (i, init) => fetch(i, init), csrf: async () => (await cookies.get('muni_csrf'))?.value ?? null })
+  const result = await flush({ store: deviceStore(), fetch: (i, init) => fetch(i, init), csrf: async () => (await cookies.get('__Host-muni_csrf'))?.value ?? (await cookies.get('muni_csrf'))?.value ?? null })
   if (result.state === 'offline') throw new Error('still offline') // lets the browser retry the sync later
   new BroadcastChannel('muni-local').postMessage('changed')
 }

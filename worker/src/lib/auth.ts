@@ -10,6 +10,13 @@ import type { Config } from './config'
 
 export const SESSION_COOKIE = 'muni_session'
 export const CSRF_COOKIE = 'muni_csrf'
+/**
+ * Over HTTPS the cookies carry the `__Host-` prefix: the browser then only accepts them from this
+ * exact host with Secure and Path=/, so a sibling origin (munimuni.app, any other *.munimuni.app)
+ * can't plant a session or CSRF cookie here. Plain names remain for http://localhost development.
+ */
+export const sessionCookie = (cfg: Config) => (cfg.cookieSecure ? `__Host-${SESSION_COOKIE}` : SESSION_COOKIE)
+export const csrfCookie = (cfg: Config) => (cfg.cookieSecure ? `__Host-${CSRF_COOKIE}` : CSRF_COOKIE)
 export const CSRF_HEADER = 'x-csrf-token'
 export const CODE_TTL_MS = 10 * 60_000
 
@@ -74,12 +81,12 @@ export async function createSession(db: D1Database, accountId: string, ttlDays: 
 
 export function setSessionCookies(c: Context, cfg: Config, s: { token: string; csrf: string }) {
   const secs = cfg.sessionTtlDays * 86_400
-  c.header('set-cookie', cookie(SESSION_COOKIE, s.token, cfg.cookieSecure, secs, true), { append: true })
-  c.header('set-cookie', cookie(CSRF_COOKIE, s.csrf, cfg.cookieSecure, secs, false), { append: true })
+  c.header('set-cookie', cookie(sessionCookie(cfg), s.token, cfg.cookieSecure, secs, true), { append: true })
+  c.header('set-cookie', cookie(csrfCookie(cfg), s.csrf, cfg.cookieSecure, secs, false), { append: true })
 }
 export function clearSessionCookies(c: Context, cfg: Config) {
-  c.header('set-cookie', cookie(SESSION_COOKIE, '', cfg.cookieSecure, 0, true), { append: true })
-  c.header('set-cookie', cookie(CSRF_COOKIE, '', cfg.cookieSecure, 0, false), { append: true })
+  c.header('set-cookie', cookie(sessionCookie(cfg), '', cfg.cookieSecure, 0, true), { append: true })
+  c.header('set-cookie', cookie(csrfCookie(cfg), '', cfg.cookieSecure, 0, false), { append: true })
 }
 
 interface SessionRow {
@@ -116,6 +123,14 @@ export function checkOrigin(req: Request, cfg: Config) {
   const origin = req.headers.get('origin')
   if (origin && origin !== 'null' && !originAllowed(origin, cfg)) throw forbidden('request origin not allowed')
 }
+/**
+ * WebSocket upgrades are GET requests that browsers send cross-origin with cookies and without
+ * CORS, so the socket route requires an Origin header naming this app.
+ */
+export function checkSocketOrigin(req: Request, cfg: Config) {
+  const origin = req.headers.get('origin')
+  if (!origin || !originAllowed(origin, cfg)) throw forbidden('request origin not allowed')
+}
 function originAllowed(origin: string, cfg: Config): boolean {
   if (origin === cfg.publicOrigin) return true
   if (cfg.env !== 'production') return /^http:\/\/(localhost|127\.0\.0\.1):\d+$/.test(origin)
@@ -126,7 +141,7 @@ const SAFE = new Set(['GET', 'HEAD', 'OPTIONS'])
 
 /** A valid session; for unsafe methods also a matching CSRF token and an allowed origin. */
 export async function requireAuth(c: Context, cfg: Config, db: D1Database): Promise<Auth> {
-  const s = await loadSession(db, readCookie(c.req.raw, SESSION_COOKIE))
+  const s = await loadSession(db, readCookie(c.req.raw, sessionCookie(cfg)))
   if (!s) throw unauthorized()
   if (!SAFE.has(c.req.method.toUpperCase())) {
     checkOrigin(c.req.raw, cfg)

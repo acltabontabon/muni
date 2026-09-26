@@ -104,6 +104,7 @@ commitments.patch('/api/sprints/:sprintId/experiments/:experimentId', async (c) 
   if (body.success_signal !== undefined) await run(db, 'UPDATE experiments SET success_signal=?, updated_at=? WHERE id=?', nonempty(body.success_signal, 300, 'The success signal'), Date.now(), eid)
   if (body.owner_account_id !== undefined) {
     if (!ctx.isFacilitator) throw forbidden('only the facilitator can nominate an owner')
+    if (body.owner_account_id && !(await count(db, 'SELECT count(*) AS n FROM sprint_participants WHERE sprint_id = ? AND account_id = ?', ctx.sprint.id, String(body.owner_account_id)))) throw bad('the owner must be a participant in this sprint')
     await run(db, "UPDATE experiments SET owner_account_id=?, owner_accepted_at=NULL, status=CASE WHEN status IN ('proposed','accepted') THEN 'proposed' ELSE status END, updated_at=? WHERE id=?", body.owner_account_id ? String(body.owner_account_id) : null, Date.now(), eid)
   }
   if (typeof body.review_on === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(body.review_on)) await run(db, 'UPDATE experiments SET review_on=?, updated_at=? WHERE id=?', body.review_on, Date.now(), eid)

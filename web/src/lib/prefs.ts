@@ -5,7 +5,9 @@ type Prefs = {
   lastSprint?: string
   theme?: 'light' | 'dark' | 'system'
   companionFollow?: boolean
-  /** The person chose to keep drafts and unsent thoughts on this device (IndexedDB). */
+  /** Accounts that chose to keep drafts and unsent thoughts on this device (IndexedDB). Per person. */
+  keepLocalFor?: string[]
+  /** Legacy device-wide flag (before the choice was per account); adopted by the next account to sign in. */
   keepLocal?: boolean
   /** The install hint was dismissed; never shown again unprompted. */
   installHintDismissed?: boolean
@@ -30,4 +32,33 @@ export function applyTheme(theme: Prefs['theme'] | undefined, force?: 'dark' | '
   const t = force ?? theme ?? 'system'
   const dark = t === 'dark' || (t === 'system' && window.matchMedia('(prefers-color-scheme: dark)').matches)
   document.documentElement.classList.toggle('dark', dark)
+}
+
+/** Whether this account chose to keep drafts on this device. One person's choice never applies to another. */
+export function keepsLocal(accountId: string | null): boolean {
+  return !!accountId && (readPrefs().keepLocalFor ?? []).includes(accountId)
+}
+export function keptAccounts(): string[] {
+  return readPrefs().keepLocalFor ?? []
+}
+export function setKeepsLocal(accountId: string, on: boolean) {
+  const cur = keptAccounts().filter((a) => a !== accountId)
+  writePrefs({ keepLocalFor: on ? [...cur, accountId] : cur })
+}
+/** The old device-wide switch becomes the choice of whoever signs in next (it was theirs to make). */
+export function adoptLegacyKeep(accountId: string): boolean {
+  const p = readPrefs()
+  if (p.keepLocalFor !== undefined || !p.keepLocal) return false
+  writePrefs({ keepLocalFor: [accountId], keepLocal: undefined })
+  return true
+}
+
+/** What the app remembers between visits about the signed-in person's navigation; cleared on sign-out. */
+export function forgetSignedInState() {
+  writePrefs({ lastWorkspace: undefined, lastSprint: undefined })
+  try {
+    for (const k of Object.keys(localStorage)) if (k.startsWith('muni:revealed:')) localStorage.removeItem(k)
+  } catch {
+    /* private mode */
+  }
 }

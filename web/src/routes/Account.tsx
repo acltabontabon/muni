@@ -21,7 +21,7 @@ export function Account() {
   if (!me) return null
   return (
     <AppShell>
-      <PageTitle title="Account & privacy">Your name is shown when you’re invited to speak and on experiments you own. It is never attached to entries or votes.</PageTitle>
+      <PageTitle title="Account & privacy">Your name is shown when you’re invited to speak and on experiments you own. It is never shown with entries or votes.</PageTitle>
       <div className="grid gap-6 md:grid-cols-2">
         <section className="card p-6">
           <h2 className="font-display text-xl">Name</h2>

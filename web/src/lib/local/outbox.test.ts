@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { backoff, flush, type SyncDeps } from './outbox'
+import { backoff, CLIENT_REVISION, flush, type SyncDeps } from './outbox'
 import { emptyPayload, memoryStore, upgradeRecord, type LocalStore, type OutboxItem } from './store'
 
 /** A tiny stand-in for the Worker with the same rules the real one enforces. */
@@ -176,7 +176,7 @@ describe('outbox', () => {
     const store = memoryStore()
     const { s, fetchImpl } = fakeServer()
     await store.enqueue(item())
-    s.minClient = 2
+    s.minClient = CLIENT_REVISION + 1
     expect((await flush(deps(store, fetchImpl))).state).toBe('upgrade')
     expect(s.posts).toBe(0)
     expect((await store.listOutbox('acct-a'))[0].status).toBe('queued')

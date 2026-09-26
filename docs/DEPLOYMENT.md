@@ -1,5 +1,9 @@
 # Muni — deployment
 
+> **Retired backend.** This document describes the Rust server under `server/`, which is no longer
+> deployed. The supported deployment is the Cloudflare Worker in `worker/` (see README “Deploy to
+> Cloudflare”, `docs/HANDOFF.md`); its security and privacy properties are in `docs/SECURITY.md`.
+
 This document describes how to run Muni in production. It is written from
 the code in `server/src/config.rs`, `server/src/main.rs` and
 `server/src/lib.rs`; when the two disagree, the code wins and this file needs

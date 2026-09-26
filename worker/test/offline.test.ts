@@ -83,7 +83,8 @@ describe('offline submissions', () => {
     const r = await req('GET', '/api/auth/me', u, undefined, { 'x-muni-client': '0.5' })
     expect(r.status).toBe(426)
     expect((r.body as { code: string }).code).toBe('upgrade_required')
-    expect((await req('GET', '/api/auth/me', u, undefined, { 'x-muni-client': '1' })).status).toBe(200)
+    expect((await req('GET', '/api/auth/me', u, undefined, { 'x-muni-client': '1' })).status).toBe(426)
+    expect((await req('GET', '/api/auth/me', u, undefined, { 'x-muni-client': '2' })).status).toBe(200)
     expect((await req('GET', '/api/auth/me', u)).status).toBe(200) // no header: browsers, curl, tests
   })
 })
