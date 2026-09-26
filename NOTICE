@@ -1,0 +1,9 @@
+Muni
+Copyright 2026 Alvin Cris Tabontabon
+
+This product is licensed under the Apache License, Version 2.0 (see LICENSE).
+
+The web app bundles third-party software and fonts under their own licenses
+(MIT, ISC, 0BSD and the SIL Open Font License 1.1). Building it writes their
+license texts to web/dist/third-party-licenses.txt, which is served with the
+app; docs/THIRD-PARTY.md lists them.

@@ -26,7 +26,10 @@ export function About() {
         <p><strong className="text-ink">What this device keeps.</strong> Only if you turn on “Keep drafts on this device” (account menu): the draft you’re writing, thoughts waiting to be sent, and a few details of the sprints they’re for, stored in this browser for your account only. That lets you recover a draft after closing Muni and write without a connection. Anyone who can use this device and browser profile could read them, so it’s meant for a personal device. It isn’t a backup and can be lost if the browser clears its storage. Signing out or “Clear local data” removes it; that never deletes anything from Muni’s servers. If your access to a sprint ends while this device is offline, what’s stored here stays until Muni reconnects and learns about it. With the setting off, drafts live only as long as the tab.</p>
         <p><strong className="text-ink">Sign-in.</strong> A six-digit code proves you control a mailbox. It doesn’t prove a mailbox belongs to exactly one person. Invitations are for one address; forwarding a link doesn’t let someone else join.</p>
       </div>
-      <p className="mt-10 text-sm text-ink-faint">Capture thoughts throughout the sprint. Reflect together. Turn insights into action.</p>
+      <p className="mt-10 text-sm text-ink-soft">
+        Muni is an independently maintained project, built and operated by one developer. ·{' '}
+        <a href="/third-party-licenses.txt" className="underline underline-offset-4 hover:text-ink">Third-party licenses</a>
+      </p>
     </div>
   )
 }
