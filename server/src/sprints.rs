@@ -180,7 +180,7 @@ pub fn resolve_local(tz: Tz, date: NaiveDate, time: &str) -> AppResult<DateTime<
 
 pub fn local_label(tz: &str, at: DateTime<Utc>) -> String {
     match tz.parse::<Tz>() {
-        Ok(tz) => at.with_timezone(&tz).format("%a %-d %b %Y, %H:%M %Z").to_string(),
+        Ok(tz) => at.with_timezone(&tz).format("%a %-d %b %Y, %H:%M (UTC%:z)").to_string(),
         Err(_) => at.to_rfc3339(),
     }
 }

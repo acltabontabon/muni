@@ -1,0 +1,10 @@
+{
+  "name": "Muni",
+  "short_name": "Muni",
+  "description": "Capture thoughts throughout the sprint. Reflect together. Turn insights into action.",
+  "start_url": "/capture",
+  "display": "standalone",
+  "background_color": "#faf6f0",
+  "theme_color": "#c8512c",
+  "icons": [{ "src": "/favicon.svg", "sizes": "any", "type": "image/svg+xml" }]
+}

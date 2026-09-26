@@ -15,6 +15,8 @@ const STOP: &[&str] = &[
     "more", "less", "again", "still", "just", "about", "there", "their", "they", "them", "which", "what", "would", "could", "should", "did",
     "do", "does", "get", "got", "one", "two", "some", "all", "any", "much", "many", "been", "being", "each", "every", "also", "then", "out",
     "up", "down", "over", "under", "before", "after", "during", "while", "because", "if", "can", "will", "sprint", "team", "week", "time",
+    "meant", "think", "thought", "really", "actually", "want", "know", "like", "make", "made", "thing", "things", "most", "last", "next", "first",
+    "day", "days", "minute", "minutes", "again", "still", "only", "even", "half", "twice", "nobody", "everyone", "someone", "something", "anything",
 ];
 
 fn words(s: &str) -> HashSet<String> {

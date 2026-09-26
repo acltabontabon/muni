@@ -649,7 +649,9 @@ pub async fn add_context(State(state): State<AppState>, ctx: SprintCtx, Json(bod
         .bind(&key)
         .execute(&state.db)
         .await?;
-    // No broadcast to everyone: only the facilitator's next snapshot learns "something is waiting".
+    // A bare "meeting changed" hint: only the facilitator's snapshot carries the
+    // "something is waiting" flag; nobody else's snapshot changes.
+    state.broadcaster.publish(ctx.sprint.id, Hint::meeting());
     snapshot(&state, &ctx).await.map(Json)
 }
 
