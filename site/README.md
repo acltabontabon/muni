@@ -25,5 +25,7 @@ worker; the app's PWA is scoped to act.munimuni.app.
 
 The pinned "how it works" scene uses the demo team's 25 thoughts as the app stores them
 (category, rough timing, theme), so its counts — 5 themes of 6 · 1 · 5 · 2 · 1 and 10
-ungrouped — are true to the product. The privacy wording is the app's exact promise.
+ungrouped — are true to the product. The privacy section links to the app's Privacy & data page
+(act.munimuni.app/privacy), which holds the full explanation; keep the two consistent
+(`docs/privacy-claims.md`).
 Everything that moves respects `prefers-reduced-motion`.

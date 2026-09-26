@@ -109,7 +109,7 @@
           </li>
           <li class="caption" data-step="1">
             <p class="kicker"><span class="num">02</span> Sealed</p>
-            <h3>Nobody reads them <em>yet</em>.</h3>
+            <h3>Your team can’t read them <em>yet</em>.</h3>
             <p>Not the facilitator, not your manager. Until collection closes, the only thoughts you can see are your own — and you can still change them.</p>
           </li>
           <li class="caption" data-step="2">
@@ -120,7 +120,7 @@
           <li class="caption" data-step="3">
             <p class="kicker"><span class="num">04</span> Discover</p>
             <h3>Thoughts become <em>themes</em>.</h3>
-            <p>Grouped by meaning, not keywords — with an optional AI draft the facilitator edits. The original words are never replaced. Votes are private until the round closes.</p>
+            <p>The facilitator groups them by meaning, not keywords. The original words are never replaced. Votes are private until the round closes.</p>
           </li>
         </ol>
         <div class="field" aria-hidden="true">
@@ -225,21 +225,23 @@
       </div>
     </section>
 
-    <!-- ── Privacy ────────────────────────────────────────────────── -->
+    <!-- ── Privacy: the heading on the water, like the hero ───────────── -->
     <section class="privacy" id="privacy" data-sky="day" aria-labelledby="privacy-title">
       <div class="container">
-        <p class="kicker">The privacy promise, exactly</p>
-        <h2 id="privacy-title" class="sr-only">Privacy</h2>
-        <blockquote class="promise">
-          Your identity is verified to access each sprint. Your entries and votes are shown without your identity to teammates and facilitators. The service operator may technically be able to associate activity with accounts. <em>Your wording can still reveal who you are.</em>
-        </blockquote>
-        <p class="promise-note">We’d rather be precise than reassuring.</p>
-        <div class="facts">
-          <div><h3>Hidden, everywhere shared</h3><p>Stage, preparation view and exports never show who wrote an entry, who voted for what, or when something was submitted.</p></div>
-          <div><h3>The facilitator</h3><p>Sees nothing during collection except their own entries. Afterwards: everyone’s entries, anonymously, and who is present.</p></div>
-          <div><h3>The operator</h3><p>Muni stores who saved each entry so only you can edit it. There’s no button to join those records. This is application-level anonymity, not cryptography.</p></div>
-          <div><h3>AI, only if chosen</h3><p>Decided before collection starts. Entry text goes to the provider to draft themes — never names, emails, attendance or authorship.</p></div>
+        <p class="kicker">Privacy</p>
+        <div class="waterline privacy-water">
+          <h2 id="privacy-title" class="display">Your reflections are for <em>your team</em>.</h2>
         </div>
+        <div class="reflection privacy-reflection" aria-hidden="true">
+          <div class="display mirrored">Your reflections are for <em>your team</em>.</div>
+        </div>
+        <p class="lede privacy-lede">Muni uses your account information and contributions to provide and protect the service. We don’t sell your personal data, use your contributions for advertising, or use them to train AI models.</p>
+        <div class="facts">
+          <div><h3>Sealed, then shared without names</h3><p>Until the facilitator closes collection, nobody on your team can read what you wrote — the facilitator included. Then the sprint sees every thought at once, in random order, without names.</p></div>
+          <div><h3>Honest about the limits</h3><p>Muni’s servers record who wrote each thought, so only you can edit yours. That makes it privacy from your team, not from the service: it isn’t end-to-end encrypted, and your wording can still give you away.</p></div>
+          <div><h3>No ads, no trackers, no AI</h3><p>The app has no analytics, ad trackers or session recording, and no thought is sent to an AI service.</p></div>
+        </div>
+        <p class="privacy-more"><a class="btn btn-ghost" href="https://act.munimuni.app/privacy">How privacy works <span aria-hidden="true">→</span></a></p>
       </div>
     </section>
 
@@ -275,7 +277,7 @@
   <footer class="footer" data-sky="night">
     <span><svg width="18" height="18" aria-hidden="true"><use href="#mark" /></svg> muni</span>
     <span>Muni is an independently maintained project, built and operated by one developer.</span>
-    <span>© 2026 · <a href="https://acltabontabon.com">acltabontabon</a></span>
+    <span><a href="https://act.munimuni.app/privacy">Privacy</a> · © 2026 · <a href="https://acltabontabon.com">acltabontabon</a></span>
   </footer>
 
   <script src="main.js" defer></script>

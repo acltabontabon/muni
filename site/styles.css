@@ -675,18 +675,12 @@ kbd { font-family: var(--font-mono); font-size: 11px; padding: 1px 6px; border-r
 /* ── Privacy ──────────────────────────────────────────────────────── */
 
 .privacy { padding: clamp(100px, 14vh, 160px) 0; }
-.promise {
-  margin: 28px 0 0;
-  font-size: clamp(1.6rem, 3.3vw, 2.9rem);
-  line-height: 1.18;
-  letter-spacing: -0.03em;
-  font-weight: 500;
-  max-width: 30ch;
-  text-wrap: pretty;
-}
-.promise::before { content: '“'; display: block; font-family: var(--font-serif); font-size: 1.8em; line-height: 0.6; color: var(--accent); margin-bottom: 10px; }
-.promise em { color: var(--accent); }
-.promise-note { margin-top: 22px; color: var(--soft); }
+/* The heading sits on the water and is reflected beneath it, like the hero's. */
+.privacy-water { margin-top: 22px; }
+.privacy .display { margin-top: 0; max-width: 16ch; }
+.privacy-reflection { height: clamp(44px, 5.6vw, 92px); }
+.privacy-lede { margin-top: 8px; }
+.privacy-more { margin-top: clamp(36px, 5vw, 56px); }
 .facts { margin-top: clamp(48px, 7vw, 80px); display: grid; grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); gap: 28px 36px; }
 .facts div { padding-top: 18px; border-top: 1px solid var(--line-strong); }
 .facts h3 { font-size: 1.02rem; letter-spacing: -0.01em; }
