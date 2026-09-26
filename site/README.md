@@ -11,15 +11,11 @@ python3 -m http.server 4321 --directory site
 
 ## Where it lives
 
-Published at **https://munimuni.app** from the public repository
-[acltabontabon/munimuni.app](https://github.com/acltabontabon/munimuni.app) (GitHub Pages, branch
-`main`, root). `CNAME` holds the domain; DNS for the apex and `www` is on Cloudflare (DNS only, so
-GitHub can issue the certificate). This folder is the source; to publish a change:
-
-```bash
-git clone git@github.com:acltabontabon/munimuni.app.git /tmp/munimuni.app
-cp -R site/. /tmp/munimuni.app/ && cd /tmp/munimuni.app && git add -A && git commit -m "Update site" && git push
-```
+Published at **https://munimuni.app** by GitHub Pages from this repository: every push to `main`
+that touches `site/` runs `.github/workflows/pages.yml`, which uploads this folder as-is. The custom
+domain is set in the repository's Pages settings (not a `CNAME` file). On Cloudflare the apex and
+`www` are proxied CNAMEs to `acltabontabon.github.io` (same as acltabontabon.com): Cloudflare
+serves HTTPS with its edge certificate, SSL mode "Full", Always Use HTTPS on.
 
 The app will live at **https://act.munimuni.app**. When it launches, set `data-app-url` on
 `<html>` in `index.html` to that address; until then every "Open Muni" button reads "Coming soon".
