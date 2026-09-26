@@ -1,0 +1,123 @@
+/** Retention: content is purged after the workspace window; outcomes live under their own, longer window. */
+import { describe, expect, it } from 'vitest'
+import { env } from 'cloudflare:test'
+import { closeCollection, command, entry, get, go, ids, post, put, runJobs, sprint, team, type User } from './harness'
+import { retention } from '../src/jobs'
+
+const DAY = 86_400_000
+const n = async (sql: string, ...args: unknown[]) => Number((await env.DB.prepare(sql).bind(...args).first<{ n: number }>())!.n)
+
+/** A completed sprint with every kind of content attached. */
+async function completedSprint(owner: User, members: User[], ws: string, publishRecap: boolean) {
+  const s = await sprint(owner, members, ws, 'collecting')
+  await entry(members[0], s, 'improve', 'purge-needle body')
+  await entry(members[1], s, 'keep', 'another body')
+  const entries = await closeCollection(owner, s)
+  const g = await post(`/api/sprints/${s}/themes`, owner, { title: 'Theme', entry_ids: ids(entries) })
+  const theme = g.body.themes[0].id as string
+  expect((await post(`/api/sprints/${s}/ai/grouping`, owner)).status).toBe(200)
+  await runJobs()
+  await go(owner, s, 'ready')
+  await post(`/api/sprints/${s}/votes/rounds`, owner)
+  await post(`/api/sprints/${s}/votes`, members[0], { theme_id: theme, cast: true })
+  await post(`/api/sprints/${s}/votes/rounds/close`, owner, { action: 'close' })
+  await go(owner, s, 'live')
+  expect((await post(`/api/sprints/${s}/meeting/context`, members[1], { theme_id: theme, body: 'context-needle' })).status).toBe(200)
+  await command(owner, s, { type: 'set_topic', theme_id: theme })
+  expect((await put(`/api/sprints/${s}/meeting/notes/${theme}`, owner, { takeaway: 'takeaway-needle' })).status).toBe(200)
+  const exp = await post(`/api/sprints/${s}/experiments`, owner, { change_to_try: 'For the next sprint, reserve a daily 15-minute review window', success_signal: 'PRs wait less than a day', theme_id: theme, owner_account_id: members[0].account_id })
+  expect(exp.status).toBe(200)
+  const experimentId = exp.body[0].id as string
+  expect((await put(`/api/sprints/${s}/recap`, owner, publishRecap ? { publish: true } : {})).status).toBe(200)
+  expect((await go(owner, s, 'completed')).status).toBe(200)
+  return { s, theme, experimentId }
+}
+
+describe('retention', () => {
+  it('purges content after the workspace window and keeps outcomes and published recaps', async () => {
+    const { owner, members, ws } = await team(2)
+    const { s, experimentId } = await completedSprint(owner, members, ws, true)
+    const fresh = await completedSprint(owner, members, ws, true)
+    // Everything is there before the window closes.
+    expect(await n('SELECT count(*) AS n FROM entries WHERE sprint_id = ?', s)).toBe(2)
+    expect(await n('SELECT count(*) AS n FROM ai_jobs WHERE sprint_id = ?', s)).toBe(1)
+    expect(await n('SELECT count(*) AS n FROM ai_proposals WHERE sprint_id = ?', s)).toBe(1)
+    expect(await n('SELECT count(*) AS n FROM votes WHERE round_id IN (SELECT id FROM vote_rounds WHERE sprint_id = ?)', s)).toBe(1)
+    await retention(env as any)
+    expect(await n('SELECT count(*) AS n FROM entries WHERE sprint_id = ?', s)).toBe(2)
+    expect((await get(`/api/sprints/${s}`, owner)).body.content_purged_at).toBeNull()
+    // Age the sprint past the workspace retention window (default 90 days).
+    await env.DB.prepare('UPDATE sprints SET completed_at = ? WHERE id = ?').bind(Date.now() - 100 * DAY, s).run()
+    await retention(env as any)
+    for (const [table, sql] of [
+      ['entries', 'SELECT count(*) AS n FROM entries WHERE sprint_id = ?'],
+      ['themes', 'SELECT count(*) AS n FROM themes WHERE sprint_id = ?'],
+      ['discussion_notes', 'SELECT count(*) AS n FROM discussion_notes WHERE sprint_id = ?'],
+      ['context_additions', 'SELECT count(*) AS n FROM context_additions WHERE sprint_id = ?'],
+      ['ai_jobs', 'SELECT count(*) AS n FROM ai_jobs WHERE sprint_id = ?'],
+      ['ai_proposals', 'SELECT count(*) AS n FROM ai_proposals WHERE sprint_id = ?'],
+      ['vote_rounds', 'SELECT count(*) AS n FROM vote_rounds WHERE sprint_id = ?'],
+      ['votes', 'SELECT count(*) AS n FROM votes WHERE round_id IN (SELECT id FROM vote_rounds WHERE sprint_id = ?)'],
+      ['theme_entries', 'SELECT count(*) AS n FROM theme_entries WHERE theme_id IN (SELECT id FROM themes WHERE sprint_id = ?)'],
+    ]) expect(await n(sql, s), table).toBe(0)
+    // Experiments and the published recap remain; the experiment loses its theme link but keeps the title.
+    const exps = await get(`/api/sprints/${s}/experiments`, owner)
+    expect(exps.body).toHaveLength(1)
+    expect(exps.body[0]).toMatchObject({ id: experimentId, theme_id: null, theme_title: 'Theme', owner_name: 'Member 0' })
+    const recap = await get(`/api/sprints/${s}/recap`, members[1])
+    expect(recap.body.exists).toBe(true)
+    expect(recap.body.published_at).not.toBeNull()
+    expect(recap.body.body).toContain('retro recap')
+    // The sprint is archived and marked as purged; the audit trail records it.
+    const d = await get(`/api/sprints/${s}`, owner)
+    expect(d.body.status).toBe('archived')
+    expect(d.body.content_purged_at).not.toBeNull()
+    expect(d.body.entry_count).toBe(0)
+    expect(d.body.theme_count).toBe(0)
+    expect(await n("SELECT count(*) AS n FROM audit_events WHERE sprint_id = ? AND action = 'retention.purged'", s)).toBe(1)
+    // Nothing that could name a person or quote an entry survives in the purged sprint's exports.
+    const md = await get(`/api/sprints/${s}/export.md?scope=raw`, owner)
+    expect(md.status).toBe(200)
+    expect(md.body).not.toContain('purge-needle')
+    expect(md.body).not.toContain('context-needle')
+    // A younger sprint in the same workspace is untouched, and a second sweep is a no-op.
+    expect(await n('SELECT count(*) AS n FROM entries WHERE sprint_id = ?', fresh.s)).toBe(2)
+    expect((await get(`/api/sprints/${fresh.s}`, owner)).body.status).toBe('completed')
+    await retention(env as any)
+    expect(await n("SELECT count(*) AS n FROM audit_events WHERE sprint_id = ? AND action = 'retention.purged'", s)).toBe(1)
+  })
+
+  it('deletes an unpublished recap draft with the content', async () => {
+    const { owner, members, ws } = await team(2)
+    const { s } = await completedSprint(owner, members, ws, false)
+    expect((await get(`/api/sprints/${s}/recap`, owner)).body.exists).toBe(true)
+    expect((await get(`/api/sprints/${s}/recap`, members[0])).body.exists).toBe(false)
+    await env.DB.prepare('UPDATE sprints SET completed_at = ? WHERE id = ?').bind(Date.now() - 100 * DAY, s).run()
+    await retention(env as any)
+    expect(await n('SELECT count(*) AS n FROM recaps WHERE sprint_id = ?', s)).toBe(0)
+    expect((await get(`/api/sprints/${s}/recap`, owner)).body.exists).toBe(false)
+    expect(await n('SELECT count(*) AS n FROM experiments WHERE sprint_id = ?', s)).toBe(1)
+  })
+
+  it('honours a shorter workspace window and deletes outcomes only beyond the outcome window', async () => {
+    const { owner, members, ws } = await team(2)
+    expect((await post(`/api/workspaces/${ws}`, owner)).status).toBe(404)
+    const { patch } = await import('./harness')
+    expect((await patch(`/api/workspaces/${ws}`, owner, { retention_days: 3 })).status).toBe(400)
+    expect((await patch(`/api/workspaces/${ws}`, owner, { retention_days: 7, outcome_retention_days: 30 })).status).toBe(200)
+    const { s, experimentId } = await completedSprint(owner, members, ws, true)
+    await env.DB.prepare('UPDATE sprints SET completed_at = ? WHERE id = ?').bind(Date.now() - 10 * DAY, s).run()
+    await retention(env as any)
+    expect(await n('SELECT count(*) AS n FROM entries WHERE sprint_id = ?', s)).toBe(0)
+    expect(await n('SELECT count(*) AS n FROM experiments WHERE id = ?', experimentId)).toBe(1)
+    expect(await n('SELECT count(*) AS n FROM recaps WHERE sprint_id = ?', s)).toBe(1)
+    expect((await get(`/api/workspaces/${ws}/experiments`, members[0])).body).toHaveLength(1)
+    // Past the outcome window, experiments and the recap go too.
+    await env.DB.prepare('UPDATE sprints SET completed_at = ? WHERE id = ?').bind(Date.now() - 31 * DAY, s).run()
+    await retention(env as any)
+    expect(await n('SELECT count(*) AS n FROM experiments WHERE id = ?', experimentId)).toBe(0)
+    expect(await n('SELECT count(*) AS n FROM recaps WHERE sprint_id = ?', s)).toBe(0)
+    expect((await get(`/api/workspaces/${ws}/experiments`, members[0])).body).toHaveLength(0)
+    expect((await get(`/api/sprints/${s}`, owner)).status).toBe(200)
+  })
+})
