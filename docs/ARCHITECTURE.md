@@ -76,7 +76,8 @@ discussion_notes, experiments, recaps            jobs, audit_events (ids only), 
 
 ## The privacy boundary
 
-The promise made in the product:
+The promise made in the product (the full wording is the Privacy & data page, `web/src/routes/Privacy.tsx`;
+[`privacy-claims.md`](privacy-claims.md) maps each claim to its evidence):
 
 > Your identity is verified to access this sprint. Your entries and votes are shown without your
 > identity to teammates and facilitators. The service operator may technically be able to

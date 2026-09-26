@@ -12,19 +12,22 @@ and API may still change.
 
 ## What it does
 
-- **Private capture.** During the sprint only you can see your thoughts — the facilitator too.
+- **Private capture.** Until collection closes, your team can't see your thoughts — the facilitator
+  included.
 - **A sealed reveal.** When collection closes, everyone's thoughts appear as one batch, without
   names, in random order.
 - **Themes and votes.** Group thoughts by hand (optional AI drafts, off by default); vote privately.
-- **A paced live retro** with a gentle speaking invitation, anonymous added context, and one to
+- **A paced live retro** with a gentle speaking invitation, added context shown without names, and one to
   three experiments that come back first next sprint.
 - **An installable web app** that keeps capture working offline for people who choose to keep
   drafts on their device.
 
 The privacy is application-level, not cryptographic: the service stores who wrote what (so only you
 can edit yours), and someone with database access could connect the two. Muni is not end-to-end
-encrypted. See [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) for the model and
-[`docs/security-review-2026-09.md`](docs/security-review-2026-09.md) for what was verified.
+encrypted. See [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) for the model,
+[`docs/security-review-2026-09.md`](docs/security-review-2026-09.md) for what was verified, and
+[`docs/privacy-claims.md`](docs/privacy-claims.md) for the evidence behind each public privacy claim. People
+using Muni read the same in the app, at `/privacy`.
 
 ## How it's built
 

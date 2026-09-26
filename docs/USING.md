@@ -10,8 +10,9 @@ first; a category (Proud of, Keep, Improve, Stop, Try) is optional and can be cl
 it again. “Add context” opens room for impact, what might help, and when in the sprint it
 happened. ⌘/Ctrl + Enter saves.
 
-Thoughts are hidden from teammates until the facilitator closes collection. How anonymity works,
-exactly: *Privacy & how Muni works* in the account menu.
+Thoughts are hidden from teammates until the facilitator closes collection. Who can see what, and
+what the operator and service providers can access: *Privacy & data* in the account menu
+(act.munimuni.app/privacy).
 
 If more than one sprint is collecting for you, Muni asks where the thought should go and
 remembers your choice. It never picks one for you silently.

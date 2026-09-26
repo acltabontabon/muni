@@ -38,7 +38,8 @@ Things that matter here more than usual:
   [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md#the-privacy-boundary); the privacy tests enforce
   them.
 - **Honest wording.** User-facing claims about privacy, security or retention must match what the
-  code does.
+  code does. [`docs/privacy-claims.md`](docs/privacy-claims.md) lists each claim with its evidence;
+  update it with the claim.
 - **Accessibility.** Keyboard use, visible focus, text contrast of at least 4.5:1, and
   `prefers-reduced-motion` respected.
 - **Platform.** Muni runs on Cloudflare Workers, D1 and Durable Objects. Changes that add services

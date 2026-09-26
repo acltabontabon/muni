@@ -81,3 +81,7 @@ Pull-request workflows never receive these: `ci.yml` runs with a read-only token
   `ARCHITECTURE.md`). Allowances are per account and shared with anything else you run there.
 - **Access.** Anyone with your Cloudflare account or an API token for it can read the database.
   Use MFA on the account and keep tokens narrowly scoped.
+- **Your privacy page.** The app's Privacy & data page (`web/src/routes/Privacy.tsx`) describes the
+  hosted act.munimuni.app: its operator, contact address and providers. Change those for your
+  deployment, and check the rest against [`privacy-claims.md`](privacy-claims.md) — for example if you
+  use Brevo or turn AI on.
