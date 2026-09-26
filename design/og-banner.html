@@ -1,0 +1,66 @@
+<!doctype html>
+<!--
+  Source for site/og.png, the 1200×630 link-preview banner (Facebook, LinkedIn, X, Slack).
+  Rendered with headless Chromium at 2x; see design/README.md.
+-->
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,300..600;1,9..144,300..500&family=Geist+Mono:wght@400;500&family=Geist:wght@300..700&display=block" rel="stylesheet" />
+  <style>
+    * { box-sizing: border-box; margin: 0; }
+    html, body { width: 1200px; height: 630px; overflow: hidden; background: #09090f; }
+    body { position: relative; font-family: 'Geist', sans-serif; color: #f3f3f8; -webkit-font-smoothing: antialiased; }
+
+    /* Night sky: a violet glow rising behind the word, a cooler one low on the water. */
+    .sky { position: absolute; inset: 0; background:
+      radial-gradient(38% 46% at 50% 40%, rgb(120 105 255 / 0.30), transparent 70%),
+      radial-gradient(60% 30% at 50% 78%, rgb(80 120 255 / 0.08), transparent 70%),
+      radial-gradient(120% 90% at 50% 40%, #13122a 0%, #09090f 60%); }
+    .grain { position: absolute; inset: 0; opacity: 0.06; mix-blend-mode: overlay;
+      background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E"); }
+
+    /* Same construction as the site's "muni." section: the waterline is the word's own bottom
+       border, and a flipped copy hangs beneath it inside a fading, rippled window. */
+    .giant { position: absolute; left: 150px; right: 150px; top: 58px; text-align: center; }
+    .word {
+      display: block;
+      font-family: 'Fraunces', serif;
+      font-weight: 300;
+      font-variation-settings: 'opsz' 144, 'SOFT' 100;
+      font-size: 292px;
+      line-height: 0.78;
+      letter-spacing: -0.06em;
+      white-space: nowrap;
+      padding-bottom: 0.06em;
+    }
+    .word::after { content: '.'; color: #938bff; }
+    .giant > .word { border-bottom: 1px solid transparent; border-image: linear-gradient(90deg, transparent, rgb(255 255 255 / 0.24) 15%, rgb(255 255 255 / 0.24) 85%, transparent) 1; }
+    .reflection { height: 118px; overflow: hidden;
+      -webkit-mask-image: linear-gradient(to bottom, rgb(0 0 0 / 0.5), transparent 92%); mask-image: linear-gradient(to bottom, rgb(0 0 0 / 0.5), transparent 92%); }
+    .reflection .word { transform: scaleY(-1); padding: 0.06em 0 0; filter: url(#water); opacity: 0.62; }
+
+    .tagline { position: absolute; left: 0; right: 0; top: 468px; text-align: center; font-size: 36px; font-weight: 600; letter-spacing: -0.035em; }
+    .tagline em { font-family: 'Fraunces', serif; font-style: italic; font-weight: 400; font-variation-settings: 'opsz' 144; color: #a79fff; letter-spacing: -0.01em; }
+    .foot { position: absolute; left: 0; right: 0; bottom: 42px; display: flex; justify-content: center; gap: 22px;
+      font-family: 'Geist Mono', monospace; font-size: 15px; letter-spacing: 0.16em; text-transform: uppercase; color: #8b86b8; }
+    .foot b { font-weight: 500; color: #c4bfff; }
+  </style>
+</head>
+<body>
+  <svg width="0" height="0" style="position:absolute">
+    <filter id="water" x="-5%" y="-20%" width="110%" height="140%">
+      <feTurbulence type="fractalNoise" baseFrequency="0.006 0.1" numOctaves="2" seed="7" result="noise" />
+      <feDisplacementMap in="SourceGraphic" in2="noise" scale="11" xChannelSelector="R" yChannelSelector="G" />
+    </filter>
+  </svg>
+  <div class="sky"></div>
+  <div class="giant">
+    <span class="word">muni</span>
+    <div class="reflection" aria-hidden="true"><span class="word">muni</span></div>
+  </div>
+  <p class="tagline">Good retros start <em>before</em> the meeting.</p>
+  <p class="foot"><span>mu·ni — to reflect</span><span>·</span><b>munimuni.app</b></p>
+  <div class="grain"></div>
+</body>
+</html>
