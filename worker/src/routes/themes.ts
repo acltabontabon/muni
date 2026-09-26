@@ -1,0 +1,212 @@
+/**
+ * Manual grouping. Works fully without AI. Structural changes bump the
+ * sprint's grouping revision and must explicitly reset an open vote round.
+ */
+import { Hono } from 'hono'
+import type { HonoEnv } from '../env'
+import { config } from '../lib/config'
+import { requireFacilitator, requireParticipant, requireSprint, type SprintCtx } from '../lib/auth'
+import { uuid } from '../lib/crypto'
+import { all, audit, batch, bool, count, one, run } from '../lib/db'
+import { bad, conflict, notFound } from '../lib/errors'
+import { hint } from '../lib/live'
+import { nonempty, optional } from '../lib/util'
+import { requireRevealed, sharedEntries, type SharedEntry } from './entries'
+import { latestClosedTotals } from './voting'
+
+export const themes = new Hono<HonoEnv>()
+
+interface ThemeRow {
+  id: string
+  title: string
+  summary: string
+  question: string
+  draft_experiment: string | null
+  position: number
+  parked: number
+  needs_attention: number
+  order_reason: string | null
+  source: string
+}
+
+export async function grouping(env: HonoEnv['Bindings'], ctx: SprintCtx) {
+  requireRevealed(ctx)
+  const db = env.DB
+  const sp = (await one<{ status: string; grouping_revision: number }>(db, 'SELECT status, grouping_revision FROM sprints WHERE id = ?', ctx.sprint.id))!
+  const rows = await all<ThemeRow>(db, 'SELECT id, title, summary, question, draft_experiment, position, parked, needs_attention, order_reason, source FROM themes WHERE sprint_id = ? ORDER BY position, created_at LIMIT 100', ctx.sprint.id)
+  const allEntries = await sharedEntries(db, ctx.sprint.id)
+  const context = await all<{ id: string; theme_id: string; body: string }>(db, 'SELECT id, theme_id, body FROM context_additions WHERE sprint_id = ? AND released_batch IS NOT NULL AND theme_id IS NOT NULL ORDER BY released_batch, reveal_order, id LIMIT 500', ctx.sprint.id)
+  const takeaways = await all<{ theme_id: string; takeaway: string; discussed: number }>(db, 'SELECT theme_id, takeaway, discussed FROM discussion_notes WHERE sprint_id = ?', ctx.sprint.id)
+  const votes = await latestClosedTotals(db, ctx.sprint.id)
+  const themesOut = rows.map((t) => {
+    const ents = allEntries.filter((e) => e.theme_id === t.id)
+    const mix: Record<string, number> = {}
+    for (const e of ents) mix[e.category ?? 'unsorted'] = (mix[e.category ?? 'unsorted'] ?? 0) + 1
+    const tk = takeaways.find((x) => x.theme_id === t.id)
+    return {
+      id: t.id,
+      title: t.title,
+      summary: t.summary,
+      question: t.question,
+      draft_experiment: t.draft_experiment,
+      position: t.position,
+      parked: bool(t.parked),
+      needs_attention: bool(t.needs_attention),
+      order_reason: t.order_reason,
+      source: t.source,
+      entry_count: ents.length,
+      category_mix: mix,
+      entries: ents,
+      context: context.filter((x) => x.theme_id === t.id).map((x) => ({ id: x.id, body: x.body })),
+      votes: votes ? (votes[t.id] ?? 0) : null,
+      takeaway: tk?.takeaway ?? '',
+      discussed: !!tk && bool(tk.discussed),
+    }
+  })
+  const votingOpen = await count(db, "SELECT count(*) AS n FROM vote_rounds WHERE sprint_id = ? AND status = 'open'", ctx.sprint.id)
+  return {
+    sprint_status: sp.status,
+    grouping_revision: sp.grouping_revision,
+    themes: themesOut,
+    ungrouped: allEntries.filter((e) => !e.theme_id),
+    total_entries: allEntries.length,
+    can_edit: ctx.isFacilitator && ['preparing', 'ready', 'live'].includes(sp.status),
+    voting_open: votingOpen > 0,
+  }
+}
+
+function requireEdit(ctx: SprintCtx) {
+  requireFacilitator(ctx)
+  if (!['preparing', 'ready', 'live'].includes(ctx.sprint.status)) throw conflict('themes can be edited once collection has closed and until the retro is completed')
+}
+
+/** A structural change invalidates an open vote round; refuses unless the facilitator gave a reason. Returns statements to include in the batch. */
+export async function structuralChange(db: D1Database, ctx: SprintCtx, reason: unknown): Promise<[string, ...unknown[]][]> {
+  const open = await one<{ id: string }>(db, "SELECT id FROM vote_rounds WHERE sprint_id = ? AND status = 'open'", ctx.sprint.id)
+  const stmts: [string, ...unknown[]][] = []
+  if (open) {
+    const r = typeof reason === 'string' ? reason.trim() : ''
+    if (!r) throw conflict('a voting round is open. Changing themes now cancels it — give a short reason for participants to continue')
+    stmts.push(["UPDATE vote_rounds SET status='cancelled', cancel_reason=?, closed_at=? WHERE id=?", r.slice(0, 200), Date.now(), open.id])
+  }
+  stmts.push(['UPDATE sprints SET grouping_revision = grouping_revision + 1, updated_at = ? WHERE id = ?', Date.now(), ctx.sprint.id])
+  stmts.push(['INSERT INTO audit_events (workspace_id, sprint_id, actor_id, action, meta, created_at) VALUES (?,?,?,?,?,?)', ctx.sprint.workspace_id, ctx.sprint.id, ctx.auth.account.id, 'grouping.changed', '{}', Date.now()])
+  return stmts
+}
+
+const assign = (sprintId: string, themeId: string, entryIds: string[]): [string, ...unknown[]][] =>
+  entryIds.map((eid) => ['INSERT INTO theme_entries (entry_id, theme_id) SELECT id, ? FROM entries WHERE id = ? AND sprint_id = ? ON CONFLICT(entry_id) DO UPDATE SET theme_id = excluded.theme_id', themeId, eid, sprintId])
+
+themes.get('/api/sprints/:sprintId/themes', async (c) => {
+  const ctx = await requireSprint(c, config(c.env), c.env.DB, c.req.param('sprintId'))
+  requireParticipant(ctx)
+  return c.json(await grouping(c.env, ctx))
+})
+
+themes.post('/api/sprints/:sprintId/themes', async (c) => {
+  const ctx = await requireSprint(c, config(c.env), c.env.DB, c.req.param('sprintId'))
+  requireEdit(ctx)
+  const body = (await c.req.json().catch(() => ({}))) as Record<string, unknown>
+  const title = nonempty(body.title, 80, 'Theme title')
+  if ((await count(c.env.DB, 'SELECT count(*) AS n FROM themes WHERE sprint_id = ?', ctx.sprint.id)) >= 40) throw conflict('40 themes is the limit — merge some first')
+  const id = uuid()
+  const stmts = await structuralChange(c.env.DB, ctx, body.reset_voting_reason)
+  stmts.push(['INSERT INTO themes (id, sprint_id, title, summary, question, draft_experiment, position, created_at) VALUES (?,?,?,?,?,?,(SELECT COALESCE(MAX(position),0)+1 FROM themes WHERE sprint_id=?),?)', id, ctx.sprint.id, title, optional(body.summary, 500, 'Summary') ?? '', optional(body.question, 240, 'Question') ?? '', optional(body.draft_experiment, 300, 'Draft experiment'), ctx.sprint.id, Date.now()])
+  if (Array.isArray(body.entry_ids)) stmts.push(...assign(ctx.sprint.id, id, body.entry_ids.map(String)))
+  await batch(c.env.DB, stmts)
+  await hint(c.env, ctx.sprint.id, 'themes')
+  return c.json(await grouping(c.env, ctx))
+})
+
+themes.patch('/api/sprints/:sprintId/themes/:themeId', async (c) => {
+  const ctx = await requireSprint(c, config(c.env), c.env.DB, c.req.param('sprintId'))
+  requireEdit(ctx)
+  const tid = c.req.param('themeId')
+  if (!(await count(c.env.DB, 'SELECT count(*) AS n FROM themes WHERE id = ? AND sprint_id = ?', tid, ctx.sprint.id))) throw notFound('theme not found')
+  const body = (await c.req.json().catch(() => ({}))) as Record<string, unknown>
+  const stmts: [string, ...unknown[]][] = []
+  if (body.title !== undefined) stmts.push(['UPDATE themes SET title = ? WHERE id = ?', nonempty(body.title, 80, 'Theme title'), tid])
+  if (body.summary !== undefined) stmts.push(['UPDATE themes SET summary = ? WHERE id = ?', optional(body.summary, 500, 'Summary') ?? '', tid])
+  if (body.question !== undefined) stmts.push(['UPDATE themes SET question = ? WHERE id = ?', optional(body.question, 240, 'Question') ?? '', tid])
+  if (body.draft_experiment !== undefined) stmts.push(['UPDATE themes SET draft_experiment = ? WHERE id = ?', optional(body.draft_experiment, 300, 'Draft experiment'), tid])
+  if (body.parked !== undefined) stmts.push(['UPDATE themes SET parked = ? WHERE id = ?', body.parked ? 1 : 0, tid])
+  if (body.needs_attention !== undefined) stmts.push(['UPDATE themes SET needs_attention = ? WHERE id = ?', body.needs_attention ? 1 : 0, tid])
+  if (body.order_reason !== undefined) stmts.push(['UPDATE themes SET order_reason = ? WHERE id = ?', optional(body.order_reason, 200, 'Reason'), tid])
+  if (Array.isArray(body.entry_ids)) {
+    stmts.push(...(await structuralChange(c.env.DB, ctx, body.reset_voting_reason)))
+    stmts.push(...assign(ctx.sprint.id, tid, body.entry_ids.map(String)))
+  }
+  await batch(c.env.DB, stmts)
+  await hint(c.env, ctx.sprint.id, 'themes')
+  return c.json(await grouping(c.env, ctx))
+})
+
+themes.post('/api/sprints/:sprintId/themes/ungroup', async (c) => {
+  const ctx = await requireSprint(c, config(c.env), c.env.DB, c.req.param('sprintId'))
+  requireEdit(ctx)
+  const body = (await c.req.json().catch(() => ({}))) as { entry_ids?: string[]; reset_voting_reason?: string }
+  const stmts = await structuralChange(c.env.DB, ctx, body.reset_voting_reason)
+  for (const eid of body.entry_ids ?? []) stmts.push(['DELETE FROM theme_entries WHERE entry_id = ? AND entry_id IN (SELECT id FROM entries WHERE sprint_id = ?)', String(eid), ctx.sprint.id])
+  await batch(c.env.DB, stmts)
+  await hint(c.env, ctx.sprint.id, 'themes')
+  return c.json(await grouping(c.env, ctx))
+})
+
+themes.delete('/api/sprints/:sprintId/themes/:themeId', async (c) => {
+  const ctx = await requireSprint(c, config(c.env), c.env.DB, c.req.param('sprintId'))
+  requireEdit(ctx)
+  const body = (await c.req.json().catch(() => ({}))) as { reset_voting_reason?: string }
+  const stmts = await structuralChange(c.env.DB, ctx, body.reset_voting_reason)
+  stmts.push(['DELETE FROM themes WHERE id = ? AND sprint_id = ?', c.req.param('themeId'), ctx.sprint.id])
+  await batch(c.env.DB, stmts)
+  await hint(c.env, ctx.sprint.id, 'themes')
+  return c.json(await grouping(c.env, ctx))
+})
+
+themes.post('/api/sprints/:sprintId/themes/:themeId/merge', async (c) => {
+  const ctx = await requireSprint(c, config(c.env), c.env.DB, c.req.param('sprintId'))
+  requireEdit(ctx)
+  const tid = c.req.param('themeId')
+  const body = (await c.req.json().catch(() => ({}))) as { into_theme_id?: string; reset_voting_reason?: string }
+  const into = String(body.into_theme_id ?? '')
+  if (into === tid) throw bad('pick a different theme to merge into')
+  if ((await count(c.env.DB, 'SELECT count(*) AS n FROM themes WHERE sprint_id = ? AND id IN (?, ?)', ctx.sprint.id, tid, into)) !== 2) throw notFound('theme not found')
+  const stmts = await structuralChange(c.env.DB, ctx, body.reset_voting_reason)
+  stmts.push(['UPDATE theme_entries SET theme_id = ? WHERE theme_id = ?', into, tid], ['UPDATE context_additions SET theme_id = ? WHERE theme_id = ?', into, tid], ['DELETE FROM themes WHERE id = ?', tid])
+  await batch(c.env.DB, stmts)
+  await hint(c.env, ctx.sprint.id, 'themes')
+  return c.json(await grouping(c.env, ctx))
+})
+
+themes.post('/api/sprints/:sprintId/themes/:themeId/split', async (c) => {
+  const ctx = await requireSprint(c, config(c.env), c.env.DB, c.req.param('sprintId'))
+  requireEdit(ctx)
+  const tid = c.req.param('themeId')
+  const body = (await c.req.json().catch(() => ({}))) as { title?: string; entry_ids?: string[]; reset_voting_reason?: string }
+  const title = nonempty(body.title, 80, 'Theme title')
+  const src = await one<{ position: number }>(c.env.DB, 'SELECT position FROM themes WHERE id = ? AND sprint_id = ?', tid, ctx.sprint.id)
+  if (!src) throw notFound('theme not found')
+  const nid = uuid()
+  const stmts = await structuralChange(c.env.DB, ctx, body.reset_voting_reason)
+  stmts.push(['INSERT INTO themes (id, sprint_id, title, position, created_at) VALUES (?,?,?,?,?)', nid, ctx.sprint.id, title, src.position + 1, Date.now()])
+  for (const eid of body.entry_ids ?? []) stmts.push(['UPDATE theme_entries SET theme_id = ? WHERE entry_id = ? AND theme_id = ?', nid, String(eid), tid])
+  await batch(c.env.DB, stmts)
+  await hint(c.env, ctx.sprint.id, 'themes')
+  return c.json(await grouping(c.env, ctx))
+})
+
+/** Reorder themes. Not structural: does not reset voting. */
+themes.post('/api/sprints/:sprintId/themes/reorder', async (c) => {
+  const ctx = await requireSprint(c, config(c.env), c.env.DB, c.req.param('sprintId'))
+  requireEdit(ctx)
+  const body = (await c.req.json().catch(() => ({}))) as { theme_ids?: string[]; reason?: string }
+  const reason = optional(body.reason, 200, 'Reason')
+  const stmts: [string, ...unknown[]][] = (body.theme_ids ?? []).slice(0, 100).map((id, i) => ['UPDATE themes SET position = ?, order_reason = COALESCE(?, order_reason) WHERE id = ? AND sprint_id = ?', i, reason, String(id), ctx.sprint.id])
+  await batch(c.env.DB, stmts)
+  await audit(c.env.DB, ctx.sprint.workspace_id, ctx.sprint.id, ctx.auth.account.id, 'themes.reordered')
+  await hint(c.env, ctx.sprint.id, 'themes')
+  return c.json(await grouping(c.env, ctx))
+})
+
+export type { SharedEntry }
+export { run }

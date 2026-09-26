@@ -1,0 +1,81 @@
+# Muni — example production compose file.
+#
+# This is a starting point for a single-host deployment: one app container,
+# one PostgreSQL container, and a TLS reverse proxy (Caddy or nginx) that runs
+# on the host or in its own container and forwards to 127.0.0.1:8080. The
+# proxy is deliberately not part of this file; see docs/DEPLOYMENT.md for a
+# Caddyfile and an nginx server block that keep server-sent events working.
+#
+# Run exactly ONE replica of `app`. Live updates (SSE fan-out), the meeting
+# controller and the rate limiter are in-process; the job worker runs inside
+# the same process. Horizontal scaling is not supported in v1.
+#
+#   docker compose -f docker-compose.prod.yml up -d --build
+#
+# Secrets and environment come from an env file that is NOT committed. The
+# repository's .gitignore already excludes `.env`; if you use another name,
+# add it to .gitignore before you create it. At minimum the file must set:
+#
+#   APP_ENV=production
+#   PUBLIC_ORIGIN=https://retro.example.com      # must be https:// in production
+#   DATABASE_URL=postgres://muni:<password>@db:5432/muni
+#   POSTGRES_PASSWORD=<password>                 # same password, for the db service
+#   SMTP_HOST=smtp.example.com
+#   SMTP_PORT=587
+#   SMTP_USERNAME=...
+#   SMTP_PASSWORD=...
+#   EMAIL_FROM=Muni <retro@example.com>
+#   # optional AI:
+#   # AI_PROVIDER=anthropic
+#   # ANTHROPIC_API_KEY=...
+#
+# In production the server refuses to start with COOKIE_SECURE=false, a
+# non-https PUBLIC_ORIGIN, EMAIL_TRANSPORT=capture, AI_PROVIDER=fake or
+# ALLOW_DEMO_SEED=true. Leave those variables unset and the defaults are safe.
+
+services:
+  db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: muni
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in the env file}
+      POSTGRES_DB: muni
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U muni -d muni"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    # Not published: only the app container needs to reach it. Use
+    # `docker compose exec db pg_dump ...` for backups (docs/OPERATIONS.md).
+
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    # Or use a prebuilt image instead of building on the host:
+    # image: ghcr.io/your-org/muni:1.0.0
+    restart: unless-stopped
+    env_file:
+      - .env
+    environment:
+      # Fixed here so the env file cannot accidentally weaken them.
+      APP_ENV: production
+      BIND_ADDR: 0.0.0.0:8080
+      STATIC_DIR: /app/web
+      LOG_JSON: "true"
+      RUN_WORKER: "true"
+    depends_on:
+      db:
+        condition: service_healthy
+    ports:
+      # Bound to loopback: the reverse proxy on the host terminates TLS and
+      # forwards to this port. Never publish 8080 to the public interface.
+      - "127.0.0.1:8080:8080"
+    # SIGTERM triggers graceful shutdown; give in-flight jobs time to finish.
+    stop_grace_period: 20s
+
+volumes:
+  pgdata:

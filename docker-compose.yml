@@ -1,0 +1,71 @@
+# Muni — local development services.
+#
+# Day to day you run only the database and the mail catcher and start the
+# server and the Vite dev server on the host:
+#
+#   docker compose up -d db mailpit        (or: make dev-db)
+#   cd server && cargo run                 (or: make server)
+#   cd web && npm run dev                  (or: make web)
+#
+# The `full` profile additionally builds and runs the app container itself,
+# useful for checking the production image end to end:
+#
+#   docker compose --profile full up --build
+#
+# Mailpit's inbox is at http://localhost:8025.
+
+services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: muni
+      POSTGRES_PASSWORD: muni
+      POSTGRES_DB: muni
+    ports:
+      - "127.0.0.1:5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U muni -d muni"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  mailpit:
+    image: axllent/mailpit
+    ports:
+      - "127.0.0.1:1025:1025"   # SMTP
+      - "127.0.0.1:8025:8025"   # web inbox
+
+  app:
+    profiles: ["full"]
+    build:
+      context: .
+      dockerfile: Dockerfile
+    depends_on:
+      db:
+        condition: service_healthy
+      mailpit:
+        condition: service_started
+    environment:
+      APP_ENV: development
+      BIND_ADDR: 0.0.0.0:8080
+      DATABASE_URL: postgres://muni:muni@db:5432/muni
+      PUBLIC_ORIGIN: http://localhost:8080
+      COOKIE_SECURE: "false"
+      EMAIL_TRANSPORT: smtp
+      SMTP_HOST: mailpit
+      SMTP_PORT: "1025"
+      SMTP_STARTTLS: "false"
+      EMAIL_FROM: "Muni <muni@localhost>"
+      AI_PROVIDER: ${AI_PROVIDER:-none}
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+      ALLOW_DEMO_SEED: "true"
+      RUN_WORKER: "true"
+      LOG_JSON: "false"
+      STATIC_DIR: /app/web
+    ports:
+      - "127.0.0.1:8080:8080"
+
+volumes:
+  pgdata:

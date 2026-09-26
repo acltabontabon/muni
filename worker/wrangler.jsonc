@@ -1,0 +1,30 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "muni",
+  "main": "src/index.ts",
+  "compatibility_date": "2026-09-01",
+  "compatibility_flags": ["nodejs_compat"],
+  "workers_dev": true,
+  "observability": { "enabled": true, "head_sampling_rate": 1 },
+  "assets": {
+    "directory": "../web/dist",
+    "binding": "ASSETS",
+    "not_found_handling": "single-page-application",
+    "run_worker_first": ["/api/*"]
+  },
+  "d1_databases": [
+    { "binding": "DB", "database_name": "muni", "database_id": "REPLACE_WITH_D1_ID", "migrations_dir": "migrations" }
+  ],
+  "durable_objects": {
+    "bindings": [{ "name": "ROOMS", "class_name": "MeetingRoom" }]
+  },
+  "migrations": [{ "tag": "v1", "new_sqlite_classes": ["MeetingRoom"] }],
+  "triggers": { "crons": ["*/15 * * * *"] },
+  "vars": {
+    "APP_ENV": "development",
+    "PUBLIC_ORIGIN": "http://localhost:8787",
+    "EMAIL_PROVIDER": "console",
+    "AI_PROVIDER": "fake",
+    "ALLOW_DEMO_SEED": "true"
+  }
+}

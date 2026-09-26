@@ -7,3 +7,6 @@ web/test-results/
 web/playwright-report/
 web/e2e-artifacts/
 *.log
+worker/.wrangler/
+worker/worker-configuration.d.ts
+.dev.vars
