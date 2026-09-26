@@ -313,7 +313,11 @@ body {
   border-radius: 999px;
   background: radial-gradient(circle at 50% 42%, var(--sun-a), var(--sun-b));
   box-shadow: 0 0 0 calc(var(--art-h) * 0.1) color-mix(in oklab, var(--halo) 22%, transparent), 0 0 calc(var(--art-h) * 0.4) calc(var(--art-h) * 0.08) color-mix(in oklab, var(--halo) 30%, transparent);
-  clip-path: inset(-100% -100% 11% -100%);
+  /* Sets it behind the waterline: the only cut is along the horizon (0.11 × art height above the
+     disc's bottom). The other sides reach past the halo, which extends 0.48 × art height (spread +
+     blur) — about 185% of the disc's width. A tighter clip (it was 100%) sliced the glow off in
+     straight lines: a faint box around the moon, plainest against the night sky. */
+  clip-path: inset(-300% -300% calc(var(--art-h) * 0.11) -300%);
 }
 .journal-water {
   --art-h: 60px;
