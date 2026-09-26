@@ -75,7 +75,7 @@ app.route('/', demo)
 
 app.notFound((c) => c.json({ error: 'not found', code: 'not_found' }, 404))
 app.onError((err, c) => {
-  if (err instanceof AppError) return c.json({ error: err.message, code: err.code }, err.status as 400)
+  if (err instanceof AppError) return c.json({ ...err.extra, error: err.message, code: err.code }, err.status as 400)
   // Quota and platform errors surface as a recoverable message, never as a false success.
   const msg = String(err instanceof Error ? err.message : err)
   if (/D1_ERROR|too many requests|exceeded|quota|limit/i.test(msg)) return c.json({ error: 'Muni is at its usage limit right now. Nothing was saved — try again in a little while.', code: 'quota' }, 503)

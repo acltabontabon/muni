@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { env } from 'cloudflare:test'
-import { codeFor, del, get, inviteToken, post, signin, sprint, tag, team, verify } from './harness'
+import { codeFor, del, get, inviteToken, post, signin, skipCooldown, sprint, tag, team, verify } from './harness'
 
 describe('sign-in', () => {
   it('rejects wrong codes, bounds attempts, refuses replay', async () => {
@@ -9,6 +9,7 @@ describe('sign-in', () => {
     for (let i = 0; i < 5; i++) expect((await verify(email, '000000')).status).toBe(400)
     const code = await codeFor(email)
     expect((await verify(email, code)).status).toBe(400) // exhausted
+    await skipCooldown(email)
     await post('/api/auth/request-code', null, { email })
     const fresh = await codeFor(email)
     expect((await verify(email, fresh)).status).toBe(200)
@@ -17,8 +18,14 @@ describe('sign-in', () => {
 
   it('rate-limits code requests per address', async () => {
     const email = `rl-${tag()}@example.com`
-    for (let i = 0; i < 5; i++) expect((await post('/api/auth/request-code', null, { email })).status).toBe(200)
-    expect((await post('/api/auth/request-code', null, { email })).status).toBe(429)
+    for (let i = 0; i < 5; i++) {
+      await skipCooldown(email)
+      expect((await post('/api/auth/request-code', null, { email })).status).toBe(200)
+    }
+    await skipCooldown(email)
+    const capped = await post('/api/auth/request-code', null, { email })
+    expect(capped.status).toBe(429)
+    expect(capped.body.retry_after_seconds).toBeGreaterThan(0)
   })
 
   it('caps sign-in emails across all addresses per day, with an honest message', async () => {

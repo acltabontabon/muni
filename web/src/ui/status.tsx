@@ -11,8 +11,8 @@ import { useAuth } from '@/lib/auth'
 import { useLocal } from '@/lib/local/LocalProvider'
 import { applyUpdate, usePwa } from '@/lib/pwa'
 import { isComposerDirty } from '@/lib/dirty'
-import { Mark } from '@/brand/Mark'
 import { Button } from '@/ui'
+import { EntranceShell, Step } from '@/ui/entrance'
 
 export type ThoughtState = 'draft' | 'queued' | 'sending' | 'submitted' | 'attention'
 export const STATE_LABEL: Record<ThoughtState, string> = {
@@ -131,16 +131,29 @@ export function UpdateNotice() {
 /** Opening Muni with no connection and nothing kept on this device. */
 export function OfflineStart() {
   const { refresh } = useAuth()
+  const [busy, setBusy] = useState(false)
   return (
-    <div className="grid min-h-dvh place-items-center px-6">
-      <div className="max-w-sm text-center">
-        <Mark size={44} className="mx-auto text-ink" />
-        <h1 className="font-display mt-5 text-2xl">You’re offline</h1>
-        <p className="mt-2 text-ink-soft">Muni needs a connection to sign in and to open a workspace for the first time on this device.</p>
-        <p className="mt-2 text-sm text-ink-faint">Once you’re signed in, you can turn on “Keep drafts on this device” to write and queue thoughts without a connection.</p>
-        <Button className="mt-6" variant="primary" onClick={() => refresh()}>Try again</Button>
-      </div>
-    </div>
+    <EntranceShell>
+      <Step describedBy="offline-start" title="You’re offline." lead="Muni needs a connection to sign in, and to open for the first time on this device. Nothing was sent.">
+        <Button
+          className="mt-7 w-full"
+          size="lg"
+          variant="primary"
+          busy={busy}
+          onClick={async () => {
+            setBusy(true)
+            try {
+              await refresh()
+            } finally {
+              setBusy(false)
+            }
+          }}
+        >
+          Try again
+        </Button>
+        <p className="quiet mt-4">Once you’re signed in, “Keep drafts on this device” lets you write and queue thoughts without a connection.</p>
+      </Step>
+    </EntranceShell>
   )
 }
 

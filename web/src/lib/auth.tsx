@@ -30,7 +30,7 @@ async function cachedIdentity(): Promise<Me | null> {
     const i = await deviceStore().getIdentity()
     // Only someone who chose to keep drafts on this device can open Muni from it offline.
     if (!i || (!legacy && !keptAccounts().includes(i.account_id))) return null
-    return { account_id: i.account_id, display_name: i.display_name, email: '', workspaces: i.workspaces.map((w) => ({ ...w, is_demo: false })), session_expires_at: '', email_transport: '', ai_provider: '' }
+    return { account_id: i.account_id, display_name: i.display_name, needs_name: false, email: '', workspaces: i.workspaces.map((w) => ({ ...w, is_demo: false })), session_expires_at: '', email_transport: '', ai_provider: '' }
   } catch {
     return null
   }

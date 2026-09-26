@@ -4,7 +4,7 @@ import { config } from '../lib/config'
 import { CODE_TTL_MS, clearSessionCookies, createSession, loadSession, readCookie, requireAuth, revokeSession, sessionCookie, setSessionCookies, checkOrigin } from '../lib/auth'
 import { constantTimeEqual, randomCode, sha256Hex, uuid } from '../lib/crypto'
 import { all, batch, one, run } from '../lib/db'
-import { bad, quota } from '../lib/errors'
+import { AppError, bad, quota } from '../lib/errors'
 import { sendMail, templates } from '../lib/email'
 import { clientClass, limit } from '../lib/ratelimit'
 import { maskEmail, nonempty, normalizeEmail } from '../lib/util'
@@ -13,7 +13,7 @@ export const auth = new Hono<HonoEnv>()
 
 export async function buildMe(env: HonoEnv['Bindings'], accountId: string) {
   const cfg = config(env)
-  const acct = await one<{ email: string; display_name: string }>(env.DB, 'SELECT email, display_name FROM accounts WHERE id = ?', accountId)
+  const acct = await one<{ email: string; display_name: string; name_set_at: number | null }>(env.DB, 'SELECT email, display_name, name_set_at FROM accounts WHERE id = ?', accountId)
   const rows = await all<{ id: string; name: string; role: string; is_demo: number }>(
     env.DB,
     'SELECT w.id, w.name, m.role, w.is_demo FROM memberships m JOIN workspaces w ON w.id = m.workspace_id WHERE m.account_id = ? AND m.revoked_at IS NULL ORDER BY w.created_at',
@@ -24,6 +24,8 @@ export async function buildMe(env: HonoEnv['Bindings'], accountId: string) {
     account_id: accountId,
     email: acct?.email ?? '',
     display_name: acct?.display_name ?? '',
+    /** No name chosen yet (a new account, or one whose name was once inferred): ask before anything else. */
+    needs_name: !acct?.name_set_at || !acct.display_name.trim(),
     workspaces: rows.map((r) => ({ id: r.id, name: r.name, role: r.role, is_demo: r.is_demo === 1 })),
     session_expires_at: new Date(Number(exp?.e ?? Date.now())).toISOString(),
     email_transport: cfg.email,
@@ -32,6 +34,8 @@ export async function buildMe(env: HonoEnv['Bindings'], accountId: string) {
 }
 
 const DAY_MS = 86_400_000
+/** A new code can be sent once this long after the last one for the same address. */
+export const RESEND_COOLDOWN_MS = 30_000
 const codeHash = (code: string, challengeId: string) => sha256Hex(`${code}:${challengeId}`)
 
 /** Request a one-time sign-in code by email. Never reveals whether an account exists. */
@@ -41,6 +45,12 @@ auth.post('/api/auth/request-code', async (c) => {
   const body = (await c.req.json().catch(() => ({}))) as { email?: string }
   const email = normalizeEmail(body.email ?? '')
   if (!email) throw bad('enter a valid email address')
+  // A short cooldown between codes for one address (the same for every address, account or not).
+  const last = await one<{ created_at: number }>(c.env.DB, 'SELECT created_at FROM verification_challenges WHERE email = ? ORDER BY created_at DESC LIMIT 1', email)
+  if (last && Date.now() - last.created_at < RESEND_COOLDOWN_MS) {
+    const wait = Math.ceil((last.created_at + RESEND_COOLDOWN_MS - Date.now()) / 1000)
+    throw new AppError(429, 'resend_cooldown', `a code was just sent — you can ask for another in ${wait} seconds`, { retry_after_seconds: wait })
+  }
   // Buckets hold hashes, so the limiter table never stores an address or an IP in the clear.
   const who = await sha256Hex(email)
   const net = await sha256Hex(clientClass(c.req.raw))
@@ -55,41 +65,44 @@ auth.post('/api/auth/request-code', async (c) => {
   await run(c.env.DB, 'INSERT INTO verification_challenges (id, email, code_hash, expires_at, created_at) VALUES (?,?,?,?,?)', id, email, await codeHash(code, id), Date.now() + CODE_TTL_MS, Date.now())
   // Sent inline so sign-in is immediate; provider errors are reported honestly.
   await sendMail(cfg, c.env.DB, templates.signInCode(email, code))
-  return c.json({ sent: true, expires_in_minutes: CODE_TTL_MS / 60_000 })
+  // The same answer whether or not an account exists for this address.
+  return c.json({ sent: true, expires_in_minutes: CODE_TTL_MS / 60_000, resend_after_seconds: RESEND_COOLDOWN_MS / 1000 })
 })
 
-/** Exchange a code for a session. Consumes the code; bounded attempts; rotates any presented session. */
+/**
+ * Exchange a code for a session. Consumes the code; bounded attempts; rotates any presented session.
+ * Sign-in and sign-up are one step: a verified address without an account gets one, with no name
+ * (never inferred from the address). `needs_name` in the answer tells the client to ask for one.
+ */
 auth.post('/api/auth/verify', async (c) => {
   const cfg = config(c.env)
   checkOrigin(c.req.raw, cfg)
-  const body = (await c.req.json().catch(() => ({}))) as { email?: string; code?: string; display_name?: string }
+  const body = (await c.req.json().catch(() => ({}))) as { email?: string; code?: string }
   const email = normalizeEmail(body.email ?? '')
   if (!email) throw bad('enter a valid email address')
   await limit(c.env.DB, `verify:${await sha256Hex(email)}`, 10, 15 * 60_000)
-  const code = (body.code ?? '').trim().replace(/\s/g, '')
-  if (!/^\d{6}$/.test(code)) throw bad('the code is six digits')
-  const ch = await one<{ id: string; code_hash: string; attempts: number; max_attempts: number }>(
+  const code = (body.code ?? '').replace(/\D/g, '')
+  if (code.length !== 6) throw new AppError(400, 'code_format', 'the code is six digits')
+  const ch = await one<{ id: string; code_hash: string; attempts: number; max_attempts: number; consumed_at: number | null; expires_at: number }>(
     c.env.DB,
-    'SELECT id, code_hash, attempts, max_attempts FROM verification_challenges WHERE email = ? AND consumed_at IS NULL AND expires_at > ? ORDER BY created_at DESC LIMIT 1',
+    'SELECT id, code_hash, attempts, max_attempts, consumed_at, expires_at FROM verification_challenges WHERE email = ? ORDER BY created_at DESC LIMIT 1',
     email,
-    Date.now(),
   )
-  if (!ch) throw bad('that code has expired — request a new one')
-  if (ch.attempts >= ch.max_attempts) throw bad('too many wrong codes — request a new one')
+  if (!ch || ch.expires_at <= Date.now()) throw new AppError(400, 'code_expired', 'that code has expired — send a new one')
+  if (ch.consumed_at) throw new AppError(400, 'code_used', 'that code was already used — send a new one')
+  if (ch.attempts >= ch.max_attempts) throw new AppError(400, 'code_locked', 'too many wrong tries for this code — send a new one')
   if (!constantTimeEqual(ch.code_hash, await codeHash(code, ch.id))) {
     await run(c.env.DB, 'UPDATE verification_challenges SET attempts = attempts + 1 WHERE id = ?', ch.id)
-    throw bad('that code doesn’t match')
+    const left = ch.max_attempts - ch.attempts - 1
+    if (left <= 0) throw new AppError(400, 'code_locked', 'that code doesn’t match, and it can’t be tried again — send a new one')
+    throw new AppError(400, 'code_mismatch', 'that code doesn’t match', { attempts_left: left })
   }
   // Consume exactly once: the conditional update wins for a single concurrent verifier.
   const consumed = await run(c.env.DB, 'UPDATE verification_challenges SET consumed_at = ? WHERE id = ? AND consumed_at IS NULL', Date.now(), ch.id)
-  if (!consumed.meta.changes) throw bad('that code was already used — request a new one')
-  let account = await one<{ id: string }>(c.env.DB, 'SELECT id FROM accounts WHERE email = ?', email)
-  if (!account) {
-    const name = (body.display_name ?? '').trim().slice(0, 80) || email.split('@')[0]
-    const id = uuid()
-    await run(c.env.DB, 'INSERT INTO accounts (id, email, display_name, created_at) VALUES (?,?,?,?) ON CONFLICT(email) DO NOTHING', id, email, name, Date.now())
-    account = (await one<{ id: string }>(c.env.DB, 'SELECT id FROM accounts WHERE email = ?', email))!
-  }
+  if (!consumed.meta.changes) throw new AppError(400, 'code_used', 'that code was already used — send a new one')
+  // One account per address, even if two verifications race.
+  await run(c.env.DB, "INSERT INTO accounts (id, email, display_name, created_at) VALUES (?,?,'',?) ON CONFLICT(email) DO NOTHING", uuid(), email, Date.now())
+  const account = (await one<{ id: string }>(c.env.DB, 'SELECT id FROM accounts WHERE email = ?', email))!
   const old = await loadSession(c.env.DB, readCookie(c.req.raw, sessionCookie(cfg)))
   if (old) await revokeSession(c.env.DB, old.auth.sessionId)
   const session = await createSession(c.env.DB, account.id, cfg.sessionTtlDays)
@@ -106,7 +119,7 @@ auth.patch('/api/auth/me', async (c) => {
   const a = await requireAuth(c, config(c.env), c.env.DB)
   const body = (await c.req.json().catch(() => ({}))) as { display_name?: string }
   const name = nonempty(body.display_name, 80, 'Name')
-  await run(c.env.DB, 'UPDATE accounts SET display_name = ? WHERE id = ?', name, a.account.id)
+  await run(c.env.DB, 'UPDATE accounts SET display_name = ?, name_set_at = COALESCE(name_set_at, ?) WHERE id = ?', name, Date.now(), a.account.id)
   return c.json(await buildMe(c.env, a.account.id))
 })
 
@@ -179,6 +192,9 @@ auth.post('/api/invitations/accept', async (c) => {
   if (inv.email !== a.account.email) {
     return c.json({ error: `this invitation was sent to ${maskEmail(inv.email)} — sign in with that address to accept it`, code: 'forbidden' }, 403)
   }
+  // Teammates see the name of whoever joins, so it's chosen before joining (never inferred).
+  const named = await one<{ ok: number }>(c.env.DB, "SELECT (name_set_at IS NOT NULL AND trim(display_name) <> '') AS ok FROM accounts WHERE id = ?", a.account.id)
+  if (!named?.ok) return c.json({ error: 'choose the name your teammates will see first', code: 'name_required' }, 409)
   const claimed = await run(c.env.DB, 'UPDATE invitations SET accepted_at = ?, accepted_by = ? WHERE id = ? AND accepted_at IS NULL AND revoked_at IS NULL AND expires_at > ?', Date.now(), a.account.id, inv.id, Date.now())
   if (!claimed.meta.changes) return c.json({ error: 'this invitation was already used', code: 'conflict' }, 409)
   const stmts: [string, ...unknown[]][] = [

@@ -29,7 +29,9 @@ async function account(ctx, { keepLocal = true, name = 'Ana Reyes' } = {}) {
       await fetch('/api/auth/request-code', { method: 'POST', headers: h, body: JSON.stringify({ email }) })
       const inbox = await fetch('/api/dev/inbox').then((r) => r.json())
       const code = inbox.find((m) => m.to === email).subject.split(' ')[0]
-      await fetch('/api/auth/verify', { method: 'POST', headers: h, body: JSON.stringify({ email, code, display_name: name }) })
+      await fetch('/api/auth/verify', { method: 'POST', headers: h, body: JSON.stringify({ email, code }) })
+      // The name step that follows verification for a new account.
+      await fetch('/api/auth/me', { method: 'PATCH', headers: { ...h, 'x-csrf-token': csrf() }, body: JSON.stringify({ display_name: name }) })
       const me = await fetch('/api/auth/me').then((r) => r.json())
       const post = (u, b) => fetch(u, { method: 'POST', headers: { ...h, 'x-csrf-token': csrf() }, body: JSON.stringify(b) }).then((r) => r.json())
       const ws = await post('/api/workspaces', { name: 'Payments team' })

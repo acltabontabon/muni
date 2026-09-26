@@ -23,10 +23,17 @@ export interface Me {
   account_id: string
   email: string
   display_name: string
+  /** The person hasn't chosen a display name yet: ask for one before anything else. */
+  needs_name: boolean
   workspaces: WorkspaceSummary[]
   session_expires_at: string
   email_transport: string
   ai_provider: string
+}
+export interface CodeSent {
+  sent: boolean
+  expires_in_minutes: number
+  resend_after_seconds: number
 }
 export interface InvitationPreview {
   valid: boolean

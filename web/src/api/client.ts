@@ -8,10 +8,13 @@ import { CLIENT_REVISION } from '@/lib/local/outbox'
 export class ApiError extends Error {
   status: number
   code: string
-  constructor(status: number, code: string, message: string) {
+  /** Extra fields the server put on the error body (e.g. `retry_after_seconds`, `attempts_left`). */
+  details: Record<string, unknown>
+  constructor(status: number, code: string, message: string, details: Record<string, unknown> = {}) {
     super(message)
     this.status = status
     this.code = code
+    this.details = details
   }
 }
 
@@ -56,13 +59,14 @@ export async function api<T>(path: string, init: RequestInit & { json?: unknown;
     throw new ApiError(426, 'upgrade_required', 'Muni has been updated. Reload to continue — anything you haven’t sent stays on this device.')
   }
   if (!res.ok) {
-    let body: { error?: string; code?: string } = {}
+    let body: { error?: string; code?: string } & Record<string, unknown> = {}
     try {
       body = await res.json()
     } catch {
       /* not json */
     }
-    throw new ApiError(res.status, body.code ?? 'error', body.error ?? `Something went wrong (${res.status}).`)
+    const { error, code, ...details } = body
+    throw new ApiError(res.status, code ?? 'error', error ?? `Something went wrong (${res.status}).`, details)
   }
   if (init.raw) return (await res.text()) as unknown as T
   if (res.status === 204) return undefined as T

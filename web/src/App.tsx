@@ -12,7 +12,10 @@ import { Companion } from './routes/Companion'
 import { Outcomes } from './routes/Outcomes'
 import { Account } from './routes/Account'
 import { About } from './routes/About'
-import { Spinner } from './ui'
+import { useState } from 'react'
+import { Spinner, useDocumentTitle } from './ui'
+import { EntranceShell, NameStep, PROGRESS } from './ui/entrance'
+import { LeaveDialog } from './ui/menus'
 import { LocalProvider } from './lib/local/LocalProvider'
 import { OfflineStart } from './ui/status'
 
@@ -28,7 +31,31 @@ function Protected({ children }: { children: React.ReactElement }) {
   // Offline with nothing kept on this device: say so, rather than showing a sign-in that can't work.
   if (!me && offline) return <OfflineStart />
   if (!me) return <Navigate to={`/signin?next=${encodeURIComponent(loc.pathname + loc.search)}`} replace />
+  // Verified but no name chosen yet (an interrupted first sign-in): finish that here, on the same URL,
+  // so the deep link is kept and nothing else is reachable first.
+  if (me.needs_name && !offline) return <NameGate />
   return children
+}
+
+function NameGate() {
+  const { refresh } = useAuth()
+  const [leaving, setLeaving] = useState(false)
+  useDocumentTitle('Your name')
+  return (
+    <EntranceShell progress={PROGRESS.name}>
+      <NameStep
+        onDone={async () => {
+          await refresh()
+        }}
+        footer={
+          <p className="quiet mt-4">
+            Not you? <button type="button" className="entrance-link" onClick={() => setLeaving(true)}>Sign out</button>
+            <LeaveDialog kind={leaving ? 'signout' : null} onClose={() => setLeaving(false)} />
+          </p>
+        }
+      />
+    </EntranceShell>
+  )
 }
 
 export function App() {

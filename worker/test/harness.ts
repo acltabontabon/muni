@@ -43,21 +43,29 @@ export async function lastMailTo(email: string): Promise<{ subject: string; body
   const r = await env.DB.prepare('SELECT subject, body FROM dev_mail WHERE to_addr = ? ORDER BY created_at DESC LIMIT 1').bind(email).first<{ subject: string; body: string }>()
   return r ?? null
 }
+/** Lets the next code request for this address through the resend cooldown (tests only). */
+export async function skipCooldown(email: string) {
+  await env.DB.prepare('UPDATE verification_challenges SET created_at = created_at - 60000 WHERE email = ?').bind(email.toLowerCase()).run()
+}
 export async function codeFor(email: string): Promise<string> {
   const m = await lastMailTo(email)
   if (!m) throw new Error(`no sign-in mail for ${email}`)
   return m.subject.split(' ')[0]
 }
 
-export async function verify(email: string, code: string, name = 'Someone'): Promise<Res<any> & { user?: User }> {
-  const r = await req<any>('POST', '/api/auth/verify', null, { email, code, display_name: name })
+export async function verify(email: string, code: string, name: string | null = 'Someone'): Promise<Res<any> & { user?: User }> {
+  const r = await req<any>('POST', '/api/auth/verify', null, { email, code })
   if (r.status !== 200) return r
   const cookies = r.headers.getSetCookie?.() ?? []
   const find = (n: string) => cookies.find((c) => c.startsWith(`${n}=`))?.split(';')[0].split('=')[1] ?? ''
-  return { ...r, user: { email: email.toLowerCase(), session: find('muni_session'), csrf: find('muni_csrf'), account_id: r.body.account_id } }
+  const user = { email: email.toLowerCase(), session: find('muni_session'), csrf: find('muni_csrf'), account_id: r.body.account_id }
+  // The name step that follows verification, when the account has none yet (pass name = null to skip it).
+  if (name !== null && r.body.needs_name) await req('PATCH', '/api/auth/me', user, { display_name: name })
+  return { ...r, user }
 }
 
-export async function signin(email: string, name = 'Someone'): Promise<User> {
+export async function signin(email: string, name: string | null = 'Someone'): Promise<User> {
+  await skipCooldown(email)
   const r = await post('/api/auth/request-code', null, { email })
   if (r.status !== 200) throw new Error(`request-code ${r.status} ${JSON.stringify(r.body)}`)
   const v = await verify(email, await codeFor(email.toLowerCase()), name)
