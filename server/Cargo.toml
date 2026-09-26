@@ -1,0 +1,61 @@
+[package]
+name = "muni-server"
+version = "0.1.0"
+edition = "2021"
+rust-version = "1.85"
+description = "Muni — sprint retrospectives that remember the sprint"
+license = "MIT"
+default-run = "muni-server"
+
+[lib]
+name = "muni"
+path = "src/lib.rs"
+
+[[bin]]
+name = "muni-server"
+path = "src/main.rs"
+
+[[bin]]
+name = "muni-openapi"
+path = "src/bin/openapi.rs"
+
+[dependencies]
+axum = { version = "0.8", features = ["macros", "json", "query", "tokio", "http1"] }
+axum-extra = { version = "0.10", features = ["cookie", "typed-header"] }
+tokio = { version = "1", features = ["full"] }
+tokio-stream = { version = "0.1", features = ["sync"] }
+tokio-util = "0.7"
+tower = { version = "0.5", features = ["util", "timeout", "limit"] }
+tower-http = { version = "0.6", features = ["trace", "cors", "fs", "set-header", "limit", "compression-gzip", "timeout"] }
+http = "1"
+hyper = "1"
+futures = "0.3"
+sqlx = { version = "0.8", features = ["runtime-tokio", "tls-rustls", "postgres", "uuid", "chrono", "json", "migrate"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+uuid = { version = "1", features = ["v4", "serde"] }
+chrono = { version = "0.4", features = ["serde"] }
+chrono-tz = "0.10"
+thiserror = "2"
+anyhow = "1"
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter", "json", "fmt"] }
+rand = "0.9"
+sha2 = "0.10"
+hex = "0.4"
+base64 = "0.22"
+subtle = "2"
+reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls"] }
+lettre = { version = "0.11", default-features = false, features = ["smtp-transport", "tokio1", "tokio1-rustls-tls", "builder", "pool"] }
+utoipa = { version = "5", features = ["axum_extras", "uuid", "chrono"] }
+utoipa-axum = "0.2"
+async-trait = "0.1"
+async-stream = "0.3"
+regex = "1"
+csv = "1"
+dotenvy = "0.15"
+url = "2"
+
+[dev-dependencies]
+http-body-util = "0.1"
+tower = { version = "0.5", features = ["util"] }
