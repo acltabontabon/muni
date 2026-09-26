@@ -45,14 +45,6 @@ export function useStage(sprintId: string) {
     () => setRevoked(true),
   )
 
-  // Facilitator heartbeat keeps the controller indicator honest.
-  const isFac = !!stage?.is_facilitator
-  useEffect(() => {
-    if (!isFac) return
-    const t = window.setInterval(() => post(`/api/sprints/${sprintId}/meeting/heartbeat`).catch(() => {}), 30000)
-    return () => window.clearInterval(t)
-  }, [isFac, sprintId])
-
   const versionRef = useRef(0)
   versionRef.current = stage?.version ?? 0
   /** Sends a facilitator command with the last-seen version. On a conflict the stage is refetched and the command is not retried. */

@@ -27,7 +27,23 @@ export function Stage() {
   const [params, setParams] = useSearchParams()
   const st = useStage(sprintId)
   const { sprint, stage, grouping, votes, experiments, previous, command } = st
-  const [revealed, setRevealed] = useState(false)
+  // The sealed-to-revealed moment plays once per sprint on this device (and its presentation window), not on every visit.
+  const revealKey = `muni:revealed:${sprintId}`
+  const [revealed, setRevealedState] = useState(() => {
+    try {
+      return localStorage.getItem(revealKey) === '1'
+    } catch {
+      return false
+    }
+  })
+  const setRevealed = useCallback(() => {
+    setRevealedState(true)
+    try {
+      localStorage.setItem(revealKey, '1')
+    } catch {
+      /* private mode: the reveal simply plays again next visit */
+    }
+  }, [revealKey])
   const [reader, setReader] = useState<string | null>(null) // theme id, 'ungrouped'
   useDocumentTitle(sprint ? `${sprint.name} · stage` : 'Stage')
   useEffect(() => {
@@ -70,12 +86,12 @@ export function Stage() {
       else if (e.key.toLowerCase() === 'n') command({ type: 'speaking_next' })
       else if (e.key.toLowerCase() === 'o') command({ type: 'speaking_open_floor' })
       else if (e.key.toLowerCase() === 'h') setPresenting(!presenting)
-      else if (e.key.toLowerCase() === 'r') setRevealed(true)
+      else if (e.key.toLowerCase() === 'r') setRevealed()
       else if (e.key === 'Escape') setReader(null)
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
-  }, [fac, go, command, stage?.timer.running, presenting, setPresenting])
+  }, [fac, go, command, stage?.timer.running, presenting, setPresenting, setRevealed])
 
   if (st.revoked) return <Centered><p>Your access to this sprint ended.</p></Centered>
   if (st.error) return <Centered><p>{st.error}</p></Centered>
@@ -103,7 +119,7 @@ export function Stage() {
       <main className={clsx('mx-auto px-5 pb-20 pt-6 sm:px-8', presenting ? 'max-w-7xl' : 'max-w-6xl')}>
         {stage.phase === 'arrive' ? <Arrive stage={stage} controls={controls} sprintId={sprintId} onChange={st.reload} /> : null}
         {stage.phase === 'remember' ? <Remember previous={previous} themes={themes} controls={controls} onChange={st.loadExperiments} /> : null}
-        {stage.phase === 'discover' ? <Discover themes={themes} ungrouped={ungrouped} total={grouping?.total_entries ?? 0} revealed={revealed} onReveal={() => setRevealed(true)} controls={controls} presenting={presenting} votes={votes} sprintId={sprintId} onVotesChanged={() => { st.loadVotes(); st.loadThemes() }} command={command} onRead={setReader} onRename={async (id, title) => { await patch(`/api/sprints/${sprintId}/themes/${id}`, { title }); st.loadThemes() }} /> : null}
+        {stage.phase === 'discover' ? <Discover themes={themes} ungrouped={ungrouped} total={grouping?.total_entries ?? 0} revealed={revealed || !fac} onReveal={setRevealed} controls={controls} presenting={presenting} votes={votes} sprintId={sprintId} onVotesChanged={() => { st.loadVotes(); st.loadThemes() }} command={command} onRead={setReader} onRename={async (id, title) => { await patch(`/api/sprints/${sprintId}/themes/${id}`, { title }); st.loadThemes() }} /> : null}
         {stage.phase === 'discuss' ? <Discuss stage={stage} themes={themes} ungrouped={ungrouped} controls={controls} presenting={presenting} command={command} sprintId={sprintId} onSnapshot={(s) => st.setStage(s)} /> : null}
         {stage.phase === 'decide' ? <Decide stage={stage} themes={themes} experiments={experiments} controls={controls} sprintId={sprintId} participants={sprint.participants} onChange={st.loadExperiments} /> : null}
         {stage.phase === 'leave' ? <Leave stage={stage} experiments={experiments} themes={themes} controls={controls} onComplete={async () => { try { await post(`/api/sprints/${sprintId}/transition`, { to: 'completed' }); nav(`/sprints/${sprintId}/outcomes`) } catch (e) { toast(e instanceof ApiError ? e.message : 'Couldn’t complete', 'danger') } }} /> : null}
@@ -195,13 +211,21 @@ function MenuItem({ children, onClick, hint }: { children: React.ReactNode; onCl
   )
 }
 
+/** A menu action that closes the enclosing popover once it runs. */
+function Item({ children, onClick, hint }: { children: React.ReactNode; onClick: () => void; hint?: string }) {
+  return (
+    <Popover.Close asChild>
+      <MenuItem onClick={onClick} hint={hint}>{children}</MenuItem>
+    </Popover.Close>
+  )
+}
+
 /** Every secondary control, discoverable by label, in one named menu. */
 function FacilitateMenu({ stage, command, themes, sprintId, onChange, onPresent }: { stage: StageSnapshot; command: ReturnType<typeof useStage>['command']; themes: ThemeView[]; sprintId: string; onChange: () => void; onPresent: () => void }) {
   const toast = useToast()
   const [open, setOpen] = useState(false)
   const speaking = stage.speaking
   const present = stage.attendance.filter((a) => a.present).length
-  const Item = ({ children, onClick, hint }: { children: React.ReactNode; onClick: () => void; hint?: string }) => <MenuItem onClick={() => { onClick(); setOpen(false) }} hint={hint}>{children}</MenuItem>
   return (
     <Popover.Root open={open} onOpenChange={setOpen}>
       <Popover.Trigger asChild>
@@ -404,7 +428,7 @@ function Discover({ themes, ungrouped, total, revealed, onReveal, controls, pres
             <button className="card anim-gather flex min-h-36 flex-col items-start justify-between border-dashed p-4 text-left hover:border-line-strong" style={{ animationDelay: `${Math.min(themes.length, 8) * 45}ms` }} onClick={() => onRead('ungrouped')}>
               <span className="text-xs uppercase tracking-wider text-ink-faint">Ungrouped</span>
               <span className="font-display text-xl">{ungrouped.length} {ungrouped.length === 1 ? 'thought' : 'thoughts'}</span>
-              <span className="text-xs text-ink-soft">Not in a theme · readable and discussable</span>
+              <span className="text-xs text-accent-ink underline decoration-accent/30 underline-offset-4">Read all {ungrouped.length}</span>
             </button>
           ) : null}
         </div>
@@ -423,7 +447,11 @@ function ThemeTile({ t, index, presenting, editable, votesFor, excerpt, onRead, 
     <article className={clsx('paper-stack anim-gather flex min-h-36 flex-col p-4', t.parked && 'opacity-70')} style={{ ['--dx' as string]: `${dx}px`, ['--dy' as string]: `${dy}px`, ['--rot' as string]: `${((index * 7) % 5) - 2}deg`, animationDelay: `${Math.min(index, 8) * 45}ms` }}>
       <div className="flex items-start justify-between gap-2">
         {editable ? (
-          <input className="w-full bg-transparent font-display text-lg leading-tight outline-none focus:border-b focus:border-accent" value={title} onChange={(e) => setTitle(e.target.value)} onBlur={() => title.trim() && title !== t.title && onRename(title.trim())} aria-label="Theme title" maxLength={80} />
+          // Wraps like the read-only title: the hidden copy sizes the grid cell, the textarea fills it.
+          <div className="grid w-full font-display text-lg leading-tight">
+            <span aria-hidden className="invisible col-start-1 row-start-1 whitespace-pre-wrap break-words">{title || ' '}</span>
+            <textarea rows={1} className="col-start-1 row-start-1 resize-none overflow-hidden bg-transparent outline-none focus:shadow-[inset_0_-1px_0_var(--accent)]" value={title} onChange={(e) => setTitle(e.target.value.replace(/\n/g, ' '))} onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); e.currentTarget.blur() } }} onBlur={() => title.trim() && title !== t.title && onRename(title.trim())} aria-label="Theme title" maxLength={80} />
+          </div>
         ) : (
           <h3 className={clsx('font-display leading-tight', presenting ? 'text-xl' : 'text-lg')}>{t.title}</h3>
         )}
