@@ -757,6 +757,12 @@ kbd { font-family: var(--font-mono); font-size: 11px; padding: 1px 6px; border-r
 @keyframes ping { 0% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--accent) 60%, transparent); } 70%, 100% { box-shadow: 0 0 0 12px transparent; } }
 @keyframes caret { 50% { opacity: 1; } }
 
+/* ── WebKit: SVG filters on HTML re-render on every animation frame and on every repaint under a
+   blended layer, which shows as flicker. The ripple is kept but held still (main.js pauses the
+   filter's animation), and the grain drops its blend mode so nothing re-composites the reflection. */
+.webkit body::after { mix-blend-mode: normal; opacity: 0.025; }
+.webkit .mirrored, .webkit .giant-reflection .giant-word { will-change: transform; }
+
 /* ── Reduced motion: every state is still reached, nothing travels. ── */
 
 @media (prefers-reduced-motion: reduce) {

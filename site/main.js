@@ -4,6 +4,9 @@
   const root = document.documentElement
   const reduced = matchMedia('(prefers-reduced-motion: reduce)').matches
 
+  // WebKit flickers while an SVG filter on HTML animates; hold the water ripple still there.
+  if (root.classList.contains('webkit')) document.querySelector('svg.defs')?.pauseAnimations()
+
   /* ── App link: "Coming soon" until data-app-url is set on <html>. ── */
   const appUrl = root.dataset.appUrl
   for (const a of document.querySelectorAll('.app-link')) {

@@ -29,7 +29,11 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,300..600;1,9..144,300..500&family=Geist+Mono:wght@400;500&family=Geist:wght@300..700&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="styles.css" />
-  <script>document.documentElement.classList.add('js')</script>
+  <script>
+    document.documentElement.classList.add('js')
+    // Safari (and every browser on iOS) is WebKit: it gets a still ripple, see styles.css and main.js.
+    if (/Apple/.test(navigator.vendor)) document.documentElement.classList.add('webkit')
+  </script>
 </head>
 <body>
   <a class="skip" href="#main">Skip to content</a>
