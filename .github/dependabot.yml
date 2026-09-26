@@ -1,0 +1,8 @@
+# Keeps the SHA-pinned workflow actions current. Monthly and grouped, to stay light for one maintainer.
+version: 2
+updates:
+  - package-ecosystem: github-actions
+    directory: /
+    schedule: { interval: monthly }
+    groups:
+      actions: { patterns: ['*'] }

@@ -1,9 +1,10 @@
 {
   "$schema": "node_modules/wrangler/config-schema.json",
-  // Top level = local development (`wrangler dev`). It is never published: workers_dev is off and
-  // there are no routes, so a bare `wrangler deploy` cannot expose the console-email dev inbox.
-  // Production is `wrangler deploy --env production` (see `pnpm deploy`).
-  "name": "muni",
+  // Local development and tests only (`wrangler dev`, `pnpm test`). It cannot reach a real deployment:
+  // the D1 id is a placeholder, workers_dev is off, there are no routes, and the name differs from a
+  // production Worker's. Production uses its own config, rendered for your Cloudflare account from
+  // wrangler.production.example.jsonc into the gitignored wrangler.production.jsonc (docs/DEPLOYMENT.md).
+  "name": "muni-local",
   "main": "src/index.ts",
   "compatibility_date": "2026-08-22",
   "compatibility_flags": ["nodejs_compat"],
@@ -32,34 +33,5 @@
     // Local development signs in many throwaway accounts from one address (and e2e runs do).
     "SIGNIN_CODES_PER_NETWORK_DAILY": "100000",
     "SIGNIN_EMAILS_DAILY_LIMIT": "100000"
-  },
-  "env": {
-    // The app at https://act.munimuni.app (the marketing site at munimuni.app is GitHub Pages).
-    // Bindings and vars don't inherit, so they are repeated here.
-    "production": {
-      "name": "muni",
-      "workers_dev": false,
-      "routes": [{ "pattern": "act.munimuni.app", "custom_domain": true }],
-      "d1_databases": [
-        { "binding": "DB", "database_name": "muni", "database_id": "bb824bf7-485a-499b-b4f6-c6d9aa65b15d", "migrations_dir": "migrations" }
-      ],
-      "durable_objects": {
-        "bindings": [{ "name": "ROOMS", "class_name": "MeetingRoom" }]
-      },
-      "migrations": [{ "tag": "v1", "new_sqlite_classes": ["MeetingRoom"] }],
-      "vars": {
-        "APP_ENV": "production",
-        "PUBLIC_ORIGIN": "https://act.munimuni.app",
-        // Resend free tier. The key is a secret: `wrangler secret put RESEND_API_KEY --env production`.
-        // Until it is set, sign-in answers `setup_required` rather than pretending to send.
-        "EMAIL_PROVIDER": "resend",
-        "EMAIL_FROM": "Muni <hello@munimuni.app>",
-        "AI_PROVIDER": "none",
-        "ALLOW_DEMO_SEED": "false",
-        // Sign-in emails: 30 per network and 60 in total per day (Resend's free tier sends 100/day).
-        "SIGNIN_CODES_PER_NETWORK_DAILY": "30",
-        "SIGNIN_EMAILS_DAILY_LIMIT": "60"
-      }
-    }
   }
 }

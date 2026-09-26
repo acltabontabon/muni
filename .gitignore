@@ -1,4 +1,3 @@
-target/
 node_modules/
 dist/
 .env
@@ -14,3 +13,9 @@ worker/worker-configuration.d.ts
 # Local tooling, not part of the project
 .claude/
 /package-lock.json
+# Generated TypeScript build state
+*.tsbuildinfo
+
+# Production deployment config for a specific Cloudflare account (see docs/DEPLOYMENT.md).
+# Rendered from worker/wrangler.production.example.jsonc; never committed.
+worker/wrangler.production.jsonc

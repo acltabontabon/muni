@@ -3,14 +3,15 @@
   "private": true,
   "version": "0.1.0",
   "description": "Muni API on Cloudflare Workers, D1 and Durable Objects.",
+  "license": "Apache-2.0",
   "type": "module",
   "scripts": {
     "dev": "wrangler dev",
-    "deploy": "wrangler deploy --env production",
+    "deploy": "node scripts/production-config.mjs && wrangler deploy --config wrangler.production.jsonc",
     "typecheck": "wrangler types && tsc --noEmit",
     "test": "vitest run",
     "migrate:local": "wrangler d1 migrations apply muni --local",
-    "migrate:remote": "wrangler d1 migrations apply muni --remote --env production",
+    "migrate:remote": "node scripts/production-config.mjs && wrangler d1 migrations apply DB --remote --config wrangler.production.jsonc",
     "types": "wrangler types"
   },
   "dependencies": {

@@ -1,0 +1,64 @@
+name: CI
+# Checks for every pull request and every push to main. Pull-request code is untrusted: it runs
+# with a read-only token, no secrets and no deployment access. Nothing in this workflow deploys.
+on:
+  pull_request:
+  push:
+    branches: [main]
+permissions:
+  contents: read
+concurrency:
+  group: ci-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+jobs:
+  web:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    defaults:
+      run: { working-directory: web }
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with: { persist-credentials: false }
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with: { node-version: 22, cache: npm, cache-dependency-path: web/package-lock.json }
+      # No lifecycle scripts from dependencies (Playwright's browser download isn't needed here).
+      - run: npm ci --ignore-scripts
+      - run: npm run typecheck
+      - run: npm run lint
+      - run: npm test
+      - run: npm run build
+
+  worker:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    defaults:
+      run: { working-directory: worker }
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with: { persist-credentials: false }
+      - uses: pnpm/action-setup@fc06bc1257f339d1d5d8b3a19a8cae5388b55320 # v4.4.0
+        with: { version: 10 }
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with: { node-version: 22, cache: pnpm, cache-dependency-path: worker/pnpm-lock.yaml }
+      # Build scripts run only for the packages allowed in package.json (workerd, esbuild, sharp).
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm typecheck
+      - run: pnpm test
+
+  secrets:
+    name: secret scan
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with: { persist-credentials: false, fetch-depth: 0 }
+      - name: Install gitleaks (checksum-verified release binary)
+        env:
+          VERSION: 8.30.1
+          SHA256: 551f6fc83ea457d62a0d98237cbad105af8d557003051f41f3e7ca7b3f2470eb
+        run: |
+          curl -sSfL -o gitleaks.tar.gz "https://github.com/gitleaks/gitleaks/releases/download/v${VERSION}/gitleaks_${VERSION}_linux_x64.tar.gz"
+          echo "${SHA256}  gitleaks.tar.gz" | sha256sum -c -
+          tar -xzf gitleaks.tar.gz gitleaks
+      # Whole history on every run (the repository is small); findings are redacted in the log.
+      - run: ./gitleaks git --redact --no-banner --exit-code 1 .

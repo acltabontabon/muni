@@ -1,0 +1,41 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  // Template for a production deployment on your own Cloudflare account. Don't edit values here:
+  // `pnpm run deploy` renders wrangler.production.jsonc (gitignored) from environment variables —
+  // see scripts/production-config.mjs and docs/DEPLOYMENT.md. ${NAME} marks a value it fills in.
+  "name": "${MUNI_WORKER_NAME}",
+  "main": "src/index.ts",
+  "compatibility_date": "2026-08-22",
+  "compatibility_flags": ["nodejs_compat"],
+  "workers_dev": false,
+  "routes": [{ "pattern": "${MUNI_DOMAIN}", "custom_domain": true }],
+  "observability": { "enabled": true, "head_sampling_rate": 1 },
+  "assets": {
+    "directory": "../web/dist",
+    "binding": "ASSETS",
+    "not_found_handling": "single-page-application",
+    "run_worker_first": ["/api/*"]
+  },
+  "d1_databases": [
+    { "binding": "DB", "database_name": "${MUNI_D1_DATABASE_NAME}", "database_id": "${MUNI_D1_DATABASE_ID}", "migrations_dir": "migrations" }
+  ],
+  "durable_objects": {
+    "bindings": [{ "name": "ROOMS", "class_name": "MeetingRoom" }]
+  },
+  "migrations": [{ "tag": "v1", "new_sqlite_classes": ["MeetingRoom"] }],
+  "triggers": { "crons": ["*/15 * * * *"] },
+  "vars": {
+    "APP_ENV": "production",
+    "PUBLIC_ORIGIN": "https://${MUNI_DOMAIN}",
+    // resend | brevo — the API key is a Worker secret: `wrangler secret put RESEND_API_KEY --config wrangler.production.jsonc`.
+    // Until it is set, sign-in answers `setup_required` rather than pretending to send.
+    "EMAIL_PROVIDER": "${MUNI_EMAIL_PROVIDER}",
+    "EMAIL_FROM": "${MUNI_EMAIL_FROM}",
+    // none | anthropic (then also `wrangler secret put ANTHROPIC_API_KEY`); each sprint still opts in.
+    "AI_PROVIDER": "${MUNI_AI_PROVIDER}",
+    "ALLOW_DEMO_SEED": "false",
+    // Sign-in emails per network and in total per day; keep the total under your email provider's daily quota.
+    "SIGNIN_CODES_PER_NETWORK_DAILY": "${MUNI_SIGNIN_CODES_PER_NETWORK_DAILY}",
+    "SIGNIN_EMAILS_DAILY_LIMIT": "${MUNI_SIGNIN_EMAILS_DAILY_LIMIT}"
+  }
+}
