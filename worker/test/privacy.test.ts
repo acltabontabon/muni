@@ -1,7 +1,7 @@
 /** The privacy boundary, tested from the outside, through the public HTTP API. */
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import { env } from 'cloudflare:test'
-import { closeCollection, entry, get, go, ids, openSocket, post, req, sprint, team } from './harness'
+import { closeCollection, entry, get, go, ids, openSocket, patch, post, req, runJobs, sprint, team } from './harness'
 
 /** Any shared payload must not carry these keys next to entry text. */
 const FORBIDDEN_KEYS = ['author', 'author_account_id', 'account_id', 'email', 'created_at', 'updated_at', 'ip', 'user_agent', 'alias', 'avatar']
@@ -53,6 +53,55 @@ describe('privacy', () => {
     expect(messages.join('\n')).not.toContain('sealed')
     socket.close()
     void ws
+  })
+
+  it('lets only the sprint’s facilitator close collection', async () => {
+    const { owner, members, ws } = await team(2)
+    const [fac, writer] = members
+    // The workspace owner takes part but doesn't facilitate.
+    const created = await post(`/api/workspaces/${ws}/sprints`, owner, { name: 'Sealed', timezone: 'UTC', starts_on: '2026-09-01', ends_on: '2026-09-10', retro_date: '2026-09-11', retro_time: '10:00', participant_ids: [owner.account_id, fac.account_id, writer.account_id], facilitator_id: fac.account_id })
+    const s = created.body.id as string
+    expect((await go(fac, s, 'collecting')).status).toBe(200)
+    await entry(writer, s, 'improve', 'still sealed')
+    for (const who of [writer, owner]) {
+      const r = await post(`/api/sprints/${s}/transition`, who, { to: 'preparing', confirm: true })
+      expect(r.status).toBe(403)
+      expect((await get(`/api/sprints/${s}/entries`, who)).status).toBe(409)
+    }
+    expect((await get(`/api/sprints/${s}`, fac)).body.status).toBe('collecting')
+    expect((await go(fac, s, 'preparing')).status).toBe(200)
+    expect((await get(`/api/sprints/${s}/entries`, writer)).status).toBe(200)
+  })
+
+  it('writes no entry text or email address to the log', async () => {
+    const lines: string[] = []
+    const spies = (['log', 'info', 'warn', 'error', 'debug'] as const).map((level) => vi.spyOn(console, level).mockImplementation((...args: unknown[]) => void lines.push(args.map((a) => (typeof a === 'string' ? a : JSON.stringify(a))).join(' '))))
+    try {
+      const { owner, members, ws } = await team(2)
+      const s = await sprint(owner, members, ws, 'collecting')
+      const needle = 'log-needle-5521'
+      const e = await entry(members[0], s, 'improve', `${needle} body`, { impact: `${needle} impact`, might_help: `${needle} help` })
+      expect((await patch(`/api/sprints/${s}/entries/${e.id}`, members[0], { category: 'keep', body: `${needle} edited` })).status).toBe(200)
+      expect((await post(`/api/sprints/${s}/entries`, members[1], { body: `${needle} `.repeat(400) })).status).toBe(400)
+      expect((await req('POST', `/api/sprints/${s}/entries`, members[1], undefined, { 'content-type': 'application/json' })).status).toBe(400)
+      await closeCollection(owner, s)
+      expect((await post(`/api/sprints/${s}/entries`, members[1], { body: `${needle} late` })).status).toBe(409)
+      expect((await req('GET', `/api/sprints/${s}/export.csv?scope=raw`, owner)).status).toBe(200)
+      expect((await post(`/api/sprints/${s}/ai/grouping`, owner)).status).toBe(200)
+      expect((await post(`/api/workspaces/${ws}/invitations`, owner, { email: `${needle}@example.com` })).status).toBe(200)
+      await runJobs()
+      // An unexpected failure is logged (path, method, a short error) — and still carries no content.
+      // A non-list participant_ids isn't validated today, so it reaches the error logger; if it ever is
+      // validated, provoke the logger another way, or this test stops proving the spy sees anything.
+      const broken = await post(`/api/workspaces/${ws}/sprints`, owner, { name: `${needle} sprint`, timezone: 'UTC', starts_on: '2026-09-01', ends_on: '2026-09-10', retro_date: '2026-09-11', retro_time: '10:00', participant_ids: 'not-a-list', facilitator_id: owner.account_id })
+      expect(broken.status).toBe(500)
+      expect(lines.some((l) => l.includes('request failed')), 'the spy sees the Worker’s own error log').toBe(true)
+      const all = lines.join('\n')
+      expect(all).not.toContain(needle)
+      for (const u of [owner, ...members]) expect(all).not.toContain(u.email)
+    } finally {
+      spies.forEach((s) => s.mockRestore())
+    }
   })
 
   it('shared representations carry no authorship anywhere', async () => {
