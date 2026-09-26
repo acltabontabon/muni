@@ -4,7 +4,7 @@ import { config } from '../lib/config'
 import { CODE_TTL_MS, clearSessionCookies, createSession, loadSession, readCookie, requireAuth, revokeSession, SESSION_COOKIE, setSessionCookies, checkOrigin } from '../lib/auth'
 import { constantTimeEqual, randomCode, sha256Hex, uuid } from '../lib/crypto'
 import { all, batch, one, run } from '../lib/db'
-import { bad } from '../lib/errors'
+import { bad, quota } from '../lib/errors'
 import { sendMail, templates } from '../lib/email'
 import { clientClass, limit } from '../lib/ratelimit'
 import { nonempty, normalizeEmail } from '../lib/util'
@@ -31,6 +31,7 @@ export async function buildMe(env: HonoEnv['Bindings'], accountId: string) {
   }
 }
 
+const DAY_MS = 86_400_000
 const codeHash = (code: string, challengeId: string) => sha256Hex(`${code}:${challengeId}`)
 
 /** Request a one-time sign-in code by email. Never reveals whether an account exists. */
@@ -42,6 +43,10 @@ auth.post('/api/auth/request-code', async (c) => {
   if (!email) throw bad('enter a valid email address')
   await limit(c.env.DB, `code:${email}`, 5, 15 * 60_000)
   await limit(c.env.DB, `code-ip:${clientClass(c.req.raw)}`, 120, 10 * 60_000)
+  await limit(c.env.DB, `code-ip-day:${clientClass(c.req.raw)}`, 30, DAY_MS)
+  await limit(c.env.DB, 'code-all', cfg.signinEmailsDailyLimit, DAY_MS, () =>
+    quota('Muni has sent all the sign-in emails it can for today. Please try again tomorrow; devices that are already signed in keep working.'),
+  )
   const code = randomCode()
   const id = uuid()
   await run(c.env.DB, 'INSERT INTO verification_challenges (id, email, code_hash, expires_at, created_at) VALUES (?,?,?,?,?)', id, email, await codeHash(code, id), Date.now() + CODE_TTL_MS, Date.now())

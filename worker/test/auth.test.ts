@@ -21,6 +21,20 @@ describe('sign-in', () => {
     expect((await post('/api/auth/request-code', null, { email })).status).toBe(429)
   })
 
+  it('caps sign-in emails across all addresses per day, with an honest message', async () => {
+    // Fill today's global budget directly (60 by default) instead of sending 60 emails.
+    const now = Date.now()
+    const existing = (await env.DB.prepare("SELECT count(*) AS n FROM rate_events WHERE bucket = 'code-all' AND at > ?").bind(now - 86_400_000).first<{ n: number }>())!.n
+    const stmts = Array.from({ length: Math.max(0, 60 - existing) }, () => env.DB.prepare("INSERT INTO rate_events (bucket, at) VALUES ('code-all', ?)").bind(now))
+    if (stmts.length) await env.DB.batch(stmts)
+    const r = await post('/api/auth/request-code', null, { email: `capped-${tag()}@example.com` })
+    expect(r.status).toBe(503)
+    expect(r.body.code).toBe('quota')
+    expect(r.body.error).toContain('try again tomorrow')
+    await env.DB.prepare("DELETE FROM rate_events WHERE bucket = 'code-all'").run()
+    expect((await post('/api/auth/request-code', null, { email: `after-${tag()}@example.com` })).status).toBe(200)
+  })
+
   it('requires a session, CSRF for mutations, and an allowed origin', async () => {
     expect((await get('/api/auth/me')).status).toBe(401)
     const u = await signin(`csrf-${tag()}@example.com`)
