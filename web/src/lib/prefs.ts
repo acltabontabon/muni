@@ -1,6 +1,15 @@
-/** Per-device conveniences only. Nothing here is a credential or a draft of sensitive text. */
+/** Per-device preferences only. Nothing here is a credential or the text of a thought. */
 const KEY = 'muni.prefs'
-type Prefs = { lastWorkspace?: string; lastSprint?: string; theme?: 'light' | 'dark' | 'system'; companionFollow?: boolean }
+type Prefs = {
+  lastWorkspace?: string
+  lastSprint?: string
+  theme?: 'light' | 'dark' | 'system'
+  companionFollow?: boolean
+  /** The person chose to keep drafts and unsent thoughts on this device (IndexedDB). */
+  keepLocal?: boolean
+  /** The install hint was dismissed; never shown again unprompted. */
+  installHintDismissed?: boolean
+}
 
 export function readPrefs(): Prefs {
   try {
