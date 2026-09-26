@@ -58,21 +58,25 @@ request happens on sensitive screens.
 
 ## Colour
 
-The app shares the entrance's palette (`web/src/styles.css`). Light is *dapithapon*, late
-afternoon: warm and crisp. Dark is *gabi*, moonlit: quiet and clear. One violet accent.
+*Ink and rubric* (`web/src/styles.css`). Warm bone paper, warm near-black ink, and one burnt-red
+accent used the way a scribe used rubric: for the single thing that matters on a page (the italic
+word in a heading, the focus line, the collecting mark, the sun). The primary action is ink, not
+colour. Dark is *night ink*: charcoal paper, moonlit text, a lamplit accent. The entrance shares
+the same tokens.
 
 | token | light | dark | use |
 | --- | --- | --- | --- |
-| `--paper` | `#faf8f4` | `#0c0c13` | page surface |
-| `--card` | `#ffffff` | `#14141d` | composer, bubbles, lists |
-| `--ink` | `#17151f` | `#f1f0f7` | text |
-| `--ink-soft` | `#4d4a5c` | `#b3b2c6` | secondary text |
-| `--ink-faint` | `#6e6b80` | `#8a89a0` | quiet text (≥ 4.8:1 on paper) |
-| `--accent` | `#5b47e6` | `#9b93ff` | the violet; white label in light (6.0:1), dark label in dark (7.3:1) |
-| `--accent-ink` | `#3f2fb8` | `#c9c4ff` | accent text, the serif-italic word in headings |
+| `--paper` | `#f4efe6` | `#101114` | page |
+| `--card` | `#fbf8f2` | `#16171b` | fields, menus |
+| `--ink` | `#1d1b18` | `#ece7df` | text (15:1) |
+| `--ink-soft` | `#544e46` | `#b5afa5` | secondary text |
+| `--ink-faint` | `#736c62` | `#8e897f` | quiet text (≥ 4.5:1) |
+| `--accent` | `#a4452a` | `#dca273` | rubric / lamplight (5.3:1 / 8.5:1) |
+| `--action` | `#1d1b18` | `#ece7df` | primary buttons, with `--action-ink` |
 
-The scene tokens (`--sky-top`, `--sky-glow`, `--sun-*`, `--sea-*`, `--land`, `--light`) are
-defined app-wide so illustrations match the entrance in both themes.
+Categories are muted earth tones, each ≥ 5:1 on paper: ochre (Proud of), moss (Keep), slate
+(Improve), brick (Stop), plum (Try). The scene is dusk: a haze that warms to apricot only at the
+horizon, pewter water, palms in ink; at night, a pale moon and a few stars.
 
 ## Illustration
 

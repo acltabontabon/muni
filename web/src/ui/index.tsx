@@ -8,14 +8,15 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useRef, use
 // ---------- Button ----------
 type Variant = 'primary' | 'secondary' | 'ghost' | 'danger' | 'quiet'
 export function Button({ variant = 'secondary', size = 'md', className, busy, children, ...rest }: ButtonHTMLAttributes<HTMLButtonElement> & { variant?: Variant; size?: 'sm' | 'md' | 'lg'; busy?: boolean }) {
-  const base = 'inline-flex items-center justify-center gap-2 rounded-full font-medium transition-[background,transform,opacity] duration-150 active:scale-[0.98] disabled:opacity-50 disabled:pointer-events-none whitespace-nowrap select-none'
+  const base = 'inline-flex items-center justify-center gap-2 rounded-full font-medium transition-[background,transform,opacity] duration-150 active:scale-[0.98] disabled:pointer-events-none whitespace-nowrap select-none'
   const sizes = { sm: 'h-9 px-3.5 text-sm', md: 'h-11 px-5 text-[15px]', lg: 'h-13 px-7 text-base' }
   const variants: Record<Variant, string> = {
-    primary: 'bg-accent text-white dark:text-[#0f1014] hover:brightness-95 shadow-[0_1px_0_rgb(0_0_0/0.08)]',
-    secondary: 'bg-card border border-line text-ink hover:bg-paper',
-    ghost: 'bg-transparent text-ink hover:bg-ink/5',
-    danger: 'bg-transparent border border-danger/40 text-danger hover:bg-danger/10',
-    quiet: 'bg-transparent text-ink-soft hover:text-ink underline-offset-4 hover:underline px-2',
+    // Disabled: a quiet paper shape, not a greyed-out block of ink.
+    primary: 'bg-[var(--action)] text-[var(--action-ink)] hover:bg-[color-mix(in_oklab,var(--action)_84%,var(--accent))] shadow-[0_1px_0_rgb(0_0_0/0.08)] disabled:bg-[var(--card-2)] disabled:text-[var(--ink-faint)] disabled:shadow-none',
+    secondary: 'bg-card border border-line text-ink hover:bg-paper disabled:opacity-50',
+    ghost: 'bg-transparent text-ink hover:bg-ink/5 disabled:opacity-50',
+    danger: 'bg-transparent border border-danger/40 text-danger hover:bg-danger/10 disabled:opacity-50',
+    quiet: 'bg-transparent text-ink-soft hover:text-ink underline-offset-4 hover:underline px-2 disabled:opacity-50',
   }
   return (
     <button className={clsx(base, sizes[size], variants[variant], className)} aria-busy={busy || undefined} disabled={busy || rest.disabled} {...rest}>

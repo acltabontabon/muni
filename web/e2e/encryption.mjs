@@ -81,7 +81,7 @@ try {
   maya.on('request', (r) => { if (r.method() !== 'GET') sent.push(r.postData() ?? '') })
   await maya.goto(`${BASE}/?sprint=${sprintId}`)
   await maya.waitForSelector('textarea[name="thought"]')
-  check('Composer says it encrypts on the device', (await maya.locator('text=Encrypted before it leaves this device.').count()) === 1)
+  check('Composer says it encrypts on the device', (await maya.locator('button.privacy-mark', { hasText: 'encrypted' }).count()) === 1)
   await maya.fill('textarea[name="thought"]', SECRET)
   await maya.click('button:has-text("Save thought")')
   await maya.waitForSelector('text=Submitted', { timeout: 10000 })

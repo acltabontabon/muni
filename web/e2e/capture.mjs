@@ -73,7 +73,7 @@ try {
   await page.goto(`${BASE}/`)
   await page.waitForSelector('textarea[name="thought"]')
   check('The field has a persistent label (the heading)', (await page.locator('label[for="thought-field"]').innerText()).includes('What’s worth'))
-  await page.waitForSelector('text=Nothing kept yet', { timeout: 10000 }).catch(() => {})
+  await page.waitForSelector('text=Nothing kept yet', { timeout: 20000 }).catch(() => {})
   check('Empty collection: one brief invitation', (await page.locator('text=Nothing kept yet').count()) === 1)
   check('Empty collection: the character shows its thought bubble', (await page.locator('.journal-scene .journal-bubble').count()) === 1)
   check('No cropped illustration tile or bubble cards', (await page.locator('.postcard, .bubble, .bubbles').count()) === 0)
@@ -83,9 +83,12 @@ try {
 
   // ── Keyboard: write, choose a category with the keyboard, save with ⌘/Ctrl+Enter.
   await page.locator('textarea[name="thought"]').fill('Synthetic: the deploy queue was quiet all week.')
+  // Visual order under the field: the privacy note (right), then the category choices.
+  await page.keyboard.press('Tab')
+  const first = await page.evaluate(() => document.activeElement?.className ?? '')
   await page.keyboard.press('Tab')
   const focused = await page.evaluate(() => document.activeElement?.getAttribute('role'))
-  check('Tab from the field reaches the category choices', focused === 'radio', focused ?? '')
+  check('Tab from the field reaches the privacy note, then the categories', first.includes('privacy-mark') && focused === 'radio', `${first} → ${focused}`)
   await page.keyboard.press('ArrowRight')
   await page.locator('textarea[name="thought"]').focus()
   await page.keyboard.press(process.platform === 'darwin' ? 'Meta+Enter' : 'Control+Enter')
@@ -131,7 +134,7 @@ try {
   check('Delete can be undone', (await page.locator('.passage .passage-text', { hasText: 'deploy queue was quiet' }).count()) === 1)
 
   // ── Privacy & protection: accurate for a legacy sprint.
-  await page.locator('button:has-text("Privacy & protection")').click()
+  await page.locator('button.privacy-mark').click()
   const pop = await page.locator('[data-radix-popper-content-wrapper]').innerText()
   check('Legacy sprint: explains no on-device encryption, without implying none at all', /before on-device encryption/.test(pop) && /on its way to Muni and on Muni’s storage/.test(pop) && /servers can read/.test(pop))
   await page.keyboard.press('Escape')

@@ -66,12 +66,13 @@ function PrivacyDisclosure({ encrypted }: { encrypted: boolean }) {
   return (
     <Popover.Root>
       <Popover.Trigger asChild>
-        <button type="button" className="inline-flex items-center gap-1 whitespace-nowrap text-ink underline decoration-line-strong underline-offset-2 hover:decoration-accent">
-          Privacy &amp; protection
+        <button type="button" className="privacy-mark" aria-label={`Private until collection closes${encrypted ? ', encrypted on this device' : ''}. Privacy and protection details`}>
+          <Shield className="size-3.5" aria-hidden />
+          <span>Private until collection closes{encrypted ? ' · encrypted' : ''}</span>
         </button>
       </Popover.Trigger>
       <Popover.Portal>
-        <Popover.Content side="top" align="start" sideOffset={8} collisionPadding={12} className="z-50 w-[min(24rem,calc(100vw-24px))] rounded-2xl border border-line bg-card p-4 text-sm leading-relaxed shadow-[var(--shadow-float)] anim-rise">
+        <Popover.Content side="bottom" align="end" sideOffset={8} collisionPadding={12} className="z-50 w-[min(24rem,calc(100vw-24px))] rounded-2xl border border-line bg-card p-4 text-sm leading-relaxed shadow-[var(--shadow-float)] anim-rise">
           <p className="flex items-center gap-2 font-medium text-ink"><Shield className="size-4 text-accent-ink" aria-hidden /> {encrypted ? 'Encrypted sprint' : 'Set up before on-device encryption'}</p>
           <p className="mt-2 text-ink-soft">Nobody on your team — the facilitator included — can read your thoughts until collection closes. Then the sprint sees them in random order, without your name. Muni itself still records who wrote each one.</p>
           <p className="mt-2 text-ink-soft">
@@ -285,14 +286,21 @@ export function Composer({
         maxLength={2000}
         enterKeyHint="enter"
       />
-      <p className="mt-1.5 flex min-h-5 items-center gap-2 text-xs text-ink-faint" aria-live="polite">
-        {typing && dest ? (
-          <>
-            <span className="dot dot--draft" aria-hidden /> {restored ? 'Draft restored · ' : 'Draft · '}
-            {local.kind === 'device' ? 'kept on this device, not sent yet' : 'kept in this tab, not sent yet'}
-          </>
-        ) : null}
-      </p>
+      {/* Under the field: what's happening to these words (left), and who can see them (right). */}
+      <div className="mt-1.5 flex min-h-6 flex-wrap items-center justify-between gap-x-4 gap-y-1">
+        <p className="flex items-center gap-2 text-xs text-ink-faint" aria-live="polite">
+          {typing && dest ? (
+            <>
+              <span className="dot dot--draft" aria-hidden /> {restored ? 'Draft restored · ' : 'Draft · '}
+              {local.kind === 'device' ? 'kept on this device, not sent yet' : 'kept in this tab, not sent yet'}
+            </>
+          ) : null}
+        </p>
+        <PrivacyDisclosure encrypted={!!dest?.encrypted} />
+      </div>
+      <span id={`${uid}-privacy`} className="sr-only">
+        Hidden from everyone, the facilitator too, until collection closes; then shared with the sprint without your name.{dest?.encrypted ? ' Encrypted before it leaves this device.' : ''}
+      </span>
 
       <div className="mt-1">
         <Choices value={p.category} onChange={(c) => set({ category: c as Category | null })} options={CATEGORIES} label="Category (optional)" allowNone />
@@ -340,10 +348,6 @@ export function Composer({
         </p>
       ) : null}
 
-      <p id={`${uid}-privacy`} className="mt-4 max-w-md text-[13px] leading-relaxed text-ink-soft">
-        Hidden until collection closes, then shared without your name.{dest?.encrypted ? ' Encrypted before it leaves this device.' : ''}{' '}
-        <PrivacyDisclosure encrypted={!!dest?.encrypted} />
-      </p>
     </form>
   )
 }

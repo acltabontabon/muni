@@ -39,79 +39,85 @@
 }
 
 :root {
-  /* Dapithapon, late afternoon: warm paper, crisp ink, one violet. */
-  --paper: #faf8f4;
-  --card: #ffffff;
-  --card-2: #f4f1eb;
-  --ink: #17151f;
-  --ink-soft: #4d4a5c;
-  --ink-faint: #6e6b80;
-  --line: #e9e4db;
-  --line-strong: #d3ccc0;
-  --accent: #5b47e6;
-  --accent-soft: #eeebff;
-  --accent-ink: #3f2fb8;
-  --cat-proud: #b45309;
-  --cat-keep: #047857;
-  --cat-improve: #1d4ed8;
-  --cat-stop: #b91c1c;
-  --cat-try: #7e22ce;
-  --cat-unsorted: #6b7280;
-  --ok: #047857;
-  --warn: #b45309;
-  --danger: #b91c1c;
-  /* The entrance's scene, shared by every illustration in the app. */
-  --sky-top: #ebe7f8;
-  --sky-glow: #ffd3bd;
-  --sun-a: #ffe1c4;
-  --sun-b: #ff8e74;
-  --halo: #ffb59a;
-  --sea-a: #b8aed8;
-  --sea-b: #8a80b8;
-  --land: #221b36;
-  --glint: #fff4ea;
-  --light: #6f5cff;
+  /* Ink and rubric: warm bone paper, warm near-black ink, and one burnt-red accent used the way a
+     scribe used rubric — for the single thing that matters on the page. The scene is dusk: a quiet
+     haze that warms only at the horizon, pewter water, palms in ink. */
+  --paper: #f4efe6;
+  --card: #fbf8f2;
+  --card-2: #ece6db;
+  --ink: #1d1b18;
+  --ink-soft: #544e46;
+  --ink-faint: #736c62;
+  --line: #e2dacd;
+  --line-strong: #cbc1b1;
+  --accent: #a4452a;
+  --accent-soft: #f1ddd2;
+  --accent-ink: #8f3a22;
+  /* The primary action is ink, not colour. */
+  --action: #1d1b18;
+  --action-ink: #f7f3ec;
+  --cat-proud: #8a5a16;
+  --cat-keep: #4a6645;
+  --cat-improve: #3d5775;
+  --cat-stop: #963a2c;
+  --cat-try: #664c71;
+  --cat-unsorted: #736c62;
+  --ok: #4a6645;
+  --warn: #8a5a16;
+  --danger: #963a2c;
+  --sky-top: #f2ede4;
+  --sky-glow: #e7c4a4;
+  --sun-a: #f5dcc3;
+  --sun-b: #cf7652;
+  --halo: #dd9c7a;
+  --sea-a: #d6d1c8;
+  --sea-b: #a9a399;
+  --land: #1d1b18;
+  --glint: #fbf4e8;
+  --light: #c0572f;
   --star: #ffffff;
-  --e-panel: #ffffff;
-  --glow: color-mix(in oklab, var(--sky-glow) 30%, transparent);
+  --e-panel: #fbf8f2;
+  --glow: color-mix(in oklab, var(--sky-glow) 22%, transparent);
   color-scheme: light;
 }
 
 .dark {
-  /* Gabi, moonlit: quiet surfaces, clear type, the night violet. */
-  --paper: #0c0c13;
-  --card: #14141d;
-  --card-2: #1b1b26;
-  --ink: #f1f0f7;
-  --ink-soft: #b3b2c6;
-  --ink-faint: #8a89a0;
-  --line: #262635;
-  --line-strong: #37374c;
-  --accent: #9b93ff;
-  --accent-soft: #221f45;
-  --accent-ink: #c9c4ff;
-  --cat-proud: #fbbf24;
-  --cat-keep: #34d399;
-  --cat-improve: #60a5fa;
-  --cat-stop: #f87171;
-  --cat-try: #c084fc;
-  --cat-unsorted: #9ca3af;
-  --ok: #34d399;
-  --warn: #fbbf24;
-  --danger: #f87171;
-  --sky-top: #0b0a15;
-  --sky-glow: #2b2158;
-  --sun-a: #fdfcff;
-  --sun-b: #cfc8ff;
-  --halo: #9b93ff;
-  --sea-a: #1a1633;
-  --sea-b: #07070d;
-  --land: #020205;
-  --glint: #c7c0ff;
-  --light: #f6e38a;
-  --star: #ece9ff;
-  --e-panel: #13131c;
-  --glow: color-mix(in oklab, #2b2158 55%, transparent);
+  /* Night ink: charcoal paper, warm moonlit text, a lamp-lit accent. */
+  --paper: #101114;
+  --card: #16171b;
+  --card-2: #1d1e23;
+  --ink: #ece7df;
+  --ink-soft: #b5afa5;
+  --ink-faint: #8e897f;
+  --line: #26272d;
+  --line-strong: #383a41;
+  --accent: #dca273;
+  --accent-soft: #2c221c;
+  --accent-ink: #efc4a1;
+  --action: #ece7df;
+  --action-ink: #111214;
+  --cat-proud: #d6a452;
+  --cat-keep: #93b08a;
+  --cat-improve: #8fa9c7;
+  --cat-stop: #d98876;
+  --cat-try: #b8a0c4;
+  --cat-unsorted: #9b958b;
+  --ok: #93b08a;
+  --warn: #d6a452;
+  --danger: #d98876;
+  --sky-top: #0e0f13;
+  --sky-glow: #332c2c;
+  --sun-a: #f4efe4;
+  --sun-b: #cdc4b3;
+  --halo: #d9c9a6;
+  --sea-a: #17191e;
+  --sea-b: #0a0b0d;
+  --land: #030304;
+  --glint: #d9d0bf;
+  --light: #e8c07a;
+  --star: #e9e4da;
+  --e-panel: #16171b;
+  --glow: color-mix(in oklab, #28252c 50%, transparent);
   color-scheme: dark;
 }
 
@@ -257,7 +263,7 @@ body {
 .journal-sky {
   --art-h: 60px;
   position: relative;
-  background: linear-gradient(180deg, transparent 0%, color-mix(in oklab, var(--sky-top) 75%, transparent) 38%, color-mix(in oklab, var(--sky-top) 55%, var(--sky-glow)) 100%);
+  background: linear-gradient(180deg, transparent 0%, color-mix(in oklab, var(--sky-top) 70%, transparent) 45%, color-mix(in oklab, var(--sky-top) 62%, var(--sky-glow)) 100%);
   box-shadow: inset 0 -1px 0 color-mix(in oklab, color-mix(in oklab, var(--sea-b) 55%, var(--land)) 55%, transparent);
 }
 .dark .journal-sky {
@@ -313,7 +319,7 @@ body {
   --art-h: 60px;
   position: relative;
   height: calc(var(--art-h) * 0.42);
-  background: linear-gradient(180deg, color-mix(in oklab, var(--sea-a) 42%, transparent), color-mix(in oklab, var(--sea-a) 10%, transparent) 60%, transparent);
+  background: linear-gradient(180deg, color-mix(in oklab, var(--sea-a) 55%, transparent), color-mix(in oklab, var(--sea-a) 12%, transparent) 60%, transparent);
   pointer-events: none;
 }
 .dark .journal-water { background: linear-gradient(180deg, color-mix(in oklab, var(--sea-a) 85%, transparent), transparent); }
@@ -328,7 +334,7 @@ body {
 /* Still while people write: the evening doesn't move here. */
 .journal-scene .scene * { animation: none !important; }
 .journal-bubble circle, .journal-bubble rect { fill: var(--e-panel); stroke: var(--land); stroke-width: 1.1; }
-.dark .journal-bubble circle, .dark .journal-bubble rect { fill: #1b1830; stroke: #6d64a8; }
+.dark .journal-bubble circle, .dark .journal-bubble rect { fill: #1d1e23; stroke: #6f6a61; }
 .journal-bubble .journal-dot { fill: var(--accent); stroke: none; }
 .journal-light-core { fill: var(--light); }
 .journal-scene .scene .journal-rise { animation: journal-rise 2000ms var(--ease-out-soft) both !important; transform-box: view-box; }
@@ -391,6 +397,9 @@ body {
 .journal-tool + .journal-tool { margin-left: 0; }
 .journal-tool:hover { color: var(--ink); background: color-mix(in oklab, var(--ink) 5%, transparent); }
 .journal-tool[aria-expanded='true'] { color: var(--ink); }
+.privacy-mark { display: inline-flex; align-items: center; gap: 0.35rem; margin-right: -0.4rem; padding: 0.2rem 0.4rem; border-radius: 6px; font-size: 12px; color: var(--ink-faint); white-space: nowrap; transition: color 140ms, background 140ms; }
+.privacy-mark span { text-decoration: underline dotted; text-decoration-color: var(--line-strong); text-underline-offset: 3px; }
+.privacy-mark:hover, .privacy-mark[data-state='open'] { color: var(--ink); background: color-mix(in oklab, var(--ink) 5%, transparent); }
 .kbd-hint { display: none; }
 @media (pointer: fine) { .kbd-hint { display: inline-flex; } }
 
@@ -507,30 +516,19 @@ body {
    at hand. Light theme is late afternoon; dark theme is night (moon, stars, alitaptap). The scene is
    decoration only; every word and control is ordinary, readable UI. */
 .entrance {
-  --e-bg: #f1eff7;
-  --e-panel: #ffffff;
-  --e-frame: #d8d4e8;
-  --e-ink: #14141c;
-  --e-soft: #4a4a60;
-  --e-quiet: #5e5e76;
-  --e-field: #85859c;
-  /* Scene: dapithapon, late afternoon. */
-  --sky-top: #ebe7f8;
-  --sky-glow: #ffd3bd;
-  --sun-a: #ffe1c4;
-  --sun-b: #ff8e74;
-  --halo: #ffb59a;
-  --sea-a: #b8aed8;
-  --sea-b: #8a80b8;
-  --land: #221b36;
-  --glint: #fff4ea;
-  --light: #6f5cff;
-  --star: #ffffff;
-  /* Capiz: pearly shell panes in a dark lattice; warm when lit from within. */
-  --lattice: #3b3150;
-  --pane: linear-gradient(135deg, #fdfcff 0%, #f1ecfb 40%, #fbf0ea 68%, #eef3fb 100%);
-  --pane-lit: radial-gradient(circle at 50% 58%, #fff8e3 0%, #ffe6ae 55%, #f6c987 100%);
-  --pane-ink: #1b1330;
+  /* The entrance shares the app's ink-and-rubric palette and its dusk (the scene tokens on :root). */
+  --e-bg: var(--paper);
+  --e-panel: var(--card);
+  --e-frame: var(--line);
+  --e-ink: var(--ink);
+  --e-soft: var(--ink-soft);
+  --e-quiet: var(--ink-faint);
+  --e-field: #9a9185;
+  /* Capiz: pearly shell panes in an ink lattice; warm when lit from within. */
+  --lattice: #2e2a25;
+  --pane: linear-gradient(135deg, #fdfbf7 0%, #f3eee5 45%, #f7ede4 70%, #eef0ee 100%);
+  --pane-lit: radial-gradient(circle at 50% 58%, #fff6e2 0%, #f6dcae 55%, #e7b27e 100%);
+  --pane-ink: #1d1b18;
   min-height: 100dvh;
   display: flex;
   flex-direction: column;
@@ -539,33 +537,11 @@ body {
   padding: max(20px, env(safe-area-inset-top)) max(20px, env(safe-area-inset-right)) max(16px, env(safe-area-inset-bottom)) max(20px, env(safe-area-inset-left));
 }
 .dark .entrance {
-  --e-bg: #09090f;
-  --e-panel: #13131c;
-  --e-frame: #262634;
-  --e-ink: #f3f3f8;
-  --e-soft: #b6b6ca;
-  --e-quiet: #9d9db4;
-  --e-field: #6f6f8a;
-  /* The site's night violet, used on the entrance only; the label on it is dark ink (7:1+). */
-  --accent: #9b93ff;
-  --accent-soft: #221f45;
-  --accent-ink: #c9c4ff;
-  /* Scene: gabi, night. */
-  --sky-top: #0b0a15;
-  --sky-glow: #2b2158;
-  --sun-a: #fdfcff;
-  --sun-b: #cfc8ff;
-  --halo: #9b93ff;
-  --sea-a: #1a1633;
-  --sea-b: #07070d;
-  --land: #020205;
-  --glint: #c7c0ff;
-  --light: #f6e38a;
-  --star: #ece9ff;
-  --lattice: #4a3f63;
-  --pane: linear-gradient(135deg, #1f1b31 0%, #25203a 45%, #211d30 70%, #1c2031 100%);
-  --pane-lit: radial-gradient(circle at 50% 58%, #fff3c9 0%, #ffd98a 50%, #e3a55c 100%);
-  --pane-ink: #1b1030;
+  --e-field: #5a5750;
+  --lattice: #3a3731;
+  --pane: linear-gradient(135deg, #1b1c20 0%, #202126 45%, #1d1d21 70%, #1a1c20 100%);
+  --pane-lit: radial-gradient(circle at 50% 58%, #fff2d6 0%, #f0d29a 50%, #d9a066 100%);
+  --pane-ink: #1d1b18;
 }
 
 /* Full bleed: the evening fills the left of the window; the one decision at hand fills the right. */
@@ -654,7 +630,7 @@ body {
 .scene-palm--b .scene-crown { animation-duration: 8.5s; animation-delay: -2s; }
 .scene-thought { animation: drift 7s ease-in-out infinite; }
 .scene-thought circle, .scene-bubble rect { fill: var(--e-panel); stroke: var(--land); stroke-width: 1.2; }
-.dark .scene-thought circle, .dark .scene-bubble rect { fill: #1b1830; stroke: #6d64a8; }
+.dark .scene-thought circle, .dark .scene-bubble rect { fill: #1d1e23; stroke: #6f6a61; }
 .scene-bubble .scene-dot { fill: var(--accent); stroke: none; animation: dot 1.4s ease-in-out infinite; }
 .scene-keep { animation: keep 1500ms var(--ease-out-soft) both; }
 .scene-keep-core { fill: var(--light); }
