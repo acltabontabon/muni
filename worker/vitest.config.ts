@@ -11,7 +11,9 @@ export default defineConfig(async () => {
         miniflare: {
           bindings: { TEST_MIGRATIONS: migrations, APP_ENV: 'test', EMAIL_PROVIDER: 'console', AI_PROVIDER: 'fake', ALLOW_DEMO_SEED: 'true', PUBLIC_ORIGIN: 'http://localhost:5173',
             // Every test account signs in from the same simulated network.
-            SIGNIN_CODES_PER_NETWORK_DAILY: '100000' },
+            SIGNIN_CODES_PER_NETWORK_DAILY: '100000',
+            // The production cap, which auth.test.ts exercises (local dev raises it in wrangler.jsonc).
+            SIGNIN_EMAILS_DAILY_LIMIT: '60' },
         },
       }),
     ],

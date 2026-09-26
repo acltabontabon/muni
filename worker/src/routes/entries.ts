@@ -10,7 +10,7 @@ import { config } from '../lib/config'
 import { requireParticipant, requireSprint, type SprintCtx } from '../lib/auth'
 import { uuid } from '../lib/crypto'
 import { all, count, one, run } from '../lib/db'
-import { bad, conflict, notFound } from '../lib/errors'
+import { AppError, bad, conflict, notFound } from '../lib/errors'
 import { nonempty, optional } from '../lib/util'
 
 export const entries = new Hono<HonoEnv>()
@@ -64,6 +64,9 @@ entries.post('/api/sprints/:sprintId/entries', async (c) => {
   const key = typeof body.idempotency_key === 'string' && body.idempotency_key.trim() && body.idempotency_key.length <= 64 ? body.idempotency_key.trim() : null
   const db = c.env.DB
   const me = ctx.auth.account.id
+  // A thought queued on a device names the account that wrote it. It never lands under another one.
+  if (typeof body.author_account_id === 'string' && body.author_account_id !== me)
+    throw new AppError(409, 'account_mismatch', 'this thought was written while signed in as someone else — it wasn’t saved')
   if (key) {
     const existing = await one<MyRow>(db, `SELECT ${MY_COLS} FROM entries WHERE sprint_id = ? AND author_account_id = ? AND idempotency_key = ?`, ctx.sprint.id, me, key)
     if (existing) return c.json(myEntry(existing, true))
@@ -85,7 +88,7 @@ entries.post('/api/sprints/:sprintId/entries', async (c) => {
       const existing = await one<MyRow>(db, `SELECT ${MY_COLS} FROM entries WHERE sprint_id = ? AND author_account_id = ? AND idempotency_key = ?`, ctx.sprint.id, me, key)
       if (existing) return c.json(myEntry(existing, true))
     }
-    throw conflict('collection for this sprint has closed — this thought wasn’t saved')
+    throw new AppError(409, 'collection_closed', ctx.sprint.status === 'draft' ? 'collection for this sprint hasn’t opened yet — this thought wasn’t saved' : 'collection for this sprint has closed — this thought wasn’t saved')
   }
   const row = (await one<MyRow>(db, `SELECT ${MY_COLS} FROM entries WHERE id = ?`, id))!
   // Deliberately no hint: per-submission changes are not announced during collection.

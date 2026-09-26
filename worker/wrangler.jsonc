@@ -28,7 +28,10 @@
     "PUBLIC_ORIGIN": "http://localhost:8787",
     "EMAIL_PROVIDER": "console",
     "AI_PROVIDER": "fake",
-    "ALLOW_DEMO_SEED": "true"
+    "ALLOW_DEMO_SEED": "true",
+    // Local development signs in many throwaway accounts from one address (and e2e runs do).
+    "SIGNIN_CODES_PER_NETWORK_DAILY": "100000",
+    "SIGNIN_EMAILS_DAILY_LIMIT": "100000"
   },
   "env": {
     // The app at https://act.munimuni.app (the marketing site at munimuni.app is GitHub Pages).
@@ -52,7 +55,10 @@
         "EMAIL_PROVIDER": "resend",
         "EMAIL_FROM": "Muni <hello@munimuni.app>",
         "AI_PROVIDER": "none",
-        "ALLOW_DEMO_SEED": "false"
+        "ALLOW_DEMO_SEED": "false",
+        // Sign-in emails: 30 per network and 60 in total per day (Resend's free tier sends 100/day).
+        "SIGNIN_CODES_PER_NETWORK_DAILY": "30",
+        "SIGNIN_EMAILS_DAILY_LIMIT": "60"
       }
     }
   }

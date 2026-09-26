@@ -21,6 +21,13 @@ import { scheduled } from './jobs'
 
 export { MeetingRoom } from './room'
 
+/**
+ * Lowest `x-muni-client` revision this server accepts. Raise it when a payload change is not
+ * backward compatible. (Not exported: every named export of a Worker's main module must be a
+ * handler or Durable Object class, or the runtime refuses to start.)
+ */
+const MIN_CLIENT_REVISION = 1
+
 const app = new Hono<HonoEnv>()
 
 app.use('*', async (c, next) => {
@@ -32,6 +39,10 @@ app.use('*', async (c, next) => {
     if (e instanceof ConfigError) return c.json({ error: `server misconfigured: ${e.message}`, code: 'misconfigured' }, 500)
     throw e
   }
+  // Clients send their build's API revision. One below the minimum is told to update rather than
+  // retrying payloads this server no longer accepts (an old tab left open across a deploy).
+  const client = Number(c.req.header('x-muni-client'))
+  if (client && client < MIN_CLIENT_REVISION) return c.json({ error: 'Muni has been updated. Reload to continue — anything you haven’t sent is kept on this device.', code: 'upgrade_required' }, 426)
   await next()
   c.header('x-content-type-options', 'nosniff')
   c.header('referrer-policy', 'same-origin')
