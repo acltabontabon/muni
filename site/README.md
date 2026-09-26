@@ -17,8 +17,9 @@ domain is set in the repository's Pages settings (not a `CNAME` file). On Cloudf
 `www` are proxied CNAMEs to `acltabontabon.github.io` (same as acltabontabon.com): Cloudflare
 serves HTTPS with its edge certificate, SSL mode "Full", Always Use HTTPS on.
 
-The app will live at **https://act.munimuni.app**. When it launches, set `data-app-url` on
-`<html>` in `index.html` to that address; until then every "Open Muni" button reads "Coming soon".
+The app lives at **https://act.munimuni.app**, set as `data-app-url` on `<html>` in `index.html`
+(the “Open Muni” buttons read “Coming soon” when it is empty). The site registers no service
+worker; the app's PWA is scoped to act.munimuni.app.
 
 `.nojekyll` keeps GitHub Pages from running Jekyll over the folder.
 

@@ -723,7 +723,8 @@ kbd { font-family: var(--font-mono); font-size: 11px; padding: 1px 6px; border-r
 /* ── Closing and footer ───────────────────────────────────────────── */
 
 .closing { padding: clamp(80px, 14vh, 160px) 0; text-align: center; }
-.closing .display { margin: 28px auto 36px; max-width: 14ch; }
+.closing .display { margin: 28px auto 20px; max-width: 14ch; }
+.closing-note { max-width: 44ch; margin: 0 auto 32px; color: var(--soft); text-wrap: balance; }
 .closing-mark { margin: 0 auto; color: var(--ink); filter: drop-shadow(0 20px 40px var(--glow)); }
 .footer {
   display: flex;
