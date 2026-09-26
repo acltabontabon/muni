@@ -9,6 +9,7 @@ import { OUTCOME_LABEL, PHASE_LABEL, categoryMeta } from '@/lib/categories'
 import { applyTheme, readPrefs } from '@/lib/prefs'
 import { useStage } from '@/lib/stage'
 import { Badge, Button, Dialog, Input, Spinner, Textarea, fmtClock, useCountdown, useDocumentTitle, useToast } from '@/ui'
+import { ReconnectingBar } from '@/ui/status'
 import { CategoryMarks, Observation, ObservationList } from '@/ui/observations'
 import { ExperimentEditor } from '@/ui/experiments'
 import { Mark } from '@/brand/Mark'
@@ -117,6 +118,7 @@ export function Stage() {
     <div className="stage min-h-dvh text-ink">
       <TopRail stage={stage} sprint={sprint} controls={controls} presenting={presenting} onPrev={() => go(-1)} onNext={() => go(1)} command={command} themes={themes} onPresent={() => setPresenting(!presenting)} sprintId={sprintId} onChange={st.reload} />
       <main className={clsx('mx-auto px-5 pb-20 pt-6 sm:px-8', presenting ? 'max-w-7xl' : 'max-w-6xl')}>
+        <ReconnectingBar status={st.live} />
         {stage.phase === 'arrive' ? <Arrive stage={stage} controls={controls} sprintId={sprintId} onChange={st.reload} /> : null}
         {stage.phase === 'remember' ? <Remember previous={previous} themes={themes} controls={controls} onChange={st.loadExperiments} /> : null}
         {stage.phase === 'discover' ? <Discover themes={themes} ungrouped={ungrouped} total={grouping?.total_entries ?? 0} revealed={revealed || !fac} onReveal={setRevealed} controls={controls} presenting={presenting} votes={votes} sprintId={sprintId} onVotesChanged={() => { st.loadVotes(); st.loadThemes() }} command={command} onRead={setReader} onRename={async (id, title) => { await patch(`/api/sprints/${sprintId}/themes/${id}`, { title }); st.loadThemes() }} /> : null}

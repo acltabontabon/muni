@@ -3,7 +3,6 @@ import { useAuth } from './lib/auth'
 import { SignIn } from './routes/SignIn'
 import { Invite } from './routes/Invite'
 import { Home } from './routes/Home'
-import { Capture } from './routes/Capture'
 import { WorkspacePage } from './routes/Workspace'
 import { SprintSetup } from './routes/SprintSetup'
 import { SprintHome } from './routes/SprintHome'
@@ -14,9 +13,11 @@ import { Outcomes } from './routes/Outcomes'
 import { Account } from './routes/Account'
 import { About } from './routes/About'
 import { Spinner } from './ui'
+import { LocalProvider } from './lib/local/LocalProvider'
+import { OfflineStart } from './ui/status'
 
 function Protected({ children }: { children: React.ReactElement }) {
-  const { me, loading } = useAuth()
+  const { me, loading, offline } = useAuth()
   const loc = useLocation()
   if (loading)
     return (
@@ -24,18 +25,23 @@ function Protected({ children }: { children: React.ReactElement }) {
         <Spinner />
       </div>
     )
+  // Offline with nothing kept on this device: say so, rather than showing a sign-in that can't work.
+  if (!me && offline) return <OfflineStart />
   if (!me) return <Navigate to={`/signin?next=${encodeURIComponent(loc.pathname + loc.search)}`} replace />
   return children
 }
 
 export function App() {
+  const { me } = useAuth()
   return (
+    <LocalProvider accountId={me?.account_id ?? null}>
     <Routes>
       <Route path="/signin" element={<SignIn />} />
       <Route path="/invite/:token" element={<Invite />} />
       <Route path="/about" element={<About />} />
       <Route path="/" element={<Protected><Home /></Protected>} />
-      <Route path="/capture" element={<Protected><Capture /></Protected>} />
+      {/* The old bookmarkable capture link opens the same home (a ?sprint= deep link is kept). */}
+      <Route path="/capture" element={<Protected><Home /></Protected>} />
       <Route path="/account" element={<Protected><Account /></Protected>} />
       <Route path="/workspaces/:workspaceId" element={<Protected><WorkspacePage /></Protected>} />
       <Route path="/workspaces/:workspaceId/sprints/new" element={<Protected><SprintSetup /></Protected>} />
@@ -47,5 +53,6 @@ export function App() {
       <Route path="/sprints/:sprintId/outcomes" element={<Protected><Outcomes /></Protected>} />
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
+    </LocalProvider>
   )
 }

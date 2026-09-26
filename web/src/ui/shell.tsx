@@ -1,50 +1,44 @@
-import { Link, NavLink, useNavigate } from 'react-router'
-import { Wordmark } from '@/brand/Mark'
-import { useAuth } from '@/lib/auth'
-import { post } from '@/api/client'
+import { Link } from 'react-router'
 import { clsx } from 'clsx'
 import type { ReactNode } from 'react'
-import { PenLine, Settings2 } from 'lucide-react'
+import { Wordmark, Mark } from '@/brand/Mark'
+import type { Me } from '@/api/types'
+import { useAuth } from '@/lib/auth'
+import { useCurrentWorkspace } from '@/lib/workspace'
+import { AccountMenu, WorkspaceSwitcher } from '@/ui/menus'
+import { SessionBanner, SyncChip, UpdateNotice } from '@/ui/status'
 
-export function AppShell({ children, wide }: { children: ReactNode; wide?: boolean }) {
-  const { me, signOutLocal } = useAuth()
-  const nav = useNavigate()
+/**
+ * One header everywhere: Muni, the workspace you're in, a quiet sync state when there is one, and
+ * you. Everything administrative lives in those two menus, not on the page.
+ */
+export function AppShell({ children, wide, workspace }: { children: ReactNode; wide?: boolean; workspace?: Me['workspaces'][number] | null }) {
+  const { me } = useAuth()
+  const fallback = useCurrentWorkspace(me)
+  const current = workspace === undefined ? fallback : workspace
   return (
-    <div className="min-h-dvh flex flex-col">
-      <header className="sticky top-0 z-30 border-b border-line/70 bg-paper/85 backdrop-blur">
-        <div className={clsx('mx-auto flex h-14 items-center justify-between gap-3 px-4', wide ? 'max-w-7xl' : 'max-w-5xl')}>
-          <Link to="/" className="rounded-md text-ink">
-            <Wordmark size={20} />
+    <div className="flex min-h-dvh flex-col">
+      <header className="pt-safe sticky top-0 z-30 border-b border-line/70 bg-paper/85 backdrop-blur-md">
+        <div className={clsx('mx-auto flex h-14 items-center gap-1 px-3 sm:gap-2 sm:px-4', wide ? 'max-w-7xl' : 'max-w-5xl')}>
+          <Link to="/" className="shrink-0 rounded-md px-1 text-ink" aria-label="Muni home">
+            <span className="hidden sm:inline-flex"><Wordmark size={20} /></span>
+            <span className="sm:hidden"><Mark size={26} /></span>
           </Link>
           {me ? (
-            <nav className="flex items-center gap-1 text-sm">
-              <NavLink to="/capture" className={({ isActive }) => clsx('inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 font-medium', isActive ? 'bg-accent-soft text-accent-ink' : 'text-ink-soft hover:text-ink')}>
-                <PenLine className="size-4" /> <span className="hidden sm:inline">Capture</span>
-              </NavLink>
-              <NavLink to="/account" className={({ isActive }) => clsx('inline-flex items-center gap-1.5 rounded-full px-3 py-1.5', isActive ? 'bg-accent-soft text-accent-ink' : 'text-ink-soft hover:text-ink')} aria-label="Account and privacy">
-                <Settings2 className="size-4" /> <span className="hidden sm:inline">{me.display_name}</span>
-              </NavLink>
-              <button
-                className="rounded-full px-3 py-1.5 text-ink-soft hover:text-ink"
-                onClick={async () => {
-                  try {
-                    await post('/api/auth/logout')
-                  } finally {
-                    signOutLocal()
-                    nav('/signin')
-                  }
-                }}
-              >
-                Sign out
-              </button>
-            </nav>
+            <>
+              <span aria-hidden className="mx-1 h-5 w-px bg-line" />
+              <WorkspaceSwitcher current={current} />
+              <div className="ml-auto flex items-center gap-2">
+                <SyncChip />
+                <AccountMenu />
+              </div>
+            </>
           ) : null}
         </div>
       </header>
-      <main className={clsx('mx-auto w-full flex-1 px-4 py-6 sm:py-8', wide ? 'max-w-7xl' : 'max-w-5xl')}>{children}</main>
-      <footer className="mx-auto w-full max-w-5xl px-4 py-6 text-xs text-ink-faint">
-        <span className="font-wordmark italic">A moment to reflect. A chance to improve.</span> · <Link to="/about" className="hover:text-ink">Privacy &amp; how Muni works</Link>
-      </footer>
+      <SessionBanner />
+      <main className={clsx('pb-safe mx-auto w-full flex-1 px-4 pt-6 sm:pt-8', wide ? 'max-w-7xl' : 'max-w-5xl')}>{children}</main>
+      <UpdateNotice />
     </div>
   )
 }
@@ -52,9 +46,9 @@ export function AppShell({ children, wide }: { children: ReactNode; wide?: boole
 export function PageTitle({ eyebrow, title, children, actions }: { eyebrow?: ReactNode; title: ReactNode; children?: ReactNode; actions?: ReactNode }) {
   return (
     <div className="mb-6 flex flex-wrap items-end justify-between gap-4">
-      <div>
+      <div className="min-w-0">
         {eyebrow ? <div className="mb-1 text-sm text-ink-soft">{eyebrow}</div> : null}
-        <h1 className="font-display text-2xl leading-tight sm:text-3xl">{title}</h1>
+        <h1 className="font-display text-2xl leading-tight [overflow-wrap:anywhere] sm:text-3xl">{title}</h1>
         {children ? <div className="mt-2 text-ink-soft measure">{children}</div> : null}
       </div>
       {actions ? <div className="flex flex-wrap gap-2">{actions}</div> : null}

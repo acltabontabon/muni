@@ -32,7 +32,7 @@ export function useStage(sprintId: string) {
   useEffect(() => {
     loadAll()
   }, [loadAll])
-  useLive(
+  const live = useLive(
     sprintId,
     (r) => {
       if (r === 'all') loadAll()
@@ -45,11 +45,14 @@ export function useStage(sprintId: string) {
     () => setRevoked(true),
   )
 
+  const liveRef = useRef<string>('connecting')
   const versionRef = useRef(0)
   versionRef.current = stage?.version ?? 0
   /** Sends a facilitator command with the last-seen version. On a conflict the stage is refetched and the command is not retried. */
   const command = useCallback(
     async (c: Command): Promise<{ ok: boolean; message?: string }> => {
+      // Live control is never queued: while the room can't be reached, a command is refused now.
+      if (liveRef.current === 'reconnecting') return { ok: false, message: 'Reconnecting to the retro. Try again when Muni is back.' }
       try {
         const s = await post<StageSnapshot>(`/api/sprints/${sprintId}/meeting/command`, { expected_version: versionRef.current, command: c })
         setStage(s)
@@ -62,5 +65,8 @@ export function useStage(sprintId: string) {
     [sprintId, loadStage],
   )
 
-  return { sprint, stage, grouping, votes, experiments, previous, error, revoked, command, reload: loadAll, setStage, loadVotes, loadExperiments, loadThemes }
+  useEffect(() => {
+    liveRef.current = live
+  }, [live])
+  return { sprint, stage, grouping, votes, experiments, previous, error, revoked, command, reload: loadAll, setStage, loadVotes, loadExperiments, loadThemes, live }
 }

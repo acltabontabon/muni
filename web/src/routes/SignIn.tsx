@@ -9,13 +9,14 @@ import { Link } from 'react-router'
 
 export function SignIn() {
   useDocumentTitle('Sign in')
-  const { me, refresh } = useAuth()
+  const { me, refresh, sessionEnded, offline } = useAuth()
   const nav = useNavigate()
   const [params] = useSearchParams()
   const next = params.get('next') || '/'
+  // Skip this page only for a live session (not an expired one being renewed, nor offline).
   useEffect(() => {
-    if (me) nav(next, { replace: true })
-  }, [me, nav, next])
+    if (me && !sessionEnded && !offline) nav(next, { replace: true })
+  }, [me, sessionEnded, offline, nav, next])
   return (
     <div className="min-h-dvh grid place-items-center px-4 py-10">
       <div className="w-full max-w-sm">

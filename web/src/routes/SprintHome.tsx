@@ -1,13 +1,13 @@
 import { useCallback, useEffect, useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router'
-import { ArrowRight, CalendarClock, Lock, Presentation, Settings2, Smartphone, Users } from 'lucide-react'
+import { ArrowRight, CalendarClock, Lock, Presentation, Settings2, Users } from 'lucide-react'
 import { ApiError, get, patch, post } from '@/api/client'
 import type { Experiment, SprintDetail } from '@/api/types'
 import { OUTCOME_LABEL, STATUS_LABEL } from '@/lib/categories'
 import { useLive } from '@/lib/live'
 import { writePrefs } from '@/lib/prefs'
 import { Badge, Button, Dialog, EmptyState, ErrorText, Help, SectionTitle, Spinner, Switch, useDocumentTitle, useToast } from '@/ui'
-import { CaptureComposer, MyThoughts } from '@/ui/capture'
+import { Composer, MyThoughts } from '@/ui/capture'
 import { AppShell, PageTitle } from '@/ui/shell'
 
 export function SprintHome() {
@@ -17,7 +17,6 @@ export function SprintHome() {
   const [s, setS] = useState<SprintDetail | null>(null)
   const [prev, setPrev] = useState<Experiment[]>([])
   const [error, setError] = useState('')
-  const [tick, setTick] = useState(0)
   const [closing, setClosing] = useState(false)
   const [reopening, setReopening] = useState(false)
   useDocumentTitle(s?.name ?? 'Sprint')
@@ -92,10 +91,7 @@ export function SprintHome() {
         <div className="space-y-8">
           {collecting ? (
             <>
-              <CaptureComposer sprintId={sprintId} sprintName={s.name} onSaved={() => setTick((t) => t + 1)} />
-              <p className="-mt-4 text-sm text-ink-soft">
-                <Smartphone className="mr-1 inline size-4" /> On your phone, bookmark <Link to="/capture" className="underline">/capture</Link> — it always opens the right sprint.
-              </p>
+              <Composer dest={{ workspaceId: s.workspace_id, sprintId, sprintName: s.name }} choices={[]} onChoose={() => {}} />
             </>
           ) : s.status === 'draft' ? (
             <EmptyState title="Not collecting yet" action={fac ? <Button variant="primary" onClick={() => transition('collecting')}>Open this sprint for thoughts</Button> : undefined}>
@@ -114,7 +110,7 @@ export function SprintHome() {
               </div>
             </div>
           )}
-          <MyThoughts sprintId={sprintId} refreshKey={tick} editable={collecting} />
+          <MyThoughts sprintId={sprintId} editable={collecting} moveChoices={[]} online />
         </div>
         <div className="space-y-8">
           <section>

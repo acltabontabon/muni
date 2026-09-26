@@ -7,6 +7,7 @@ import type { ThemeView } from '@/api/types'
 import { OUTCOME_LABEL, PHASE_HINT, PHASE_LABEL } from '@/lib/categories'
 import { useStage } from '@/lib/stage'
 import { Badge, Button, Spinner, Textarea, fmtClock, useCountdown, useDocumentTitle, useToast } from '@/ui'
+import { ReconnectingBar } from '@/ui/status'
 import { EntryCard } from '@/ui/entries'
 import { Mark } from '@/brand/Mark'
 
@@ -61,19 +62,24 @@ export function Companion() {
     }
   }
 
+  // Live actions need the room. While it can't be reached, they are disabled, never queued.
+  const paused = st.live === 'reconnecting'
   return (
     <Shell title={sprint.name} sub={<span><span className="text-accent">{PHASE_LABEL[stage.phase]}</span> · {PHASE_HINT[stage.phase]}</span>}>
+      <ReconnectingBar status={st.live} />
       {/* presence + readiness: the two private controls, always visible */}
       <div className="card mb-4 flex flex-wrap items-center gap-2 p-3">
         <button
-          className={clsx('inline-flex h-10 items-center gap-2 rounded-full border px-4 text-sm', me?.present ? 'border-accent bg-accent-soft text-accent-ink' : 'border-line')}
+          className={clsx('inline-flex h-10 items-center gap-2 rounded-full border px-4 text-sm disabled:pointer-events-none disabled:opacity-45', me?.present ? 'border-accent bg-accent-soft text-accent-ink' : 'border-line')}
+          disabled={paused}
           onClick={async () => { await post(`/api/sprints/${sprintId}/meeting/attendance`, { present: !me?.present }); st.reload() }}
           aria-pressed={!!me?.present}
         >
           {me?.present ? 'I’m here' : 'Mark me present'}
         </button>
         <button
-          className={clsx('inline-flex h-10 items-center gap-2 rounded-full border px-4 text-sm', me?.ready ? 'border-line' : 'border-line bg-ink/6 text-ink-soft')}
+          className={clsx('inline-flex h-10 items-center gap-2 rounded-full border px-4 text-sm disabled:pointer-events-none disabled:opacity-45', me?.ready ? 'border-line' : 'border-line bg-ink/6 text-ink-soft')}
+          disabled={paused}
           onClick={async () => { await post(`/api/sprints/${sprintId}/meeting/attendance`, { ready: !(me?.ready ?? true) }); st.reload() }}
           aria-pressed={!(me?.ready ?? true)}
           title="Step out of the speaking rotation for now"
@@ -88,7 +94,7 @@ export function Companion() {
           <div className="text-xs uppercase tracking-wider text-accent">Your invitation</div>
           <p className="font-display mt-1 text-2xl">{stage.speaking.prompt}</p>
           <p className="mt-1 text-sm text-ink-soft">Only if you want to. Nobody thinks you wrote anything in particular.</p>
-          <Button className="mt-3" onClick={async () => { await post(`/api/sprints/${sprintId}/meeting/pass`); st.reload() }}>Pass for now</Button>
+          <Button className="mt-3" disabled={paused} onClick={async () => { await post(`/api/sprints/${sprintId}/meeting/pass`); st.reload() }}>Pass for now</Button>
         </div>
       ) : null}
 
@@ -100,8 +106,8 @@ export function Companion() {
               <p className="font-medium">{e.change_to_try}</p>
               <p className="text-sm text-ink-soft">Signal: {e.success_signal} · review {e.review_on}</p>
               <div className="mt-2 flex gap-2">
-                <Button size="sm" variant="primary" onClick={async () => { await post(`/api/sprints/${sprintId}/experiments/${e.id}/accept`, { accept: true }); st.loadExperiments() }}>I’ll own this</Button>
-                <Button size="sm" variant="ghost" onClick={async () => { await post(`/api/sprints/${sprintId}/experiments/${e.id}/accept`, { accept: false }); st.loadExperiments() }}>Not me</Button>
+                <Button size="sm" variant="primary" disabled={paused} onClick={async () => { await post(`/api/sprints/${sprintId}/experiments/${e.id}/accept`, { accept: true }); st.loadExperiments() }}>I’ll own this</Button>
+                <Button size="sm" variant="ghost" disabled={paused} onClick={async () => { await post(`/api/sprints/${sprintId}/experiments/${e.id}/accept`, { accept: false }); st.loadExperiments() }}>Not me</Button>
               </div>
             </div>
           ))}
@@ -176,7 +182,8 @@ export function Companion() {
                 <div className="text-xs text-ink-soft">{t.entry_count} entries · tap the title to read them</div>
                 {round ? (
                   <button
-                    className={clsx('mt-2 h-11 w-full rounded-full border text-sm', mineVote ? 'border-accent bg-accent-soft text-accent-ink' : 'border-line')}
+                    className={clsx('mt-2 h-11 w-full rounded-full border text-sm disabled:pointer-events-none disabled:opacity-45', mineVote ? 'border-accent bg-accent-soft text-accent-ink' : 'border-line')}
+                    disabled={paused}
                     onClick={async () => { try { await post(`/api/sprints/${sprintId}/votes`, { theme_id: t.id, cast: !mineVote }); st.loadVotes() } catch (e) { toast(e instanceof ApiError ? e.message : 'Couldn’t vote', 'danger') } }}
                   >
                     {mineVote ? 'Voted · take back' : 'Vote for this'}
@@ -199,7 +206,7 @@ export function Companion() {
               <Textarea rows={3} value={context} onChange={(e) => setContext(e.target.value)} placeholder="Something the room should know…" maxLength={2000} />
               <div className="mt-2 flex items-center justify-between">
                 <span className="text-xs text-ink-faint">{stage.my_context.filter((c) => !c.released).length ? `${stage.my_context.filter((c) => !c.released).length} waiting for release` : ''}</span>
-                <Button size="sm" variant="primary" disabled={!context.trim()} onClick={() => sendContext(current.id)}>Send</Button>
+                <Button size="sm" variant="primary" disabled={!context.trim() || paused} onClick={() => sendContext(current.id)}>Send</Button>
               </div>
             </div>
           </div>
