@@ -143,7 +143,7 @@ body {
   letter-spacing: -0.015em;
 }
 /* The entrance's voice, used sparingly: one serif-italic word in a sans heading. */
-.font-display em, .serif-em {
+.font-display em, .journal-title em, .serif-em {
   font-family: var(--font-wordmark);
   font-style: italic;
   font-weight: 400;
@@ -240,59 +240,212 @@ body {
 .line-clamp-4 { display: -webkit-box; -webkit-line-clamp: 4; -webkit-box-orient: vertical; overflow: hidden; }
 .line-clamp-7 { display: -webkit-box; -webkit-line-clamp: 7; -webkit-box-orient: vertical; overflow: hidden; }
 
-/* ── The composer: the page's main surface. One field, no box inside the box. ─────────────── */
-.composer {
-  background: var(--card);
-  border-radius: 24px;
-  box-shadow: 0 0 0 1px var(--line), 0 1px 2px rgb(23 21 40 / 0.04), 0 18px 40px -28px rgb(60 40 140 / 0.35);
-  transition: box-shadow 200ms ease;
+/* ── Capture: an illustrated reflection journal ─────────────────────────────────────────────
+   One scene across the page: the entrance's evening as a strip of sky, a waterline with the
+   heading on it and the person in the duyan at the collection's edge, and the page's paper as the
+   water beneath. Writing is an open surface; saved thoughts are passages, not cards. */
+.app-bg { overflow-x: clip; }
+.journal-scene {
+  position: relative;
+  isolation: isolate;
+  /* Full bleed out of the page column, up to the header. */
+  margin: -1.5rem calc(50% - 50vw) 0;
 }
-.composer:focus-within { box-shadow: 0 0 0 1.5px color-mix(in oklab, var(--accent) 70%, transparent), 0 0 0 5px color-mix(in oklab, var(--accent) 12%, transparent), 0 18px 40px -28px rgb(60 40 140 / 0.45); }
-.dark .composer { box-shadow: 0 0 0 1px var(--line), 0 18px 40px -30px rgb(0 0 0 / 0.8); }
-.composer-title label { cursor: text; }
+@media (min-width: 640px) { .journal-scene { margin-top: -2rem; } }
+.journal-inner { position: relative; max-width: 80rem; margin: 0 auto; padding: 0 1rem; }
+@media (min-width: 640px) { .journal-inner { padding: 0 1.5rem; } }
+.journal-sky {
+  --art-h: 60px;
+  position: relative;
+  background: linear-gradient(180deg, transparent 0%, color-mix(in oklab, var(--sky-top) 75%, transparent) 38%, color-mix(in oklab, var(--sky-top) 55%, var(--sky-glow)) 100%);
+  box-shadow: inset 0 -1px 0 color-mix(in oklab, color-mix(in oklab, var(--sea-b) 55%, var(--land)) 55%, transparent);
+}
+.dark .journal-sky {
+  background:
+    radial-gradient(1px 1px at 62% 30%, var(--star), transparent 70%),
+    radial-gradient(1px 1px at 71% 18%, var(--star), transparent 70%),
+    radial-gradient(1.2px 1.2px at 79% 42%, var(--star), transparent 70%),
+    radial-gradient(1px 1px at 86% 22%, var(--star), transparent 70%),
+    radial-gradient(1px 1px at 55% 50%, color-mix(in oklab, var(--star) 70%, transparent), transparent 70%),
+    radial-gradient(1.2px 1.2px at 93% 35%, color-mix(in oklab, var(--star) 80%, transparent), transparent 70%),
+    linear-gradient(180deg, transparent 0%, color-mix(in oklab, var(--sky-top) 85%, transparent) 30%, color-mix(in oklab, var(--sky-top) 45%, var(--sky-glow)) 100%);
+}
+@media (min-width: 640px) { .journal-sky { --art-h: 118px; } }
+@media (min-width: 1024px) { .journal-sky { --art-h: 142px; } }
+.journal-head {
+  position: relative;
+  z-index: 1;
+  /* Words never run under the artwork. */
+  padding: 1.1rem 0 0.8rem;
+  min-height: calc(var(--art-h) + 1rem);
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+}
+@media (min-width: 640px) { .journal-head { padding: 1.75rem calc(var(--art-h) * 1.45 + 1.5rem) 1rem 0; } }
+/* On a phone only the heading shares the art's height; the lines above it use the full width. */
+@media (max-width: 639px) { .journal-head .journal-title { padding-right: calc(var(--art-h) * 1.45 + 0.75rem); } }
+.journal-title { font-family: var(--font-display); font-weight: 600; font-size: clamp(1.7rem, 1.2rem + 2.2vw, 2.85rem); line-height: 1.04; letter-spacing: -0.035em; text-wrap: balance; overflow-wrap: anywhere; }
+.journal-title label { cursor: text; }
+.journal-art {
+  position: absolute;
+  right: 1rem;
+  bottom: 0;
+  height: var(--art-h);
+  width: calc(var(--art-h) * 1.45);
+  pointer-events: none;
+}
+@media (min-width: 640px) { .journal-art { right: 1.5rem; } }
+.journal-art > svg:last-child { position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible; }
+/* The sun (the moon, at night), half set behind the waterline, left of the palms. */
+.journal-sun {
+  position: absolute;
+  bottom: calc(var(--art-h) * -0.11);
+  left: calc(var(--art-h) * -0.22);
+  width: calc(var(--art-h) * 0.26);
+  aspect-ratio: 1;
+  border-radius: 999px;
+  background: radial-gradient(circle at 50% 42%, var(--sun-a), var(--sun-b));
+  box-shadow: 0 0 0 calc(var(--art-h) * 0.1) color-mix(in oklab, var(--halo) 22%, transparent), 0 0 calc(var(--art-h) * 0.4) calc(var(--art-h) * 0.08) color-mix(in oklab, var(--halo) 30%, transparent);
+  clip-path: inset(-100% -100% 11% -100%);
+}
+.journal-water {
+  --art-h: 60px;
+  position: relative;
+  height: calc(var(--art-h) * 0.42);
+  background: linear-gradient(180deg, color-mix(in oklab, var(--sea-a) 42%, transparent), color-mix(in oklab, var(--sea-a) 10%, transparent) 60%, transparent);
+  pointer-events: none;
+}
+.dark .journal-water { background: linear-gradient(180deg, color-mix(in oklab, var(--sea-a) 85%, transparent), transparent); }
+@media (min-width: 640px) { .journal-water { --art-h: 118px; } }
+@media (min-width: 1024px) { .journal-water { --art-h: 142px; } }
+.journal-art--reflection { top: 0; bottom: auto; height: calc(var(--art-h) * 0.42); overflow: hidden; }
+.journal-art--reflection > svg:last-child { height: var(--art-h); inset: auto 0 auto 0; top: 0; transform: scaleY(-1); transform-origin: 50% 50%; opacity: 0.16; filter: blur(0.8px); }
+.dark .journal-art--reflection > svg:last-child { opacity: 0.4; }
+.journal-art--reflection > svg:last-child { mask-image: linear-gradient(to top, black 40%, transparent 75%); }
+/* Light on the water under the sun. */
+.journal-glints { position: absolute; top: 3px; left: calc(var(--art-h) * -0.2); width: calc(var(--art-h) * 0.3); height: 60%; background: repeating-linear-gradient(180deg, color-mix(in oklab, var(--glint) 70%, transparent) 0 1.5px, transparent 1.5px 6px); mask-image: linear-gradient(180deg, black, transparent); opacity: 0.7; }
+/* Still while people write: the evening doesn't move here. */
+.journal-scene .scene * { animation: none !important; }
+.journal-bubble circle, .journal-bubble rect { fill: var(--e-panel); stroke: var(--land); stroke-width: 1.1; }
+.dark .journal-bubble circle, .dark .journal-bubble rect { fill: #1b1830; stroke: #6d64a8; }
+.journal-bubble .journal-dot { fill: var(--accent); stroke: none; }
+.journal-light-core { fill: var(--light); }
+.journal-scene .scene .journal-rise { animation: journal-rise 2000ms var(--ease-out-soft) both !important; transform-box: view-box; }
+@keyframes journal-rise {
+  0% { opacity: 0; transform: translate(0, 6px) scale(0.5); }
+  18% { opacity: 1; }
+  70% { opacity: 0.9; }
+  100% { opacity: 0; transform: translate(var(--to-x), var(--to-y)) scale(1.1); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .journal-scene .scene .journal-rise { animation: journal-glow 1600ms ease-out both !important; }
+}
+@keyframes journal-glow { 0% { opacity: 0; } 30% { opacity: 1; } 100% { opacity: 0; } }
+.journal-hammock { height: auto; }
+.journal-hammock .journal-bubble rect, .journal-hammock .journal-bubble circle { stroke-width: 1.4; }
+
+/* The page below the waterline: two areas of one scene. Writing gets the room it needs. */
+.journal-body { display: grid; gap: 3rem; margin-top: 0.25rem; }
+@media (min-width: 768px) { .journal-body { max-width: 44rem; } }
+@media (min-width: 1024px) {
+  .journal-body { max-width: none; grid-template-columns: minmax(0, 30rem) minmax(0, 1fr); gap: 3rem; }
+  .journal-body[data-empty] { grid-template-columns: minmax(0, 36rem) minmax(0, 1fr); }
+}
+@media (min-width: 1280px) {
+  .journal-body { grid-template-columns: minmax(0, 37rem) minmax(0, 1fr); gap: 5rem; }
+  .journal-body[data-empty] { grid-template-columns: minmax(0, 42rem) minmax(0, 1fr); }
+}
+/* On a tall enough desktop the writing stays in reach while the collection scrolls. */
+@media (min-width: 1024px) and (min-height: 820px) { .home-compose { position: sticky; top: 5rem; } }
+
+/* ── The writing surface: a field, not a form in a box. ─────────────────────────────────────── */
+.journal-field {
+  display: block;
+  width: 100%;
+  resize: none;
+  field-sizing: content;
+  min-height: 8.5rem;
+  max-height: 60vh;
+  padding: 1rem 1.1rem 0.9rem;
+  border: 0;
+  border-radius: 14px 14px 3px 3px;
+  font-size: 1.2rem;
+  line-height: 1.6;
+  color: var(--ink);
+  background: color-mix(in oklab, var(--card) 78%, transparent);
+  box-shadow: inset 0 -1.5px 0 var(--line-strong);
+  transition: background 160ms ease, box-shadow 160ms ease;
+  /* When a phone's keyboard opens, scroll far enough to keep the save action in view. */
+  scroll-margin-bottom: 9rem;
+}
+.journal-field::placeholder { color: var(--ink-faint); }
+.journal-field:hover { box-shadow: inset 0 -1.5px 0 var(--ink-faint); }
+.journal-field:focus, .journal-field:focus-visible { outline: none; background: var(--card); box-shadow: inset 0 -2px 0 var(--accent), 0 0 0 4px color-mix(in oklab, var(--accent) 11%, transparent); }
+.dark .journal-field { background: color-mix(in oklab, var(--card) 70%, transparent); }
+@media (max-width: 639px) { .journal-field { font-size: 1.0625rem; min-height: 6rem; padding: 0.85rem 0.9rem 0.75rem; } }
+.journal-field--small { min-height: 3.6rem; font-size: 15px; line-height: 1.55; padding: 0.6rem 0.75rem 0.55rem; border-radius: 10px 10px 3px 3px; scroll-margin-bottom: 6rem; }
+@media (max-width: 639px) { .journal-field--small { min-height: 3.2rem; font-size: 15px; padding: 0.55rem 0.7rem 0.5rem; } }
+.journal-field--edit { min-height: 5rem; font-size: 1.0625rem; line-height: 1.65; }
+.journal-tool { display: inline-flex; align-items: center; gap: 0.4rem; height: 2.25rem; padding: 0 0.6rem; margin-left: -0.6rem; border-radius: 8px; font-size: 14px; color: var(--ink-soft); }
+.journal-tool + .journal-tool { margin-left: 0; }
+.journal-tool:hover { color: var(--ink); background: color-mix(in oklab, var(--ink) 5%, transparent); }
+.journal-tool[aria-expanded='true'] { color: var(--ink); }
 .kbd-hint { display: none; }
 @media (pointer: fine) { .kbd-hint { display: inline-flex; } }
 
-/* ── Saved thoughts: thought bubbles. A regular grid, stable order, text first. ───────────── */
-.bubbles { display: grid; gap: 30px 16px; grid-template-columns: repeat(auto-fill, minmax(min(100%, 15.5rem), 1fr)); align-items: start; }
-.bubble {
-  --tone: var(--line-strong);
-  position: relative;
-  background: var(--card);
-  border-radius: 22px;
-  padding: 16px 18px 10px;
-  box-shadow: 0 0 0 1px var(--line), 0 1px 2px rgb(23 21 40 / 0.04), 0 10px 26px -22px rgb(60 40 140 / 0.35);
+/* Categories as words with a small marker, not five pills. */
+.cat-choices { display: flex; flex-wrap: wrap; gap: 0.15rem 0.25rem; margin-left: -0.45rem; }
+.cat-choice { --c: var(--accent); display: inline-flex; align-items: center; gap: 0.4rem; height: 2rem; padding: 0 0.45rem; border-radius: 7px; font-size: 13.5px; color: var(--ink-soft); white-space: nowrap; transition: background 140ms, color 140ms; }
+.cat-choice::before { content: ''; width: 7px; height: 7px; border-radius: 999px; box-shadow: inset 0 0 0 1.5px var(--c); flex: none; }
+.cat-choice:hover { color: var(--ink); }
+.cat-choice[data-state='checked'] { color: var(--ink); font-weight: 550; background: color-mix(in oklab, var(--c) 12%, transparent); }
+.cat-choice[data-state='checked']::before { background: var(--c); }
+.cat-choice .count { color: var(--ink-faint); font-weight: 400; font-variant-numeric: tabular-nums; }
+
+/* ── Saved thoughts: passages in a journal. Text first, the margin holds the context. ──────── */
+.passages { list-style: none; margin: 0; padding: 0; }
+.passage { position: relative; display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 0.35rem 0.75rem; padding: 1.15rem 0 1.25rem; border-top: 1px solid var(--line); }
+.passage:first-child { border-top: 0; padding-top: 0.5rem; }
+.passage-mark { grid-column: 1; display: flex; align-items: baseline; gap: 0.6rem; font-size: 12.5px; color: var(--ink-faint); }
+.passage-mark .cat { font-family: var(--font-wordmark); font-style: italic; font-size: 15px; color: var(--tone, var(--ink-faint)); letter-spacing: -0.005em; }
+.passage-mark .cat::before { content: ''; display: inline-block; width: 12px; height: 1.5px; margin-right: 0.45rem; vertical-align: 0.3em; background: var(--tone, var(--line-strong)); border-radius: 2px; }
+.passage-body { grid-column: 1; min-width: 0; }
+.passage-menu { grid-column: 2; grid-row: 1 / span 2; align-self: start; margin-top: -0.35rem; }
+.passage-text { max-width: 34rem; font-size: 1.0625rem; line-height: 1.72; white-space: pre-wrap; overflow-wrap: anywhere; }
+.passage-text[data-short] { font-size: 1.25rem; line-height: 1.5; letter-spacing: -0.012em; }
+.passage-text a { color: var(--accent-ink); text-decoration: underline; text-decoration-color: color-mix(in oklab, var(--accent) 40%, transparent); text-underline-offset: 2px; }
+.passage-context { max-width: 34rem; margin-top: 0.7rem; padding-left: 0.85rem; border-left: 2px solid var(--line); font-size: 0.925rem; line-height: 1.6; color: var(--ink-soft); overflow-wrap: anywhere; }
+.passage-context dt { display: inline; color: var(--ink-faint); }
+.passage-context dd { display: inline; margin: 0; }
+.passage-context div + div { margin-top: 0.3rem; }
+.passage-status { display: flex; flex-wrap: wrap; align-items: center; gap: 0.5rem; margin-bottom: 0.4rem; font-size: 13px; font-weight: 550; }
+.passage[data-state='queued'] .passage-status, .passage[data-state='sending'] .passage-status { color: var(--accent-ink); }
+.passage[data-state='attention'] .passage-status { color: var(--warn); }
+.passage[data-state='queued'], .passage[data-state='sending'] { background: linear-gradient(90deg, color-mix(in oklab, var(--accent) 6%, transparent), transparent 70%); padding-left: 0.85rem; box-shadow: inset 2px 0 0 color-mix(in oklab, var(--accent) 55%, transparent); border-radius: 2px; }
+.passage[data-state='attention'] { background: linear-gradient(90deg, color-mix(in oklab, var(--warn) 7%, transparent), transparent 75%); padding-left: 0.85rem; box-shadow: inset 2px 0 0 var(--warn); border-radius: 2px; }
+.passage[data-editing] .passage-text { display: none; }
+.passage-gone { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 0.5rem; padding: 0.9rem 0; border-top: 1px solid var(--line); font-size: 14px; color: var(--ink-soft); }
+.passage-gone:first-child { border-top: 0; }
+@media (min-width: 1280px) {
+  /* A margin column on wide screens: the marker sits beside the text, like a note in a journal. */
+  .passage { grid-template-columns: 6.25rem minmax(0, 1fr) auto; column-gap: 1.25rem; }
+  .passage-mark { grid-column: 1; grid-row: 1 / span 2; flex-direction: column; align-items: flex-end; gap: 0.15rem; padding-top: 0.2rem; text-align: right; }
+  .passage-mark .cat::before { display: block; margin: 0 0 0.35rem auto; }
+  .passage-body { grid-column: 2; }
+  .passage-menu { grid-column: 3; }
+  .passages-in-margin { padding-left: 7.5rem; }
 }
-/* The tail: two small circles trailing toward the collection's corner, like the scene's bubble.
-   Decoration only — pseudo-elements, never focusable or read out. */
-.bubble::before, .bubble::after {
-  content: '';
-  position: absolute;
-  border-radius: 999px;
-  pointer-events: none;
-  background: color-mix(in oklab, var(--tone) 22%, var(--card));
-  box-shadow: 0 0 0 1px color-mix(in oklab, var(--tone) 50%, var(--line));
-}
-.bubble::before { width: 11px; height: 11px; left: 26px; bottom: -15px; }
-.bubble::after { width: 6px; height: 6px; left: 17px; bottom: -24px; }
-.bubble[data-state='queued'], .bubble[data-state='sending'] {
-  background: color-mix(in oklab, var(--accent) 4%, var(--card));
-  box-shadow: none;
-  outline: 1.5px dashed color-mix(in oklab, var(--accent) 60%, transparent);
-  outline-offset: -1.5px;
-}
-.bubble[data-state='attention'] {
-  background: color-mix(in oklab, var(--warn) 6%, var(--card));
-  box-shadow: 0 0 0 1.5px color-mix(in oklab, var(--warn) 55%, transparent);
-}
-.bubble[data-editing] { box-shadow: 0 0 0 1.5px var(--accent), 0 0 0 5px color-mix(in oklab, var(--accent) 12%, transparent); }
-.bubble-text { font-size: 0.98rem; line-height: 1.6; white-space: pre-wrap; overflow-wrap: anywhere; }
-.bubble-text a { color: var(--accent-ink); text-decoration: underline; text-decoration-color: color-mix(in oklab, var(--accent) 40%, transparent); text-underline-offset: 2px; }
-.bubble-gone { border-radius: 22px; border: 1.5px dashed var(--line-strong); padding: 14px 18px; }
-.icon-btn { display: inline-grid; place-items: center; width: 36px; height: 36px; border-radius: 999px; color: var(--ink-soft); transition: background 150ms, color 150ms; }
-.icon-btn:hover { background: color-mix(in oklab, var(--ink) 6%, transparent); color: var(--ink); }
+.icon-btn { display: inline-grid; place-items: center; width: 36px; height: 36px; border-radius: 999px; color: var(--ink-faint); transition: background 150ms, color 150ms; }
+.icon-btn:hover, .icon-btn[data-state='open'] { background: color-mix(in oklab, var(--ink) 6%, transparent); color: var(--ink); }
 .icon-btn:disabled { opacity: 0.4; pointer-events: none; }
-.icon-btn--danger:hover { background: color-mix(in oklab, var(--danger) 10%, transparent); color: var(--danger); }
+.menu-panel { z-index: 50; min-width: 12.5rem; padding: 0.35rem; border-radius: 14px; border: 1px solid var(--line); background: var(--card); box-shadow: var(--shadow-float); }
+.menu-item { display: flex; width: 100%; align-items: center; gap: 0.6rem; padding: 0.55rem 0.7rem; border-radius: 9px; font-size: 14px; color: var(--ink); text-align: left; }
+.menu-item:hover, .menu-item:focus-visible { background: color-mix(in oklab, var(--ink) 5%, transparent); outline: none; }
+.menu-item:disabled { color: var(--ink-faint); pointer-events: none; }
+.menu-item--danger { color: var(--danger); }
+.menu-item--danger:hover { background: color-mix(in oklab, var(--danger) 9%, transparent); }
+.menu-note { padding: 0.35rem 0.7rem 0.5rem; font-size: 12.5px; color: var(--ink-faint); }
 
 /* The stage before the reveal: thoughts folded on the waterline, and their reflection. */
 .sealed { position: relative; padding: 44px 24px 16px; border-radius: 22px; background: linear-gradient(180deg, color-mix(in oklab, var(--sky-glow) 22%, var(--card)) 0%, var(--card) 58%, color-mix(in oklab, var(--sea-a) 30%, var(--card)) 58%, var(--card) 100%); overflow: hidden; }
@@ -336,8 +489,6 @@ body {
 }
 .dark .fac-area { background: color-mix(in oklab, var(--accent) 7%, var(--card)); }
 
-/* On a tall enough desktop the composer stays in reach while the collection scrolls. */
-@media (min-width: 1024px) and (min-height: 820px) { .home-compose { position: sticky; top: 5.5rem; } }
 
 /* Quiet section header row: an eyebrow over content. */
 .eyebrow { font-size: 12px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; color: var(--ink-faint); }

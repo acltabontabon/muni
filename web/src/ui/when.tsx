@@ -10,7 +10,7 @@ export function RetroWhen({ s, className, icon = true, prefix = 'Retro' }: { s: 
       {icon ? <CalendarClock className="size-4 shrink-0 self-center" aria-hidden /> : null}
       <span>
         {prefix} <span className="font-medium text-ink">{r.date}, {r.time}</span> <span title={r.offset}>{r.zone}</span>
-      </span>
+      </span>{' '}
       <span className="text-ink-faint">· {r.relative}{r.yours ? ` · ${r.yours}` : ''}</span>
     </span>
   )

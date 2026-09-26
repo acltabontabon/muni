@@ -281,6 +281,6 @@ export function EncryptionLine({ encryption }: { encryption: 'e1' | null | undef
   return encryption === 'e1' ? (
     <span>Encrypted: thoughts, themes, notes and outcomes are sealed on participants’ devices; Muni’s servers store them unreadable. <Link to="/privacy#encryption" className="underline underline-offset-2">What’s covered</Link></span>
   ) : (
-    <span>Not encrypted: this sprint was set up before encryption, so its content is stored readable to Muni’s servers. <Link to="/privacy#encryption" className="underline underline-offset-2">Details</Link></span>
+    <span>Set up before on-device encryption: connections and storage are encrypted, but Muni’s servers can read this sprint’s content. <Link to="/privacy#encryption" className="underline underline-offset-2">Details</Link></span>
   )
 }
