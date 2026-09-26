@@ -1,18 +1,14 @@
 # Muni — security and privacy review (2026-09-27)
 
 What Muni can honestly promise about contributions, identity and email addresses, based on the
-code in `worker/` (the supported backend) and `web/` (the client and PWA). `server/` is the
-retired Rust backend and was not reviewed. Everything below was checked in code and, where noted,
-by tests that go through the public HTTP API.
+code in `worker/` (the backend) and `web/` (the client and PWA). An earlier Rust backend, since
+removed from the repository, was not reviewed. Everything below was checked in code and, where
+noted, by tests that go through the public HTTP API.
 
-Production at act.munimuni.app is live and still runs the code from **before** these fixes. It was
-only probed read-only: `/api/auth/me` returned 401, the security headers were present, and the new
-invitation route returned 404. Nothing was deployed.
-
-**Deploying these changes:**
-- Production cookies are renamed to `__Host-…`, so everyone signs in once more.
-- `MIN_CLIENT_REVISION` is now 2. Open tabs and installed apps from the old build are asked to reload, and their unsent thoughts stay queued on the device.
-- Already-sent invitation links (`/invite/<token>`) keep working. The page now sends the token in the request body.
+**Status:** these fixes were deployed to the hosted pilot (act.munimuni.app) on 2026-09-27. Deploying
+them meant everyone signed in once more (cookies gained the `__Host-` prefix), older open tabs and
+installed apps were asked to reload (`MIN_CLIENT_REVISION` 2) with unsent thoughts kept on the
+device, and already-sent invitation links kept working (the page sends the token in the body).
 
 Terms used here:
 

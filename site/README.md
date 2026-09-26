@@ -13,9 +13,7 @@ python3 -m http.server 4321 --directory site
 
 Published at **https://munimuni.app** by GitHub Pages from this repository: every push to `main`
 that touches `site/` runs `.github/workflows/pages.yml`, which uploads this folder as-is. The custom
-domain is set in the repository's Pages settings (not a `CNAME` file). On Cloudflare the apex and
-`www` are proxied CNAMEs to `acltabontabon.github.io` (same as acltabontabon.com): Cloudflare
-serves HTTPS with its edge certificate, SSL mode "Full", Always Use HTTPS on.
+domain is set in the repository's Pages settings (not a `CNAME` file).
 
 The app lives at **https://act.munimuni.app**, set as `data-app-url` on `<html>` in `index.html`
 (the “Open Muni” buttons read “Coming soon” when it is empty). The site registers no service

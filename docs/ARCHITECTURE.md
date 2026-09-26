@@ -1,177 +1,172 @@
-# Muni — architecture and privacy note
+# Muni — architecture and privacy model
 
-> The privacy rules below still hold; implementation details that name Rust, SQLx, SSE or SMTP describe
-> the retired `server/`. The current implementation, its verified boundaries and known gaps are in
-> `docs/SECURITY.md`.
+Muni (from the Filipino *muni-muni*, to reflect) is a sprint-retrospective app built around one
+loop: capture observations while they are fresh → reveal the sprint's themes → choose worthwhile
+conversations → invite everyone to contribute → agree on a few experiments → revisit them next
+sprint.
 
-Muni (from the Filipino *muni-muni*, to reflect) is a sprint-retrospective tool built around one loop:
-capture observations while they are fresh → reveal the sprint's themes → choose
-worthwhile conversations → invite everyone to contribute → agree on a few
-experiments → revisit them next sprint.
-
-This note records the shape of the system and, more importantly, where the
-privacy boundary sits. It is written before implementation and kept current.
+This note describes the implementation in this repository and, above all, where the privacy
+boundary sits. The security review in [`security-review-2026-09.md`](security-review-2026-09.md)
+records what was verified against it and what is still open.
 
 ## Shape
 
-A modular monolith: one React frontend, one Rust backend, one PostgreSQL
-database. A single backend instance is the v1 deployment assumption.
+One Cloudflare Worker, one D1 database, one Durable Object class, one cron trigger. There is no
+other supported backend and no container packaging.
 
 ```
-web/      React 19 + TypeScript + Vite + Tailwind 4 + Radix primitives
-server/   Rust 2021, Axum 0.8, Tokio, SQLx 0.8 (Postgres), versioned migrations
-docs/     this note, privacy, design, deployment, operations
+browser ──HTTPS──▶ Worker (TypeScript, Hono)  /api/*  ──▶ D1 (SQLite): every durable record
+   │               static assets (the built web/) are     └─▶ MeetingRoom Durable Object, one per sprint:
+   │               served by the platform, not the Worker      live meeting state + WebSocket fan-out
+   └──WebSocket /api/sprints/:id/ws ──▶ Worker (auth) ──▶ MeetingRoom (hints only, no content)
+cron */15 ──▶ Worker: due jobs (email, reminders, AI drafts) and a daily retention sweep
 ```
 
-Requests are plain REST (JSON). Live updates use server-sent events (SSE).
-SSE messages are *hints* — they name the resource that changed and its
-version; the client then fetches a fresh, authorized snapshot. This makes it
-impossible for a broadcast to leak something the recipient may not see, and it
-makes reconnection trivial: reconnecting is just fetching again.
-
-Background work (email, reminders, AI preparation, retention) is a `jobs`
-table in PostgreSQL, claimed with `FOR UPDATE SKIP LOCKED`, with bounded
-attempts, exponential backoff and an explicit `failed` state that the
-facilitator can see for AI jobs.
-
-### Backend modules
-
-| module | responsibility |
+| path | what |
 | --- | --- |
-| `config` | environment configuration, validated at boot; production refuses insecure settings |
-| `db` | pool, migrations, health |
-| `auth` | email verification codes, invitations, sessions, CSRF, rate limits |
-| `authz` | membership and sprint-participant checks used by every protected handler |
-| `workspaces` | workspace, membership, roles, settings, retention policy |
-| `sprints` | sprint setup, lifecycle transitions, participants |
-| `entries` | private capture, "my entries", sealed collection and batch reveal |
-| `themes` | manual grouping, revisions, parking lot, AI proposals |
-| `voting` | vote rounds, private votes, transactional budgets |
-| `meeting` | server-authoritative stage: phase, topic, timer, attendance, speaking rotation, context batches |
-| `commitments` | experiments, owner acceptance, review outcomes, recap |
-| `exports` | Markdown and CSV, summary by default |
-| `ai` | provider trait, Anthropic adapter, deterministic fake, schema validation |
-| `jobs` | durable worker loop |
-| `email` | SMTP (lettre) and a capturing in-memory transport for tests |
-| `sse` | per-sprint broadcast, membership re-check, revocation close |
-| `audit` | privacy-preserving audit events for facilitator actions |
-| `retention` | scheduled deletion of content-derived records |
+| `worker/src/index.ts` | entry: configuration check, client-revision gate, routes, error mapping, cron |
+| `worker/src/routes/` | one module per area: auth and invitations, workspaces, sprints, entries, themes, voting, meeting, commitments, exports, AI, demo |
+| `worker/src/room.ts` | `MeetingRoom`: phase, topic, timer deadline, controller, attendance, speaking round, version |
+| `worker/src/lib/` | sessions/CSRF/authorization, D1 helpers, email adapter, AI adapter, rate limits, config |
+| `worker/src/jobs.ts` | durable jobs in D1, reminders, AI drafting, retention |
+| `worker/src/contract.ts` | the typed API contract, imported by the web app |
+| `worker/migrations/` | additive SQL migrations |
+| `web/` | React 19 + Vite + Tailwind 4 client, an installable PWA |
+| `web/src/lib/local/` | the device store and send queue for offline capture |
+| `web/src/sw.ts` | service worker: app shell only, never `/api` |
+
+**Division of state.** D1 is authoritative for everything durable (accounts, sessions,
+workspaces, sprints, entries, themes, votes, notes, experiments, jobs). The room object is
+authoritative only for live coordination and socket fan-out. Nothing is writable in both.
+Cross-boundary steps persist to D1 first, then tell the room; the room's `/start` is idempotent
+and reading the meeting re-initialises a missing session, so a failed call is recoverable.
+
+**Live updates are hints.** A socket message names the resource that changed and a version; the
+client then fetches a fresh, authorized snapshot over HTTP. A broadcast therefore can't carry
+anything a recipient may not see, and reconnecting is just fetching again. Sockets use the
+Hibernation API, so an idle room costs nothing.
+
+**Concurrency without cross-store transactions.** D1 is single-writer, so each race is one
+conditional statement: a submission is `INSERT … SELECT … WHERE status = 'collecting'` against the
+batch that closes collection; a vote is `INSERT … WHERE (my votes) < budget`; an invitation is
+`UPDATE … WHERE accepted_at IS NULL` (one change wins); lifecycle transitions are
+`UPDATE … WHERE status = ?`. Facilitator commands are serialised by the room and carry the version
+they observed (`expected_version`); a stale one is refused.
+
+**No always-on loops.** Jobs are D1 rows. They run right after being queued (bounded, via
+`waitUntil`) and from the 15-minute cron, with bounded retries, backoff and a `failed` state.
+Reminders are scheduled per sprint at their instant. Countdowns are rendered from a stored
+deadline; nothing ticks on the server.
 
 ## Data model
 
-Normalised tables, opaque UUID identifiers everywhere. Sprint names are labels.
+Opaque UUIDs everywhere; instants are integer milliseconds. Columns marked *private* exist only
+for authorization and are never selected into a shared response type.
 
 ```
-workspaces            accounts             memberships (workspace, account, role, revoked_at)
-invitations           verification_challenges (hashed code, attempts, expiry)
-sessions (hashed token, rotation, expiry, revoked)
-sprints               sprint_participants (sprint, account, is_facilitator, reminder opt-out)
-entries               (sprint, category, body, impact, help, period, author_account_id  ← private column)
-themes                theme_entries        grouping_revisions (counter on sprint)
-ai_jobs               ai_proposals
-vote_rounds           votes (round, theme, account) ← private
-retro_sessions        (phase, current theme, version, timer, controller)
-attendance            speaking_rounds       speaking_turns
-context_additions     (theme, body, author_account_id ← private, release batch)
-discussion_notes      experiments           recaps
-jobs                  audit_events          rate_events
+accounts (email, display_name, name_set_at)      sessions (sha256(token), csrf, expiry, revoked)
+workspaces (retention windows)                   memberships (workspace, account, role, revoked_at)
+invitations (sha256(token), email, expiry)       verification_challenges (sha256(code:id), attempts)
+sprints (lifecycle, schedule, settings)          sprint_participants (is_facilitator, reminder opt-out)
+entries (body, category, …, author_account_id ← private, reveal_order)
+themes, theme_entries                            ai_jobs (input snapshot), ai_proposals
+vote_rounds, votes (account_id ← private)        context_additions (author_account_id ← private)
+discussion_notes, experiments, recaps            jobs, audit_events (ids only), rate_events (hashed keys)
 ```
 
 ## The privacy boundary
 
-The promise made in the product is:
+The promise made in the product:
 
-> Your identity is verified to access this sprint. Your entries and votes are
-> shown without your identity to teammates and facilitators. The service
-> operator may technically be able to associate activity with accounts. Your
-> wording can still reveal who you are.
+> Your identity is verified to access this sprint. Your entries and votes are shown without your
+> identity to teammates and facilitators. The service operator may technically be able to
+> associate activity with accounts. Your wording can still reveal who you are.
 
 This is application-level anonymity. It is implemented as follows.
 
-1. **Ownership is a private column.** `entries.author_account_id`,
-   `votes.account_id` and `context_additions.author_account_id` exist only so
-   the server can authorise private editing and enforce vote budgets. They are
-   never selected into a shared response type.
-2. **Allow-listed response types.** Shared representations (`SharedEntry`,
-   `ThemeView`, `StageSnapshot`, exports) are distinct Rust structs with no
-   author, alias, avatar, timestamp, user-agent or IP field. There is no
-   "with author" variant. The presenter route uses the same sanitized types.
-3. **No reveal endpoint.** Workspace ownership grants settings and membership
-   administration, not an author lookup. There is no administrative
-   "who wrote this" feature, by design.
-4. **Sealed collection.** While a sprint is `COLLECTING`, the only entry
-   listing is "my entries" (filtered by the caller's account). Facilitators
-   get no listing at all until they close collection, which is an explicit,
-   confirmed action. At close, every entry receives a random `reveal_order`,
-   and shared listings sort by it, so ordering cannot leak submission time.
-5. **No per-person status.** Collection status is only shown after close, as
-   an aggregate count of entries. There are no typing indicators, no
-   "X just submitted", no per-person contribution lists and no live count
-   changes during collection.
-6. **Votes stay private.** Totals are revealed only after a round closes.
-   A participant sees their own remaining budget; nobody sees who has voted.
-7. **AI sees text and opaque IDs only.** The AI adapter receives entry bodies
-   and entry IDs. It never receives account, email, attendance or membership
-   data. Outputs are stored as proposals tied to an input snapshot hash.
-8. **Logs are body-free.** Request logging records method, path, status and
-   latency. Entry bodies, votes, codes, tokens and account↔entry pairs are
-   never logged. Error responses do not echo request bodies.
-9. **Speaking rotation is named, feedback is not.** The speaking card shows a
-   participant's display name because it invites them to speak; it never
-   links them to an entry, and prompts avoid implying authorship.
-10. **Audit without content.** Audit events record who changed a phase,
-    regrouped or closed collection, with resource IDs only.
+1. **Ownership is a private column.** `entries.author_account_id`, `votes.account_id` and
+   `context_additions.author_account_id` exist so the server can authorise private editing and
+   enforce vote budgets. They are never selected into a shared response.
+2. **Allow-listed response types.** Shared representations (`SharedEntry`, `ThemeView`,
+   `StageSnapshot`, exports) are built from explicit SELECT lists with no author, timestamp,
+   alias or network field. There is no "with author" variant.
+3. **No reveal endpoint.** Workspace ownership grants settings and membership administration, not
+   an author lookup. There is no "who wrote this" feature, by design.
+4. **Sealed collection.** While a sprint is collecting, the only entry listing is the caller's
+   own. Facilitators and owners get no listing, count or live hint until collection is closed —
+   an explicit, confirmed action. At close every entry gets a random `reveal_order`, and shared
+   listings sort by it, so ordering can't leak submission time.
+5. **No per-person status.** No typing indicators, no "someone just submitted", no per-person
+   counts. Collection is summarised only after close, as a total.
+6. **Votes stay private.** Totals appear only after a round closes; nobody sees who voted.
+7. **AI sees text and opaque IDs only**, and only for sprints where it was enabled before
+   collection started. Outputs are proposals tied to an input snapshot hash; originals are never
+   replaced. The production configuration here ships with AI turned off.
+8. **Logs carry no content.** The app logs failures with the path and a short error only. The
+   platform's request logs record method, URL and (redacted) headers; URLs carry resource IDs,
+   never invitation tokens, codes or text.
+9. **The speaking rotation is named, feedback is not.** The speaking card shows a display name
+   because it invites someone to speak; it never links them to an entry.
+10. **Audit without content.** Audit events record who changed a phase, regrouped or closed
+    collection, with resource IDs only.
 
-### Known limits (documented in the product, not hidden)
+**Known limits** (stated in the product, not hidden): the operator, with database or backup
+access, can join `author_account_id` to accounts — the mitigation is operational, not
+cryptographic, and Muni is not end-to-end encrypted. Small teams and distinctive writing can
+identify an author. Email verification proves control of a mailbox, not that a mailbox belongs
+to one person. Exports and AI requests are copies retention can't retract.
 
-- The operator, with database access or a backup, can join
-  `entries.author_account_id` to `accounts`. This is stated in the privacy
-  explanation. Mitigation is operational (access control, retention), not
-  cryptographic.
-- Small teams and distinctive prose can identify an author regardless of the
-  software.
-- Email verification proves control of a mailbox, not that a mailbox belongs
-  to one unique person.
-- Exports and AI provider requests are copies that retention cannot retract.
+## Authentication and authorization
 
-## Authorization model
+- **Sign-in** is one flow for new and returning people: email → six-digit code (10 minutes,
+  5 attempts, single use, hashed at rest) → a display name only if the account has none. The code
+  request answers identically whether or not an account exists. Limits: per address (30 s
+  cooldown, 5 per 15 minutes), per network, and a daily total that protects the email quota.
+- **Sessions** are a random token in an HttpOnly, Secure, SameSite=Lax cookie (`__Host-` prefixed
+  over HTTPS), stored as its SHA-256, with a 30-day expiry and server-side revocation. Mutations
+  need the per-session CSRF token in a header plus an allowed `Origin`; the live socket needs an
+  allowed `Origin` too. No CORS headers are sent.
+- **Invitations** are single-use, expire after 14 days, and bind to the invited address. The token
+  travels in the link's fragment and in request bodies, never in a URL the server sees.
+- **Every request is authorized from D1**: an active membership for workspace routes; for sprint
+  routes, membership plus participation (owners can see a sprint's settings, not its content).
+  Nothing the client sends (user id, role, workspace) is trusted. Revoking a membership or a
+  participant fails their next request and closes their live sockets.
 
-- Every protected request carries a session cookie. The session is looked up
-  by the SHA-256 of the cookie token, checked for expiry and revocation.
-- Mutating requests require a matching `X-CSRF-Token` header (double-submit
-  cookie) and an allowed `Origin`/`Sec-Fetch-Site`.
-- Handlers resolve a `WorkspaceMember` (active membership) and, for sprint
-  routes, a `SprintAccess` (membership + sprint participant, with the
-  facilitator flag). Revoking a membership makes the next request fail with
-  403 and closes SSE streams for that account within one heartbeat.
-- The presenter route is the same authenticated stage snapshot served with a
-  presenter flag that hides private controls in the UI; it contains no
-  private fields to hide server-side because the type has none.
+## Offline capture (web)
 
-## Meeting state
+Every save goes through a queue (`web/src/lib/local/outbox.ts`) with a client submission id as
+the idempotency key, so a lost response or a second tab never creates a duplicate. Before sending,
+the queue checks the signed-in account; the server refuses a thought written under another account
+(`account_mismatch`), a closed sprint (`collection_closed`) or a revoked member. Drafts and the
+queue are stored per account — in IndexedDB only for a person who turned on "Keep drafts on this
+device", otherwise in memory for the tab. The service worker caches the app shell only; no API
+response, session token or other person's entry is stored on the device. Sign-out ends the session
+on the server first, names unsent work, then removes that account's local records.
 
-`retro_sessions` is the single source of truth. Every facilitator command
-carries the version it observed; the server applies the command only if the
-version matches (`UPDATE … WHERE version = $expected`), increments it, writes
-an audit event, commits, and only then broadcasts an SSE hint. Timers are
-stored as `timer_ends_at` (running) or `timer_remaining_secs` (paused), so a
-refresh derives the same clock. One controller account is recorded; a second
-facilitator must explicitly take over.
+## Retention
 
-## Decisions taken without waiting
+A daily sweep deletes a finished sprint's raw content (entries, themes, votes, notes, AI drafts,
+unpublished recaps) after the workspace's window (90 days by default) and its outcomes
+(experiments, published recaps) after a longer one (730 days). Verification codes, rate-limit
+rows, sessions and finished jobs expire on short schedules. Not yet covered: sprints that are
+never finished, account deletion, leaving a workspace as a member, workspace deletion. Deleted
+rows remain in the database's point-in-time recovery window (7 days on the Workers Free plan, 30 on
+Paid).
 
-- SQLx 0.8.6 rather than 0.9.0: 0.9 changed the query API in May 2026 and the
-  ecosystem is still catching up; 0.8 is stable and supported.
-- TypeScript 5.x rather than 7.x, React Router 7 rather than 8, for the same
-  ecosystem-maturity reason. Vite 8, React 19, Tailwind 4 are current.
-- No ORM. Plain SQL with `sqlx::query_as` and `FromRow` keeps the backend
-  readable and the privacy boundary auditable by reading the SELECT lists.
-- The AI adapter targets the Anthropic Messages API; a deterministic fake
-  implements the same trait for tests and for running without credentials.
+## Configuration and safety rails
 
-## Naming
+Configuration is Worker vars and secrets, validated once per isolate. A production deployment
+refuses insecure settings instead of degrading: a non-HTTPS `PUBLIC_ORIGIN`, the console email
+inbox, the fake AI provider, demo seeding. Without an email provider, sign-in answers
+`setup_required`; there is no development login bypass. `worker/wrangler.jsonc` is for local
+development and tests only; a production deployment uses its own rendered config
+(see [`DEPLOYMENT.md`](DEPLOYMENT.md)). Clients send their build revision; one older than
+`MIN_CLIENT_REVISION` is asked to reload rather than sending payloads the server no longer accepts.
 
-The product was scaffolded under the working name "Afterglow" and renamed to
-Muni before the first commit, so no database, cookie or environment identifier
-carries the old name. The repository directory and GitHub project keep the
-`afterglow` slug for now; it is the only legacy name retained.
+## Capacity (estimates, not measurements)
+
+For ten participants, ~100 entries and one hour-long live retro per sprint, one team uses well under
+1% of the Workers Free daily allowances. The first limit a busy day reaches is D1 row reads (each
+live snapshot reads several tables); the Worker then answers `503 quota` and the client says nothing
+was saved. Exports are bounded (≤ 2,000 entries).

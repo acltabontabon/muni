@@ -1,4 +1,4 @@
-/** The privacy boundary, tested from the outside (port of server/tests/privacy.rs). */
+/** The privacy boundary, tested from the outside, through the public HTTP API. */
 import { describe, expect, it } from 'vitest'
 import { env } from 'cloudflare:test'
 import { closeCollection, entry, get, go, ids, openSocket, post, req, sprint, team } from './harness'

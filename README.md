@@ -1,89 +1,98 @@
 # Muni
 
-**Good retros start before the meeting.**
-Capture thoughts throughout the sprint. Reflect together. Turn insights into action.
+**Keep the thought. Bring it to the conversation.**
 
-Muni (from the Filipino *muni-muni*, to reflect) is a sprint-retrospective app for
-software teams of roughly 3–20 people: private capture during the sprint, sealed
-collection revealed as one anonymous batch, manual (optionally AI-drafted) themes,
-private votes, a paced live retro with a gentle speaking invitation, and one to
-three experiments that come back first next time.
+Muni is a sprint-retrospective app. People capture what matters during the sprint, while it's
+still fresh; the retro becomes a conversation about what happened and what to change. The name
+comes from the Filipino *muni-muni*: to reflect, to turn a thought over.
 
-Live at **https://act.munimuni.app** (installable as an app; capture keeps working offline) ·
-marketing site **https://munimuni.app** · how to use it: [`docs/USING.md`](docs/USING.md).
+Muni is an independently maintained project, built and operated by one developer. It is early
+software: a small pilot runs at [act.munimuni.app](https://act.munimuni.app), and the data model
+and API may still change.
 
-## What is here
+## What it does
+
+- **Private capture.** During the sprint only you can see your thoughts — the facilitator too.
+- **A sealed reveal.** When collection closes, everyone's thoughts appear as one batch, without
+  names, in random order.
+- **Themes and votes.** Group thoughts by hand (optional AI drafts, off by default); vote privately.
+- **A paced live retro** with a gentle speaking invitation, anonymous added context, and one to
+  three experiments that come back first next sprint.
+- **An installable web app** that keeps capture working offline for people who choose to keep
+  drafts on their device.
+
+The privacy is application-level, not cryptographic: the service stores who wrote what (so only you
+can edit yours), and someone with database access could connect the two. Muni is not end-to-end
+encrypted. See [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) for the model and
+[`docs/security-review-2026-09.md`](docs/security-review-2026-09.md) for what was verified.
+
+## How it's built
 
 | path | what |
 | --- | --- |
-| `worker/` | **The application backend**: a Cloudflare Worker (TypeScript, Hono) with D1 (SQLite) for durable data and a `MeetingRoom` Durable Object per sprint for live meeting state and hibernating WebSockets. Also serves the built web app as static assets. |
-| `web/` | The React 19 + Vite + Tailwind 4 client (capture, studio, stage, companion, outcomes), an installable PWA. `web/src/lib/local/` holds the device store and send queue for offline capture; `web/src/sw.ts` is the service worker. |
-| `site/` | The marketing site (static), published to munimuni.app by `.github/workflows/pages.yml`. |
-| `worker/src/contract.ts` | The typed API contract shared by both. |
-| `worker/test/` | Integration tests that run inside the Workers runtime (`@cloudflare/vitest-pool-workers`). |
-| `server/`, `Dockerfile`, `docker-compose*.yml` | The earlier Rust/Axum/PostgreSQL backend and its Docker packaging. **Retired, not maintained**: kept in history for reference until the Cloudflare version is established. Do not deploy it. |
-| `docs/` | Architecture and privacy note, design direction, deployment/operations notes (the Docker sections there describe the retired backend). |
+| `worker/` | The backend: a Cloudflare Worker (TypeScript, Hono) with D1 (SQLite) for durable data, a `MeetingRoom` Durable Object per sprint for live meeting state and WebSockets, and a cron trigger for jobs. It also serves the built web app. |
+| `web/` | The React 19 + Vite + Tailwind 4 client, an installable PWA. |
+| `site/` | The marketing site (static HTML/CSS/JS). |
+| `docs/` | Architecture and privacy model, deployment, design notes, using Muni, the security review. |
 
-## Run locally
+Muni runs on Cloudflare Workers, D1 and Durable Objects, and nothing else: there is no other
+supported backend and no container image.
 
-Requirements: Node 22, pnpm 10 (`corepack enable`), no database server (D1 runs locally).
+## Run it locally
 
-```bash
-# 1. backend (Worker + local D1 + Durable Objects), http://localhost:8787
-cd worker && pnpm install && pnpm migrate:local && pnpm dev
-
-# 2. frontend with hot reload, http://localhost:5173 (proxies /api and the WebSocket to :8787)
-cd web && npm install && npm run dev
-```
-
-Local defaults (in `worker/wrangler.jsonc` `vars`): `EMAIL_PROVIDER=console` (sign-in codes
-and invitations land in a dev inbox at `GET /api/dev/inbox`), `AI_PROVIDER=fake` (a local
-keyword grouper, clearly labelled as provisional), `ALLOW_DEMO_SEED=true`
-(`POST /api/demo/seed` builds a fictional eight-person sprint for the signed-in user).
-
-Checks: `cd worker && pnpm typecheck && pnpm test` · `cd web && npm run typecheck && npm run lint && npm test && npm run build`.
-Offline end-to-end (needs `wrangler dev` serving the production build): `cd web && npm run build && node e2e/offline.mjs`.
-
-## Deploy to Cloudflare (free plan)
-
-Resources: one Worker (`muni`) with static assets, one D1 database (`muni`), one Durable Object
-class (`MeetingRoom`, SQLite-backed), one cron trigger (`*/15 * * * *`). No KV, Queues or R2.
+You need Node 22+ and pnpm 10 (`corepack enable`). No Cloudflare account is needed — D1 and
+Durable Objects run locally.
 
 ```bash
-cd worker
-wrangler login                                   # or set CLOUDFLARE_API_TOKEN / CLOUDFLARE_ACCOUNT_ID
-wrangler d1 create muni                          # paste the database_id into wrangler.jsonc
-wrangler d1 migrations apply muni --remote       # additive migrations only; see "Rollback"
-wrangler secret put RESEND_API_KEY               # or BREVO_API_KEY; optional: ANTHROPIC_API_KEY
-# production vars (edit wrangler.jsonc or an env block): APP_ENV=production,
-# PUBLIC_ORIGIN=https://muni.acltabontabon.com (or the *.workers.dev preview URL),
-# EMAIL_PROVIDER=resend|brevo, EMAIL_FROM="Muni <muni@yourdomain>", AI_PROVIDER=none|anthropic, ALLOW_DEMO_SEED=false
-cd ../web && npm run build && cd ../worker && wrangler deploy
+cd worker && pnpm install && pnpm migrate:local && pnpm dev    # API + local D1, http://localhost:8787
+cd web && npm install && npm run dev                           # app with hot reload, http://localhost:5173
 ```
 
-`.github/workflows/deploy.yml` does the same on push to `main` when the repository has the
-`CLOUDFLARE_API_TOKEN` and `CLOUDFLARE_ACCOUNT_ID` secrets.
+Local defaults (`worker/wrangler.jsonc`): sign-in codes and invitations go to a development inbox
+at `GET /api/dev/inbox` instead of email, a local stand-in replaces the AI provider, and
+`POST /api/demo/seed` builds a fictional sprint for the signed-in account.
 
-Production refuses insecure settings at request time (non-https `PUBLIC_ORIGIN`, console
-email, fake AI, demo seeding). Without an email provider configured, sign-in returns an
-explicit `setup_required` error — there is no development login bypass.
+Checks:
 
-Custom domain: add a Workers custom domain `muni.acltabontabon.com` in the Cloudflare
-dashboard once the zone is confirmed; until then the `*.workers.dev` URL works and must be set
-as `PUBLIC_ORIGIN`. Cookies are scoped to the app host; the marketing site never receives them.
+```bash
+cd worker && pnpm typecheck && pnpm test
+cd web && npm run typecheck && npm run lint && npm test && npm run build
+```
 
-Rollback: `wrangler rollback` restores the previous Worker version. Migrations are not reversed
-automatically — keep them additive (new tables/columns, no drops) so an older Worker keeps
-working against a newer schema. Backups: `wrangler d1 export muni --remote --output backup.sql`
-(contains the private author columns; protect and expire it like the database).
+Browser end-to-end suites run against `wrangler dev` serving the production build:
+`node e2e/entrance.mjs` and `node e2e/offline.mjs` (from `web/`, with `MUNI_URL` if not port 8787).
 
-## Privacy, in one paragraph
+## Deploy your own
 
-Your identity is verified to access each sprint. Your entries and votes are shown without your
-identity to teammates and facilitators. The service operator may technically be able to
-associate activity with accounts. Your wording can still reveal who you are. See
-`docs/ARCHITECTURE.md` for how the boundary is implemented.
+See [`docs/DEPLOYMENT.md`](docs/DEPLOYMENT.md). In short: create a D1 database, render a
+production config for your account (it is gitignored), set an email-provider secret, apply the
+migrations and deploy. Commands in this repository never touch a deployment you haven't
+configured.
 
-## Status
+## Known limitations
 
-Pilot, live since 2026-09-26. See the handoff notes in `docs/HANDOFF.md`.
+- Early software with a single maintainer; expect changes to the data model and API.
+- Cloudflare only (Workers, D1, Durable Objects).
+- Email one-time codes are the only sign-in; no SSO or passkeys.
+- English only.
+- Tested mostly in Chromium; Safari/iOS and Firefox less thoroughly.
+- Not end-to-end encrypted; small teams and distinctive writing can reveal an author.
+- Content of sprints that are never finished is not yet purged, and there is no self-service
+  account deletion yet.
+
+## Contributing, security and support
+
+Contributions are welcome — please read [`CONTRIBUTING.md`](CONTRIBUTING.md) first. Report
+vulnerabilities privately as described in [`SECURITY.md`](SECURITY.md), not in public issues.
+
+This is a one-person project maintained on a best-effort basis: there's no guaranteed response
+time, release schedule, or acceptance of contributions. The open-source license covers the code;
+it doesn't come with support, and the hosted pilot at act.munimuni.app is a separate, as-is
+service with no uptime commitment.
+
+## License
+
+Apache License 2.0 — see [`LICENSE`](LICENSE) and [`NOTICE`](NOTICE). Third-party components keep
+their own licenses ([`docs/THIRD-PARTY.md`](docs/THIRD-PARTY.md)); the web build ships their texts as
+`third-party-licenses.txt`. The Muni name and logo are covered separately in
+[`TRADEMARKS.md`](TRADEMARKS.md).
