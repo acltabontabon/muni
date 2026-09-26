@@ -207,7 +207,7 @@ export function SprintSetup() {
                 {ws.members.map((m) => (
                   <li key={m.account_id}>
                     <label className="flex cursor-pointer items-center gap-2 rounded-lg px-2 py-1.5 hover:bg-ink/5">
-                      <input type="checkbox" className="size-4 accent-[var(--sinag)]" checked={f.participant_ids.includes(m.account_id) || m.account_id === f.facilitator_id} disabled={m.account_id === f.facilitator_id} onChange={(e) => set('participant_ids', e.target.checked ? [...f.participant_ids, m.account_id] : f.participant_ids.filter((x) => x !== m.account_id))} />
+                      <input type="checkbox" className="size-4 accent-[var(--accent)]" checked={f.participant_ids.includes(m.account_id) || m.account_id === f.facilitator_id} disabled={m.account_id === f.facilitator_id} onChange={(e) => set('participant_ids', e.target.checked ? [...f.participant_ids, m.account_id] : f.participant_ids.filter((x) => x !== m.account_id))} />
                       <span>{m.display_name}</span>
                     </label>
                   </li>

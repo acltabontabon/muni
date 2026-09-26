@@ -21,7 +21,7 @@ export function SignIn() {
       <div className="w-full max-w-sm">
         <div className="mb-8 text-center">
           <Mark size={56} className="mx-auto text-ink" />
-          <h1 className="font-display mt-4 text-3xl">Good retros start before the meeting.</h1>
+          <h1 className="font-display mt-4 text-2xl">Good retros start before the meeting.</h1>
           <p className="mt-2 text-ink-soft">Sign in with your email. No password to remember.</p>
         </div>
         <div className="card p-6">

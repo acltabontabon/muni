@@ -6,14 +6,14 @@ export function About() {
   useDocumentTitle('Privacy & how Muni works')
   return (
     <div className="mx-auto max-w-2xl px-4 py-10">
-      <Link to="/" className="inline-flex items-center gap-2 text-ink"><Mark size={28} /> <span className="font-display text-xl">muni</span></Link>
-      <h1 className="font-display mt-8 text-4xl leading-tight">A moment to reflect. A chance to improve.</h1>
+      <Link to="/" className="inline-flex items-center gap-2 text-ink"><Mark size={28} /> <span className="font-wordmark text-xl">muni</span></Link>
+      <h1 className="font-display mt-8 text-3xl leading-tight">A moment to reflect. A chance to improve.</h1>
       <p className="mt-4 text-lg text-ink-soft">
         <em>Muni</em> takes its name from the Filipino <em>muni-muni</em>: to reflect, to turn something over in your mind. Muni is a place to set a thought down while it’s fresh, look back on it together, and decide what to try next.
       </p>
 
       <h2 className="font-display mt-10 text-2xl">The privacy promise, exactly</h2>
-      <blockquote className="mt-3 border-l-2 border-sinag pl-4 text-ink">
+      <blockquote className="mt-3 border-l-2 border-accent pl-4 text-ink">
         Your identity is verified to access this sprint. Your entries and votes are shown without your identity to teammates and facilitators. The service operator may technically be able to associate activity with accounts. Your wording can still reveal who you are.
       </blockquote>
       <div className="prose-muni mt-6 space-y-4 text-ink-soft">

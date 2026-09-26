@@ -75,11 +75,11 @@ export function WorkspacePage() {
               <ol className="relative space-y-3 border-l border-line pl-5">
                 {[...current, ...past].map((s) => (
                   <li key={s.id} className="relative">
-                    <span aria-hidden className={`absolute -left-[26px] top-5 size-2.5 rounded-full ${s.status === 'collecting' ? 'bg-sinag' : s.status === 'live' ? 'bg-ok' : 'bg-line'}`} />
+                    <span aria-hidden className={`absolute -left-[26px] top-5 size-2.5 rounded-full ${s.status === 'collecting' ? 'bg-accent' : s.status === 'live' ? 'bg-ok' : 'bg-line'}`} />
                     <Link to={`/sprints/${s.id}`} className="card block p-4 transition-colors hover:border-ink/30">
                       <div className="flex flex-wrap items-center justify-between gap-2">
                         <div className="font-display text-lg">{s.name}</div>
-                        <Badge tone={s.status === 'collecting' ? 'sinag' : s.status === 'live' ? 'ok' : 'neutral'}>{STATUS_LABEL[s.status]}</Badge>
+                        <Badge tone={s.status === 'collecting' ? 'accent' : s.status === 'live' ? 'ok' : 'neutral'}>{STATUS_LABEL[s.status]}</Badge>
                       </div>
                       <div className="mt-1 text-sm text-ink-soft">
                         {s.starts_on} → {s.ends_on} · retro {s.retro_local} · {s.participant_count} people{s.facilitator_name ? ` · facilitated by ${s.facilitator_name}` : ''}

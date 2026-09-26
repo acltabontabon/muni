@@ -79,7 +79,7 @@ export function SprintHome() {
         }
       >
         <span className="inline-flex flex-wrap items-center gap-x-3 gap-y-1">
-          <Badge tone={collecting ? 'sinag' : s.status === 'live' ? 'ok' : 'neutral'}>{STATUS_LABEL[s.status]}</Badge>
+          <Badge tone={collecting ? 'accent' : s.status === 'live' ? 'ok' : 'neutral'}>{STATUS_LABEL[s.status]}</Badge>
           <span className="inline-flex items-center gap-1"><CalendarClock className="size-4" /> Retro {s.retro_local}{retroPast && !['completed', 'archived'].includes(s.status) ? ' (scheduled time has passed)' : ''}</span>
           <span className="inline-flex items-center gap-1"><Users className="size-4" /> {s.participants.length} people</span>
           {s.goal ? <span className="text-ink">Goal: {s.goal}</span> : null}
@@ -193,7 +193,7 @@ function FacilitatorBar({ s, onTransition }: { s: SprintDetail; onTransition: (t
       <ol className="flex flex-wrap items-center gap-1 text-xs">
         {steps.map((st, i) => (
           <li key={st} className="flex items-center gap-1">
-            <span className={`rounded-full px-2 py-0.5 ${i === idx ? 'bg-sinag text-white' : i < idx ? 'bg-ink/10 text-ink' : 'text-ink-faint'}`}>{STATUS_LABEL[st]}</span>
+            <span className={`rounded-full px-2 py-0.5 ${i === idx ? 'bg-accent text-white' : i < idx ? 'bg-ink/10 text-ink' : 'text-ink-faint'}`}>{STATUS_LABEL[st]}</span>
             {i < steps.length - 1 ? <span className="text-ink-faint">›</span> : null}
           </li>
         ))}

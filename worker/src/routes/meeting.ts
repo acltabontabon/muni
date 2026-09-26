@@ -43,7 +43,7 @@ export async function snapshot(env: HonoEnv['Bindings'], ctx: SprintCtx) {
     : { running: false, ends_at: null, remaining_secs: m.timer_remaining_secs ?? 0, total_secs: m.timer_total_secs ?? 0 }
   const sp = rs.speaking && rs.speaking.status !== 'ended' ? rs.speaking : null
   const cur = sp?.current_account_id ? people.find((p) => p.account_id === sp.current_account_id) : null
-  const notes = m.current_theme_id ? await one<{ takeaway: string; what_happened: string; impact: string; could_try: string; notes: string; discussed: number }>(db, 'SELECT takeaway, what_happened, impact, could_try, notes, discussed FROM discussion_notes WHERE theme_id = ?', m.current_theme_id) : null
+  const notes = m.current_theme_id && m.current_theme_id !== 'ungrouped' ? await one<{ takeaway: string; what_happened: string; impact: string; could_try: string; notes: string; discussed: number }>(db, 'SELECT takeaway, what_happened, impact, could_try, notes, discussed FROM discussion_notes WHERE theme_id = ?', m.current_theme_id) : null
   const discussed = await all<{ theme_id: string }>(db, 'SELECT theme_id FROM discussion_notes WHERE sprint_id = ? AND discussed = 1', ctx.sprint.id)
   const unreleased = ctx.isFacilitator ? (await count(db, 'SELECT count(*) AS n FROM context_additions WHERE sprint_id = ? AND released_batch IS NULL', ctx.sprint.id)) > 0 : null
   const mine = await all<{ id: string; theme_id: string | null; body: string; released_batch: number | null }>(db, 'SELECT id, theme_id, body, released_batch FROM context_additions WHERE sprint_id = ? AND author_account_id = ? ORDER BY created_at LIMIT 100', ctx.sprint.id, me)
@@ -112,7 +112,8 @@ meeting.post('/api/sprints/:sprintId/meeting/command', async (c) => {
   const body = (await c.req.json().catch(() => ({}))) as { expected_version?: number; command?: { type?: string; theme_id?: string; discussed?: boolean; phase?: string; items?: unknown } }
   const cmd = body.command ?? {}
   const db = c.env.DB
-  if (cmd.type === 'set_topic' && cmd.theme_id) {
+  // 'ungrouped' is a pseudo-topic: the stage opens the ungrouped pool directly.
+  if (cmd.type === 'set_topic' && cmd.theme_id && cmd.theme_id !== 'ungrouped') {
     if (!(await count(db, 'SELECT count(*) AS n FROM themes WHERE id = ? AND sprint_id = ?', cmd.theme_id, ctx.sprint.id))) throw notFound('theme not found')
     await run(db, 'INSERT OR IGNORE INTO discussion_notes (theme_id, sprint_id, updated_at) VALUES (?,?,?)', cmd.theme_id, ctx.sprint.id, Date.now())
   }

@@ -43,6 +43,7 @@ export function Companion() {
   const me = stage.attendance.find((a) => a.is_you)
   const themes = grouping?.themes ?? []
   const current = themes.find((t) => t.id === stage.current_theme_id) ?? null
+  const currentUngrouped = stage.current_theme_id === 'ungrouped'
   const looking = browse === 'all' ? null : themes.find((t) => t.id === browse) ?? null
   const round = votes?.current ?? null
   const revealedPhase = ['discover', 'discuss', 'decide', 'leave'].includes(stage.phase)
@@ -61,11 +62,11 @@ export function Companion() {
   }
 
   return (
-    <Shell title={sprint.name} sub={<span><span className="text-sinag">{PHASE_LABEL[stage.phase]}</span> · {PHASE_HINT[stage.phase]}</span>}>
+    <Shell title={sprint.name} sub={<span><span className="text-accent">{PHASE_LABEL[stage.phase]}</span> · {PHASE_HINT[stage.phase]}</span>}>
       {/* presence + readiness: the two private controls, always visible */}
       <div className="card mb-4 flex flex-wrap items-center gap-2 p-3">
         <button
-          className={clsx('inline-flex h-10 items-center gap-2 rounded-full border px-4 text-sm', me?.present ? 'border-sinag bg-sinag-soft text-sinag-ink' : 'border-line')}
+          className={clsx('inline-flex h-10 items-center gap-2 rounded-full border px-4 text-sm', me?.present ? 'border-accent bg-accent-soft text-accent-ink' : 'border-line')}
           onClick={async () => { await post(`/api/sprints/${sprintId}/meeting/attendance`, { present: !me?.present }); st.reload() }}
           aria-pressed={!!me?.present}
         >
@@ -83,8 +84,8 @@ export function Companion() {
       </div>
 
       {stage.speaking?.current?.is_you ? (
-        <div className="card anim-settle mb-4 border-sinag/40 p-4">
-          <div className="text-xs uppercase tracking-wider text-sinag">Your invitation</div>
+        <div className="card anim-settle mb-4 border-accent/40 p-4">
+          <div className="text-xs uppercase tracking-wider text-accent">Your invitation</div>
           <p className="font-display mt-1 text-2xl">{stage.speaking.prompt}</p>
           <p className="mt-1 text-sm text-ink-soft">Only if you want to. Nobody thinks you wrote anything in particular.</p>
           <Button className="mt-3" onClick={async () => { await post(`/api/sprints/${sprintId}/meeting/pass`); st.reload() }}>Pass for now</Button>
@@ -111,7 +112,7 @@ export function Companion() {
       {revealedPhase && themes.length ? (
         <div className="mb-3 flex items-center justify-between text-sm">
           {browse ? (
-            <button className="inline-flex items-center gap-1 text-sinag" onClick={() => setBrowse(null)}><ArrowLeft className="size-4" /> Back to the live topic</button>
+            <button className="inline-flex items-center gap-1 text-accent" onClick={() => setBrowse(null)}><ArrowLeft className="size-4" /> Back to the live topic</button>
           ) : (
             <span className="text-ink-soft">Following the room</span>
           )}
@@ -157,7 +158,7 @@ export function Companion() {
       ) : stage.phase === 'discover' ? (
         <div className="space-y-3">
           {round ? (
-            <div className="rounded-xl bg-sinag-soft px-4 py-3 text-sm text-sinag-ink">
+            <div className="rounded-xl bg-accent-soft px-4 py-3 text-sm text-accent-ink">
               Voting is open. <strong>{round.my_remaining}</strong> of {round.budget} votes left — one per theme, private.
             </div>
           ) : (
@@ -170,12 +171,12 @@ export function Companion() {
               <div key={t.id} className="card p-3">
                 <div className="flex items-start justify-between gap-2">
                   <button className="text-left font-display text-lg" onClick={() => setBrowse(t.id)}>{t.title}</button>
-                  {typeof total === 'number' && !round ? <span className="rounded-full bg-sinag-soft px-2 py-0.5 text-sm text-sinag-ink">{total}</span> : null}
+                  {typeof total === 'number' && !round ? <span className="rounded-full bg-accent-soft px-2 py-0.5 text-sm text-accent-ink">{total}</span> : null}
                 </div>
                 <div className="text-xs text-ink-soft">{t.entry_count} entries · tap the title to read them</div>
                 {round ? (
                   <button
-                    className={clsx('mt-2 h-11 w-full rounded-full border text-sm', mineVote ? 'border-sinag bg-sinag-soft text-sinag-ink' : 'border-line')}
+                    className={clsx('mt-2 h-11 w-full rounded-full border text-sm', mineVote ? 'border-accent bg-accent-soft text-accent-ink' : 'border-line')}
                     onClick={async () => { try { await post(`/api/sprints/${sprintId}/votes`, { theme_id: t.id, cast: !mineVote }); st.loadVotes() } catch (e) { toast(e instanceof ApiError ? e.message : 'Couldn’t vote', 'danger') } }}
                   >
                     {mineVote ? 'Voted · take back' : 'Vote for this'}
@@ -186,7 +187,9 @@ export function Companion() {
           })}
         </div>
       ) : stage.phase === 'discuss' ? (
-        current ? (
+        currentUngrouped ? (
+          <div className="space-y-2"><div className="font-display text-xl">Ungrouped observations</div>{(grouping?.ungrouped ?? []).map((e) => <EntryCard key={e.id} e={e} dense />)}</div>
+        ) : current ? (
           <div className="space-y-4">
             {stage.quiet_reading ? <div className="rounded-xl bg-card px-4 py-3 text-center text-sm text-ink-soft">A quiet minute to read. No need to speak yet.</div> : null}
             <ThemeReader t={current} />
@@ -220,7 +223,7 @@ export function Companion() {
           {experiments.filter((e) => e.status !== 'proposed').map((e) => (
             <div key={e.id} className="card p-3"><p>{e.change_to_try}</p><div className="text-xs text-ink-soft">{e.owner_name} · {e.review_on}</div></div>
           ))}
-          <Link to={`/sprints/${sprintId}/outcomes`} className="block text-sm text-sinag underline">Outcomes and exports</Link>
+          <Link to={`/sprints/${sprintId}/outcomes`} className="block text-sm text-accent underline">Outcomes and exports</Link>
         </div>
       )}
     </Shell>

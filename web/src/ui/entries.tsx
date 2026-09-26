@@ -8,14 +8,14 @@ export function EntryCard({ e, className, dense, children, draggable, onDragStar
   const meta = categoryMeta(e.category)
   return (
     <div
-      className={clsx('rounded-xl border bg-card transition-colors', dense ? 'p-3' : 'p-4', selected ? 'border-sinag ring-2 ring-sinag/25' : 'border-line', draggable && 'cursor-grab active:cursor-grabbing', className)}
+      className={clsx('rounded-xl border bg-card transition-colors', dense ? 'p-3' : 'p-4', selected ? 'border-accent ring-2 ring-accent/25' : 'border-line', draggable && 'cursor-grab active:cursor-grabbing', className)}
       draggable={draggable}
       onDragStart={onDragStart}
       style={{ borderLeftWidth: 3, borderLeftColor: meta.color }}
     >
       <div className="mb-1 flex items-center justify-between gap-2">
         <div className="flex items-center gap-3">
-          {onSelect ? <input type="checkbox" className="size-4 accent-[var(--sinag)]" checked={!!selected} onChange={onSelect} aria-label="Select entry" /> : null}
+          {onSelect ? <input type="checkbox" className="size-4 accent-[var(--accent)]" checked={!!selected} onChange={onSelect} aria-label="Select entry" /> : null}
           <CategoryDot color={meta.color} label={meta.label} small />
           {e.period ? <span className="text-xs text-ink-faint">{PERIODS.find((p) => p.id === e.period)?.label}</span> : null}
         </div>

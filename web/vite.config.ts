@@ -8,7 +8,8 @@ export default defineConfig({
   resolve: { alias: { '@': fileURLToPath(new URL('./src', import.meta.url)) } },
   server: {
     port: 5173,
-    proxy: { '/api': { target: 'http://127.0.0.1:8080', changeOrigin: false } },
+    fs: { allow: ['..'] },
+    proxy: { '/api': { target: 'http://127.0.0.1:8787', changeOrigin: false, ws: true } },
   },
   build: { sourcemap: false, target: 'es2022' },
 })

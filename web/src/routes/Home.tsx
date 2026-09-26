@@ -23,9 +23,9 @@ export function Home() {
   return (
     <AppShell>
       {collecting.length > 0 ? (
-        <section className="card anim-rise mb-8 flex flex-wrap items-center justify-between gap-4 border-sinag/30 bg-[color-mix(in_oklab,var(--sinag)_6%,var(--card))] p-5">
+        <section className="card anim-rise mb-8 flex flex-wrap items-center justify-between gap-4 border-accent/30 bg-[color-mix(in_oklab,var(--accent)_6%,var(--card))] p-5">
           <div>
-            <div className="text-sm text-sinag-ink">A sprint is collecting</div>
+            <div className="text-sm text-accent-ink">A sprint is collecting</div>
             <div className="font-display text-2xl">{collecting.length === 1 ? collecting[0].name : `${collecting.length} sprints`}</div>
           </div>
           <Button variant="primary" size="lg" onClick={() => nav('/capture')}>

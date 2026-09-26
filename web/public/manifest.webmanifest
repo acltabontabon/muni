@@ -4,7 +4,7 @@
   "description": "Capture thoughts throughout the sprint. Reflect together. Turn insights into action.",
   "start_url": "/capture",
   "display": "standalone",
-  "background_color": "#faf6f0",
-  "theme_color": "#c8512c",
+  "background_color": "#f6f6f9",
+  "theme_color": "#4f46e5",
   "icons": [{ "src": "/favicon.svg", "sizes": "any", "type": "image/svg+xml" }]
 }

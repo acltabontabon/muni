@@ -77,7 +77,7 @@ entries.post('/api/sprints/:sprintId/entries', async (c) => {
     db,
     `INSERT INTO entries (id, sprint_id, author_account_id, category, body, impact, might_help, period, idempotency_key, created_at, updated_at)
      SELECT ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ? WHERE (SELECT status FROM sprints WHERE id = ?) = 'collecting'
-     ON CONFLICT(sprint_id, author_account_id, idempotency_key) DO NOTHING`,
+     ON CONFLICT(sprint_id, author_account_id, idempotency_key) WHERE idempotency_key IS NOT NULL DO NOTHING`,
     id, ctx.sprint.id, me, v.category, v.body, v.impact, v.might_help, v.period, key, now, now, ctx.sprint.id,
   )
   if (!res.meta.changes) {

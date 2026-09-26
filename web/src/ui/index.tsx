@@ -11,7 +11,7 @@ export function Button({ variant = 'secondary', size = 'md', className, busy, ch
   const base = 'inline-flex items-center justify-center gap-2 rounded-full font-medium transition-[background,transform,opacity] duration-150 active:scale-[0.98] disabled:opacity-50 disabled:pointer-events-none whitespace-nowrap select-none'
   const sizes = { sm: 'h-9 px-3.5 text-sm', md: 'h-11 px-5 text-[15px]', lg: 'h-13 px-7 text-base' }
   const variants: Record<Variant, string> = {
-    primary: 'bg-sinag text-paper hover:brightness-95 shadow-[0_1px_0_rgb(0_0_0/0.08)]',
+    primary: 'bg-accent text-white dark:text-[#0f1014] hover:brightness-95 shadow-[0_1px_0_rgb(0_0_0/0.08)]',
     secondary: 'bg-card border border-line text-ink hover:bg-paper',
     ghost: 'bg-transparent text-ink hover:bg-ink/5',
     danger: 'bg-transparent border border-danger/40 text-danger hover:bg-danger/10',
@@ -39,7 +39,7 @@ export function Label({ children, htmlFor, hint }: { children: ReactNode; htmlFo
   )
 }
 
-const inputClass = 'w-full rounded-xl border border-line bg-card px-3.5 py-2.5 text-[15px] placeholder:text-ink-faint focus:border-sinag focus:outline-none focus-visible:outline-none focus:ring-2 focus:ring-sinag/25 disabled:opacity-60'
+const inputClass = 'w-full rounded-xl border border-line bg-card px-3.5 py-2.5 text-[15px] placeholder:text-ink-faint focus:border-accent focus:outline-none focus-visible:outline-none focus:ring-2 focus:ring-accent/25 disabled:opacity-60'
 export function Input({ className, ref, ...rest }: InputHTMLAttributes<HTMLInputElement> & { ref?: Ref<HTMLInputElement> }) {
   return <input ref={ref} className={clsx(inputClass, className)} {...rest} />
 }
@@ -71,7 +71,7 @@ export function ErrorText({ children }: { children: ReactNode }) {
 export function Switch({ checked, onCheckedChange, label, description, id, disabled }: { checked: boolean; onCheckedChange: (v: boolean) => void; label: ReactNode; description?: ReactNode; id: string; disabled?: boolean }) {
   return (
     <div className="flex items-start gap-3 py-2">
-      <SwitchPrimitive.Root id={id} checked={checked} onCheckedChange={onCheckedChange} disabled={disabled} className="mt-0.5 relative h-6 w-10 shrink-0 rounded-full bg-ink/20 data-[state=checked]:bg-sinag transition-colors disabled:opacity-50">
+      <SwitchPrimitive.Root id={id} checked={checked} onCheckedChange={onCheckedChange} disabled={disabled} className="mt-0.5 relative h-6 w-10 shrink-0 rounded-full bg-ink/20 data-[state=checked]:bg-accent transition-colors disabled:opacity-50">
         <SwitchPrimitive.Thumb className="block size-5 translate-x-0.5 rounded-full bg-white shadow transition-transform data-[state=checked]:translate-x-[18px]" />
       </SwitchPrimitive.Root>
       <label htmlFor={id} className="cursor-pointer">
@@ -95,9 +95,9 @@ export function ChipGroup<T extends string>({ value, onChange, options, label, a
             if (allowNone && value === o.id) onChange(null)
           }}
           className="group inline-flex h-9 items-center gap-2 rounded-full border border-line bg-card px-3 text-sm text-ink-soft transition-colors hover:border-ink/30 data-[state=checked]:text-ink data-[state=checked]:border-[var(--chip)] data-[state=checked]:bg-[color-mix(in_oklab,var(--chip)_12%,var(--card))]"
-          style={{ ['--chip' as string]: o.color ?? 'var(--sinag)' }}
+          style={{ ['--chip' as string]: o.color ?? 'var(--accent)' }}
         >
-          <span aria-hidden className="size-2.5 rounded-full" style={{ background: o.color ?? 'var(--sinag)' }} />
+          <span aria-hidden className="size-2.5 rounded-full" style={{ background: o.color ?? 'var(--accent)' }} />
           {o.label}
         </RadioGroup.Item>
       ))}
@@ -115,8 +115,8 @@ export function CategoryDot({ color, label, small }: { color: string; label: str
   )
 }
 
-export function Badge({ children, tone = 'neutral', className }: { children: ReactNode; tone?: 'neutral' | 'sinag' | 'ok' | 'warn' | 'danger'; className?: string }) {
-  const tones = { neutral: 'bg-ink/6 text-ink-soft', sinag: 'bg-sinag-soft text-sinag-ink', ok: 'bg-ok/12 text-ok', warn: 'bg-warn/15 text-warn', danger: 'bg-danger/12 text-danger' }
+export function Badge({ children, tone = 'neutral', className }: { children: ReactNode; tone?: 'neutral' | 'accent' | 'ok' | 'warn' | 'danger'; className?: string }) {
+  const tones = { neutral: 'bg-ink/6 text-ink-soft', accent: 'bg-accent-soft text-accent-ink', ok: 'bg-ok/12 text-ok', warn: 'bg-warn/15 text-warn', danger: 'bg-danger/12 text-danger' }
   return <span className={clsx('inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium', tones[tone], className)}>{children}</span>
 }
 
@@ -132,7 +132,7 @@ export function Dialog({ open, onOpenChange, title, description, children, wide 
         <DialogPrimitive.Overlay className="fixed inset-0 z-40 bg-ink/40 anim-fade backdrop-blur-[2px]" />
         <DialogPrimitive.Content className={clsx('fixed left-1/2 top-1/2 z-50 w-[calc(100vw-32px)] -translate-x-1/2 -translate-y-1/2 rounded-2xl bg-card p-6 shadow-[var(--shadow-float)] border border-line anim-settle max-h-[calc(100dvh-32px)] overflow-y-auto', wide ? 'max-w-2xl' : 'max-w-md')}>
           <div className="flex items-start justify-between gap-4">
-            <DialogPrimitive.Title className="font-display text-2xl leading-tight">{title}</DialogPrimitive.Title>
+            <DialogPrimitive.Title className="font-display text-xl leading-tight">{title}</DialogPrimitive.Title>
             <DialogPrimitive.Close className="rounded-full p-1.5 text-ink-soft hover:bg-ink/6" aria-label="Close">
               <X className="size-5" />
             </DialogPrimitive.Close>

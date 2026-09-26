@@ -232,14 +232,14 @@ function ThemeCard({ t, all, sprintId, canEdit, onDropEntry, onMove, structural,
       <div className="flex flex-wrap items-start justify-between gap-2">
         <div className="min-w-0 flex-1">
           {canEdit ? (
-            <input className="w-full bg-transparent font-display text-xl leading-tight outline-none focus:border-b focus:border-sinag" value={title} onChange={(e) => setTitle(e.target.value)} aria-label="Theme title" maxLength={80} />
+            <input className="w-full bg-transparent font-display text-xl leading-tight outline-none focus:border-b focus:border-accent" value={title} onChange={(e) => setTitle(e.target.value)} aria-label="Theme title" maxLength={80} />
           ) : (
             <h3 className="font-display text-xl">{t.title}</h3>
           )}
           <div className="mt-1 flex flex-wrap items-center gap-2 text-xs text-ink-soft">
             <span>{t.entry_count} {t.entry_count === 1 ? 'entry' : 'entries'}</span>
             <CategoryMix mix={t.category_mix} />
-            {t.source === 'ai' ? <Badge tone="sinag">AI draft — review required</Badge> : null}
+            {t.source === 'ai' ? <Badge tone="accent">AI draft — review required</Badge> : null}
             {t.parked ? <Badge>parked</Badge> : null}
             {t.needs_attention ? <Badge tone="warn">needs attention</Badge> : null}
             {typeof t.votes === 'number' ? <Badge>{t.votes} votes</Badge> : null}
@@ -331,7 +331,7 @@ function AiPanel({ ai, sprintId, onChange, canEdit, structural }: { ai: AiStatus
     <section className="card mb-6 p-4">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <button className="inline-flex items-center gap-2 font-display text-lg" onClick={() => setOpen((o) => !o)} aria-expanded={open}>
-          <Sparkles className="size-4 text-sinag" /> AI draft <ChevronDown className={clsx('size-4 transition-transform', open && 'rotate-180')} />
+          <Sparkles className="size-4 text-accent" /> AI draft <ChevronDown className={clsx('size-4 transition-transform', open && 'rotate-180')} />
         </button>
         {canEdit ? (
           <Button size="sm" busy={running} onClick={async () => { setError(''); try { await post(`/api/sprints/${sprintId}/ai/grouping`); onChange() } catch (e) { setError(e instanceof ApiError ? e.message : 'Couldn’t ask') } }}>
@@ -349,8 +349,8 @@ function AiPanel({ ai, sprintId, onChange, canEdit, structural }: { ai: AiStatus
             <div className="mt-3 rounded-xl border border-line bg-paper p-3">
               <div className="flex flex-wrap items-center justify-between gap-2">
                 <div>
-                  <Badge tone="sinag">AI draft — review required</Badge>
-                  <span className="ml-2 text-xs">{new Date(first.created_at).toLocaleTimeString()} · {proposalThemes.length} themes, {first.proposal.ungrouped_entry_ids.length} left ungrouped{first.applied_at ? ' · applied' : ''}</span>
+                  <Badge tone="accent">AI draft — review required</Badge>
+                  <span className="ml-2 text-xs">{first.created_at ? new Date(first.created_at).toLocaleTimeString() : ''} · {proposalThemes.length} themes, {first.proposal.ungrouped_entry_ids.length} left ungrouped{first.applied_at ? ' · applied' : ''}</span>
                 </div>
                 {canEdit && !first.applied_at ? (
                   <div className="flex gap-2">

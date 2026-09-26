@@ -39,7 +39,7 @@ export function Invite() {
       <div className="w-full max-w-sm">
         <div className="mb-8 text-center">
           <Mark size={56} className="mx-auto text-ink" />
-          <h1 className="font-display mt-4 text-3xl">You’re invited.</h1>
+          <h1 className="font-display mt-4 text-2xl">You’re invited.</h1>
         </div>
         <div className="card p-6">
           {!preview ? (

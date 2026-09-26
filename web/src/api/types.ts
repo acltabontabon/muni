@@ -1,28 +1,27 @@
-import type { components } from './schema'
-
-export type S = components['schemas']
-export type Me = S['Me']
-export type Workspace = S['Workspace']
-export type WorkspaceDetail = S['WorkspaceDetail']
-export type MemberInfo = S['MemberInfo']
-export type SprintSummary = S['SprintSummary']
-export type SprintDetail = S['SprintDetail']
-export type Participant = S['Participant']
-export type MyEntry = S['MyEntry']
-export type SharedEntry = S['SharedEntry']
-export type GroupingView = S['GroupingView']
-export type ThemeView = S['ThemeView']
-export type VotingState = S['VotingState']
-export type VoteRoundView = S['VoteRoundView']
-export type StageSnapshot = S['StageSnapshot']
-export type Command = S['Command']
-export type Experiment = S['Experiment']
-export type Recap = S['Recap']
-export type AiStatus = S['AiStatus']
-export type AiProposalView = S['AiProposalView']
-export type CaptureTarget = S['CaptureTarget']
-export type InvitationPreview = S['InvitationPreview']
-export type AuditEvent = S['AuditEvent']
-export type SprintSchedule = S['SprintSchedule']
-export type Category = 'proud' | 'keep' | 'improve' | 'stop' | 'try'
-export type Period = 'early' | 'middle' | 'late'
+// The API contract is one TypeScript file shared with the Worker (worker/src/contract.ts).
+export type {
+  AiProposalView,
+  AiStatus,
+  AuditEvent,
+  CaptureTarget,
+  Category,
+  Command,
+  Experiment,
+  GroupingView,
+  InvitationPreview,
+  Me,
+  MemberInfo,
+  MyEntry,
+  Participant,
+  Period,
+  Recap,
+  SharedEntry,
+  SprintDetail,
+  SprintSummary,
+  StageSnapshot,
+  ThemeView,
+  VoteRoundView,
+  VotingState,
+  Workspace,
+  WorkspaceDetail,
+} from '../../../worker/src/contract'
