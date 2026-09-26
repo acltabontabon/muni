@@ -8,3 +8,14 @@
   Referrer-Policy: same-origin
   Permissions-Policy: camera=(), microphone=(), geolocation=(), payment=(), usb=()
   Strict-Transport-Security: max-age=31536000; includeSubDomains
+
+# The service worker must always be re-checked, or updates would wait on the HTTP cache.
+/sw.js
+  Cache-Control: no-cache
+
+# Content-hashed build output never changes under the same name.
+/assets/*
+  Cache-Control: public, max-age=31536000, immutable
+
+/manifest.webmanifest
+  Cache-Control: no-cache
