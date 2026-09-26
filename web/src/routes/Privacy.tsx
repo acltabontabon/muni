@@ -19,7 +19,7 @@ import { AppShell } from '@/ui/shell'
  */
 const OPERATOR = 'Alvin Cris Tabontabon'
 const CONTACT = 'me@acltabontabon.com'
-const UPDATED = '27 September 2026'
+const UPDATED = '28 September 2026'
 
 const SECTIONS = [
   ['collect', 'What Muni collects, and why'],
@@ -72,7 +72,8 @@ function Page({ signedIn }: { signedIn: boolean }) {
         <ul className="mt-3 space-y-2.5 text-[15.5px] leading-relaxed">
           <Point>Until collection closes, nobody on your team can read your thoughts — not the facilitator, not workspace owners.</Point>
           <Point>Afterwards, the people in that sprint see them in random order, without your name.</Point>
-          <Point>Muni itself records who wrote each thought, so this is privacy from your team, not from the service. It isn’t end-to-end encrypted, and your wording can still give you away.</Point>
+          <Point>New sprints are encrypted on your team’s devices before anything reaches Muni’s servers, and the servers don’t hold the keys to read them. Sprints set up before encryption aren’t covered.</Point>
+          <Point>Muni still records who wrote each thought, when, and its category — encryption hides what you wrote, not that you wrote it. Your wording can still give you away.</Point>
           <Point>Muni uses your account information and what you write to provide and protect the service. We don’t sell personal data, use your contributions for advertising, or use them to train AI models.</Point>
         </ul>
       </section>
@@ -112,7 +113,8 @@ function Page({ signedIn }: { signedIn: boolean }) {
       </Section>
 
       <Section id="operator">
-        <P>Muni is run by one developer, {OPERATOR}. The database records which account wrote each thought — that’s how only you can edit yours. So anyone with access to the database or its backups — the operator, or Cloudflare, which hosts it — can technically read what you wrote, see email addresses, and connect thoughts to accounts.</P>
+        <P>Muni is run by one developer, {OPERATOR}. The database records which account wrote each thought — that’s how only you can edit yours — so anyone with access to the database or its backups (the operator, or Cloudflare, which hosts it) can see email addresses and connect thoughts to accounts.</P>
+        <P>In an encrypted sprint they can’t read what the thoughts, themes, notes, experiments or recap say: the database only holds them encrypted, and the keys are on participants’ devices. In a sprint set up before encryption, they can technically read everything. See <a href="#encryption" className="underline underline-offset-2">Encryption, and its limits</a> for what that protection depends on.</P>
         <P>Our rule is to access data only when it’s needed to keep Muni running and secure, to investigate abuse, or to act on a request from you — never to read thoughts out of curiosity or to find out who wrote something. That’s a commitment, not a technical barrier, and Muni keeps no separate record of when the operator looks at data.</P>
         <P>Workspace owners manage members and settings. Owning a workspace doesn’t let them read a sprint they aren’t part of, or find out who wrote anything.</P>
       </Section>
@@ -126,19 +128,24 @@ function Page({ signedIn }: { signedIn: boolean }) {
       </Section>
 
       <Section id="ai">
-        <P>The hosted Muni has no AI service switched on. Grouping thoughts into themes is done by people, and no thought is sent to an AI provider. Muni doesn’t train AI models on what you write.</P>
+        <P>Encrypted sprints never use AI: their content can’t leave your team’s devices unencrypted. The hosted Muni also has no AI service switched on. Grouping thoughts into themes is done by people, and no thought is sent to an AI provider. Muni doesn’t train AI models on what you write.</P>
         <P>Muni’s code has an optional feature that asks an AI provider (Anthropic) to draft themes. If it’s ever offered here, this page will say so first. Even then it would only apply to a sprint whose facilitator turned it on before collection opened — it can’t be switched on later — and it would send the thoughts’ text, with any category, impact and “what might help”, after collection closes and without names, email addresses or who wrote what. The provider’s own terms would govern what it keeps, and a copy that has been sent can’t be recalled.</P>
       </Section>
 
       <Section id="encryption">
-        <P>Connections between your device and Muni are encrypted (HTTPS). Stored data is encrypted on Cloudflare’s disks (AES-256), with keys that Cloudflare manages.</P>
-        <P>That protects against a stolen disk or an intercepted connection. It doesn’t stop the running app, the operator or Cloudflare from reading the data, and Muni adds no encryption of its own on top. <strong className="font-medium text-ink">Muni is not end-to-end encrypted:</strong> its servers can read your thoughts, which is how they show them to your team.</P>
-        <P>Email addresses are stored readable, because Muni needs them to send you codes. Sign-in codes and sign-in tokens are stored only as one-way hashes.</P>
+        <Item title="What’s encrypted">In sprints set up with encryption — the default for new sprints — thoughts (with their impact and “what might help”), context added during the retro, theme titles and summaries, discussion notes and takeaways, experiments and their outcomes, the recap, the opening question and reasons typed for resetting a vote. Each is encrypted in the browser before it’s sent, and decrypted only in the browsers of people who hold the sprint’s key. Muni’s servers store and pass along the encrypted form, and don’t have the keys to open it.</Item>
+        <Item title="What isn’t">Your email address and name; workspace and sprint names, sprint goals, dates and retro times; who is in a sprint and who facilitates; each thought’s category, “when in the sprint”, who wrote it and when; how thoughts are grouped; vote counts; experiment owners, review dates and outcome status; and activity such as “closed collection”. Muni needs these to run. Keep sensitive detail out of a sprint’s name and goal.</Item>
+        <Item title="Sprints from before encryption">Sprints set up before encryption stay unencrypted, and each says so. Encrypting old content later wouldn’t remove readable copies from backups or from files already downloaded.</Item>
+        <Item title="Who can decrypt, and when">While collection is open, the key that reveals everyone’s thoughts is held only on the facilitator’s devices; your own thoughts are also sealed to you, so you can read and edit them. Muni’s servers don’t give the facilitator anyone’s thoughts until collection closes — that part is a rule the servers enforce, not encryption. Closing collection is when the facilitator’s device shares the key with everyone in the sprint. People added later get it from a teammate’s device. If collection is reopened, new thoughts use a new key that, again, only the facilitator holds until it closes.</Item>
+        <Item title="Your key and your recovery key">Your key is created in your browser and stays there. Muni keeps a copy only locked with your recovery key, which Muni never sees. Signing in with an email code gets you into your account, not into encrypted content: on a new device, you unlock it with your recovery key. If you lose every device and your recovery key, Muni can’t recover your key — you can start over with a new one, and teammates can share current sprints with you again, but what was only yours can’t be opened.</Item>
+        <Item title="What encryption can’t do">It relies on the app your browser loads from act.munimuni.app being the genuine one: whoever controls that code (the operator, or someone who breaks in) could change it to capture what you type or your keys, or hand your device someone else’s key. Devices won’t share a sprint’s key with a teammate whose key changed unexpectedly until someone confirms it (the facilitator is told), and your key’s fingerprint is shown in Account for comparing — but none of this can prevent a changed app. It doesn’t protect against a compromised device or browser extension, screenshots, or people in the sprint sharing what they read. Removing someone from a sprint stops their access to what’s added later; it can’t take back what they already read. Downloaded summaries aren’t encrypted.</Item>
+        <Item title="Also">Connections are encrypted (HTTPS), and Cloudflare encrypts stored data on its disks (AES-256) with keys it manages. Sign-in codes and sign-in tokens are stored only as one-way hashes. This encryption hasn’t yet been independently audited.</Item>
       </Section>
 
       <Section id="device">
         <Item title="Keep drafts on this device: off">The default. Your draft and any thoughts waiting to be sent exist only in the open tab, and closing it loses anything unsent — Muni tells you when that applies.</Item>
         <Item title="Keep drafts on this device: on">A choice per person, per browser. Your draft, thoughts waiting to be sent, the names and retro times of the sprints they’re for, and your name and workspaces (so Muni can open offline) are stored in this browser. Anyone who can use this browser profile could read them, so turn it on only on a personal device.</Item>
+        <Item title="Your encryption key">Stored in this browser once you set up or unlock encryption, so encrypted sprints open without asking every time. Anyone who can use this browser profile could use it; signing out removes it. What you write is kept readable on the device while it’s a draft or waiting to be sent, and encrypted when it’s sent.</Item>
         <Item title="Either way">The browser keeps a few preferences, such as your theme and the last sprint you opened, and a copy of the app so it opens quickly and offline. Your sign-in is a secure cookie that the page itself can’t read. Muni never stores other people’s thoughts on your device.</Item>
         <P>Signing out, or “Clear local data”, removes what this device keeps for your account, and warns you first if something hasn’t been sent. Neither deletes anything from Muni’s servers. If you lose access to a sprint while a device is offline, its copies stay there until it reconnects — Muni can’t erase a device remotely.</P>
       </Section>

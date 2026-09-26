@@ -41,6 +41,8 @@ export type OutboxItem = {
   createdAt: number
   updatedAt: number
   v: number
+  /** For an encrypted sprint: sealed only when sent, by a page that holds the keys. */
+  encrypted?: boolean
 }
 
 export type ContextSprint = { id: string; workspace_id: string; name: string; status: string; retro_local: string; timezone: string }

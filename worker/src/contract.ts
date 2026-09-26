@@ -104,6 +104,8 @@ export interface SprintSummary {
   is_participant: boolean
   reminders_enabled: boolean
   my_reminders_opt_out: boolean
+  /** null: a sprint from before encryption, stored as plaintext. 'e1': content is encrypted on participants' devices. */
+  encryption: 'e1' | null
 }
 export interface Participant {
   account_id: string
@@ -366,4 +368,20 @@ export interface AiStatus {
   jobs: AiJobView[]
   proposals: AiProposalView[]
   explanation: string
+}
+
+/** Encryption keys. Public keys and wrapped (sealed) keys only: nothing here opens content. */
+export interface MyKeys {
+  public_key: string | null
+  recovery_blob: string | null
+  recovery_confirmed_at: string | null
+  key_version: number
+  created_at: string | null
+}
+export interface SprintKeyView {
+  encryption: 'e1' | null
+  sealed_version?: number | null
+  versions?: { version: number; public_key: string }[]
+  my_wraps?: { version: number; wrapped: string }[]
+  participants?: { account_id: string; display_name: string; is_facilitator: boolean; public_key: string | null; key_version: number; versions_held: number[]; has_latest: boolean }[]
 }

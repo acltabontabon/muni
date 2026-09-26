@@ -309,7 +309,7 @@ export class MeetingRoom implements DurableObject {
         break
       }
       case 'set_agenda':
-        m.agenda = (cmd.items ?? []).slice(0, 40).map((i) => ({ theme_id: String(i.theme_id), reason: i.reason ? String(i.reason).slice(0, 200) : null }))
+        m.agenda = (cmd.items ?? []).slice(0, 40).map((i) => ({ theme_id: String(i.theme_id), reason: i.reason ? String(i.reason).slice(0, 12_000) : null /* opaque: an envelope in encrypted sprints */ }))
         action = 'meeting.agenda_changed'
         break
       case 'set_plan': {

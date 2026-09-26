@@ -1,5 +1,7 @@
 /** Markdown and CSV exports: summary by default, raw notes explicit. No authorship, timestamps, or per-person votes. Bounded sizes. */
 import { Hono } from 'hono'
+import { isEncrypted } from '../lib/sealed'
+import { AppError } from '../lib/errors'
 import type { HonoEnv } from '../env'
 import { config } from '../lib/config'
 import { requireParticipant, requireSprint, type SprintCtx } from '../lib/auth'
@@ -12,6 +14,8 @@ export const exportsRoutes = new Hono<HonoEnv>()
 
 function check(ctx: SprintCtx, raw: boolean) {
   requireParticipant(ctx)
+  // The server can't read an encrypted sprint, so it can't write its summary: the client builds it.
+  if (isEncrypted(ctx.sprint)) throw new AppError(409, 'encrypted_export', 'this sprint is encrypted, so its summary is built on your device')
   if (['draft', 'collecting'].includes(ctx.sprint.status)) throw conflict('exports are available once collection has closed')
   if (raw && !ctx.isFacilitator) throw forbidden('raw-note export is a facilitator action')
 }

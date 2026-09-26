@@ -37,10 +37,26 @@ export function onUpgradeRequired(fn: Listener) {
   return () => upgradeListeners.delete(fn)
 }
 
+/**
+ * Encrypted sprints: content is sealed on the way out and opened on the way in (lib/e2ee). A
+ * request that can't be sealed is never sent. `plain` skips both (for the key endpoints).
+ */
+type ContentHooks = { seal: (method: string, path: string, body: unknown) => Promise<unknown>; open: (data: unknown, path: string) => Promise<unknown> }
+let hooks: ContentHooks | null = null
+export function setContentHooks(h: ContentHooks | null) {
+  hooks = h
+}
 
-export async function api<T>(path: string, init: RequestInit & { json?: unknown; raw?: boolean } = {}): Promise<T> {
+export async function api<T>(path: string, init: RequestInit & { json?: unknown; raw?: boolean; plain?: boolean } = {}): Promise<T> {
   const headers = new Headers(init.headers)
   const method = (init.method ?? 'GET').toUpperCase()
+  if (hooks && !init.plain && init.json !== undefined) {
+    try {
+      init = { ...init, json: await hooks.seal(method, path, init.json) }
+    } catch (e) {
+      throw new ApiError(412, 'no_key', `${e instanceof Error ? e.message : 'This device can’t encrypt for this sprint.'} Nothing was sent.`)
+    }
+  }
   if (init.json !== undefined) headers.set('content-type', 'application/json')
   if (method !== 'GET' && method !== 'HEAD') headers.set('x-csrf-token', csrfToken())
   headers.set('x-muni-client', String(CLIENT_REVISION))
@@ -70,7 +86,8 @@ export async function api<T>(path: string, init: RequestInit & { json?: unknown;
   }
   if (init.raw) return (await res.text()) as unknown as T
   if (res.status === 204) return undefined as T
-  return (await res.json()) as T
+  const data = await res.json()
+  return (hooks && !init.plain ? await hooks.open(data, path) : data) as T
 }
 
 export const get = <T>(path: string) => api<T>(path)

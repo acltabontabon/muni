@@ -10,7 +10,9 @@
 import type { LocalStore, OutboxItem, AttentionReason } from './store'
 
 /** Sent as `x-muni-client`. Raise together with the server's MIN_CLIENT_REVISION. */
-export const CLIENT_REVISION = 2
+export const CLIENT_REVISION = 3
+/** A queued thought for an encrypted sprint that this device can't seal yet (no key here). */
+export const WAITING_KEY = 'waiting_key'
 /** A send that has been "in flight" this long was interrupted (tab closed, device slept). */
 const STALE_SENDING_MS = 2 * 60_000
 const BACKOFF_MS = [5_000, 15_000, 45_000, 2 * 60_000, 5 * 60_000, 10 * 60_000]
@@ -29,6 +31,12 @@ export interface SyncDeps {
   lock?: <T>(fn: () => Promise<T>) => Promise<T | 'locked'>
   /** Told after every change so other tabs can re-read. */
   notify?: () => void
+  /**
+   * Seals a thought for an encrypted sprint (returns the request body), or null for a legacy sprint.
+   * Throws { code: 'no-key' } when this device can't. Absent in the service worker, which holds no
+   * keys: it leaves encrypted thoughts for the app to send.
+   */
+  seal?: (item: OutboxItem, plain: Record<string, unknown>) => Promise<Record<string, unknown> | null>
 }
 
 export function webLock<T>(fn: () => Promise<T>): Promise<T | 'locked'> {
@@ -85,6 +93,7 @@ async function flushLocked(deps: SyncDeps, opts: { force?: boolean }): Promise<F
     const interrupted = item.status === 'sending' && (item.sendingSince ?? 0) < t - STALE_SENDING_MS
     const due = item.status === 'queued' && (opts.force || item.nextAttemptAt <= t)
     if (!due && !interrupted) continue
+    if (item.encrypted && !deps.seal) continue
     // Claim it: only this exact revision, still queued (or abandoned mid-send), becomes 'sending'.
     const claimed = await deps.store.updateOutbox(item.id, (cur) =>
       cur.revision === item.revision && (cur.status === 'queued' || (cur.status === 'sending' && interrupted)) ? { ...cur, status: 'sending', sendingSince: t, updatedAt: t } : null,
@@ -93,20 +102,36 @@ async function flushLocked(deps: SyncDeps, opts: { force?: boolean }): Promise<F
     deps.notify?.()
     let status: number
     let body: { id?: string; code?: string; error?: string } = {}
+    let payload: Record<string, unknown> = {
+      body: claimed.payload.body,
+      category: claimed.payload.category,
+      impact: claimed.payload.impact || undefined,
+      might_help: claimed.payload.might_help || undefined,
+      period: claimed.payload.period,
+      idempotency_key: claimed.id,
+      author_account_id: claimed.accountId,
+    }
+    // Encrypted sprints: sealed here, at send time, with this device's keys. If it can't be
+    // sealed, it isn't sent — it waits, and says so.
+    if (deps.seal) {
+      let sealed: Record<string, unknown> | null
+      try {
+        sealed = await deps.seal(claimed, payload)
+      } catch (e) {
+        const waiting = (e as { code?: string }).code === 'no-key'
+        await deps.store.updateOutbox(claimed.id, (cur) => ({ ...cur, status: 'queued', sendingSince: null, message: waiting ? WAITING_KEY : cur.message, nextAttemptAt: now() + (waiting ? 60_000 : backoff(cur.attempts + 1)), attempts: waiting ? cur.attempts : cur.attempts + 1, updatedAt: now() }))
+        deps.notify?.()
+        if (!waiting) return { ...res, state: 'offline' }
+        continue
+      }
+      if (sealed) payload = sealed
+    }
     try {
       const r = await deps.fetch(`/api/sprints/${claimed.sprintId}/entries`, {
         method: 'POST',
         credentials: 'same-origin',
         headers: headers(csrf),
-        body: JSON.stringify({
-          body: claimed.payload.body,
-          category: claimed.payload.category,
-          impact: claimed.payload.impact || undefined,
-          might_help: claimed.payload.might_help || undefined,
-          period: claimed.payload.period,
-          idempotency_key: claimed.id,
-          author_account_id: claimed.accountId,
-        }),
+        body: JSON.stringify(payload),
       })
       status = r.status
       body = await r.json().catch(() => ({}))

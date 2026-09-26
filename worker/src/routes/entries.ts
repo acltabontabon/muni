@@ -12,6 +12,7 @@ import { uuid } from '../lib/crypto'
 import { all, count, one, run } from '../lib/db'
 import { AppError, bad, conflict, notFound } from '../lib/errors'
 import { nonempty, optional } from '../lib/util'
+import { content, isEncrypted } from '../lib/sealed'
 
 export const entries = new Hono<HonoEnv>()
 export const CATEGORIES = ['proud', 'keep', 'improve', 'stop', 'try']
@@ -41,13 +42,19 @@ interface MyRow {
 }
 const myEntry = (r: MyRow, editable: boolean) => ({ ...r, created_at: new Date(r.created_at).toISOString(), updated_at: new Date(r.updated_at).toISOString(), editable })
 
-function validate(maxChars: number, b: Record<string, unknown>) {
+function validate(maxChars: number, b: Record<string, unknown>, encrypted = false) {
   const cat = typeof b.category === 'string' ? b.category.trim() : ''
   if (cat && !CATEGORIES.includes(cat)) throw bad('unknown category')
   const per = typeof b.period === 'string' ? b.period.trim() : ''
   if (per && !PERIODS.includes(per)) throw bad('period must be early, middle or late')
+  if (encrypted) {
+    // One envelope holds the whole thought (text, impact, what might help); the separate columns stay empty.
+    if ((b.impact !== undefined && b.impact !== null && b.impact !== '') || (b.might_help !== undefined && b.might_help !== null && b.might_help !== '')) throw bad('in an encrypted sprint, context travels inside the encrypted thought')
+    return { category: cat || null, body: content(true, b.body, maxChars * 3, 'The observation', true)!, impact: null, might_help: null, period: per || null }
+  }
   return { category: cat || null, body: nonempty(b.body, maxChars, 'The observation'), impact: optional(b.impact, maxChars, 'Impact'), might_help: optional(b.might_help, maxChars, 'What might help'), period: per || null }
 }
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/
 
 export async function sharedEntries(db: D1Database, sprintId: string): Promise<SharedEntry[]> {
   return all<SharedEntry>(db, `${SHARED_SELECT} WHERE e.sprint_id = ? ORDER BY e.reveal_order, e.id LIMIT 2000`, sprintId)
@@ -60,8 +67,12 @@ entries.post('/api/sprints/:sprintId/entries', async (c) => {
   const ctx = await requireSprint(c, cfg, c.env.DB, c.req.param('sprintId'))
   requireParticipant(ctx)
   const body = (await c.req.json().catch(() => ({}))) as Record<string, unknown>
-  const v = validate(cfg.entryMaxChars, body)
+  const encrypted = isEncrypted(ctx.sprint)
+  const v = validate(cfg.entryMaxChars, body, encrypted)
   const key = typeof body.idempotency_key === 'string' && body.idempotency_key.trim() && body.idempotency_key.length <= 64 ? body.idempotency_key.trim() : null
+  // An encrypted thought is bound to its record id before it's sent, so the client chooses it:
+  // the submission id, which is also the idempotency key.
+  if (encrypted && (!key || !UUID.test(key) || body.id !== key)) throw bad('an encrypted thought needs its submission id as its record id')
   const db = c.env.DB
   const me = ctx.auth.account.id
   // A thought queued on a device names the account that wrote it. It never lands under another one.
@@ -72,7 +83,8 @@ entries.post('/api/sprints/:sprintId/entries', async (c) => {
     if (existing) return c.json(myEntry(existing, true))
   }
   if ((await count(db, 'SELECT count(*) AS n FROM entries WHERE sprint_id = ? AND author_account_id = ?', ctx.sprint.id, me)) >= 200) throw conflict('you’ve saved 200 entries for this sprint — that’s the limit')
-  const id = uuid()
+  const id = encrypted ? key! : uuid()
+  if (encrypted && (await count(db, 'SELECT count(*) AS n FROM entries WHERE id = ?', id))) throw conflict('that record id is taken')
   const now = Date.now()
   // One statement decides: the row is inserted only if the sprint is still collecting. D1 serialises
   // writes, so a close that lands first refuses this, and one that lands later includes it.
@@ -106,7 +118,7 @@ entries.patch('/api/sprints/:sprintId/entries/:entryId', async (c) => {
   const cfg = config(c.env)
   const ctx = await requireSprint(c, cfg, c.env.DB, c.req.param('sprintId'))
   requireParticipant(ctx)
-  const v = validate(cfg.entryMaxChars, (await c.req.json().catch(() => ({}))) as Record<string, unknown>)
+  const v = validate(cfg.entryMaxChars, (await c.req.json().catch(() => ({}))) as Record<string, unknown>, isEncrypted(ctx.sprint))
   // Ownership and phase are enforced in the WHERE clause: a non-owner gets 404, a closed sprint 409.
   const res = await run(
     c.env.DB,

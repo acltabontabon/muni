@@ -18,6 +18,9 @@ export function ExperimentEditor({ sprintId, participants, themes, defaultThemeI
   const [override, setOverride] = useState(false)
   const submit = async (e: FormEvent) => {
     e.preventDefault()
+    // The same check the server runs for legacy sprints; for encrypted ones only this device can read the text.
+    const v = vague(change)
+    if (v) return setError(v)
     setBusy(true)
     setError('')
     try {
@@ -82,4 +85,11 @@ export function ExperimentEditor({ sprintId, participants, themes, defaultThemeI
       </div>
     </form>
   )
+}
+
+function vague(change: string): string | null {
+  const c = change.toLowerCase()
+  const generic = ['communicate better', 'be more careful', 'try harder', 'improve communication', 'work better together', 'be better', 'do better', 'more transparency']
+  if (generic.some((g) => c.includes(g)) || c.trim().split(/\s+/).length < 4) return 'That reads as an intention rather than a change. What will someone do differently, and when? For example: “For the next sprint, reserve a 15-minute daily review window; see whether PRs spend less time waiting.”'
+  return null
 }

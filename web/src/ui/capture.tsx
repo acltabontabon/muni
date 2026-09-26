@@ -20,6 +20,9 @@ import { emptyPayload, hasText, StorageError, type OutboxItem, type Payload } fr
 import { splitLinks } from '@/lib/text'
 import { Button, ChipGroup, ErrorText, Kbd, Label, Textarea, useToast } from '@/ui'
 import { StatusLabel, type ThoughtState } from '@/ui/status'
+import { WAITING_KEY } from '@/lib/local/outbox'
+import { isLocked } from '@/lib/e2ee/keyring'
+import { useDeviceKeys } from '@/lib/e2ee/E2eeProvider'
 import { Postcard } from '@/ui/art'
 
 const isFinePointer = () => window.matchMedia('(pointer: fine)').matches
@@ -265,7 +268,7 @@ export function Composer({
         ) : null}
         <div className="flex flex-col-reverse gap-3 sm:flex-row sm:items-center sm:justify-between">
           <p id={`${uid}-privacy`} className="text-[13px] leading-snug text-ink-soft sm:max-w-sm">
-            Hidden from your team — the facilitator too — until collection closes. Then shared with the sprint, without your name.{' '}
+            Hidden from your team — the facilitator too — until collection closes. Then shared with the sprint, without your name.{dest?.encrypted ? ' Encrypted before it leaves this device.' : ''}{' '}
             <Link to="/privacy#visibility" className="whitespace-nowrap text-ink underline decoration-line-strong underline-offset-2 hover:decoration-accent">Privacy</Link>
           </p>
           <div className="flex items-center gap-3">
@@ -329,8 +332,8 @@ function Body({ p }: { p: { body: string; impact: string | null; might_help: str
   const hidesExtra = extra && clamped
   return (
     <div>
-      <p ref={ref} className={clsx('bubble-text', !open && 'line-clamp-7')}>
-        <Linked text={p.body} />
+      <p ref={ref} className={clsx('bubble-text', !open && 'line-clamp-7', isLocked(p.body) && 'italic text-ink-soft')}>
+        {isLocked(p.body) ? p.body.slice(1) : <Linked text={p.body} />}
       </p>
       {(!hidesExtra || open) && p.impact ? <p className="mt-2 text-sm text-ink-soft [overflow-wrap:anywhere]"><span className="text-ink-faint">Impact · </span><Linked text={p.impact} /></p> : null}
       {(!hidesExtra || open) && p.might_help ? <p className="mt-1 text-sm text-ink-soft [overflow-wrap:anywhere]"><span className="text-ink-faint">Might help · </span><Linked text={p.might_help} /></p> : null}
@@ -521,7 +524,7 @@ export function LocalThought({ item, moveChoices, showDestination, onRemove }: {
       ) : (
         <>
           <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
-            <StatusLabel state={state} />
+            <StatusLabel state={state}>{item.status === 'queued' && item.message === WAITING_KEY ? 'Saved here · waiting for this device’s key' : undefined}</StatusLabel>
             {showDestination ? <span className="min-w-0 truncate text-xs text-ink-faint">{item.sprintName ?? 'a sprint you can’t open any more'}</span> : null}
           </div>
           <Body p={item.payload} />
@@ -611,7 +614,7 @@ function EntryThought({ e, sprintId, editable, online, fresh, onRemove, onSaved 
             <span className="ml-auto flex items-center">
               {/* Submitted is the quiet, normal state: the filled dot, said out loud for screen readers. */}
               <span className="mr-2 inline-flex items-center gap-1.5 text-xs text-ink-faint" title="Submitted — the sprint has it">
-                <span className="dot dot--submitted size-1.5 opacity-70" aria-hidden />
+                <span className="dot dot--submitted opacity-70" style={{ width: 6, height: 6 }} aria-hidden />
                 <span className="sr-only">Submitted</span>
                 <time dateTime={e.created_at} title={full(e.created_at)}>{when(e.created_at)}</time>
               </span>
@@ -648,6 +651,8 @@ export function MyThoughts({ sprintId, editable, moveChoices, online, className 
   const [filter, setFilter] = useState<string | null>(null)
   const seen = useRef<Set<string> | null>(null)
   const [fresh, setFresh] = useState<Set<string>>(new Set())
+  // Unlocking (or setting up) this device changes what can be shown: read the list again.
+  const keyState = useDeviceKeys().state.kind
   const load = useCallback(async () => {
     try {
       const list = await get<MyEntry[]>(`/api/sprints/${sprintId}/entries/mine`)
@@ -664,7 +669,7 @@ export function MyThoughts({ sprintId, editable, moveChoices, online, className 
     seen.current = null
     setEntries(null)
     load()
-  }, [load])
+  }, [load, keyState])
   // Something was accepted (or the queue changed): show the confirmed list.
   useEffect(() => {
     if (local.recentlySubmitted.length) load()

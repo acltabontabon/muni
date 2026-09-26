@@ -10,7 +10,7 @@ import { uuid } from '../lib/crypto'
 import { all, audit, batch, bool, count, one, run } from '../lib/db'
 import { bad, conflict, notFound } from '../lib/errors'
 import { hint } from '../lib/live'
-import { nonempty, optional } from '../lib/util'
+import { content, isEncrypted } from '../lib/sealed'
 import { requireRevealed, sharedEntries, type SharedEntry } from './entries'
 import { latestClosedTotals } from './voting'
 
@@ -87,7 +87,9 @@ export async function structuralChange(db: D1Database, ctx: SprintCtx, reason: u
   if (open) {
     const r = typeof reason === 'string' ? reason.trim() : ''
     if (!r) throw conflict('a voting round is open. Changing themes now cancels it — give a short reason for participants to continue')
-    stmts.push(["UPDATE vote_rounds SET status='cancelled', cancel_reason=?, closed_at=? WHERE id=?", r.slice(0, 200), Date.now(), open.id])
+    // The reason is written by the facilitator and shown to participants: content, so sealed in encrypted sprints.
+    const stored = isEncrypted(ctx.sprint) ? content(true, r, 200, 'The reason', true)! : r.slice(0, 200)
+    stmts.push(["UPDATE vote_rounds SET status='cancelled', cancel_reason=?, closed_at=? WHERE id=?", stored, Date.now(), open.id])
   }
   stmts.push(['UPDATE sprints SET grouping_revision = grouping_revision + 1, updated_at = ? WHERE id = ?', Date.now(), ctx.sprint.id])
   stmts.push(['INSERT INTO audit_events (workspace_id, sprint_id, actor_id, action, meta, created_at) VALUES (?,?,?,?,?,?)', ctx.sprint.workspace_id, ctx.sprint.id, ctx.auth.account.id, 'grouping.changed', '{}', Date.now()])
@@ -107,11 +109,11 @@ themes.post('/api/sprints/:sprintId/themes', async (c) => {
   const ctx = await requireSprint(c, config(c.env), c.env.DB, c.req.param('sprintId'))
   requireEdit(ctx)
   const body = (await c.req.json().catch(() => ({}))) as Record<string, unknown>
-  const title = nonempty(body.title, 80, 'Theme title')
+  const title = content(isEncrypted(ctx.sprint), body.title, 80, 'Theme title', true)!
   if ((await count(c.env.DB, 'SELECT count(*) AS n FROM themes WHERE sprint_id = ?', ctx.sprint.id)) >= 40) throw conflict('40 themes is the limit — merge some first')
   const id = uuid()
   const stmts = await structuralChange(c.env.DB, ctx, body.reset_voting_reason)
-  stmts.push(['INSERT INTO themes (id, sprint_id, title, summary, question, draft_experiment, position, created_at) VALUES (?,?,?,?,?,?,(SELECT COALESCE(MAX(position),0)+1 FROM themes WHERE sprint_id=?),?)', id, ctx.sprint.id, title, optional(body.summary, 500, 'Summary') ?? '', optional(body.question, 240, 'Question') ?? '', optional(body.draft_experiment, 300, 'Draft experiment'), ctx.sprint.id, Date.now()])
+  stmts.push(['INSERT INTO themes (id, sprint_id, title, summary, question, draft_experiment, position, created_at) VALUES (?,?,?,?,?,?,(SELECT COALESCE(MAX(position),0)+1 FROM themes WHERE sprint_id=?),?)', id, ctx.sprint.id, title, content(isEncrypted(ctx.sprint), body.summary, 500, 'Summary', false) ?? '', content(isEncrypted(ctx.sprint), body.question, 240, 'Question', false) ?? '', content(isEncrypted(ctx.sprint), body.draft_experiment, 300, 'Draft experiment', false), ctx.sprint.id, Date.now()])
   if (Array.isArray(body.entry_ids)) stmts.push(...assign(ctx.sprint.id, id, body.entry_ids.map(String)))
   await batch(c.env.DB, stmts)
   await hint(c.env, ctx.sprint.id, 'themes')
@@ -125,13 +127,13 @@ themes.patch('/api/sprints/:sprintId/themes/:themeId', async (c) => {
   if (!(await count(c.env.DB, 'SELECT count(*) AS n FROM themes WHERE id = ? AND sprint_id = ?', tid, ctx.sprint.id))) throw notFound('theme not found')
   const body = (await c.req.json().catch(() => ({}))) as Record<string, unknown>
   const stmts: [string, ...unknown[]][] = []
-  if (body.title !== undefined) stmts.push(['UPDATE themes SET title = ? WHERE id = ?', nonempty(body.title, 80, 'Theme title'), tid])
-  if (body.summary !== undefined) stmts.push(['UPDATE themes SET summary = ? WHERE id = ?', optional(body.summary, 500, 'Summary') ?? '', tid])
-  if (body.question !== undefined) stmts.push(['UPDATE themes SET question = ? WHERE id = ?', optional(body.question, 240, 'Question') ?? '', tid])
-  if (body.draft_experiment !== undefined) stmts.push(['UPDATE themes SET draft_experiment = ? WHERE id = ?', optional(body.draft_experiment, 300, 'Draft experiment'), tid])
+  if (body.title !== undefined) stmts.push(['UPDATE themes SET title = ? WHERE id = ?', content(isEncrypted(ctx.sprint), body.title, 80, 'Theme title', true)!, tid])
+  if (body.summary !== undefined) stmts.push(['UPDATE themes SET summary = ? WHERE id = ?', content(isEncrypted(ctx.sprint), body.summary, 500, 'Summary', false) ?? '', tid])
+  if (body.question !== undefined) stmts.push(['UPDATE themes SET question = ? WHERE id = ?', content(isEncrypted(ctx.sprint), body.question, 240, 'Question', false) ?? '', tid])
+  if (body.draft_experiment !== undefined) stmts.push(['UPDATE themes SET draft_experiment = ? WHERE id = ?', content(isEncrypted(ctx.sprint), body.draft_experiment, 300, 'Draft experiment', false), tid])
   if (body.parked !== undefined) stmts.push(['UPDATE themes SET parked = ? WHERE id = ?', body.parked ? 1 : 0, tid])
   if (body.needs_attention !== undefined) stmts.push(['UPDATE themes SET needs_attention = ? WHERE id = ?', body.needs_attention ? 1 : 0, tid])
-  if (body.order_reason !== undefined) stmts.push(['UPDATE themes SET order_reason = ? WHERE id = ?', optional(body.order_reason, 200, 'Reason'), tid])
+  if (body.order_reason !== undefined) stmts.push(['UPDATE themes SET order_reason = ? WHERE id = ?', content(isEncrypted(ctx.sprint), body.order_reason, 200, 'Reason', false), tid])
   if (Array.isArray(body.entry_ids)) {
     stmts.push(...(await structuralChange(c.env.DB, ctx, body.reset_voting_reason)))
     stmts.push(...assign(ctx.sprint.id, tid, body.entry_ids.map(String)))
@@ -183,7 +185,7 @@ themes.post('/api/sprints/:sprintId/themes/:themeId/split', async (c) => {
   requireEdit(ctx)
   const tid = c.req.param('themeId')
   const body = (await c.req.json().catch(() => ({}))) as { title?: string; entry_ids?: string[]; reset_voting_reason?: string }
-  const title = nonempty(body.title, 80, 'Theme title')
+  const title = content(isEncrypted(ctx.sprint), body.title, 80, 'Theme title', true)!
   const src = await one<{ position: number }>(c.env.DB, 'SELECT position FROM themes WHERE id = ? AND sprint_id = ?', tid, ctx.sprint.id)
   if (!src) throw notFound('theme not found')
   const nid = uuid()
@@ -200,7 +202,7 @@ themes.post('/api/sprints/:sprintId/themes/reorder', async (c) => {
   const ctx = await requireSprint(c, config(c.env), c.env.DB, c.req.param('sprintId'))
   requireEdit(ctx)
   const body = (await c.req.json().catch(() => ({}))) as { theme_ids?: string[]; reason?: string }
-  const reason = optional(body.reason, 200, 'Reason')
+  const reason = content(isEncrypted(ctx.sprint), body.reason, 200, 'Reason', false)
   const stmts: [string, ...unknown[]][] = (body.theme_ids ?? []).slice(0, 100).map((id, i) => ['UPDATE themes SET position = ?, order_reason = COALESCE(?, order_reason) WHERE id = ? AND sprint_id = ?', i, reason, String(id), ctx.sprint.id])
   await batch(c.env.DB, stmts)
   await audit(c.env.DB, ctx.sprint.workspace_id, ctx.sprint.id, ctx.auth.account.id, 'themes.reordered')

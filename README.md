@@ -22,9 +22,11 @@ and API may still change.
 - **An installable web app** that keeps capture working offline for people who choose to keep
   drafts on their device.
 
-The privacy is application-level, not cryptographic: the service stores who wrote what (so only you
-can edit yours), and someone with database access could connect the two. Muni is not end-to-end
-encrypted. See [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) for the model,
+New sprints are encrypted on participants' devices: the backend stores thoughts, themes, notes and
+outcomes only as ciphertext and holds no key that opens them (it still trusts the frontend it
+serves, and still records who wrote what). Sprints from before encryption remain plaintext. See
+[`docs/ENCRYPTION.md`](docs/ENCRYPTION.md) for the protocol, threat model and limits (not yet
+independently reviewed), [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) for the model,
 [`docs/security-review-2026-09.md`](docs/security-review-2026-09.md) for what was verified, and
 [`docs/privacy-claims.md`](docs/privacy-claims.md) for the evidence behind each public privacy claim. People
 using Muni read the same in the app, at `/privacy`.
@@ -79,7 +81,9 @@ configured.
 - Email one-time codes are the only sign-in; no SSO or passkeys.
 - English only.
 - Tested mostly in Chromium; Safari/iOS and Firefox less thoroughly.
-- Not end-to-end encrypted; small teams and distinctive writing can reveal an author.
+- Encryption covers new sprints' content only, trusts the delivered frontend, and hasn't been
+  independently reviewed; authorship metadata stays visible to the service, and small teams and
+  distinctive writing can reveal an author.
 - Content of sprints that are never finished is not yet purged, and there is no self-service
   account deletion yet.
 

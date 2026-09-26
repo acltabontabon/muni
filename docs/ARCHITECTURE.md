@@ -113,7 +113,9 @@ This is application-level anonymity. It is implemented as follows.
 
 **Known limits** (stated in the product, not hidden): the operator, with database or backup
 access, can join `author_account_id` to accounts — the mitigation is operational, not
-cryptographic, and Muni is not end-to-end encrypted. Small teams and distinctive writing can
+cryptographic. New sprints' content is encrypted client-side (docs/ENCRYPTION.md), which removes
+the operator's stored ability to read it but not to see authorship or to ship a malicious
+frontend; legacy sprints stay plaintext. Small teams and distinctive writing can
 identify an author. Email verification proves control of a mailbox, not that a mailbox belongs
 to one person. Exports and AI requests are copies retention can't retract.
 

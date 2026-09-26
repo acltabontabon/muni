@@ -7,6 +7,10 @@ import type { SprintDetail, WorkspaceDetail } from '@/api/types'
 import { describeRetro, zoneName } from '@/lib/schedule'
 import { Button, ErrorText, Help, Input, Label, Select, Spinner, Switch, useDocumentTitle, useToast } from '@/ui'
 import { AppShell } from '@/ui/shell'
+import { keyring } from '@/lib/e2ee/keyring'
+import { b64u } from '@/lib/e2ee/crypto'
+import { useDeviceKeys } from '@/lib/e2ee/E2eeProvider'
+import { DeviceKeyNotice } from '@/ui/keys'
 
 const tzOptions = () => {
   try {
@@ -53,6 +57,7 @@ type Form = {
   reminders_enabled: boolean
   vote_budget: number
   include_facilitator_in_rotation: boolean
+  encrypt: boolean
 }
 
 /** What's missing or inconsistent, by field — the same rules the server applies. */
@@ -118,8 +123,11 @@ export function SprintSetup() {
     reminders_enabled: true,
     vote_budget: 3,
     include_facilitator_in_rotation: false,
+    encrypt: true,
   })
   useDocumentTitle(existing ? `Setup · ${existing.name}` : 'New sprint')
+  const { state: deviceKeys } = useDeviceKeys()
+  const [keyProblem, setKeyProblem] = useState('')
   useEffect(() => {
     ;(async () => {
       try {
@@ -146,6 +154,7 @@ export function SprintSetup() {
             reminders_enabled: s.reminders_enabled,
             vote_budget: s.vote_budget,
             include_facilitator_in_rotation: s.include_facilitator_in_rotation,
+            encrypt: s.encryption === 'e1',
           }))
         }
         const w = await get<WorkspaceDetail>(`/api/workspaces/${wid}`)
@@ -176,18 +185,47 @@ export function SprintSetup() {
     }
     setBusy(mode)
     setError('')
+    setKeyProblem('')
     try {
       const schedule = { timezone: f.timezone, starts_on: f.starts_on, ends_on: f.ends_on, retro_date: f.retro_date, retro_time: f.retro_time, retro_duration_min: Number(f.retro_duration_min) }
       if (existing) {
         const body: Record<string, unknown> = { name: f.name, external_ref: f.external_ref, goal: f.goal, opening_question: f.opening_question, schedule, facilitator_id: f.facilitator_id, reminders_enabled: f.reminders_enabled, vote_budget: Number(f.vote_budget), include_facilitator_in_rotation: f.include_facilitator_in_rotation }
-        if (existing.status === 'draft') body.ai_processing = f.ai_processing
+        if (existing.status === 'draft' && existing.encryption !== 'e1') body.ai_processing = f.ai_processing
+        const oldFac = existing.participants.find((p) => p.is_facilitator)?.account_id
+        if (existing.encryption === 'e1' && f.facilitator_id !== oldFac) {
+          // The sprint's key goes with the role, sealed on this device to the new facilitator.
+          const keys = await get<{ account_id: string; public_key: string }[]>(`/api/workspaces/${existing.workspace_id}/member-keys`)
+          const theirs = keys.find((k) => k.account_id === f.facilitator_id)
+          if (!theirs) {
+            setKeyProblem('They haven’t set up encryption yet, so they can’t hold this sprint’s key. Ask them to open Muni first, or keep the current facilitator.')
+            return
+          }
+          body.key_wraps = await keyring.wrapAllFor(existing.id, theirs)
+        }
         await patch(`/api/sprints/${existing.id}`, body)
         for (const id of f.participant_ids) if (!existing.participants.some((p) => p.account_id === id)) await post(`/api/sprints/${existing.id}/participants`, { account_id: id })
         for (const p of existing.participants) if (!f.participant_ids.includes(p.account_id) && !p.is_facilitator) await del(`/api/sprints/${existing.id}/participants/${p.account_id}`)
         toast('Setup saved')
         nav(`/sprints/${existing.id}`)
       } else {
-        const s = await post<SprintDetail>(`/api/workspaces/${wsParam}/sprints`, { name: f.name, external_ref: f.external_ref || undefined, goal: f.goal || undefined, opening_question: f.opening_question || undefined, ...schedule, participant_ids: f.participant_ids, facilitator_id: f.facilitator_id, ai_processing: f.ai_processing, reminders_enabled: f.reminders_enabled, vote_budget: Number(f.vote_budget), include_facilitator_in_rotation: f.include_facilitator_in_rotation })
+        let enc: Record<string, unknown> = {}
+        let opening: string | undefined = f.opening_question || undefined
+        if (f.encrypt) {
+          // Created here: the sprint's id, its first key, and that key sealed to the facilitator.
+          const me = keyring.accountId()
+          const mine = keyring.publicKey()
+          let facPk: string | undefined
+          if (f.facilitator_id === me) facPk = mine && deviceKeys.kind === 'ready' ? b64u(mine) : undefined
+          else facPk = (await get<{ account_id: string; public_key: string }[]>(`/api/workspaces/${wsParam}/member-keys`)).find((k) => k.account_id === f.facilitator_id)?.public_key
+          if (!facPk) {
+            setKeyProblem(f.facilitator_id === me ? 'Set up encryption on this device first (above), or create the sprint without encryption.' : 'The facilitator hasn’t set up encryption yet. Choose another facilitator, or create the sprint without encryption.')
+            return
+          }
+          const id = crypto.randomUUID()
+          enc = { id, encryption: 'e1', ...keyring.newSprintKey(id, 1, { account_id: f.facilitator_id, public_key: facPk }) }
+          if (opening) opening = keyring.sealForNew(id, 1, 'opening_question', opening)
+        }
+        const s = await post<SprintDetail>(`/api/workspaces/${wsParam}/sprints`, { name: f.name, external_ref: f.external_ref || undefined, goal: f.goal || undefined, opening_question: opening, ...schedule, participant_ids: f.participant_ids, facilitator_id: f.facilitator_id, ai_processing: f.ai_processing && !f.encrypt, reminders_enabled: f.reminders_enabled, vote_budget: Number(f.vote_budget), include_facilitator_in_rotation: f.include_facilitator_in_rotation, ...enc })
         if (mode === 'open') {
           try {
             await post(`/api/sprints/${s.id}/transition`, { to: 'collecting' })
@@ -301,7 +339,7 @@ export function SprintSetup() {
                 <option key={m.account_id} value={m.account_id}>{m.display_name}{m.is_you ? ' (you)' : ''}</option>
               ))}
             </Select>
-            <Help>Opens and closes collection, prepares the discussion and runs the retro. They also write and vote like everyone else.{!facilitatorIsYou ? ' Only they will be able to manage this sprint.' : ''}</Help>
+            {keyProblem ? <p className="mt-1.5 text-sm text-danger" role="alert">{keyProblem}</p> : <Help>Opens and closes collection, prepares the discussion and runs the retro. They also write and vote like everyone else.{!facilitatorIsYou ? ' Only they will be able to manage this sprint.' : ''}{f.encrypt ? ' While collecting, only their devices hold the key that reveals thoughts.' : ''}</Help>}
           </div>
           <fieldset>
             <div className="mb-1.5 flex items-center justify-between gap-3">
@@ -326,6 +364,17 @@ export function SprintSetup() {
             <Help>{ws.members.length <= 1 ? 'Just you so far. After creating the sprint, invite your team from its guide — they join this sprint directly.' : 'Someone missing? Invite them from the sprint’s guide once it’s created.'}</Help>
           </fieldset>
         </Section>
+
+        {!existing ? (
+          <Section n={4} title="Privacy" lead="What Muni’s servers can read.">
+            <Switch id="f-encrypt" checked={f.encrypt} onCheckedChange={(v) => set('encrypt', v)} label="Encrypt this sprint’s content" description="Thoughts, themes, notes, experiments and the recap are encrypted on participants’ devices before they reach Muni’s servers. The sprint’s name, goal, dates, people and categories stay readable — keep sensitive detail out of them. AI theme drafts aren’t available for encrypted sprints." />
+            {f.encrypt && facilitatorIsYou && deviceKeys.kind !== 'ready' ? <DeviceKeyNotice need="write" /> : null}
+          </Section>
+        ) : existing.encryption === 'e1' ? (
+          <p className="text-sm text-ink-soft">This sprint is encrypted: its content is sealed on participants’ devices.</p>
+        ) : (
+          <p className="text-sm text-ink-soft">This sprint isn’t encrypted — it was set up before encryption was available.</p>
+        )}
 
         <section className="border-t border-line/70 pt-6">
           <button type="button" className="inline-flex items-center gap-2 text-[15px] font-medium text-ink" onClick={() => setAdvanced((a) => !a)} aria-expanded={advanced} aria-controls="advanced">
@@ -352,7 +401,7 @@ export function SprintSetup() {
                 </div>
               </div>
               <Switch id="f-rot" checked={f.include_facilitator_in_rotation} onCheckedChange={(v) => set('include_facilitator_in_rotation', v)} label="Include the facilitator when inviting voices" description="Otherwise the facilitator guides and isn’t invited to speak in turn." />
-              {aiAvailable ? (
+              {aiAvailable && !f.encrypt && existing?.encryption !== 'e1' ? (
                 <Switch id="f-ai" checked={f.ai_processing} onCheckedChange={(v) => set('ai_processing', v)} disabled={locked} label="Offer AI theme drafts after collection closes" description={locked ? 'Decided before collection opened; it applies to the next sprint.' : `Thought text and opaque ids go to ${ws.workspace.ai_provider} — never names, emails or who wrote what. Participants can see this choice.`} />
               ) : null}
             </div>

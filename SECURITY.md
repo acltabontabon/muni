@@ -32,5 +32,7 @@ automated scanning, use social engineering, or test third-party services Muni de
 
 [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) describes the privacy boundary and authorization
 model; [`docs/security-review-2026-09.md`](docs/security-review-2026-09.md) records what was
-verified, what was fixed and what remains open. Muni's privacy is application-level: it is not
-end-to-end encrypted, and the service operator could technically associate entries with accounts.
+verified, what was fixed and what remains open. New sprints' content is encrypted on participants'
+devices ([`docs/ENCRYPTION.md`](docs/ENCRYPTION.md)); the service operator can still associate
+entries with accounts, read legacy sprints, and — by changing the frontend — defeat the encryption.
+Reports about the encryption design are especially welcome; it has not been independently audited.

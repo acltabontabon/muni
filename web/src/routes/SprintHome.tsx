@@ -16,6 +16,11 @@ import { GuidePanel, StepPips, useActionRunner } from '@/ui/guide'
 import { AppShell } from '@/ui/shell'
 import { RetroWhen } from '@/ui/when'
 import { InviteDialog } from './Workspace'
+import { DeviceKeyNotice, EncryptionLine } from '@/ui/keys'
+import { keyring } from '@/lib/e2ee/keyring'
+import { useDeviceKeys } from '@/lib/e2ee/E2eeProvider'
+import { Button } from '@/ui'
+import type { SprintKeyView } from '@/api/types'
 
 /**
  * A sprint's guide: where it is, what that means for you, and the next step. Participants write
@@ -47,11 +52,24 @@ export function SprintHome() {
       setError(err instanceof ApiError ? err.message : 'Couldn’t load this sprint')
     }
   }, [sprintId])
+  const keyKind = useDeviceKeys().state.kind
   useEffect(() => {
     load()
-  }, [load])
+  }, [load, keyKind])
   useLive(sprintId, (r) => { if (r === 'sprint' || r === 'commitments' || r === 'all') load() }, () => nav('/'))
-  const runner = useActionRunner({ id: sprintId }, { online: !offline, onChanged: (d) => setS(d), onInvite: () => setInviting(true) })
+  const { state: keys, changes } = useDeviceKeys()
+  const [access, setAccess] = useState<SprintKeyView | null>(null)
+  // Share this device's keys with anyone in the sprint who should have them and doesn't
+  // (never a still-sealed version, except to the facilitator), then show who still can't read.
+  useEffect(() => {
+    if (s?.encryption !== 'e1' || keys.kind !== 'ready') return
+    let live = true
+    keyring.shareMissing(sprintId).then(() => keyring.sprint(sprintId, true)).then((k) => live && setAccess(k?.view ?? null)).catch(() => {})
+    return () => {
+      live = false
+    }
+  }, [s?.encryption, s?.status, keys.kind, sprintId])
+  const runner = useActionRunner({ id: sprintId, status: s?.status, encryption: s?.encryption }, { online: !offline, onChanged: (d) => setS(d), onInvite: () => setInviting(true) })
 
   if (error)
     return (
@@ -71,7 +89,7 @@ export function SprintHome() {
     )
   const g = sprintGuide({ ...s, participant_count: s.participants.length }, { online: !offline })
   const collecting = s.status === 'collecting'
-  const dest = { workspaceId: s.workspace_id, sprintId, sprintName: s.name }
+  const dest = { workspaceId: s.workspace_id, sprintId, sprintName: s.name, encrypted: s.encryption === 'e1' }
   const showComposer = s.is_participant && (collecting || kept)
   const closedFacts =
     !['draft', 'collecting'].includes(s.status) && s.entry_count !== null ? (
@@ -100,7 +118,8 @@ export function SprintHome() {
 
       <div className="grid gap-12 lg:grid-cols-[minmax(0,1fr)_18rem] xl:grid-cols-[minmax(0,1fr)_20rem]">
         <div className="min-w-0 space-y-10">
-          <GuidePanel g={g} runner={runner} extra={closedFacts} composerShown={showComposer} />
+          {s.encryption === 'e1' ? <DeviceKeyNotice need={collecting && s.is_participant ? 'write' : 'read'} /> : null}
+          <GuidePanel g={g} runner={runner} extra={<>{closedFacts}{s.is_facilitator && s.encryption === 'e1' ? <AccessNote view={access} changes={changes.filter((c) => c.sprintId === sprintId)} status={s.status} /> : null}</>} composerShown={showComposer} />
           {showComposer ? (
             <div className="max-w-2xl">
             <Composer
@@ -145,6 +164,7 @@ export function SprintHome() {
           </section>
           <section aria-labelledby="details">
             <h2 id="details" className="font-display text-base">Privacy</h2>
+            <p className="mt-2 text-ink-soft"><EncryptionLine encryption={s.encryption} /></p>
             <p className="mt-2 text-ink-soft">
               AI theme drafts: <span className="text-ink">{s.ai_processing ? `on (${s.ai_provider})` : 'off'}</span>{s.ai_locked ? ', decided before collection opened' : ''}.{' '}
               Muni’s servers record who wrote each thought, and wording can still give someone away. <Link to="/privacy#visibility" className="underline underline-offset-2">Privacy &amp; data</Link>
@@ -157,3 +177,36 @@ export function SprintHome() {
     </AppShell>
   )
 }
+
+/** For the facilitator: who can't read yet, and keys that changed unexpectedly. */
+function AccessNote({ view, changes, status }: { view: SprintKeyView | null; changes: { accountId: string; name: string }[]; status: string }) {
+  if (!view?.participants) return null
+  const noKey = view.participants.filter((p) => !p.public_key)
+  const sealed = status === 'draft' || status === 'collecting'
+  const waiting = sealed ? [] : view.participants.filter((p) => p.public_key && !p.has_latest && !changes.some((c) => c.accountId === p.account_id))
+  if (!noKey.length && !waiting.length && !changes.length) return null
+  return (
+    <div className="mt-3 space-y-2 border-t border-line/70 pt-3 text-sm">
+      {noKey.length ? <p className="text-ink-soft"><span className="text-ink">{noKey.map((p) => p.display_name).join(', ')}</span> {noKey.length === 1 ? 'hasn’t' : 'haven’t'} set up encryption yet. {sealed ? 'They can still write once they do; ' : ''}they’ll get access automatically from a device that has it.</p> : null}
+      {waiting.length ? <p className="text-ink-soft">Waiting for access: {waiting.map((p) => p.display_name).join(', ')}. The next device with the key that opens this page shares it.</p> : null}
+      {changes.map((c) => <KeyChange key={c.accountId} c={c} view={view} />)}
+    </div>
+  )
+}
+
+function KeyChange({ c, view }: { c: { accountId: string; name: string }; view: SprintKeyView }) {
+  const p = view.participants?.find((x) => x.account_id === c.accountId)
+  return (
+    <div className="rounded-2xl bg-warn/10 px-3.5 py-2.5">
+      <p><strong className="font-medium">{c.name}’s encryption key changed.</strong> That happens when someone starts over after losing their devices — or if something is wrong. Muni won’t share this sprint with the new key until you confirm it with them.</p>
+      {p?.public_key ? (
+        <p className="mt-2 flex flex-wrap items-center gap-3">
+          <span className="text-ink-soft">New fingerprint: <span className="font-mono text-ink">{fingerprintOf(p.public_key)}</span></span>
+          <Button size="sm" onClick={() => keyring.acceptKeyChange(c.accountId, p.public_key!)}>They confirmed it</Button>
+        </p>
+      ) : null}
+    </div>
+  )
+}
+import { fingerprint, fromB64u } from '@/lib/e2ee/crypto'
+const fingerprintOf = (pk: string) => fingerprint(fromB64u(pk, 32))

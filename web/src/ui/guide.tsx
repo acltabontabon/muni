@@ -10,6 +10,8 @@ import { ApiError, post } from '@/api/client'
 import type { SprintDetail } from '@/api/types'
 import { CONFIRM_COPY, STEPS, type Action, type Confirm, type Guide, type Step } from '@/lib/lifecycle'
 import { Button, Dialog, useToast } from '@/ui'
+import { keyring } from '@/lib/e2ee/keyring'
+import { b64u } from '@/lib/e2ee/crypto'
 
 export function StepPips({ step }: { step: Step }) {
   const at = STEPS.findIndex((s) => s.id === step)
@@ -29,7 +31,7 @@ export function StepPips({ step }: { step: Step }) {
 const variant = (a: Action) => (a.tone === 'primary' ? 'primary' : a.tone === 'secondary' ? 'secondary' : 'ghost') as 'primary' | 'secondary' | 'ghost'
 
 /** Runs an action: links navigate, writing focuses the composer, transitions confirm first when they matter. */
-export function useActionRunner(s: Pick<SprintDetail, 'id'>, opts: { onChanged: (d: SprintDetail) => void; onInvite?: () => void; online: boolean }) {
+export function useActionRunner(s: Pick<SprintDetail, 'id'> & Partial<Pick<SprintDetail, 'status' | 'encryption'>>, opts: { onChanged: (d: SprintDetail) => void; onInvite?: () => void; online: boolean }) {
   const nav = useNavigate()
   const toast = useToast()
   const [confirming, setConfirming] = useState<(Action & { kind: 'transition' }) | null>(null)
@@ -37,12 +39,14 @@ export function useActionRunner(s: Pick<SprintDetail, 'id'>, opts: { onChanged: 
   const transition = async (a: Action & { kind: 'transition' }) => {
     setBusy(a.to)
     try {
-      const d = await post<SprintDetail>(`/api/sprints/${s.id}/transition`, { to: a.to, confirm: !!a.confirm })
+      const extra = s.encryption === 'e1' ? await encryptedTransition(s.id, s.status ?? '', a.to) : {}
+      const d = await post<SprintDetail>(`/api/sprints/${s.id}/transition`, { to: a.to, confirm: !!a.confirm, ...extra })
+      keyring.forgetSprint(s.id)
       setConfirming(null)
       opts.onChanged(d)
       if (a.then) nav(a.then)
     } catch (err) {
-      toast(err instanceof ApiError ? sentence(err.message) : 'Couldn’t change the sprint', 'danger')
+      toast(err instanceof ApiError ? sentence(err.message) : err instanceof Error ? err.message : 'Couldn’t change the sprint', 'danger')
     } finally {
       setBusy(null)
     }
@@ -67,6 +71,27 @@ export function useActionRunner(s: Pick<SprintDetail, 'id'>, opts: { onChanged: 
   )
   const dialog = confirming ? <ConfirmDialog kind={confirming.confirm!} busy={!!busy} onCancel={() => setConfirming(null)} onConfirm={() => transition(confirming)} /> : null
   return { run, button, dialog }
+}
+
+/**
+ * Encrypted sprints: closing collection is the reveal — this device seals the sprint's secret to
+ * each participant. Reopening starts a fresh key version that only the facilitator holds.
+ */
+async function encryptedTransition(sprintId: string, from: string, to: string): Promise<Record<string, unknown>> {
+  if (from === 'collecting' && to === 'preparing') {
+    const k = await keyring.sprint(sprintId, true)
+    if (!k?.view.sealed_version || !k.keys.has(k.view.sealed_version)) throw new Error('This device doesn’t have the sprint’s key, so it can’t reveal the thoughts. Unlock this device with your recovery key first.')
+    return { key_wraps: await keyring.missingWraps(sprintId, { reveal: true }) }
+  }
+  if (from === 'preparing' && to === 'collecting') {
+    const k = await keyring.sprint(sprintId, true)
+    const me = keyring.accountId()
+    const pk = keyring.publicKey()
+    if (!me || !pk || !k) throw new Error('Unlock this device first.')
+    const latest = k.view.versions?.at(-1)?.version ?? 0
+    return keyring.newSprintKey(sprintId, latest + 1, { account_id: me, public_key: b64u(pk) })
+  }
+  return {}
 }
 
 export function ConfirmDialog({ kind, onConfirm, onCancel, busy }: { kind: Confirm; onConfirm: () => void; onCancel: () => void; busy?: boolean }) {

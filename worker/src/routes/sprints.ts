@@ -9,6 +9,8 @@ import { hint, revokeLive, room, roomCall } from '../lib/live'
 import { addDays, daysBetween, localDate, localLabel, nonempty, optional, resolveLocal } from '../lib/util'
 import { cancelReminders, scheduleReminders } from '../jobs'
 import { defaultPlan } from '../room'
+import { content, ENCRYPTION, isEncrypted, publicKey } from '../lib/sealed'
+import { sealedVersion, wrapStatements } from './keys'
 
 export const sprints = new Hono<HonoEnv>()
 
@@ -58,6 +60,7 @@ interface FullRow {
   session_started_at: number | null
   session_ended_at: number | null
   session_cancelled: number
+  encryption: string | null
 }
 const iso = (n: number | null | undefined) => (n === null || n === undefined ? null : new Date(n).toISOString())
 
@@ -86,6 +89,7 @@ async function summary(db: D1Database, r: FullRow, me: string) {
     is_participant: !!mine,
     reminders_enabled: bool(r.reminders_enabled),
     my_reminders_opt_out: !!mine && bool(mine.reminders_opt_out),
+    encryption: isEncrypted(r) ? ENCRYPTION : null,
   }
 }
 
@@ -161,7 +165,11 @@ sprints.post('/api/workspaces/:workspaceId/sprints', async (c) => {
   const name = nonempty(body.name, 120, 'Sprint name')
   const external_ref = optional(body.external_ref, 60, 'External id')
   const goal = optional(body.goal, 300, 'Sprint goal')
-  const opening_question = optional(body.opening_question, 200, 'Opening question')
+  // New sprints can be encrypted: their content is sealed on participants' devices. Name, goal,
+  // dates, people and categories stay readable metadata (docs/ENCRYPTION.md).
+  const encrypted = body.encryption === ENCRYPTION
+  if (body.encryption !== undefined && body.encryption !== null && !encrypted) throw bad('unknown encryption format')
+  const opening_question = content(encrypted, body.opening_question, 200, 'Opening question', false)
   const sch = validateSchedule(body)
   const budget = Number(body.vote_budget ?? 3)
   if (!(budget >= 1 && budget <= 10)) throw bad('votes per person must be between 1 and 10')
@@ -169,19 +177,39 @@ sprints.post('/api/workspaces/:workspaceId/sprints', async (c) => {
   const ids = new Set<string>([...((body.participant_ids as string[]) ?? []).map(String), facilitator])
   if (ids.size > 60) throw bad('a sprint can have at most 60 participants')
   for (const id of ids) if (!(await activeMember(c.env.DB, m.workspaceId, id))) throw bad('every participant must be a member of this workspace')
-  const id = uuid()
+  // An encrypted sprint's keys are bound to its id before it exists, so the client chooses it.
+  if (encrypted && (typeof body.id !== 'string' || !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/.test(body.id))) throw bad('an encrypted sprint needs its id from your device')
+  if (encrypted && (await count(c.env.DB, 'SELECT count(*) AS n FROM sprints WHERE id = ?', body.id))) throw conflict('that sprint id is taken')
+  const id = encrypted ? (body.id as string) : uuid()
   const now = Date.now()
   const stmts: [string, ...unknown[]][] = [
     [
       `INSERT INTO sprints (id, workspace_id, name, external_ref, goal, opening_question, timezone, starts_on, ends_on, retro_at, retro_local_date, retro_local_time, retro_duration_min,
-        ai_processing, reminders_enabled, vote_budget, include_facilitator_in_rotation, created_by, created_at, updated_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+        ai_processing, reminders_enabled, vote_budget, include_facilitator_in_rotation, created_by, created_at, updated_at, encryption) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
       id, m.workspaceId, name, external_ref, goal, opening_question, sch.timezone, sch.starts_on, sch.ends_on, sch.retro_at, sch.retro_date, sch.retro_time, sch.retro_duration_min,
-      body.ai_processing && cfg.ai !== 'none' ? 1 : 0, body.reminders_enabled === false ? 0 : 1, budget, body.include_facilitator_in_rotation ? 1 : 0, m.auth.account.id, now, now,
+      // External AI never sees encrypted content: there is no disclosed processing model for it.
+      body.ai_processing && cfg.ai !== 'none' && !encrypted ? 1 : 0, body.reminders_enabled === false ? 0 : 1, budget, body.include_facilitator_in_rotation ? 1 : 0, m.auth.account.id, now, now, encrypted ? ENCRYPTION : null,
     ],
   ]
+  if (encrypted) {
+    const key = (body.sprint_key ?? {}) as { public_key?: unknown }
+    stmts.push(['INSERT INTO sprint_keys (sprint_id, version, public_key, created_by, created_at) VALUES (?,1,?,?,?)', id, publicKey(key.public_key), m.auth.account.id, now])
+  }
   for (const pid of ids) stmts.push(['INSERT INTO sprint_participants (sprint_id, account_id, is_facilitator, created_at) VALUES (?,?,?,?)', id, pid, pid === facilitator ? 1 : 0, now])
   stmts.push(['INSERT INTO audit_events (workspace_id, sprint_id, actor_id, action, meta, created_at) VALUES (?,?,?,?,?,?)', m.workspaceId, id, m.auth.account.id, 'sprint.created', '{}', now])
   await batch(c.env.DB, stmts)
+  if (encrypted) {
+    // The facilitator must be able to hold the key: their wrap is required, and nobody else's is allowed.
+    const wraps = Array.isArray(body.key_wraps) ? body.key_wraps : []
+    try {
+      if (!wraps.some((w: { account_id?: unknown }) => w?.account_id === facilitator)) throw bad('an encrypted sprint needs its key sealed to the facilitator')
+      const ws = await wrapStatements(c.env.DB, id, m.auth.account.id, wraps, { sealedVersion: 1 })
+      await batch(c.env.DB, ws)
+    } catch (e) {
+      await run(c.env.DB, 'DELETE FROM sprints WHERE id = ?', id)
+      throw e
+    }
+  }
   return c.json(await detail(c.env, await loadSprintCtx(c.env.DB, m.auth, id)))
 })
 
@@ -231,7 +259,8 @@ sprints.patch('/api/sprints/:sprintId', async (c) => {
   if (body.name !== undefined) await run(db, 'UPDATE sprints SET name = ?, updated_at = ? WHERE id = ?', nonempty(body.name, 120, 'Sprint name'), Date.now(), sid)
   if (body.external_ref !== undefined) await run(db, 'UPDATE sprints SET external_ref = ? WHERE id = ?', optional(body.external_ref, 60, 'External id'), sid)
   if (body.goal !== undefined) await run(db, 'UPDATE sprints SET goal = ? WHERE id = ?', optional(body.goal, 300, 'Sprint goal'), sid)
-  if (body.opening_question !== undefined) await run(db, 'UPDATE sprints SET opening_question = ? WHERE id = ?', optional(body.opening_question, 200, 'Opening question'), sid)
+  const encrypted = isEncrypted(ctx.sprint)
+  if (body.opening_question !== undefined) await run(db, 'UPDATE sprints SET opening_question = ? WHERE id = ?', content(encrypted, body.opening_question, 200, 'Opening question', false), sid)
   if (body.schedule) {
     const sch = validateSchedule(body.schedule as ScheduleInput)
     await run(db, 'UPDATE sprints SET timezone=?, starts_on=?, ends_on=?, retro_at=?, retro_local_date=?, retro_local_time=?, retro_duration_min=?, updated_at=? WHERE id=?', sch.timezone, sch.starts_on, sch.ends_on, sch.retro_at, sch.retro_date, sch.retro_time, sch.retro_duration_min, Date.now(), sid)
@@ -241,7 +270,7 @@ sprints.patch('/api/sprints/:sprintId', async (c) => {
   if (body.ai_processing !== undefined) {
     // Never widen processing after people have submitted.
     if (ctx.sprint.status !== 'draft' && body.ai_processing && !bool(ctx.sprint.ai_processing)) throw conflict('AI processing can’t be turned on after collection has started — it applies to the next sprint')
-    await run(db, 'UPDATE sprints SET ai_processing = ? WHERE id = ?', body.ai_processing && cfg.ai !== 'none' ? 1 : 0, sid)
+    await run(db, 'UPDATE sprints SET ai_processing = ? WHERE id = ?', body.ai_processing && cfg.ai !== 'none' && !encrypted ? 1 : 0, sid)
   }
   if (body.reminders_enabled !== undefined) {
     await run(db, 'UPDATE sprints SET reminders_enabled = ? WHERE id = ?', body.reminders_enabled ? 1 : 0, sid)
@@ -258,7 +287,18 @@ sprints.patch('/api/sprints/:sprintId', async (c) => {
   if (body.facilitator_id !== undefined) {
     const fid = String(body.facilitator_id)
     if (!(await count(db, 'SELECT count(*) AS n FROM sprint_participants WHERE sprint_id = ? AND account_id = ?', sid, fid))) throw bad('the facilitator must be a participant')
-    await run(db, 'UPDATE sprint_participants SET is_facilitator = (account_id = ?) WHERE sprint_id = ?', fid, sid)
+    const before = await one<{ account_id: string }>(db, 'SELECT account_id FROM sprint_participants WHERE sprint_id = ? AND is_facilitator = 1', sid)
+    if (encrypted && before?.account_id !== fid) {
+      // The key moves with the role: the new facilitator's wrap arrives in the same request, and
+      // while collecting, nobody else keeps one.
+      const sealedV = await sealedVersion(db, sid, ctx.sprint.status)
+      const has = sealedV === null || (await count(db, 'SELECT count(*) AS n FROM sprint_key_wraps WHERE sprint_id = ? AND version = ? AND account_id = ?', sid, sealedV, fid)) > 0
+      const wraps = Array.isArray(body.key_wraps) ? body.key_wraps : []
+      if (!has && !wraps.some((w: { account_id?: unknown }) => w?.account_id === fid)) throw conflict('the new facilitator needs the sprint’s key — open the setup from a device that has it')
+      await run(db, 'UPDATE sprint_participants SET is_facilitator = (account_id = ?) WHERE sprint_id = ?', fid, sid)
+      await batch(db, await wrapStatements(db, sid, ctx.auth.account.id, wraps, { sealedVersion: sealedV }))
+      if (sealedV !== null) await run(db, 'DELETE FROM sprint_key_wraps WHERE sprint_id = ? AND version = ? AND account_id <> ?', sid, sealedV, fid)
+    } else await run(db, 'UPDATE sprint_participants SET is_facilitator = (account_id = ?) WHERE sprint_id = ?', fid, sid)
   }
   await audit(db, ctx.sprint.workspace_id, sid, ctx.auth.account.id, 'sprint.updated')
   await hint(c.env, sid, 'sprint')
@@ -312,7 +352,7 @@ export async function ensureRoom(env: HonoEnv['Bindings'], ctx: SprintCtx) {
 sprints.post('/api/sprints/:sprintId/transition', async (c) => {
   const ctx = await requireSprint(c, config(c.env), c.env.DB, c.req.param('sprintId'))
   requireFacilitator(ctx)
-  const body = (await c.req.json().catch(() => ({}))) as { to?: string; confirm?: boolean }
+  const body = (await c.req.json().catch(() => ({}))) as { to?: string; confirm?: boolean; key_wraps?: unknown; sprint_key?: { version?: unknown; public_key?: unknown } }
   const to = String(body.to ?? '')
   if (!STATUSES.includes(to)) throw bad('unknown status')
   const db = c.env.DB
@@ -321,6 +361,7 @@ sprints.post('/api/sprints/:sprintId/transition', async (c) => {
   const from = row.status
   if (!allowedTransitions(from, true).includes(to)) throw conflict(`can’t move from ${from} to ${to}`)
   const now = Date.now()
+  const encrypted = isEncrypted(ctx.sprint)
   // Every transition is a conditional UPDATE on the previous status: two concurrent transitions can't both win.
   const guard = async (sql: string, ...args: unknown[]) => {
     const r = await run(db, sql, ...args)
@@ -337,9 +378,13 @@ sprints.post('/api/sprints/:sprintId/transition', async (c) => {
       if (body.confirm !== true) throw conflict('closing collection reveals everyone’s entries to the sprint’s participants — confirm to continue')
       // One transaction: flip the status and assign random reveal order. Submissions check the status in
       // their own single statement, so an entry is either fully in before this batch or refused after it.
+      // Encrypted: the reveal is the facilitator's client sealing the sprint secret to each
+      // participant, stored in the same batch as the status change.
+      const wraps = encrypted ? await wrapStatements(db, sid, ctx.auth.account.id, body.key_wraps, { sealedVersion: null }) : []
       const res = await batch(db, [
         ["UPDATE sprints SET status='preparing', collection_closed_at=?, revealed_once=1, updated_at=? WHERE id=? AND status='collecting'", now, now, sid],
         ['UPDATE entries SET reveal_order = abs(random()) % 2147483647 WHERE sprint_id = ?', sid],
+        ...wraps,
       ])
       if (!res[0].meta.changes) throw conflict('the sprint changed while you were working — reload and try again')
       await cancelReminders(db, sid)
@@ -347,11 +392,32 @@ sprints.post('/api/sprints/:sprintId/transition', async (c) => {
     }
     case 'preparing>collecting': {
       if (body.confirm !== true) throw conflict('reopening keeps what participants have already seen visible in their history — confirm to continue')
+      // Encrypted: thoughts written after reopening go to a fresh key version that, again, only the
+      // facilitator holds until collection closes.
+      const next: [string, ...unknown[]][] = []
+      if (encrypted) {
+        const latest = (await one<{ v: number }>(db, 'SELECT MAX(version) AS v FROM sprint_keys WHERE sprint_id = ?', sid))?.v ?? 0
+        if (Number(body.sprint_key?.version) !== latest + 1) throw conflict('reopening an encrypted sprint needs a new key from your device — reload and try again')
+        const pk = publicKey(body.sprint_key?.public_key)
+        const wraps = Array.isArray(body.key_wraps) ? body.key_wraps : []
+        if (!wraps.some((w: { account_id?: unknown; version?: unknown }) => w?.account_id === ctx.auth.account.id && Number(w?.version) === latest + 1)) throw bad('the new key must be sealed to you')
+        await run(db, 'INSERT INTO sprint_keys (sprint_id, version, public_key, created_by, created_at) VALUES (?,?,?,?,?)', sid, latest + 1, pk, ctx.auth.account.id, now)
+        try {
+          next.push(...(await wrapStatements(db, sid, ctx.auth.account.id, wraps, { sealedVersion: latest + 1 })))
+        } catch (e) {
+          await run(db, 'DELETE FROM sprint_keys WHERE sprint_id = ? AND version = ?', sid, latest + 1)
+          throw e
+        }
+      }
       const res = await batch(db, [
         ["UPDATE vote_rounds SET status='cancelled', cancel_reason='collection reopened', closed_at=? WHERE sprint_id=? AND status='open'", now, sid],
         ["UPDATE sprints SET status='collecting', reopened_count=reopened_count+1, grouping_revision=grouping_revision+1, updated_at=? WHERE id=? AND status='preparing'", now, sid],
+        ...next,
       ])
-      if (!res[1].meta.changes) throw conflict('the sprint changed while you were working — reload and try again')
+      if (!res[1].meta.changes) {
+        if (encrypted) await run(db, "DELETE FROM sprint_keys WHERE sprint_id = ? AND version = (SELECT MAX(version) FROM sprint_keys WHERE sprint_id = ?) AND (SELECT status FROM sprints WHERE id = ?) <> 'collecting'", sid, sid, sid)
+        throw conflict('the sprint changed while you were working — reload and try again')
+      }
       break
     }
     case 'preparing>ready':

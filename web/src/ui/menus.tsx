@@ -14,6 +14,8 @@ import { useLocal } from '@/lib/local/LocalProvider'
 import { applyTheme, forgetSignedInState, readPrefs, writePrefs } from '@/lib/prefs'
 import { installInstructions, promptInstall, usePwa } from '@/lib/pwa'
 import { chooseWorkspace } from '@/lib/workspace'
+import { keyring } from '@/lib/e2ee/keyring'
+import { useDeviceKeys } from '@/lib/e2ee/E2eeProvider'
 import { Button, Dialog, ErrorText, Input, Label, Switch, useToast } from '@/ui'
 
 const panel = 'z-50 w-[min(20rem,calc(100vw-24px))] rounded-2xl border border-line bg-card p-1.5 shadow-[var(--shadow-float)] anim-rise'
@@ -245,6 +247,9 @@ export function LeaveDialog({ kind, onClose, stay }: { kind: 'signout' | 'clear'
   }, [kind, local])
   const queued = local.items.length
   const unsent = queued + drafts
+  const { state: keys } = useDeviceKeys()
+  // Signing out removes this device's key. If the recovery key was never saved, that may be the only copy.
+  const onlyCopy = kind === 'signout' && keys.kind === 'ready' && !keys.recoverySaved
   const act = async () => {
     setBusy(true)
     setError('')
@@ -260,6 +265,7 @@ export function LeaveDialog({ kind, onClose, stay }: { kind: 'signout' | 'clear'
           }
         }
         await local.clearLocal()
+        await keyring.forget()
         forgetSignedInState()
         signOutLocal()
         if (!stay) nav('/signin')
@@ -288,6 +294,11 @@ export function LeaveDialog({ kind, onClose, stay }: { kind: 'signout' | 'clear'
   return (
     <Dialog open={!!kind} onOpenChange={(o) => !o && onClose()} title={title}>
       {body}
+      {onlyCopy ? (
+        <p className="mt-3 rounded-2xl bg-warn/10 px-3.5 py-2.5 text-sm">
+          <strong className="font-medium">You haven’t saved your recovery key.</strong> Signing out removes your encryption key from this device. If no other device has it, you’ll lose access to encrypted content. <Link to="/account#encryption" className="underline underline-offset-2" onClick={onClose}>Save your recovery key first</Link>.
+        </p>
+      ) : null}
       <ErrorText>{error}</ErrorText>
       <div className="mt-6 flex flex-wrap justify-end gap-2">
         <Button variant="ghost" onClick={onClose}>Cancel</Button>

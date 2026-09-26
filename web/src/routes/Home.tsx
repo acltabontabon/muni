@@ -19,11 +19,12 @@ import { NewWorkspaceDialog } from '@/ui/menus'
 import { AppShell } from '@/ui/shell'
 import { Postcard } from '@/ui/art'
 import { RetroWhen } from '@/ui/when'
+import { DeviceKeyNotice } from '@/ui/keys'
 
 type Sprintish = Pick<SprintSummary, 'id' | 'workspace_id' | 'name' | 'status' | 'retro_local' | 'timezone'> & Partial<SprintSummary>
 type Loaded = { capture: CaptureTarget | null; sprints: SprintSummary[] | null; experiments: Experiment[] | null; cached: { sprint: ContextSprint; workspaceName: string | null; fetchedAt: number }[]; offline: boolean }
 
-const toDest = (s: Sprintish): Destination => ({ workspaceId: s.workspace_id, sprintId: s.id, sprintName: s.name })
+const toDest = (s: Sprintish): Destination => ({ workspaceId: s.workspace_id, sprintId: s.id, sprintName: s.name, encrypted: s.encryption === 'e1' })
 
 /**
  * The participant's home: where you are (workspace, sprint, its status and retro time), one place
@@ -155,6 +156,7 @@ export function Home() {
         <Context ws={ws} s={composerFor} status={dest ? 'collecting' : 'closed-now'} elsewhere={elsewhere} me={me} several={collectingHere.length > 1} />
         <div className="grid gap-12 lg:grid-cols-[minmax(0,29rem)_minmax(0,1fr)] xl:grid-cols-[minmax(0,34rem)_minmax(0,1fr)] xl:gap-14">
           <div className="home-compose min-w-0 space-y-4 self-start">
+            {composerFor.encryption === 'e1' ? <DeviceKeyNotice need="write" /> : null}
             <Composer
               key={`${composerFor.id}:${local.cleared}`}
               dest={dest ? toDest(dest) : null}
@@ -226,6 +228,9 @@ function Context({ ws, s, status, elsewhere, me, several }: { ws: Me['workspaces
         ) : (
           <span className="inline-flex items-center gap-1.5 rounded-full bg-warn/12 px-2.5 py-0.5 text-[13px] font-medium text-warn"><span className="dot dot--attention" aria-hidden /> Collection closed</span>
         )}
+        <Link to="/privacy#encryption" className="rounded-full px-2 py-0.5 text-[12px] text-ink-soft shadow-[0_0_0_1px_var(--line)] hover:text-ink" title={s.encryption === 'e1' ? 'Content is encrypted on participants’ devices' : 'Set up before encryption: stored readable to Muni’s servers'}>
+          {s.encryption === 'e1' ? 'Encrypted' : 'Not encrypted'}
+        </Link>
         <nav aria-label="You are here" className="min-w-0 text-ink-soft">
           {ws ? <Link to={`/workspaces/${ws.id}`} className="hover:text-ink hover:underline">{ws.name}</Link> : null}
           <span aria-hidden className="mx-1.5 text-ink-faint">/</span>

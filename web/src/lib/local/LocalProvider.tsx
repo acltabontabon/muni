@@ -7,10 +7,11 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useRef, use
 import { csrfToken } from '@/api/client'
 import { adoptLegacyKeep, keptAccounts, setKeepsLocal } from '@/lib/prefs'
 import { flush, nextDue, type FlushResult } from './outbox'
+import { keyring } from '@/lib/e2ee/keyring'
 import { deviceStore, destroyDeviceStore, emptyPayload, hasText, memoryStore, RECORD_VERSION, StorageError, type ContextSprint, type Draft, type LocalStore, type OutboxItem, type Payload } from './store'
 
 export type SyncState = 'idle' | 'sending' | 'offline' | 'signed_out' | 'upgrade'
-export type Destination = { workspaceId: string; sprintId: string; sprintName: string }
+export type Destination = { workspaceId: string; sprintId: string; sprintName: string; encrypted?: boolean }
 
 type LocalApi = {
   keepLocal: boolean
@@ -92,7 +93,7 @@ export function LocalProvider({ accountId, children }: { accountId: string | nul
       flushing.current = true
       setSync('sending')
       try {
-        const r = await flush({ store: storeRef.current, fetch: (i, init) => fetch(i, init), csrf: async () => csrfToken() || null, notify: () => { reload(); channel?.postMessage('changed') } }, { force })
+        const r = await flush({ store: storeRef.current, fetch: (i, init) => fetch(i, init), csrf: async () => csrfToken() || null, notify: () => { reload(); channel?.postMessage('changed') }, seal: sealThought }, { force })
         setSync(r.state === 'ok' || r.state === 'locked' ? 'idle' : r.state)
         if (r.submitted.length) setRecent((prev) => [...prev, ...r.submitted.map((s) => s.id)].slice(-20))
         if (r.state === 'offline') registerBackgroundSync()
@@ -166,7 +167,7 @@ export function LocalProvider({ accountId, children }: { accountId: string | nul
       const now = Date.now()
       const item: OutboxItem = {
         id: crypto.randomUUID(), accountId: need(), workspaceId: dest.workspaceId, sprintId: dest.sprintId, sprintName: dest.sprintName,
-        payload, revision: 1, status: 'queued', attempts: 0, nextAttemptAt: 0, sendingSince: null, reason: null, message: null, createdAt: now, updatedAt: now, v: RECORD_VERSION,
+        payload, revision: 1, status: 'queued', attempts: 0, nextAttemptAt: 0, sendingSince: null, reason: null, message: null, createdAt: now, updatedAt: now, v: RECORD_VERSION, encrypted: dest.encrypted || undefined,
       }
       // Persisted (atomically, with the draft removed) before anyone is told it was saved.
       await guard(() => store.enqueue(item))
@@ -265,6 +266,23 @@ export function LocalProvider({ accountId, children }: { accountId: string | nul
   }, [accountId, cleared, guard, items, keepLocal, recentlySubmitted, reload, run, storageError, store, sync])
 
   return <Ctx.Provider value={api}>{children}</Ctx.Provider>
+}
+
+/** Seals a queued thought for an encrypted sprint. Null for legacy sprints (sent as they are). */
+async function sealThought(item: OutboxItem, plain: Record<string, unknown>): Promise<Record<string, unknown> | null> {
+  let encrypted = item.encrypted
+  if (!encrypted) {
+    try {
+      encrypted = await keyring.isEncrypted(item.sprintId)
+    } catch (e) {
+      // Can't tell (offline, no access): don't guess. The send itself reports what's wrong.
+      if ((e as { status?: number }).status === 0) throw e
+      return null
+    }
+  }
+  if (!encrypted) return null
+  const body = await keyring.sealThought(item.sprintId, item.id, { body: item.payload.body, impact: item.payload.impact || null, might_help: item.payload.might_help || null })
+  return { id: item.id, body, category: plain.category, period: plain.period, idempotency_key: item.id, author_account_id: item.accountId }
 }
 
 function registerBackgroundSync() {

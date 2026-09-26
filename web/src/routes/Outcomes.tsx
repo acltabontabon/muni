@@ -10,6 +10,9 @@ import { AppShell, PageTitle } from '@/ui/shell'
 import { ExperimentEditor } from '@/ui/experiments'
 import { Postcard } from '@/ui/art'
 import { shortDate } from '@/lib/schedule'
+import type { GroupingView } from '@/api/types'
+import { download, fileName, rawMarkdown, recapDraft, summaryCsv, summaryMarkdown } from '@/lib/e2ee/local-export'
+import { EncryptionLine } from '@/ui/keys'
 
 export function Outcomes() {
   const { sprintId = '' } = useParams()
@@ -48,18 +51,33 @@ export function Outcomes() {
       </AppShell>
     )
   const fac = s.is_facilitator
+  const encrypted = s.encryption === 'e1'
+  // Encrypted: exports and the recap draft are made here, from what this device decrypted.
+  const themes = () => get<GroupingView>(`/api/sprints/${sprintId}/themes`).catch(() => null)
+  const btn = 'inline-flex h-9 items-center gap-2 rounded-full border border-line bg-card px-3.5 text-sm'
   const meId = s.participants.find((p) => p.is_you)?.account_id
   return (
     <AppShell>
       {['completed', 'archived'].includes(s.status) ? <Postcard framing="wide" lights={4} className="mb-8 aspect-[3.2/1] w-full sm:aspect-[4.2/1]" /> : null}
       <PageTitle eyebrow={<Link to={`/sprints/${sprintId}`} className="hover:underline">{s.name}</Link>} title={<>What we’ll <em>try next</em></>} actions={
         <>
-          <a className="inline-flex h-9 items-center gap-2 rounded-full border border-line bg-card px-3.5 text-sm" href={`/api/sprints/${sprintId}/export.md`} download><Download className="size-4" /> Summary (.md)</a>
-          <a className="inline-flex h-9 items-center gap-2 rounded-full border border-line bg-card px-3.5 text-sm" href={`/api/sprints/${sprintId}/export.csv`} download><Download className="size-4" /> Summary (.csv)</a>
-          {fac ? <a className="inline-flex h-9 items-center gap-2 rounded-full border border-dashed border-line px-3.5 text-sm text-ink-soft" href={`/api/sprints/${sprintId}/export.md?scope=raw`} download>Raw notes (.md)</a> : null}
+          {encrypted ? (
+            <>
+              <button className={btn} onClick={async () => download(fileName(s, 'summary', 'md'), summaryMarkdown(s, await themes(), exps, recap.exists ? recap.body : null))}><Download className="size-4" /> Summary (.md)</button>
+              <button className={btn} onClick={async () => download(fileName(s, 'summary', 'csv'), summaryCsv(await themes()), 'text/csv')}><Download className="size-4" /> Summary (.csv)</button>
+              {fac ? <button className={`${btn} border-dashed text-ink-soft`} onClick={async () => download(fileName(s, 'raw-notes', 'md'), rawMarkdown(s, await themes()))}>Raw notes (.md)</button> : null}
+            </>
+          ) : (
+            <>
+              <a className={btn} href={`/api/sprints/${sprintId}/export.md`} download><Download className="size-4" /> Summary (.md)</a>
+              <a className={btn} href={`/api/sprints/${sprintId}/export.csv`} download><Download className="size-4" /> Summary (.csv)</a>
+              {fac ? <a className={`${btn} border-dashed text-ink-soft`} href={`/api/sprints/${sprintId}/export.md?scope=raw`} download>Raw notes (.md)</a> : null}
+            </>
+          )}
         </>
       }>
-        The changes the team agreed to, when to look back at them, and the recap. Exports never include who wrote what, when, or anyone’s votes.
+        The changes the team agreed to, when to look back at them, and the recap. Exports never include who wrote what, when, or anyone’s votes.{encrypted ? ' This sprint’s files are made on your device; the downloaded files aren’t encrypted.' : ''}
+        <span className="mt-1 block text-sm"><EncryptionLine encryption={s.encryption} /></span>
       </PageTitle>
       <div className="grid gap-8 lg:grid-cols-[1fr_1fr]">
         <section>
@@ -101,7 +119,7 @@ export function Outcomes() {
               <Textarea rows={18} value={draft} onChange={(e) => setDraft(e.target.value)} className="font-mono text-sm" aria-label="Recap (Markdown)" />
               <Help>Generated from the meeting record when you ask for a draft; everything here is editable. Publishing makes it visible to participants. Nothing is emailed automatically.</Help>
               <div className="mt-3 flex flex-wrap gap-2">
-                <Button size="sm" onClick={async () => { const r = await put<Recap>(`/api/sprints/${sprintId}/recap`, {}); setRecap(r); setDraft(r.body); toast('Draft regenerated from the meeting record') }}>Regenerate draft</Button>
+                <Button size="sm" onClick={async () => { if (encrypted) { setDraft(recapDraft(s, await themes(), exps)); toast('Draft written from the meeting record — save to keep it'); return } const r = await put<Recap>(`/api/sprints/${sprintId}/recap`, {}); setRecap(r); setDraft(r.body); toast('Draft regenerated from the meeting record') }}>{encrypted ? 'Draft from the meeting' : 'Regenerate draft'}</Button>
                 <Button size="sm" onClick={async () => { const r = await put<Recap>(`/api/sprints/${sprintId}/recap`, { body: draft }); setRecap(r); toast('Saved') }}>Save</Button>
                 <Button size="sm" variant="primary" onClick={async () => { const r = await put<Recap>(`/api/sprints/${sprintId}/recap`, { body: draft, publish: true }); setRecap(r); toast('Recap published to participants') }}>Publish</Button>
               </div>

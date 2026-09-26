@@ -28,6 +28,7 @@ export function StatusDot({ state, className }: { state: ThoughtState; className
 }
 
 export function StatusLabel({ state, children }: { state: ThoughtState; children?: React.ReactNode }) {
+  // (children overrides the words, e.g. “Waiting for this device’s key”.)
   return (
     <span className={clsx('inline-flex items-center gap-1.5 text-xs', state === 'attention' ? 'text-warn' : state === 'submitted' ? 'text-ink-faint' : 'text-accent-ink')}>
       <StatusDot state={state} />

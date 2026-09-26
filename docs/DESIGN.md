@@ -58,28 +58,28 @@ request happens on sensitive screens.
 
 ## Colour
 
-Light (default, capture and preparation):
+The app shares the entrance's palette (`web/src/styles.css`). Light is *dapithapon*, late
+afternoon: warm and crisp. Dark is *gabi*, moonlit: quiet and clear. One violet accent.
 
-| token | value | use |
-| --- | --- | --- |
-| `--paper` | `#faf6f0` | page surface, warm off-white |
-| `--card` | `#fffdf9` | raised cards |
-| `--ink` | `#24211e` | text, charcoal |
-| `--ink-soft` | `#615b54` | secondary text |
-| `--line` | `#e7e0d5` | hairlines |
-| `--sinag` | `#c8512c` | the one memorable accent (a warm ray of light) |
-| `--sinag-soft` | `#f8e4da` | accent wash |
+| token | light | dark | use |
+| --- | --- | --- | --- |
+| `--paper` | `#faf8f4` | `#0c0c13` | page surface |
+| `--card` | `#ffffff` | `#14141d` | composer, bubbles, lists |
+| `--ink` | `#17151f` | `#f1f0f7` | text |
+| `--ink-soft` | `#4d4a5c` | `#b3b2c6` | secondary text |
+| `--ink-faint` | `#6e6b80` | `#8a89a0` | quiet text (≥ 4.8:1 on paper) |
+| `--accent` | `#5b47e6` | `#9b93ff` | the violet; white label in light (6.0:1), dark label in dark (7.3:1) |
+| `--accent-ink` | `#3f2fb8` | `#c9c4ff` | accent text, the serif-italic word in headings |
 
-Dark (stage / shared screen):
+The scene tokens (`--sky-top`, `--sky-glow`, `--sun-*`, `--sea-*`, `--land`, `--light`) are
+defined app-wide so illustrations match the entrance in both themes.
 
-| token | value |
-| --- | --- |
-| `--paper` | `#16181c` |
-| `--card` | `#1e2126` |
-| `--ink` | `#f2efe9` |
-| `--ink-soft` | `#aaa59d` |
-| `--line` | `#2e3239` |
-| `--sinag` | `#ff8f62` |
+## Illustration
+
+The entrance's duyan scene appears at a few deliberate moments, never as a full-height backdrop:
+a small postcard beside “My thoughts” (and larger in its empty state), a horizon strip under a
+workspace's name, and the evening with kept lights on a completed retro. Saved thoughts are
+thought bubbles: a regular grid, a small two-circle tail tinted by category, text first.
 
 Category accents are restrained and always paired with an icon and a label:
 

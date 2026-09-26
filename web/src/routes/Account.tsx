@@ -7,6 +7,7 @@ import { applyTheme, readPrefs, writePrefs } from '@/lib/prefs'
 import { Button, ErrorText, Help, Input, Label, Switch, useDocumentTitle, useToast } from '@/ui'
 import { DeviceControls } from '@/ui/menus'
 import { AppShell, PageTitle } from '@/ui/shell'
+import { EncryptionSettings } from '@/ui/keys'
 
 type SessionInfo = { id: string; current: boolean; created_at: string; last_seen_at: string }
 
@@ -64,6 +65,10 @@ export function Account() {
             <Button type="submit" variant="primary">Save</Button>
           </form>
           <ErrorText>{nameError}</ErrorText>
+        </Block>
+
+        <Block id="encryption" title="Encryption" lead="Encrypted sprints are sealed on your team’s devices. Your key lives on your devices and, locked with your recovery key, nowhere else.">
+          <EncryptionSettings />
         </Block>
 
         <Block id="notifications" title="Notifications" lead="Muni emails you only for sign-in codes, invitations and these reminders — never marketing.">

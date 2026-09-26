@@ -17,6 +17,7 @@ import { commitments } from './routes/commitments'
 import { exportsRoutes } from './routes/exports'
 import { ai } from './routes/ai'
 import { demo } from './routes/demo'
+import { keys } from './routes/keys'
 import { scheduled } from './jobs'
 
 export { MeetingRoom } from './room'
@@ -28,7 +29,8 @@ export { MeetingRoom } from './room'
  */
 // 2: invitation tokens moved to request bodies and production cookies gained the __Host- prefix
 // (a revision-1 client can't read the renamed CSRF cookie).
-const MIN_CLIENT_REVISION = 2
+// 3: encrypted sprints (content fields carry client envelopes; older clients can't read or write them).
+const MIN_CLIENT_REVISION = 3
 
 const app = new Hono<HonoEnv>()
 
@@ -72,6 +74,7 @@ app.route('/', commitments)
 app.route('/', exportsRoutes)
 app.route('/', ai)
 app.route('/', demo)
+app.route('/', keys)
 
 app.notFound((c) => c.json({ error: 'not found', code: 'not_found' }, 404))
 app.onError((err, c) => {

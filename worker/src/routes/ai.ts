@@ -1,4 +1,5 @@
 import { Hono } from 'hono'
+import { isEncrypted } from '../lib/sealed'
 import type { HonoEnv } from '../env'
 import { config } from '../lib/config'
 import { requireFacilitator, requireSprint } from '../lib/auth'
@@ -14,25 +15,26 @@ import { sealed } from './entries'
 
 export const ai = new Hono<HonoEnv>()
 
-async function status(env: HonoEnv['Bindings'], sprintId: string, aiEnabled: boolean) {
+async function status(env: HonoEnv['Bindings'], sprintId: string, aiEnabled: boolean, encrypted = false) {
   const cfg = config(env)
   const jobs = await all<{ id: string; status: string; error_summary: string | null; provider: string; model: string | null; created_at: number; finished_at: number | null }>(env.DB, 'SELECT id, status, error_summary, provider, model, created_at, finished_at FROM ai_jobs WHERE sprint_id = ? ORDER BY created_at DESC LIMIT 10', sprintId)
   const props = await all<{ id: string; job_id: string; proposal: string; applied_at: number | null; rejected_at: number | null; created_at: number }>(env.DB, 'SELECT id, job_id, proposal, applied_at, rejected_at, created_at FROM ai_proposals WHERE sprint_id = ? ORDER BY created_at DESC LIMIT 10', sprintId)
   const iso = (n: number | null) => (n ? new Date(n).toISOString() : null)
   return {
-    available: cfg.ai !== 'none',
+    // No external AI for encrypted content: there is no accurately disclosed processing model for it yet.
+    available: cfg.ai !== 'none' && !encrypted,
     enabled: aiEnabled,
     provider: cfg.ai,
     jobs: jobs.map((j) => ({ ...j, created_at: iso(j.created_at), finished_at: iso(j.finished_at) })),
     proposals: props.map((p) => ({ id: p.id, job_id: p.job_id, proposal: JSON.parse(p.proposal) as Proposal, applied_at: iso(p.applied_at), rejected_at: iso(p.rejected_at), created_at: iso(p.created_at) })),
-    explanation: explanation(cfg),
+    explanation: encrypted ? 'This sprint is encrypted, so its thoughts are never sent to an AI provider. Group them by hand — it works just as well.' : explanation(cfg),
   }
 }
 
 ai.get('/api/sprints/:sprintId/ai', async (c) => {
   const ctx = await requireSprint(c, config(c.env), c.env.DB, c.req.param('sprintId'))
   requireFacilitator(ctx)
-  return c.json(await status(c.env, ctx.sprint.id, bool(ctx.sprint.ai_processing)))
+  return c.json(await status(c.env, ctx.sprint.id, bool(ctx.sprint.ai_processing) && !isEncrypted(ctx.sprint), isEncrypted(ctx.sprint)))
 })
 
 /** Ask for a grouping draft. Cached per input revision; bounded per workspace and globally per day. */
@@ -40,6 +42,7 @@ ai.post('/api/sprints/:sprintId/ai/grouping', async (c) => {
   const cfg = config(c.env)
   const ctx = await requireSprint(c, cfg, c.env.DB, c.req.param('sprintId'))
   requireFacilitator(ctx)
+  if (isEncrypted(ctx.sprint)) throw conflict('this sprint is encrypted — its thoughts are never sent to an AI provider')
   if (cfg.ai === 'none') throw conflict('no AI provider is configured on this server — grouping stays manual')
   if (!bool(ctx.sprint.ai_processing)) throw conflict('AI processing wasn’t enabled for this sprint before collection started')
   if (sealed(ctx.sprint.status)) throw conflict('close collection first')
@@ -101,5 +104,5 @@ ai.post('/api/sprints/:sprintId/ai/proposals/:proposalId/reject', async (c) => {
   const ctx = await requireSprint(c, config(c.env), c.env.DB, c.req.param('sprintId'))
   requireFacilitator(ctx)
   await run(c.env.DB, 'UPDATE ai_proposals SET rejected_at = ? WHERE id = ? AND sprint_id = ?', Date.now(), c.req.param('proposalId'), ctx.sprint.id)
-  return c.json(await status(c.env, ctx.sprint.id, bool(ctx.sprint.ai_processing)))
+  return c.json(await status(c.env, ctx.sprint.id, bool(ctx.sprint.ai_processing) && !isEncrypted(ctx.sprint), isEncrypted(ctx.sprint)))
 })

@@ -14,7 +14,7 @@ Kinds of evidence:
 - **Provider** — stated by a provider's documentation, not observed by us.
 - **Commitment** — a policy the operator keeps. Nothing technical enforces it.
 
-Last checked 2026-09-27, against `main` plus the privacy-messaging changes.
+Last checked 2026-09-28, against `main` plus the encryption changes (docs/ENCRYPTION.md).
 
 ## Visibility and authorship
 
@@ -38,7 +38,7 @@ Last checked 2026-09-27, against `main` plus the privacy-messaging changes.
 
 | Claim | Kind | Evidence |
 | --- | --- | --- |
-| The database records who wrote each thought; the operator or Cloudflare can technically read content and link it to accounts | Code | `entries.author_account_id`, `votes.account_id`, `context_additions.author_account_id` (migrations) |
+| The database records who wrote each thought; the operator or Cloudflare can link thoughts to accounts, and can read the content of sprints from before encryption | Code | `entries.author_account_id`, `votes.account_id`, `context_additions.author_account_id` (migrations); `sprints.encryption IS NULL` for legacy sprints |
 | Operator accesses data only for running/securing Muni, abuse, or a user's request | Commitment | Not enforced; **no record of operator access is kept** — the page says so |
 | Owners can't read sprints they aren't in or learn authorship | Test | as above (boundaries, no author lookup) |
 | Cloudflare hosts app, database, live connection; request logs ≤ 7 days with URL, headers (IP, browser) | Provider + Config | Workers Logs docs (3 days Free / 7 Paid; invocation logs include request metadata and headers); `observability` on at sampling 1 in the production config. Not inspected on the live dashboard |
@@ -101,3 +101,20 @@ Last checked 2026-09-27, against `main` plus the privacy-messaging changes.
   page does). Show it at the point of writing before offering AI, then update the page.
 - The Cloudflare plan (Free/Paid) decides the log and backup windows; record it to state exact numbers.
 - Log redaction of cookies in Workers Logs hasn't been observed on the live dashboard.
+
+## Encryption (new sprints)
+
+| Claim | Kind | Evidence |
+| --- | --- | --- |
+| New sprints are encrypted by default | Code | `SprintSetup.tsx` (`encrypt: true`); `web/e2e/encryption.mjs` “Encryption is on by default” |
+| Thoughts, context, themes, notes, experiments, recap, opening question and vote-reset reasons are encrypted in the browser before upload | Test | `worker/test/encryption.test.ts` (plaintext refused for each; envelopes stored); `web/e2e/encryption.mjs` (captured request bodies contain no text) |
+| Muni's servers don't hold keys that open that content | Test + Code | `encryption.test.ts` scans every D1 table and the room's storage for the synthetic text, private keys and sprint secrets; the Worker imports no content cryptography (`grep -rn noble worker/src` is empty; `lib/sealed.ts` only checks envelope format) |
+| The server refuses plaintext for encrypted sprints | Test | `encryption.test.ts` (`encryption_required`), `lib/sealed.ts` |
+| While collecting, the revealing key is held only by the facilitator's devices; other participants can't decrypt early | Test | `encryption.test.ts` “…follow the sealing policy through reveal” (no wraps for participants; early wraps refused) |
+| The facilitator isn't given thoughts before close — server rule, not cryptography | Test | `privacy.test.ts` (unchanged sealing tests); stated as a limitation on the page |
+| Email sign-in alone doesn't unlock content; the recovery key does | Test | `encryption.test.ts` “recovery…”; `web/e2e/encryption.mjs` new-device steps |
+| Muni can't recover a lost key | Code | Server holds only the recovery-wrapped blob (`routes/keys.ts`); no other copy |
+| Devices won't share a key with a teammate whose key changed until confirmed | Test | `keyring.test.ts` “pins teammates’ keys on first use…” |
+| Encrypted sprints never use AI; exports and recap drafts are made in the browser | Test | `encryption.test.ts` (AI grouping, export, server recap → 409); `lib/e2ee/local-export.ts` |
+| What stays readable: names, goal, dates, people, categories, authorship, timing, counts | Code | `docs/ENCRYPTION.md` §2; `routes/*` store these as plain columns |
+| Depends on the genuine app being delivered; not audited | — | Stated limitation |

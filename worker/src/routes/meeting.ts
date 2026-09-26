@@ -4,6 +4,7 @@
  * same sanitized shape serves participants, facilitator and presenter.
  */
 import { Hono } from 'hono'
+import { content, isEncrypted } from '../lib/sealed'
 import type { HonoEnv } from '../env'
 import { config } from '../lib/config'
 import { checkSocketOrigin, requireFacilitator, requireParticipant, requireSprint, type SprintCtx } from '../lib/auth'
@@ -11,7 +12,6 @@ import { uuid } from '../lib/crypto'
 import { all, audit, bool, count, one, run } from '../lib/db'
 import { conflict, notFound } from '../lib/errors'
 import { hint, room, roomCall, roomSocketHeaders } from '../lib/live'
-import { nonempty, optional } from '../lib/util'
 import type { RoomState } from '../room'
 import { PHASES } from '../room'
 import { ensureRoom } from './sprints'
@@ -188,7 +188,7 @@ meeting.post('/api/sprints/:sprintId/meeting/context', async (c) => {
   requireParticipant(ctx)
   if (ctx.sprint.status !== 'live') throw conflict('context can be added while the retro is live')
   const body = (await c.req.json().catch(() => ({}))) as { theme_id?: string; body?: string; idempotency_key?: string }
-  const text = nonempty(body.body, cfg.entryMaxChars, 'The note')
+  const text = content(isEncrypted(ctx.sprint), body.body, cfg.entryMaxChars, 'The note', true)!
   const themeId = String(body.theme_id ?? '')
   if (!(await count(c.env.DB, 'SELECT count(*) AS n FROM themes WHERE id = ? AND sprint_id = ?', themeId, ctx.sprint.id))) throw notFound('theme not found')
   const key = typeof body.idempotency_key === 'string' && body.idempotency_key.trim() && body.idempotency_key.length <= 64 ? body.idempotency_key.trim() : null
@@ -205,7 +205,7 @@ meeting.put('/api/sprints/:sprintId/meeting/notes/:themeId', async (c) => {
   const tid = c.req.param('themeId')
   if (!(await count(c.env.DB, 'SELECT count(*) AS n FROM themes WHERE id = ? AND sprint_id = ?', tid, ctx.sprint.id))) throw notFound('theme not found')
   const body = (await c.req.json().catch(() => ({}))) as Record<string, unknown>
-  const f = (k: string) => optional(body[k], 4000, k)
+  const f = (k: string) => content(isEncrypted(ctx.sprint), body[k], 4000, k, false)
   await run(
     c.env.DB,
     `INSERT INTO discussion_notes (theme_id, sprint_id, takeaway, what_happened, impact, could_try, notes, updated_at) VALUES (?,?,COALESCE(?,''),COALESCE(?,''),COALESCE(?,''),COALESCE(?,''),COALESCE(?,''),?)

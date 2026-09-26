@@ -4,6 +4,7 @@
  * concurrent taps, can never spend more than the budget.
  */
 import { Hono } from 'hono'
+import { content, isEncrypted } from '../lib/sealed'
 import type { HonoEnv } from '../env'
 import { config } from '../lib/config'
 import { requireFacilitator, requireParticipant, requireSprint, type SprintCtx } from '../lib/auth'
@@ -126,7 +127,7 @@ voting.post('/api/sprints/:sprintId/votes/rounds/close', async (c) => {
   const status = body.action === 'close' ? 'closed' : body.action === 'cancel' ? 'cancelled' : null
   if (!status) throw bad('action must be close or cancel')
   const db = c.env.DB
-  const res = await run(db, "UPDATE vote_rounds SET status = ?, cancel_reason = ?, closed_at = ? WHERE sprint_id = ? AND status = 'open'", status, body.reason ? String(body.reason).slice(0, 200) : null, Date.now(), ctx.sprint.id)
+  const res = await run(db, "UPDATE vote_rounds SET status = ?, cancel_reason = ?, closed_at = ? WHERE sprint_id = ? AND status = 'open'", status, body.reason ? (isEncrypted(ctx.sprint) ? content(true, body.reason, 200, 'The reason', false) : String(body.reason).slice(0, 200)) : null, Date.now(), ctx.sprint.id)
   if (!res.meta.changes) throw conflict('no voting round is open')
   if (status === 'closed') {
     // Suggest an order from totals; parked themes sink; flags are kept.
