@@ -1,0 +1,272 @@
+<!doctype html>
+<!--
+  Muni marketing site. Static, no build step: host this folder anywhere
+  (GitHub Pages at /muni, or the root of a custom domain). Every path is relative.
+  Set data-app-url to the app's address to turn the "Coming soon" buttons into links.
+-->
+<html lang="en" data-sky="day" data-app-url="">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <title>Muni — Good retros start before the meeting</title>
+  <meta name="description" content="Capture thoughts throughout the sprint. Reflect together. Turn insights into action." />
+  <meta name="theme-color" content="#f5f5f8" />
+  <meta property="og:title" content="Muni — Good retros start before the meeting" />
+  <meta property="og:description" content="Capture thoughts throughout the sprint. Reflect together. Turn insights into action." />
+  <meta property="og:type" content="website" />
+  <meta property="og:image" content="https://munimuni.app/og.png" />
+  <meta property="og:url" content="https://munimuni.app/" />
+  <link rel="canonical" href="https://munimuni.app/" />
+  <meta name="twitter:card" content="summary_large_image" />
+  <link rel="icon" href="favicon.svg" type="image/svg+xml" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,300..600;1,9..144,300..500&family=Geist+Mono:wght@400;500&family=Geist:wght@300..700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="styles.css" />
+  <script>document.documentElement.classList.add('js')</script>
+</head>
+<body>
+  <a class="skip" href="#main">Skip to content</a>
+
+  <!-- The ripple used by every reflection on the page. -->
+  <svg class="defs" aria-hidden="true" focusable="false">
+    <filter id="water" x="-5%" y="-20%" width="110%" height="140%">
+      <feTurbulence type="fractalNoise" baseFrequency="0.006 0.09" numOctaves="2" seed="4" result="noise">
+        <animate attributeName="baseFrequency" dur="14s" values="0.006 0.09;0.007 0.11;0.006 0.09" repeatCount="indefinite" />
+      </feTurbulence>
+      <feDisplacementMap in="SourceGraphic" in2="noise" scale="9" xChannelSelector="R" yChannelSelector="G" />
+    </filter>
+    <symbol id="mark" viewBox="0 0 64 64">
+      <g fill="none" stroke="currentColor" stroke-width="7" stroke-linecap="round">
+        <path d="M10 40V28a8 8 0 0 1 16 0v12" />
+        <path d="M26 40V28a8 8 0 0 1 16 0v12" />
+      </g>
+      <circle cx="52" cy="40" r="4.5" fill="var(--accent)" />
+      <g fill="none" stroke="currentColor" stroke-width="5" stroke-linecap="round" opacity="0.2" transform="translate(0 92) scale(1 -1)">
+        <path d="M10 40V33a8 8 0 0 1 16 0v7" />
+        <path d="M26 40V33a8 8 0 0 1 16 0v7" />
+      </g>
+    </symbol>
+  </svg>
+
+  <header class="nav">
+    <a class="brand" href="#top" aria-label="Muni, back to top">
+      <svg class="brand-mark" width="30" height="30"><use href="#mark" /></svg>
+      <span class="wordmark">muni</span>
+    </a>
+    <nav aria-label="Sections">
+      <a href="#how">How it works</a>
+      <a href="#room">The retro</a>
+      <a href="#privacy">Privacy</a>
+      <a href="#meaning">The name</a>
+    </nav>
+    <a class="btn btn-small app-link" href="#" data-soon="Coming soon">Open Muni</a>
+  </header>
+
+  <main id="main">
+    <!-- ── Hero: the headline on still water ─────────────────────────── -->
+    <section class="hero" id="top" data-sky="day">
+      <div class="sinag" aria-hidden="true"></div>
+      <div class="hero-inner">
+        <p class="kicker reveal-up">A retrospective tool for teams that want to get better</p>
+        <div class="waterline">
+          <h1 class="headline reveal-up" style="--d: 80ms">Good retros start <em>before</em> the&nbsp;meeting.</h1>
+          <div class="drops" aria-hidden="true"></div>
+        </div>
+        <div class="reflection" aria-hidden="true">
+          <div class="headline mirrored">Good retros start <em>before</em> the&nbsp;meeting.</div>
+        </div>
+        <div class="hero-foot reveal-up" style="--d: 220ms">
+          <p class="lede">Capture thoughts throughout the sprint. Reflect together. Turn insights into action.</p>
+          <div class="ctas">
+            <a class="btn btn-primary app-link" href="#" data-soon="Coming soon">Open Muni <span aria-hidden="true">→</span></a>
+            <a class="btn btn-ghost" href="#how">See how it works</a>
+          </div>
+        </div>
+      </div>
+      <a class="scroll-cue" href="#how" aria-label="Scroll to how it works"><span></span></a>
+    </section>
+
+    <!-- ── The sprint, played by scrolling ──────────────────────────── -->
+    <section class="scene" id="how" aria-labelledby="how-title">
+      <h2 id="how-title" class="sr-only">How Muni works</h2>
+      <div class="scene-sticky">
+        <ol class="captions">
+          <li class="caption" data-step="0">
+            <p class="kicker"><span class="num">01</span> During the sprint</p>
+            <h3>Set it down while it’s <em>fresh</em>.</h3>
+            <p>A thought takes ten seconds to write on Tuesday and is gone by Friday. Muni keeps a quiet place open all sprint — on your phone, between tasks, in your own words.</p>
+          </li>
+          <li class="caption" data-step="1">
+            <p class="kicker"><span class="num">02</span> Sealed</p>
+            <h3>Nobody reads them <em>yet</em>.</h3>
+            <p>Not the facilitator, not your manager. Until collection closes, the only thoughts you can see are your own — and you can still change them.</p>
+          </li>
+          <li class="caption" data-step="2">
+            <p class="kicker"><span class="num">03</span> Opening the sprint</p>
+            <h3>One batch. Random order. <em>No names.</em></h3>
+            <p>Everything is revealed at once, shuffled. Shared screens never show who wrote a thought, when it was written, or anything that ties one person’s thoughts together.</p>
+          </li>
+          <li class="caption" data-step="3">
+            <p class="kicker"><span class="num">04</span> Discover</p>
+            <h3>Thoughts become <em>themes</em>.</h3>
+            <p>Grouped by meaning, not keywords — with an optional AI draft the facilitator edits. The original words are never replaced. Votes are private until the round closes.</p>
+          </li>
+        </ol>
+        <div class="field" aria-hidden="true">
+          <div class="axis">
+            <span class="axis-week">Week 1</span><span class="axis-week">Week 2</span>
+            <div class="axis-days"></div>
+          </div>
+          <div class="notes"></div>
+          <div class="tiles"></div>
+          <div class="field-status"><span class="lock"></span><span class="field-status-text"></span></div>
+        </div>
+        <div class="rail" aria-hidden="true"><i></i><i></i><i></i><i></i></div>
+      </div>
+    </section>
+
+    <!-- ── The retro itself ────────────────────────────────────────── -->
+    <section class="room" id="room" data-sky="night" aria-labelledby="room-title">
+      <div class="container">
+        <p class="kicker"><span class="num">05</span> The retro</p>
+        <h2 id="room-title" class="display">One topic. <em>The actual words.</em></h2>
+        <p class="lede narrow">The shared screen puts what people wrote at the centre — not a summary of it. Voices are invited one at a time, and the room moves at the pace of the conversation.</p>
+
+        <figure class="stage" aria-label="The Muni stage during a discussion">
+          <div class="stage-bar">
+            <span class="stage-sprint"><svg width="18" height="18"><use href="#mark" /></svg> Sprint 42 — Billing export</span>
+            <ol class="stage-phases">
+              <li>Arrive</li><li>Remember</li><li>Discover</li><li class="on">Discuss</li><li>Decide</li><li>Leave</li>
+            </ol>
+            <span class="stage-timer" data-timer>12:40</span>
+          </div>
+          <div class="stage-body">
+            <p class="stage-kicker">Topic 1 of 3</p>
+            <p class="stage-title">PR review turnaround</p>
+            <p class="stage-question">What would make a first review arrive within a day without making reviews shallower?</p>
+            <div class="obs-grid">
+              <article class="obs"><span class="cat c-improve">Improve</span><p>PRs sat waiting for review for two or three days. I stopped opening small PRs because it wasn’t worth the wait.</p><p class="obs-more">Might help: a daily 15-minute review window?</p></article>
+              <article class="obs"><span class="cat c-improve">Improve</span><p>Reviews: I actually liked that reviews were slower this sprint — the comments were more thoughtful than the usual rubber stamp.</p></article>
+              <article class="obs"><span class="cat c-keep">Keep</span><p>The retro experiment (daily review window) helped: my two PRs were reviewed the same day.</p></article>
+              <article class="obs"><span class="cat c-improve">Improve</span><p>The daily review window didn’t change much for me — reviews still waited until someone had slack.</p></article>
+              <article class="obs"><span class="cat c-try">Try</span><p>Try a ‘review buddy’ pairing for the sprint so every PR has a named first reviewer.</p></article>
+            </div>
+            <div class="voice">
+              <span class="voice-dot"></span>
+              <span class="voice-text"><b data-voice>Jonas</b><span data-voice-rest>, anything you’d add?</span></span>
+              <span class="voice-actions"><span class="chip">Next voice <kbd>N</kbd></span><span class="chip">Open the floor <kbd>O</kbd></span></span>
+            </div>
+          </div>
+          <figcaption class="sr-only">A discussion screen: the topic “PR review turnaround”, five original observations including two that disagree, and an invitation for Jonas to speak.</figcaption>
+        </figure>
+
+        <ul class="features">
+          <li><h3>Voices, one at a time</h3><p>Invitations follow who is present and ready — never who wrote what. Passing is one tap, and it’s immediate.</p></li>
+          <li><h3>A companion on every phone</h3><p>Follow the stage, vote privately, add context to a topic, or step out of the rotation.</p></li>
+          <li><h3>Disagreement stays visible</h3><p>Opposing views sit side by side in their own words. Nothing is averaged into a paragraph.</p></li>
+        </ul>
+      </div>
+    </section>
+
+    <!-- ── Decide ─────────────────────────────────────────────────── -->
+    <section class="decide" data-sky="night" aria-labelledby="decide-title">
+      <div class="container split">
+        <div>
+          <p class="kicker"><span class="num">06</span> Decide</p>
+          <h2 id="decide-title" class="display">Leave with something to <em>try</em>.</h2>
+          <p class="lede">One to three concrete changes. Each has an owner who says yes, a signal that it helped, and a date to look back.</p>
+        </div>
+        <div class="experiment" data-inview>
+          <p class="takeaway"><span class="label">Takeaway</span><span class="typed" data-text="Reviews wait because nobody owns the first look.">Reviews wait because nobody owns the first look.</span></p>
+          <div class="exp-card">
+            <p class="label">Experiment</p>
+            <p class="exp-change">For the next sprint, reserve a 15-minute daily review window right after standup.</p>
+            <dl>
+              <div><dt>We’ll know it helped if</dt><dd>PRs wait less than one working day for a first review.</dd></div>
+              <div><dt>Owner</dt><dd><span class="avatar">M</span> Maya Reyes <span class="accepted">accepted</span></dd></div>
+              <div><dt>Look back on</dt><dd>Next retro</dd></div>
+            </dl>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ── The loop ───────────────────────────────────────────────── -->
+    <section class="loop" data-sky="dawn" aria-labelledby="loop-title">
+      <div class="container">
+        <p class="kicker"><span class="num">07</span> Next sprint</p>
+        <h2 id="loop-title" class="display">And it begins again, with <em>“Last time, we said…”</em></h2>
+        <div class="loop-art">
+          <div class="outcomes">
+            <article class="outcome">
+              <p class="outcome-change">Reserve a 15-minute daily review window right after standup.</p>
+              <p class="outcome-meta"><span class="pill ok">Helped</span> owner Maya Reyes</p>
+              <p class="outcome-note">“Most PRs got a same-day first pass. Bigger PRs still waited.”</p>
+            </article>
+            <article class="outcome">
+              <p class="outcome-change">Write the sprint goal as one sentence at the end of planning and pin it.</p>
+              <p class="outcome-meta"><span class="pill no">Didn’t help</span> owner Jonas Weber</p>
+              <p class="outcome-note">“We wrote it, but planning overran and nobody looked at it again.”</p>
+            </article>
+          </div>
+        </div>
+        <p class="lede narrow">Honest outcomes, including the ones that didn’t work. That’s the difference between a team that meets and a team that learns.</p>
+      </div>
+    </section>
+
+    <!-- ── Privacy ────────────────────────────────────────────────── -->
+    <section class="privacy" id="privacy" data-sky="day" aria-labelledby="privacy-title">
+      <div class="container">
+        <p class="kicker">The privacy promise, exactly</p>
+        <h2 id="privacy-title" class="sr-only">Privacy</h2>
+        <blockquote class="promise">
+          Your identity is verified to access each sprint. Your entries and votes are shown without your identity to teammates and facilitators. The service operator may technically be able to associate activity with accounts. <em>Your wording can still reveal who you are.</em>
+        </blockquote>
+        <p class="promise-note">We’d rather be precise than reassuring.</p>
+        <div class="facts">
+          <div><h3>Hidden, everywhere shared</h3><p>Stage, preparation view and exports never show who wrote an entry, who voted for what, or when something was submitted.</p></div>
+          <div><h3>The facilitator</h3><p>Sees nothing during collection except their own entries. Afterwards: everyone’s entries, anonymously, and who is present.</p></div>
+          <div><h3>The operator</h3><p>Muni stores who saved each entry so only you can edit it. There’s no button to join those records. This is application-level anonymity, not cryptography.</p></div>
+          <div><h3>AI, only if chosen</h3><p>Decided before collection starts. Entry text goes to the provider to draft themes — never names, emails, attendance or authorship.</p></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ── The name ───────────────────────────────────────────────── -->
+    <section class="meaning" id="meaning" data-sky="night" aria-labelledby="meaning-title">
+      <div class="container">
+        <div class="giant">
+          <h2 id="meaning-title" class="giant-word">muni</h2>
+          <div class="giant-reflection" aria-hidden="true"><span class="giant-word">muni</span></div>
+        </div>
+        <div class="entry">
+          <p class="entry-head"><b>mu·ni</b> <span>/ˈmu.ni/</span> <i>Filipino</i></p>
+          <p class="entry-body">From <em>muni-muni</em>: to reflect; to turn something over in your mind until you understand it a little better.</p>
+          <p class="entry-foot">A moment to reflect. A chance to improve.</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- ── Close ──────────────────────────────────────────────────── -->
+    <section class="closing" data-sky="night" aria-labelledby="closing-title">
+      <div class="container">
+        <svg class="closing-mark" width="96" height="96" aria-hidden="true"><use href="#mark" /></svg>
+        <h2 id="closing-title" class="display">Bring it to your <em>next sprint</em>.</h2>
+        <div class="ctas center">
+          <a class="btn btn-primary app-link" href="#" data-soon="Coming soon">Open Muni <span aria-hidden="true">→</span></a>
+          <a class="btn btn-ghost" href="#how">Watch the sprint again</a>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <footer class="footer" data-sky="night">
+    <span><svg width="18" height="18" aria-hidden="true"><use href="#mark" /></svg> muni</span>
+    <span>Capture thoughts throughout the sprint. Reflect together. Turn insights into action.</span>
+    <span>© 2026 · <a href="https://acltabontabon.com">acltabontabon</a></span>
+  </footer>
+
+  <script src="main.js" defer></script>
+</body>
+</html>
