@@ -220,10 +220,11 @@ describe('meeting', () => {
 
     // Late arrival: a fresh round with two people; a third arrives after it started.
     const late = await team(3)
-    const l = await live(late.owner, late.members, late.ws)
+    const { s: l } = await live(late.owner, late.members, late.ws)
     await present(late.members[0], l)
     await present(late.members[1], l)
-    await command(late.owner, l, { type: 'speaking_start' })
+    const startedLate = await command(late.owner, l, { type: 'speaking_start' })
+    expect(startedLate.status, JSON.stringify(startedLate.body)).toBe(200)
     const before = (await roomState(l)).speaking.ordering as string[]
     expect(before).toHaveLength(2)
     await present(late.members[2], l)
@@ -357,11 +358,20 @@ describe('meeting', () => {
     expect(fresh.body.agenda).toEqual(a.body.agenda)
     expect((await snap(owner, s)).body.version).toBe(1)
     expect((await get(`/api/sprints/${s}`, owner)).body.status).toBe('live')
-    // Cancelling the session from the lifecycle (live → ready) ends it for real; completing keeps a read-only record.
+    // Cancelling the session from the lifecycle (live → ready) ends it; going live again starts a fresh one.
+    await command(owner, s, { type: 'set_phase', phase: 'discuss' })
     expect((await go(owner, s, 'ready')).status).toBe(200)
-    expect((await snap(owner, s)).status).toBe(404)
+    const cancelled = await snap(owner, s)
+    expect(cancelled.status).toBe(200)
+    expect(cancelled.body.cancelled).toBe(true)
+    expect(cancelled.body.ended_at).not.toBeNull()
+    expect((await get(`/api/sprints/${s}`, owner)).body.session_cancelled).toBe(true)
+    expect((await command(owner, s, { type: 'set_phase', phase: 'arrive' })).status).toBe(409)
     expect((await go(owner, s, 'live')).status).toBe(200)
-    expect((await snap(owner, s)).body.version).toBe(1)
+    const restarted = await snap(owner, s)
+    expect(restarted.body.version).toBe(1)
+    expect(restarted.body.cancelled).toBe(false)
+    expect(restarted.body.phase).toBe('arrive')
     expect((await go(owner, s, 'completed')).status).toBe(200)
     const ended = await snap(members[0], s)
     expect(ended.status).toBe(200)
