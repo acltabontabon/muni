@@ -1,7 +1,7 @@
 name: Deploy Muni to Cloudflare
+# Manual until launch (act.munimuni.app). Add `push: { branches: [main] }` back once the D1 id,
+# the email provider and the repository secrets CLOUDFLARE_API_TOKEN / CLOUDFLARE_ACCOUNT_ID are set.
 on:
-  push:
-    branches: [main]
   workflow_dispatch:
 jobs:
   deploy:
@@ -15,7 +15,7 @@ jobs:
       - run: cd web && npm ci && npm run build
       - run: cd worker && pnpm install --frozen-lockfile && pnpm typecheck
       # Migrations are additive-only; apply before the new code goes live.
-      - run: cd worker && pnpm wrangler d1 migrations apply muni --remote
+      - run: cd worker && pnpm migrate:remote
         env: { CLOUDFLARE_API_TOKEN: "${{ secrets.CLOUDFLARE_API_TOKEN }}", CLOUDFLARE_ACCOUNT_ID: "${{ secrets.CLOUDFLARE_ACCOUNT_ID }}" }
-      - run: cd worker && pnpm wrangler deploy
+      - run: cd worker && pnpm run deploy
         env: { CLOUDFLARE_API_TOKEN: "${{ secrets.CLOUDFLARE_API_TOKEN }}", CLOUDFLARE_ACCOUNT_ID: "${{ secrets.CLOUDFLARE_ACCOUNT_ID }}" }
