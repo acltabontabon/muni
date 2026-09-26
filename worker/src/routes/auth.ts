@@ -43,7 +43,7 @@ auth.post('/api/auth/request-code', async (c) => {
   if (!email) throw bad('enter a valid email address')
   await limit(c.env.DB, `code:${email}`, 5, 15 * 60_000)
   await limit(c.env.DB, `code-ip:${clientClass(c.req.raw)}`, 120, 10 * 60_000)
-  await limit(c.env.DB, `code-ip-day:${clientClass(c.req.raw)}`, 30, DAY_MS)
+  await limit(c.env.DB, `code-ip-day:${clientClass(c.req.raw)}`, cfg.signinCodesPerNetworkDaily, DAY_MS)
   await limit(c.env.DB, 'code-all', cfg.signinEmailsDailyLimit, DAY_MS, () =>
     quota('Muni has sent all the sign-in emails it can for today. Please try again tomorrow; devices that are already signed in keep working.'),
   )

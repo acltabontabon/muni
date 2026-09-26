@@ -23,6 +23,7 @@ export interface Config {
   aiWorkspaceDailyLimit: number
   aiGlobalDailyLimit: number
   signinEmailsDailyLimit: number
+  signinCodesPerNetworkDaily: number
 }
 
 export interface ConfigVars {
@@ -43,6 +44,7 @@ export interface ConfigVars {
   AI_WORKSPACE_DAILY_LIMIT?: string
   AI_GLOBAL_DAILY_LIMIT?: string
   SIGNIN_EMAILS_DAILY_LIMIT?: string
+  SIGNIN_CODES_PER_NETWORK_DAILY?: string
 }
 
 const truthy = (v: string | undefined, dflt: boolean) => (v === undefined || v === '' ? dflt : v === 'true' || v === '1')
@@ -91,6 +93,7 @@ export function config(vars: ConfigVars): Config {
     // Sign-in codes across all addresses per 24 h. Resend's free tier sends 100 a day in total;
     // this keeps the rest for invitations and reminders when someone floods the sign-in form.
     signinEmailsDailyLimit: num(vars.SIGNIN_EMAILS_DAILY_LIMIT, 60),
+    signinCodesPerNetworkDaily: num(vars.SIGNIN_CODES_PER_NETWORK_DAILY, 30),
   }
   cached = { key, config: c }
   return c
