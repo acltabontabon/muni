@@ -10,3 +10,7 @@ web/e2e-artifacts/
 worker/.wrangler/
 worker/worker-configuration.d.ts
 .dev.vars
+
+# Local tooling, not part of the project
+.claude/
+/package-lock.json
