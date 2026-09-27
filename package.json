@@ -13,6 +13,6 @@
   "scripts": {
     "release:check": "node scripts/release.mjs check",
     "release:notes": "node scripts/release.mjs notes",
-    "test": "node --test scripts/"
+    "test": "node --test scripts/changelog.test.mjs"
   }
 }

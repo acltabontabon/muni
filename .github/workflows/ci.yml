@@ -57,7 +57,7 @@ jobs:
         with: { node-version: 22 }
       # The version agrees everywhere and CHANGELOG.md parses, so a tag can always be cut from main.
       - run: node scripts/release.mjs check
-      - run: node --test scripts/
+      - run: node --test scripts/changelog.test.mjs
 
   secrets:
     name: secret scan

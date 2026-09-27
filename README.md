@@ -64,7 +64,7 @@ Checks:
 ```bash
 cd worker && pnpm typecheck && pnpm test
 cd web && npm run typecheck && npm run lint && npm test && npm run build
-node --test scripts/ && node scripts/release.mjs check          # from the root: versions and changelog
+node --test scripts/changelog.test.mjs && node scripts/release.mjs check          # from the root: versions and changelog
 ```
 
 Browser end-to-end suites run against `wrangler dev` serving the production build:
