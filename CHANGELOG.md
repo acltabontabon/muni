@@ -16,6 +16,8 @@ those as highlights. The app's About → What's new and each GitHub release are 
 
 ## [Unreleased]
 
+## [1.0.0-rc.2] - 2026-09-28
+
 ### Changed
 
 - **One page for each sprint.** Writing, the closed state, the retro and the outcomes all happen on
@@ -57,5 +59,6 @@ those as highlights. The app's About → What's new and each GitHub release are 
 - **A page that feels like yours.** Choose one of eight characters to give your writing page a calm
   room of its own. Only you see it.
 
-[unreleased]: https://github.com/acltabontabon/muni/compare/v1.0.0-rc.1...HEAD
+[unreleased]: https://github.com/acltabontabon/muni/compare/v1.0.0-rc.2...HEAD
+[1.0.0-rc.2]: https://github.com/acltabontabon/muni/compare/v1.0.0-rc.1...v1.0.0-rc.2
 [1.0.0-rc.1]: https://github.com/acltabontabon/muni/releases/tag/v1.0.0-rc.1
