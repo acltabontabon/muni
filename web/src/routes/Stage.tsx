@@ -6,7 +6,7 @@ import { ChevronLeft, ChevronRight, Menu, MonitorPlay, Pause, Play, Users } from
 import { ApiError, patch, post, put } from '@/api/client'
 import type { Experiment, SharedEntry, StageSnapshot, ThemeView } from '@/api/types'
 import { OUTCOME_LABEL, PHASE_LABEL, categoryMeta } from '@/lib/categories'
-import { applyTheme, readPrefs } from '@/lib/prefs'
+import { applyAppearance } from '@/lib/prefs'
 import { useStage } from '@/lib/stage'
 import { Badge, Button, Dialog, Input, Spinner, Textarea, fmtClock, useCountdown, useDocumentTitle, useToast } from '@/ui'
 import { ReconnectingBar } from '@/ui/status'
@@ -49,8 +49,8 @@ export function Stage() {
   const [reader, setReader] = useState<string | null>(null) // theme id, 'ungrouped'
   useDocumentTitle(sprint ? `${sprint.name} · stage` : 'Stage')
   useEffect(() => {
-    applyTheme(undefined, (params.get('theme') as 'light' | 'dark' | null) ?? 'dark')
-    return () => applyTheme(readPrefs().theme)
+    applyAppearance({ force: (params.get('theme') as 'light' | 'dark' | null) ?? 'dark' })
+    return () => applyAppearance({ force: null })
   }, [params])
 
   const fac = !!stage?.is_facilitator

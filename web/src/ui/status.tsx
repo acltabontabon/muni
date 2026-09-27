@@ -30,7 +30,7 @@ export function StatusDot({ state, className }: { state: ThoughtState; className
 export function StatusLabel({ state, children }: { state: ThoughtState; children?: React.ReactNode }) {
   // (children overrides the words, e.g. “Waiting for this device’s key”.)
   return (
-    <span className={clsx('inline-flex items-center gap-1.5 text-xs', state === 'attention' ? 'text-warn' : state === 'submitted' ? 'text-ink-faint' : 'text-accent-ink')}>
+    <span className={clsx('inline-flex items-center gap-1.5 text-xs', state === 'attention' ? 'text-warn' : state === 'submitted' ? 'text-ink-faint' : 'text-status-ink')}>
       <StatusDot state={state} />
       {children ?? STATE_LABEL[state]}
     </span>
@@ -61,7 +61,7 @@ export function SyncChip() {
     <button
       type="button"
       onClick={() => retry()}
-      className={clsx('inline-flex h-8 items-center gap-1.5 rounded-full border px-2.5 text-xs font-medium', isOffline ? 'border-line text-ink-soft' : !waiting && attention ? 'border-warn/40 text-warn' : 'border-accent/30 text-accent-ink')}
+      className={clsx('inline-flex h-8 items-center gap-1.5 rounded-full border px-2.5 text-xs font-medium', isOffline ? 'border-line text-ink-soft' : !waiting && attention ? 'border-warn/40 text-warn' : 'border-status/30 text-status-ink')}
       title={isOffline ? 'No connection. Thoughts you save stay on this device until Muni reconnects.' : 'Send waiting thoughts now'}
       aria-label={`${label}. ${isOffline ? 'Thoughts you save wait on this device.' : 'Send now.'}`}
     >

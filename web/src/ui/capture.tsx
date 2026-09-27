@@ -29,6 +29,9 @@ import { splitLinks } from '@/lib/text'
 import { Button, ErrorText, Kbd, useToast } from '@/ui'
 import { StatusLabel, type ThoughtState } from '@/ui/status'
 import { Hammock } from '@/ui/journal'
+import { MUNI_WORDS } from '@/worlds/characters'
+import { useWorld } from '@/worlds/world'
+import { WorldEmptyArt } from '@/worlds/WorldScene'
 
 const isFinePointer = () => window.matchMedia('(pointer: fine)').matches
 const periodOptions = PERIODS.map((p) => ({ id: p.id, label: p.label, color: 'var(--ink-faint)' }))
@@ -342,7 +345,7 @@ export function Composer({
 
       <ErrorText>{error}</ErrorText>
       {notice ? (
-        <p role="status" className={clsx('mt-3 flex items-start gap-2 text-sm', notice.tone === 'ok' ? 'text-accent-ink' : notice.tone === 'warn' ? 'rounded-xl bg-warn/12 px-3 py-2 text-warn' : 'text-ink')}>
+        <p role="status" className={clsx('mt-3 flex items-start gap-2 text-sm', notice.tone === 'ok' ? 'text-status-ink' : notice.tone === 'warn' ? 'rounded-xl bg-warn/12 px-3 py-2 text-warn' : 'text-ink')}>
           <span className={clsx('dot mt-1.5', notice.tone === 'ok' ? 'dot--submitted' : notice.tone === 'warn' ? 'dot--attention' : 'dot--queued')} aria-hidden />
           <span>{notice.text}</span>
         </p>
@@ -420,14 +423,33 @@ function Body({ p }: { p: { body: string; impact: string | null; might_help: str
   )
 }
 
-/** The margin: category as a note in the entrance's italic serif, the period, and the time. */
-function Mark({ category, period, children }: { category: string | null; period: string | null; children?: ReactNode }) {
+/**
+ * The margin: category as a note in the entrance's italic serif, the period, and the time.
+ * `stamp` is decoration a character world may draw (a ticket, a jersey number, a track number):
+ * hidden from assistive technology, which reads the <time> and the category instead. `n` is the
+ * thought's place in the sprint, oldest first, so it never changes when the list is filtered.
+ */
+function Mark({ category, period, at, submitted, n }: { category: string | null; period: string | null; at: string | number; submitted?: boolean; n?: number }) {
   const meta = categoryMeta(category)
+  const d = new Date(at)
   return (
     <div className="passage-mark">
       {category ? <span className="cat">{meta.label}</span> : null}
-      {period ? <span>{PERIODS.find((x) => x.id === period)?.label}</span> : null}
-      {children}
+      {period ? <span className="period">{PERIODS.find((x) => x.id === period)?.label}</span> : null}
+      {/* Submitted is the quiet, normal state: said out loud for screen readers, shown as the time. */}
+      <span className="passage-when" title={submitted ? 'Submitted — the sprint has it' : undefined}>
+        {submitted ? <span className="sr-only">Submitted, </span> : null}
+        <time dateTime={d.toISOString()} title={full(at)}>{when(at)}</time>
+      </span>
+      <span
+        className="passage-stamp"
+        aria-hidden
+        data-day={d.getDate()}
+        data-mon={d.toLocaleDateString(undefined, { month: 'short' })}
+        data-hm={d.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' })}
+        data-n={n}
+        data-rn={n ? roman(n) : undefined}
+      />
     </div>
   )
 }
@@ -614,9 +636,7 @@ export function LocalThought({ item, moveChoices, showDestination, onRemove }: {
   ]
   return (
     <li className="passage" data-state={state} data-editing={editing || undefined} style={{ ['--tone' as string]: item.payload.category ? categoryMeta(item.payload.category).color : undefined }}>
-      <Mark category={item.payload.category} period={item.payload.period}>
-        <time dateTime={new Date(item.createdAt).toISOString()} title={full(item.createdAt)}>{when(item.createdAt)}</time>
-      </Mark>
+      <Mark category={item.payload.category} period={item.payload.period} at={item.createdAt} />
       <div className="passage-body">
         <div className="passage-status">
           <StatusLabel state={state}>{item.status === 'queued' && item.message === WAITING_KEY ? 'Saved here · waiting for this device’s key' : undefined}</StatusLabel>
@@ -677,7 +697,7 @@ export function LocalThoughtList({ items, moveChoices, showDestination }: { item
   )
 }
 
-function EntryThought({ e, sprintId, editable, online, fresh, onRemove, onSaved }: { e: MyEntry; sprintId: string; editable: boolean; online: boolean; fresh: boolean; onRemove: (id: string) => void; onSaved: () => void }) {
+function EntryThought({ e, n, sprintId, editable, online, fresh, onRemove, onSaved }: { e: MyEntry; n: number; sprintId: string; editable: boolean; online: boolean; fresh: boolean; onRemove: (id: string) => void; onSaved: () => void }) {
   const [editing, setEditing] = useState(false)
   const canChange = editable && e.editable !== false && !isLocked(e.body)
   const actions: MenuAction[] = canChange
@@ -688,13 +708,7 @@ function EntryThought({ e, sprintId, editable, online, fresh, onRemove, onSaved 
     : []
   return (
     <li className={clsx('passage', fresh && 'anim-reflect')} data-state="submitted" data-editing={editing || undefined} style={{ ['--tone' as string]: e.category ? categoryMeta(e.category).color : undefined }}>
-      <Mark category={e.category} period={e.period}>
-        {/* Submitted is the quiet, normal state: said out loud for screen readers, shown as the time. */}
-        <span title="Submitted — the sprint has it">
-          <span className="sr-only">Submitted, </span>
-          <time dateTime={e.created_at} title={full(e.created_at)}>{when(e.created_at)}</time>
-        </span>
-      </Mark>
+      <Mark category={e.category} period={e.period} at={e.created_at} submitted n={n} />
       <div className="passage-body">
         {editing ? (
           <InlineEditor
@@ -730,6 +744,7 @@ const PAGE = 12
 export function MyThoughts({ sprintId, editable, moveChoices, online, className, onCount }: { sprintId: string; editable: boolean; moveChoices: Destination[]; online: boolean; className?: string; onCount?: (n: number | null) => void }) {
   const local = useLocal()
   const toast = useToast()
+  const { voice } = useWorld()
   const [entries, setEntries] = useState<MyEntry[] | null>(null)
   const [failed, setFailed] = useState(false)
   const [shown, setShown] = useState(PAGE)
@@ -778,6 +793,8 @@ export function MyThoughts({ sprintId, editable, moveChoices, online, className,
   const cats = [...new Set(all.map((e) => e.category ?? 'unsorted'))]
   const filtering = count > 8 && cats.length > 1
   const visible = all.filter((e) => !filter || (e.category ?? 'unsorted') === filter)
+  // Each thought's place in the sprint, oldest first: stable whatever is filtered or paged.
+  const place = useMemo(() => new Map((entries ?? []).map((e, i, l) => [e.id, l.length - i])), [entries])
   // Tell the page how full the collection is (it shapes the scene); null until it's known.
   useEffect(() => {
     onCount?.(entries ? count : failed && mine.length ? mine.length : null)
@@ -785,24 +802,30 @@ export function MyThoughts({ sprintId, editable, moveChoices, online, className,
   const status = editable ? 'Yours to edit until collection closes.' : online ? 'Collection closed — read-only now.' : 'Offline · changing a submitted thought needs a connection.'
 
   return (
-    <section aria-labelledby={`mine-${sprintId}`} className={className}>
-      <header className="xl:pl-[7.5rem]">
-        <h2 id={`mine-${sprintId}`} className="font-display text-lg leading-tight">
+    <section aria-labelledby={`mine-${sprintId}`} className={clsx('mine', className)}>
+      <header className="mine-head mark-indent">
+        <h2 id={`mine-${sprintId}`} className="mine-title font-display text-lg leading-tight">
           My thoughts{count ? <span className="ml-2 font-normal text-ink-faint">{count}</span> : null}
         </h2>
         {count ? <p className="mt-0.5 text-sm text-ink-soft">{status}</p> : null}
       </header>
 
       {entries && count === 0 ? (
-        <div className="mt-3 flex items-end gap-4 xl:pl-[7.5rem]">
-          <Hammock className="block w-24 shrink-0 lg:hidden" />
-          <p className="max-w-[20rem] text-[15px] leading-relaxed text-ink-soft">Nothing kept yet. Write the first thing on your mind — it will settle here, in your own words.</p>
+        <div className="mine-empty mt-3 flex items-end gap-4 mark-indent">
+          <WorldEmptyArt fallback={<Hammock className="block w-24 shrink-0 lg:hidden" />} />
+          {voice ? (
+            <p className="mine-empty-text max-w-[22rem] text-[15px] leading-relaxed text-ink-soft">
+              <span className="w-joke">{voice.world.empty}</span> <span className="block text-sm text-ink-faint">Your thoughts will settle here, in your own words.</span>
+            </p>
+          ) : (
+            <p className="mine-empty-text max-w-[20rem] text-[15px] leading-relaxed text-ink-soft">{MUNI_WORDS.empty}</p>
+          )}
         </div>
       ) : null}
-      {failed && !entries ? <p className="mt-3 text-sm text-ink-soft xl:pl-[7.5rem]">{mine.length ? 'Your submitted thoughts show here when Muni can reach the server.' : 'Your thoughts show here when Muni can reach the server.'}</p> : null}
+      {failed && !entries ? <p className="mt-3 text-sm text-ink-soft mark-indent">{mine.length ? 'Your submitted thoughts show here when Muni can reach the server.' : 'Your thoughts show here when Muni can reach the server.'}</p> : null}
 
       {filtering ? (
-        <div className="mt-4 xl:pl-[7.5rem]">
+        <div className="mt-4 mark-indent">
           <Choices
             value={filter}
             onChange={(v) => { setFilter(v); setShown(PAGE) }}
@@ -826,18 +849,30 @@ export function MyThoughts({ sprintId, editable, moveChoices, online, className,
             entryRemoval.pending.has(e.id) ? (
               <Removed key={e.id} what="Deleted from the sprint." onUndo={() => entryRemoval.undo(e.id)} />
             ) : (
-              <EntryThought key={e.id} e={e} sprintId={sprintId} editable={editable} online={online} fresh={fresh.has(e.id)} onRemove={entryRemoval.remove} onSaved={load} />
+              <EntryThought key={e.id} e={e} n={place.get(e.id) ?? 0} sprintId={sprintId} editable={editable} online={online} fresh={fresh.has(e.id)} onRemove={entryRemoval.remove} onSaved={load} />
             ),
           )}
         </ul>
       ) : null}
       {visible.length > shown ? (
-        <div className="mt-2 xl:pl-[7.5rem]">
+        <div className="mt-2 mark-indent">
           <Button size="sm" variant="ghost" onClick={() => setShown((n) => n + PAGE)}>Show {Math.min(PAGE, visible.length - shown)} more</Button>
         </div>
       ) : null}
     </section>
   )
+}
+
+/** 1 → "i", 14 → "xiv": a numeral for a world that sets thoughts like chapters. */
+function roman(n: number): string {
+  const r: [number, string][] = [[1000, 'm'], [900, 'cm'], [500, 'd'], [400, 'cd'], [100, 'c'], [90, 'xc'], [50, 'l'], [40, 'xl'], [10, 'x'], [9, 'ix'], [5, 'v'], [4, 'iv'], [1, 'i']]
+  let out = ''
+  for (const [v, s] of r)
+    while (n >= v) {
+      out += s
+      n -= v
+    }
+  return out
 }
 
 /** Server messages are lower-case fragments; show them as sentences. */

@@ -3,12 +3,13 @@ import { Link } from 'react-router'
 import { ApiError, get, patch } from '@/api/client'
 import type { CaptureTarget, SprintSummary } from '@/api/types'
 import { useAuth } from '@/lib/auth'
-import { applyTheme, readPrefs, writePrefs } from '@/lib/prefs'
+import { applyAppearance, readPrefs, writePrefs } from '@/lib/prefs'
 import { Button, ErrorText, Help, Input, Label, Switch, useDocumentTitle, useToast } from '@/ui'
 import { DeviceControls } from '@/ui/menus'
 import { AppShell, PageTitle } from '@/ui/shell'
 import { EncryptionSettings } from '@/ui/keys'
 import { SecurityActivity, Sessions, SignInMethods } from '@/ui/security'
+import { CharacterSettings } from '@/worlds/Character'
 
 
 function Block({ id, title, lead, children }: { id: string; title: string; lead?: ReactNode; children: ReactNode }) {
@@ -101,10 +102,14 @@ export function Account() {
           )}
         </Block>
 
+        <Block id="character" title="Character" lead="Yours alone: it dresses your own pages, and is never shown to your team or attached to anything you write.">
+          <CharacterSettings />
+        </Block>
+
         <Block id="appearance" title="Appearance" lead="The retro’s shared stage always uses the dark theme so it reads well on a big screen.">
           <div className="flex flex-wrap gap-2" role="group" aria-label="Theme">
             {(['system', 'light', 'dark'] as const).map((t) => (
-              <Button key={t} variant={theme === t ? 'primary' : 'secondary'} size="sm" aria-pressed={theme === t} onClick={() => { setTheme(t); writePrefs({ theme: t }); applyTheme(t) }}>
+              <Button key={t} variant={theme === t ? 'primary' : 'secondary'} size="sm" aria-pressed={theme === t} onClick={() => { setTheme(t); writePrefs({ theme: t }); applyAppearance({ mode: t }) }}>
                 {t === 'system' ? 'Match this device' : t === 'light' ? 'Light' : 'Dark'}
               </Button>
             ))}

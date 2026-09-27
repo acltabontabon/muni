@@ -15,7 +15,13 @@ type Prefs = {
   passkeyHint?: boolean
   /** "Not now" to adding a passkey after an email sign-in, per account; not asked again here. */
   passkeyOfferDismissedFor?: string[]
+  /**
+   * The signed-in person's character world, remembered so the page is dressed before it paints
+   * (public/boot.js). A copy of the account's own setting; cleared on sign-out.
+   */
+  world?: WorldCache
 }
+export type WorldCache = { account: string; avatar: string | null; theme: boolean }
 
 export function readPrefs(): Prefs {
   try {
@@ -32,10 +38,37 @@ export function writePrefs(p: Partial<Prefs>) {
   }
 }
 
-export function applyTheme(theme: Prefs['theme'] | undefined, force?: 'dark' | 'light') {
-  const t = force ?? theme ?? 'system'
+type Appearance = { mode: NonNullable<Prefs['theme']>; world: string | null; force: 'light' | 'dark' | null }
+// Starts from what public/boot.js already put on the page, so the first call never undoes it.
+let appearance: Appearance | null = null
+
+/**
+ * The one place the page's look is set: light, dark or the device's choice (`mode`), a character
+ * world on personal pages (`world`, or null for Muni's own look), and a page that insists on a
+ * scheme (`force`: the stage). Also keeps the browser's theme colour in step with the page.
+ */
+export function applyAppearance(next: Partial<Appearance> = {}) {
+  appearance = { ...(appearance ?? { mode: readPrefs().theme ?? 'system', world: document.documentElement.dataset.world ?? null, force: null }), ...next }
+  const t = appearance.force ?? appearance.mode
   const dark = t === 'dark' || (t === 'system' && window.matchMedia('(prefers-color-scheme: dark)').matches)
-  document.documentElement.classList.toggle('dark', dark)
+  const root = document.documentElement
+  root.classList.toggle('dark', dark)
+  if (appearance.world) root.dataset.world = appearance.world
+  else delete root.dataset.world
+  const paper = getComputedStyle(root).getPropertyValue('--paper').trim()
+  if (paper) for (const m of document.querySelectorAll('meta[name="theme-color"]')) m.setAttribute('content', paper)
+}
+export const currentAppearance = (): Readonly<Appearance> | null => appearance
+
+/** This device's copy of an account's character, if it belongs to that account. */
+export function worldFor(accountId: string | null | undefined): WorldCache | null {
+  const w = readPrefs().world
+  return w && accountId && w.account === accountId ? w : null
+}
+export function rememberWorld(w: WorldCache) {
+  const cur = readPrefs().world
+  if (cur && cur.account === w.account && cur.avatar === w.avatar && cur.theme === w.theme) return
+  writePrefs({ world: w })
 }
 
 /** Whether this account chose to keep drafts on this device. One person's choice never applies to another. */
@@ -59,7 +92,8 @@ export function adoptLegacyKeep(accountId: string): boolean {
 
 /** What the app remembers between visits about the signed-in person's navigation; cleared on sign-out. */
 export function forgetSignedInState() {
-  writePrefs({ lastWorkspace: undefined, lastSprint: undefined })
+  // The next person on this device never opens into the previous person's world.
+  writePrefs({ lastWorkspace: undefined, lastSprint: undefined, world: undefined })
   try {
     for (const k of Object.keys(localStorage)) if (k.startsWith('muni:revealed:')) localStorage.removeItem(k)
   } catch {

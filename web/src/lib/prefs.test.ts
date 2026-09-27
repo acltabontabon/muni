@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it } from 'vitest'
-import { adoptLegacyKeep, forgetSignedInState, keepsLocal, keptAccounts, readPrefs, setKeepsLocal, writePrefs } from './prefs'
+import { adoptLegacyKeep, forgetSignedInState, keepsLocal, keptAccounts, readPrefs, rememberWorld, setKeepsLocal, worldFor, writePrefs } from './prefs'
 
 // A minimal localStorage for node.
 class MemStorage {
@@ -56,5 +56,28 @@ describe('signing out', () => {
     expect(p.theme).toBe('dark')
     expect(keepsLocal('ana')).toBe(true)
     expect(localStorage.getItem('muni:revealed:s1')).toBeNull()
+  })
+})
+
+describe('a character world remembered on this device', () => {
+  it('belongs to one account: another person on the device never opens into it', () => {
+    rememberWorld({ account: 'ana', avatar: 'bola', theme: true })
+    expect(worldFor('ana')).toEqual({ account: 'ana', avatar: 'bola', theme: true })
+    expect(worldFor('ben')).toBeNull()
+    expect(worldFor(null)).toBeNull()
+  })
+
+  it('is forgotten on sign-out', () => {
+    rememberWorld({ account: 'ana', avatar: 'pahina', theme: false })
+    forgetSignedInState()
+    expect(readPrefs().world).toBeUndefined()
+    expect(worldFor('ana')).toBeNull()
+  })
+
+  it('keeps the rest of the device’s preferences when it changes', () => {
+    writePrefs({ theme: 'dark' })
+    rememberWorld({ account: 'ana', avatar: 'kape', theme: true })
+    rememberWorld({ account: 'ana', avatar: 'sibol', theme: true })
+    expect(readPrefs()).toMatchObject({ theme: 'dark', world: { avatar: 'sibol' } })
   })
 })

@@ -1,0 +1,1223 @@
+/*
+ * Character worlds — the personal pages (writing, the person's own collection, their account)
+ * dressed in the world of the character they chose. Imported after styles.css (main.tsx).
+ *
+ * Rules of the house (tested in worlds.test.ts):
+ *  - Tokens: each world declares the same complete set for light and dark, on
+ *    :root[data-world] (the page) and .w-scope[data-world] (a preview inside another page).
+ *  - Semantic colours never change: status, categories, ok/warn/danger stay Muni's.
+ *  - Composition lives in @scope blocks that stop at any element wearing another world (a preview
+ *    inside the page), and targets only Muni's own classes (never Tailwind utilities), so
+ *    hover/aria states of controls are untouched.
+ *  - Nothing moves behind text; a world's one small moment plays once after a save.
+ *
+ * Fonts are self-hosted (SIL OFL 1.1, via Fontsource). Declared here for every world, but a browser
+ * only downloads a face when something on the page uses it, and the service worker caches only
+ * the chosen world's (vite.config.ts, sw.ts).
+ */
+@import '@fontsource/young-serif/latin-400.css';
+@import '@fontsource/young-serif/latin-ext-400.css';
+@import '@fontsource/dm-mono/latin-400.css';
+@import '@fontsource/dm-mono/latin-ext-400.css';
+@import '@fontsource/dm-mono/latin-500.css';
+@import '@fontsource/dm-mono/latin-ext-500.css';
+@import '@fontsource-variable/bricolage-grotesque/standard.css';
+@import '@fontsource-variable/caveat/wght.css';
+@import '@fontsource/barlow-condensed/latin-500.css';
+@import '@fontsource/barlow-condensed/latin-ext-500.css';
+@import '@fontsource/barlow-condensed/latin-600.css';
+@import '@fontsource/barlow-condensed/latin-ext-600.css';
+@import '@fontsource/barlow-condensed/latin-600-italic.css';
+@import '@fontsource/barlow-condensed/latin-ext-600-italic.css';
+@import '@fontsource-variable/archivo/wdth.css';
+@import '@fontsource-variable/archivo/wdth-italic.css';
+@import '@fontsource-variable/newsreader/wght.css';
+@import '@fontsource-variable/newsreader/wght-italic.css';
+@import '@fontsource-variable/unbounded/wght.css';
+@import '@fontsource-variable/bodoni-moda/opsz.css';
+@import '@fontsource-variable/bodoni-moda/opsz-italic.css';
+@import '@fontsource-variable/alegreya/wght.css';
+@import '@fontsource-variable/alegreya/wght-italic.css';
+
+/* ── Shared structure, any world ─────────────────────────────────────────────────────────── */
+
+/* A preview of a world inside another page: the same tokens, re-resolved for this element. */
+.w-scope {
+  --color-paper: var(--paper);
+  --color-card: var(--card);
+  --color-card-2: var(--card-2);
+  --color-ink: var(--ink);
+  --color-ink-soft: var(--ink-soft);
+  --color-ink-faint: var(--ink-faint);
+  --color-line: var(--line);
+  --color-line-strong: var(--line-strong);
+  --color-accent: var(--accent);
+  --color-accent-soft: var(--accent-soft);
+  --color-accent-ink: var(--accent-ink);
+  --focus: var(--accent);
+  background: var(--paper);
+  color: var(--ink);
+}
+
+/* A world may widen its picture (never taller): the heading keeps clear of it at every size. */
+.journal-scene[data-scene] .journal-sky { --art-w: calc(var(--art-h) * 1.45); }
+.journal-scene[data-scene] .journal-art { width: var(--art-w); }
+.journal-scene[data-scene] .journal-art > svg { position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible; }
+@media (min-width: 640px) { .journal-scene[data-scene] .journal-head { padding-right: calc(var(--art-w) + 1.5rem); } }
+@media (max-width: 639px) {
+  .journal-scene[data-scene] .journal-head .journal-title, .journal-scene[data-scene] .w-invite { padding-right: calc(var(--art-w) + 0.75rem); }
+}
+.journal-scene[data-scene] .journal-sky { background: none; box-shadow: none; }
+.journal-scene[data-scene] .journal-water { height: 1.25rem; background: none; }
+.w-art { display: block; width: 100%; height: 100%; overflow: visible; }
+.w-invite { margin-top: 0.55rem; max-width: 34rem; font-size: 14.5px; line-height: 1.45; color: var(--ink-soft); text-wrap: pretty; }
+.w-slot { pointer-events: none; }
+.w-title-slot { display: none; pointer-events: none; }
+.w-slot--compose, .w-slot--collection { display: none; }
+:root[data-world] .journal-body { position: relative; isolation: isolate; }
+.w-slot--page { position: absolute; inset: 0; z-index: -1; overflow: hidden; }
+/* An empty collection in a world: a small illustrated moment, centred, then the line. */
+:root[data-world] .mine-empty { flex-direction: column; align-items: center; gap: 0.9rem; padding: 1.75rem 0 0.75rem; text-align: center; }
+@media (min-width: 1280px) { :root[data-world] .mine-empty { padding-left: 0; } }
+:root[data-world] .mine-empty-text { max-width: 24rem; }
+.w-empty-art { flex: none; }
+.w-joke { color: var(--ink); }
+
+/* A world's one moment after a save: drawn once, then gone. Reduced motion: it simply appears and fades. */
+@keyframes w-draw { 0% { stroke-dashoffset: 1; opacity: 0; } 15% { opacity: 1; } 65% { stroke-dashoffset: 0; opacity: 1; } 100% { stroke-dashoffset: 0; opacity: 0; } }
+@keyframes w-appear { 0% { opacity: 0; } 25%, 70% { opacity: 1; } 100% { opacity: 0; } }
+
+/* ── Choosing a character (the first visit, settings, the account menu) ──────────────────── */
+
+.w-gate {
+  min-height: 100dvh;
+  padding: max(18px, env(safe-area-inset-top)) max(20px, env(safe-area-inset-right)) 0 max(20px, env(safe-area-inset-left));
+  background: radial-gradient(1100px 380px at 50% -160px, var(--glow), transparent 70%), var(--paper);
+  transition: background-color 280ms ease, color 280ms ease;
+}
+.w-gate-top, .w-gate-main { max-width: 72rem; margin: 0 auto; }
+.w-gate-main { padding-top: clamp(18px, 5vh, 56px); }
+.w-gate-title { font-family: var(--font-display); font-weight: 600; font-size: clamp(1.75rem, 1.1rem + 2.6vw, 3.1rem); line-height: 1.03; letter-spacing: -0.035em; text-wrap: balance; max-width: 22ch; }
+.w-gate-title em { font-family: var(--font-wordmark); font-style: italic; font-weight: 400; letter-spacing: -0.02em; color: var(--accent-ink); }
+.w-gate-lead { margin-top: 12px; max-width: 40rem; font-size: 1.0625rem; line-height: 1.55; color: var(--ink-soft); text-wrap: pretty; }
+.w-gate .w-chooser-actions { position: sticky; bottom: 0; margin: 0 -20px; padding: 14px 20px max(14px, env(safe-area-inset-bottom)); background: color-mix(in oklab, var(--paper) 92%, transparent); backdrop-filter: blur(8px); }
+
+.w-chooser { display: grid; gap: 22px 44px; margin-top: 26px; grid-template-columns: minmax(0, 1fr); grid-template-areas: 'pick' 'see' 'actions'; }
+@media (min-width: 900px) { .w-chooser { grid-template-columns: minmax(0, 24rem) minmax(0, 1fr); grid-template-areas: 'pick see' 'actions actions'; } }
+.w-chooser-pick { grid-area: pick; min-width: 0; }
+.w-chooser-see { grid-area: see; min-width: 0; }
+.w-chooser-actions { grid-area: actions; display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px 16px; padding-top: 14px; border-top: 1px solid var(--line); }
+.w-chooser-world { font-size: 14px; }
+
+.w-tiles { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 6px; }
+.w-tile { display: flex; flex-direction: column; align-items: center; gap: 6px; min-width: 0; padding: 8px 2px 9px; border-radius: 16px; color: var(--ink-soft); transition: background 150ms, box-shadow 150ms, color 150ms; }
+.w-tile:hover { background: color-mix(in oklab, var(--ink) 5%, transparent); color: var(--ink); }
+.w-tile[data-state='checked'] { background: var(--card); color: var(--ink); box-shadow: 0 0 0 2px var(--ink), 0 10px 22px -16px rgb(0 0 0 / 0.4); }
+.w-tile:focus-visible { outline: 2px solid var(--focus); outline-offset: 3px; }
+.w-tile-portrait { position: relative; display: block; width: 72px; height: 72px; }
+@media (max-width: 380px) { .w-tile-portrait, .w-tile-portrait svg:first-child { width: 60px; height: 60px; } }
+.w-tile-check { position: absolute; right: -3px; bottom: -3px; display: grid; place-items: center; width: 22px; height: 22px; border-radius: 999px; background: var(--action); color: var(--action-ink); box-shadow: 0 0 0 2px var(--card); }
+.w-tile-name { font-size: 13.5px; font-weight: 560; letter-spacing: -0.005em; }
+
+.w-lore { min-width: 0; }
+.w-chooser-pick .w-lore { margin-top: 20px; }
+.w-lore-name { font-family: var(--font-display); font-weight: 600; font-size: 1.3rem; line-height: 1.2; letter-spacing: -0.02em; }
+.w-lore-title { display: block; margin-top: 2px; font-size: 14px; font-weight: 500; letter-spacing: 0; color: var(--ink-faint); }
+.w-lore-line { margin-top: 10px; font-family: var(--font-wordmark); font-style: italic; font-size: 1.14rem; line-height: 1.45; color: var(--ink); text-wrap: pretty; }
+.w-lore-more { margin-top: 8px; padding: 2px 0; font-size: 14px; font-weight: 500; color: var(--accent-ink); text-decoration: underline; text-underline-offset: 3px; text-decoration-color: color-mix(in oklab, var(--accent) 45%, transparent); border-radius: 4px; }
+.w-lore-story { margin-top: 10px; max-width: 36rem; font-size: 15px; line-height: 1.6; color: var(--ink); }
+
+.w-culture { display: inline-flex; align-items: center; gap: 6px; margin-left: -6px; padding: 4px 6px; border-radius: 8px; font-size: 13px; color: var(--ink-soft); text-decoration: underline dotted; text-decoration-color: var(--line-strong); text-underline-offset: 3px; }
+.w-culture:hover, .w-culture[data-state='open'] { color: var(--ink); background: color-mix(in oklab, var(--ink) 5%, transparent); }
+
+.w-note { display: flex; align-items: center; gap: 12px; padding: 8px 8px 8px 12px; border-radius: 14px; background: var(--card); box-shadow: 0 0 0 1px var(--line); font-size: 14px; line-height: 1.4; color: var(--ink-soft); }
+
+/* The miniature world: the real classes, at a fixed virtual width, scaled to fit (WorldPreview). */
+.w-preview-frame { overflow: hidden; border-radius: 18px; box-shadow: 0 0 0 1px var(--line), 0 18px 40px -28px rgb(0 0 0 / 0.35); }
+.w-preview { pointer-events: none; }
+.w-preview .journal-scene { margin: 0; }
+.w-preview .journal-sky, .w-preview .journal-water { --art-h: 104px; }
+.w-preview .journal-inner { padding: 0 24px; }
+.w-preview .journal-head { min-height: 0; padding: 22px calc(var(--art-w, 151px) + 20px) 14px 0; }
+.w-preview .journal-head .journal-title { padding-right: 0; font-size: 2.15rem; }
+.w-preview .w-invite { padding-right: 0; }
+.w-preview-body { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.15fr); gap: 24px; align-items: start; padding: 12px 24px 26px; }
+.w-preview-field { min-height: 6.5rem; font-size: 1.05rem; color: var(--ink-faint); }
+.w-preview-tools { display: flex; justify-content: flex-end; margin-top: 12px; }
+.w-preview-save { display: inline-flex; align-items: center; height: 38px; padding: 0 18px; border-radius: 999px; background: var(--action); color: var(--action-ink); font-size: 14px; font-weight: 500; }
+.w-preview .passage { grid-template-columns: minmax(0, 1fr); column-gap: 0.75rem; }
+.w-preview .passage-mark { grid-column: 1; grid-row: auto; flex-direction: row; align-items: baseline; gap: 0.6rem; padding-top: 0; text-align: left; }
+.w-preview .passage-body { grid-column: 1; }
+
+/* ── Kape: the café corner outside of time ───────────────────────────────────────────────── */
+
+:root[data-world='kape'], .w-scope[data-world='kape'] {
+  /* Morning light on warm paper; espresso ink; caramel for the one thing that matters. */
+  --paper: #f3e9dc;
+  --card: #fbf6ee;
+  --card-2: #eadcc9;
+  --ink: #2a1d15;
+  --ink-soft: #5b4535;
+  --ink-faint: #735a47;
+  --line: #e3d3be;
+  --line-strong: #c8b095;
+  --accent: #a35d27;
+  --accent-soft: #f1dcc3;
+  --accent-ink: #86461a;
+  --action: #2a1d15;
+  --action-ink: #fbf6ee;
+  --glow: color-mix(in oklab, #eab784 30%, transparent);
+  --font-world-display: 'Young Serif', Georgia, serif;
+  --font-world-em: 'Young Serif', Georgia, serif;
+  --font-world-meta: 'DM Mono', ui-monospace, monospace;
+  --k-ink: #2a1d15;
+  --k-ceramic: #fbf8f2;
+  --k-ceramic-line: #e4d8c6;
+  --k-cup: #fffdf9;
+  --k-coffee: #5a3522;
+  --k-crema: #c98b58;
+  --k-metal: #d9d4cb;
+  --k-steam: #b9a58f;
+  --k-bread: #d9a562;
+  --k-crust: #c0823f;
+  --k-crumb: #f3dcb5;
+  --k-sugar: #fffdf8;
+  --k-sugar-grain: #fffdf8;
+  --k-sachet: #fbf3e4;
+  --k-napkin: #fffaf1;
+  --k-sachet-line: #d7c4a6;
+  --k-stamp: #a35d27;
+  --k-ring: #b98a5c;
+  --k-receipt: #fffcf6;
+  --k-receipt-line: #e6d9c6;
+  --k-receipt-ink: #7d6754;
+  --k-light: #f6d6a8;
+}
+:root.dark[data-world='kape'], .dark .w-scope[data-world='kape'] {
+  /* The café stayed open just for you: roasted dark, lamp caramel. */
+  --paper: #16100c;
+  --card: #1f1712;
+  --card-2: #2a1f18;
+  --ink: #f1e5d4;
+  --ink-soft: #c9b49c;
+  --ink-faint: #a08a73;
+  --line: #2f241c;
+  --line-strong: #4a3a2d;
+  --accent: #e2a36a;
+  --accent-soft: #35261b;
+  --accent-ink: #f2c79c;
+  --action: #f1e5d4;
+  --action-ink: #16100c;
+  --glow: color-mix(in oklab, #7a4a22 38%, transparent);
+  --font-world-display: 'Young Serif', Georgia, serif;
+  --font-world-em: 'Young Serif', Georgia, serif;
+  --font-world-meta: 'DM Mono', ui-monospace, monospace;
+  --k-ink: #0d0907;
+  --k-ceramic: #e9e0d2;
+  --k-ceramic-line: #cbbca6;
+  --k-cup: #f3ece1;
+  --k-coffee: #3e2415;
+  --k-crema: #b97a45;
+  --k-metal: #b8b1a6;
+  --k-steam: #8f7d6a;
+  --k-bread: #c89354;
+  --k-crust: #a86e33;
+  --k-crumb: #e5c99c;
+  --k-sugar: #f7f1e6;
+  --k-sugar-grain: #e9dfcf;
+  --k-sachet: #e8dcc8;
+  --k-napkin: #2a211a;
+  --k-sachet-line: #b9a585;
+  --k-stamp: #d99a5f;
+  --k-ring: #6b4a2d;
+  --k-receipt: #221a14;
+  --k-receipt-line: #3a2d23;
+  --k-receipt-ink: #a58f78;
+  --k-light: #d68a45;
+}
+
+@scope ([data-world='kape']) to ([data-world]:not([data-world='kape'])) {
+  /* Warm paper, and morning light falling across the table from the left. */
+  .journal-sky {
+    background:
+      linear-gradient(112deg, transparent 18%, color-mix(in oklab, var(--k-light) 30%, transparent) 38%, transparent 62%),
+      linear-gradient(180deg, transparent, color-mix(in oklab, var(--k-light) 16%, transparent));
+    box-shadow: inset 0 -1px 0 var(--line-strong);
+  }
+  :scope:where(.dark, .dark *) .journal-sky {
+    background: radial-gradient(520px 200px at 88% 78%, color-mix(in oklab, var(--k-light) 20%, transparent), transparent 70%);
+  }
+  /* A café menu's double rule under the band. */
+  .journal-water { background: linear-gradient(var(--line-strong), var(--line-strong)) 0 3px / 100% 1px no-repeat; }
+  .journal-scene[data-scene] .journal-sky { --art-w: calc(var(--art-h) * 1.6); }
+  .kape-head--wide { display: none; }
+  @media (min-width: 1024px) {
+    .journal-scene[data-scene] .journal-sky { --art-w: calc(var(--art-h) * 2.4); }
+    .kape-head--wide { display: block; }
+    .kape-head--narrow { display: none; }
+  }
+  .journal-title { font-weight: 400; letter-spacing: -0.02em; }
+  .journal-title em { font-style: normal; font-weight: 400; letter-spacing: -0.02em; }
+  .w-invite { font-family: var(--font-world-meta); font-size: 13px; letter-spacing: 0.01em; }
+  .w-invite::before { content: '— '; color: var(--accent); }
+
+  /* The page you write on: a sheet laid on the table. */
+  .journal-field {
+    background: var(--k-receipt);
+    border-radius: 3px;
+    box-shadow: 0 1px 0 var(--line-strong), 0 16px 30px -24px rgb(70 38 12 / 0.5);
+  }
+  .journal-field:hover { box-shadow: 0 1px 0 var(--ink-faint), 0 16px 30px -24px rgb(70 38 12 / 0.5); }
+  .journal-field:focus, .journal-field:focus-visible {
+    background: var(--k-receipt);
+    box-shadow: inset 0 -2px 0 var(--accent), 0 0 0 4px color-mix(in oklab, var(--accent) 13%, transparent), 0 16px 30px -24px rgb(70 38 12 / 0.5);
+  }
+  :scope:where(.dark, .dark *) .journal-field { box-shadow: 0 1px 0 var(--line-strong), 0 16px 30px -22px rgb(0 0 0 / 0.7); }
+
+  /* The collection: a receipt roll, torn at both ends. */
+  .mine {
+    position: relative;
+    margin-top: 0.5rem;
+    padding: 1.4rem 1.25rem 1.5rem;
+    background: var(--k-receipt);
+    box-shadow: 0 22px 36px -30px rgb(70 38 12 / 0.55);
+  }
+  .mine::before, .mine::after {
+    content: '';
+    position: absolute;
+    left: 0;
+    right: 0;
+    height: 7px;
+    background: var(--k-receipt);
+    -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='7'%3E%3Cpath d='M0 7h12L6 0z'/%3E%3C/svg%3E") 0 0 / 12px 7px repeat-x;
+    mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='7'%3E%3Cpath d='M0 7h12L6 0z'/%3E%3C/svg%3E") 0 0 / 12px 7px repeat-x;
+  }
+  .mine::before { top: -7px; }
+  .mine::after { bottom: -7px; transform: scaleY(-1); }
+  .mine-head { padding-bottom: 0.9rem; border-bottom: 1px dashed var(--line-strong); }
+  .mine-title { font-family: var(--font-world-display); font-weight: 400; font-size: 1.3rem; letter-spacing: -0.01em; }
+  .passage { border-top: 1px dashed var(--line-strong); }
+  .passage:first-child { border-top: 0; }
+  .passage-mark { font-family: var(--font-world-meta); font-size: 11.5px; letter-spacing: 0.02em; }
+  /* The category as a rubber stamp. */
+  .passage-mark .cat {
+    font-style: normal;
+    font-size: 10px;
+    font-weight: 500;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    padding: 0.05em 0.6em;
+    border: 1.4px solid color-mix(in oklab, var(--tone, var(--ink-faint)) 80%, transparent);
+    border-radius: 999px;
+  }
+  .passage-mark .cat::before { display: none; }
+  /* Order numbers, as on any receipt. */
+  .passage-stamp[data-n] { display: inline; color: var(--ink-faint); }
+  .passage-stamp[data-n]::before { content: '#' attr(data-n); }
+  .mine-empty-text { font-size: 15px; }
+
+  /* The table beside the writing, on wide screens; the cup moves up to the header on narrow ones. */
+  @media (min-width: 1024px) {
+    .w-slot--compose { display: block; margin: 2.75rem 0 0 -0.5rem; max-width: 24rem; aspect-ratio: 320 / 150; }
+  }
+  .kape-empty { display: flex; align-items: flex-end; gap: 0.25rem; }
+  .kape-empty svg:first-child { border-radius: 999px; }
+  .kape-steam path { stroke-dasharray: 1; animation: w-draw 1700ms var(--ease-out-soft) both; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .kape-steam path { stroke-dasharray: none; animation: w-appear 1500ms ease-out both; }
+}
+
+/* ── Guhit: the gloriously unfinished studio ─────────────────────────────────────────────── */
+
+:root[data-world='guhit'], .w-scope[data-world='guhit'] {
+  /* Sketchbook stock, graphite, cobalt; vermilion only where a marker would be. */
+  --paper: #f5f2ea;
+  --card: #fdfcf8;
+  --card-2: #ebe6da;
+  --ink: #1f1f22;
+  --ink-soft: #4b4a4f;
+  --ink-faint: #636268;
+  --line: #e1dccf;
+  --line-strong: #c7c0b0;
+  --accent: #2f4fb5;
+  --accent-soft: #dfe4f5;
+  --accent-ink: #27439c;
+  --action: #1f1f22;
+  --action-ink: #fdfcf8;
+  --glow: transparent;
+  --font-world-display: 'Bricolage Grotesque Variable', var(--font-display);
+  --font-world-em: 'Caveat Variable', cursive;
+  --font-world-meta: 'Caveat Variable', cursive;
+  --g-ink: #1f1f22;
+  --g-dot: rgb(31 31 34 / 0.11);
+  --g-sheet: #fffefa;
+  --g-sheet-line: #ddd6c6;
+  --g-mark: #7f7c86;
+  --g-note: #4b4a4f;
+  --g-red: #d9482b;
+  --g-red-ink: #b83a20;
+  --g-blue: #2f4fb5;
+  --g-yellow: #e3b23c;
+  --g-glass: rgb(214 228 236 / 0.7);
+  --g-tape: rgb(227 190 96 / 0.5);
+  --g-grid-line: #b9b3a5;
+  --g-shadow: #ddd6c6;
+}
+:root.dark[data-world='guhit'], .dark .w-scope[data-world='guhit'] {
+  /* The studio after midnight: slate board, chalk lines. */
+  --paper: #15171b;
+  --card: #1c1f24;
+  --card-2: #23262c;
+  --ink: #eceae4;
+  --ink-soft: #b9b7b0;
+  --ink-faint: #918f89;
+  --line: #2a2d33;
+  --line-strong: #3e4149;
+  --accent: #93a8ff;
+  --accent-soft: #1f2640;
+  --accent-ink: #b5c4ff;
+  --action: #eceae4;
+  --action-ink: #15171b;
+  --glow: transparent;
+  --font-world-display: 'Bricolage Grotesque Variable', var(--font-display);
+  --font-world-em: 'Caveat Variable', cursive;
+  --font-world-meta: 'Caveat Variable', cursive;
+  --g-ink: #e6e3dc;
+  --g-dot: rgb(236 234 228 / 0.08);
+  --g-sheet: #1f2228;
+  --g-sheet-line: #3a3d45;
+  --g-mark: #8a8893;
+  --g-note: #b9b7b0;
+  --g-red: #f07a5c;
+  --g-red-ink: #f59a80;
+  --g-blue: #8aa0ff;
+  --g-yellow: #f0c55c;
+  --g-glass: rgb(120 140 160 / 0.25);
+  --g-tape: rgb(240 197 92 / 0.28);
+  --g-grid-line: #555964;
+  --g-shadow: #101215;
+}
+
+@scope ([data-world='guhit']) to ([data-world]:not([data-world='guhit'])) {
+  .app-bg, :scope.w-gate { background: radial-gradient(circle, var(--g-dot) 1.1px, transparent 1.5px) 0 0 / 22px 22px, var(--paper); }
+  .journal-scene[data-scene] .journal-sky { --art-w: calc(var(--art-h) * 1.55); }
+  @media (min-width: 1024px) { .journal-scene[data-scene] .journal-sky { --art-w: calc(var(--art-h) * 2.2); } }
+  /* A pencil line instead of a horizon. */
+  .journal-water {
+    background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 400 6' preserveAspectRatio='none'%3E%3Cpath d='M0 3.2C40 2 80 4.4 130 3s110 2 170 .6 70 1.6 100 .8' fill='none' stroke='%237f7c86' stroke-width='1.2'/%3E%3C/svg%3E") 0 2px / 100% 6px no-repeat;
+  }
+  .journal-title { font-weight: 720; font-stretch: 90%; letter-spacing: -0.035em; }
+  .journal-title em { font-weight: 700; font-size: 1.2em; line-height: 0.8; letter-spacing: 0; color: var(--g-red-ink); padding-right: 0.08em; }
+  .w-invite { font-family: var(--font-world-meta); font-size: 21px; line-height: 1.2; color: var(--ink-soft); }
+  .w-title-slot { display: block; order: 1; width: min(23rem, 78%); height: 14px; margin-top: 2px; }
+  .w-invite { order: 2; }
+  .guhit-flourish { display: block; width: 100%; height: 100%; overflow: visible; }
+  .guhit-flourish path { stroke-dasharray: 1; stroke-dashoffset: 0.36; transition: stroke-dashoffset 900ms var(--ease-out-soft); }
+  .guhit-flourish[data-done] path { stroke-dashoffset: 0; }
+
+  /* The writing sheet: clean, with crop marks at its corners. */
+  .journal-field {
+    --m: var(--g-mark);
+    border-radius: 2px;
+    background:
+      linear-gradient(var(--m), var(--m)) 7px 7px / 10px 1.2px no-repeat,
+      linear-gradient(var(--m), var(--m)) 7px 7px / 1.2px 10px no-repeat,
+      linear-gradient(var(--m), var(--m)) calc(100% - 7px) 7px / 10px 1.2px no-repeat,
+      linear-gradient(var(--m), var(--m)) calc(100% - 7px) 7px / 1.2px 10px no-repeat,
+      linear-gradient(var(--m), var(--m)) 7px calc(100% - 7px) / 10px 1.2px no-repeat,
+      linear-gradient(var(--m), var(--m)) 7px calc(100% - 7px) / 1.2px 10px no-repeat,
+      linear-gradient(var(--m), var(--m)) calc(100% - 7px) calc(100% - 7px) / 10px 1.2px no-repeat,
+      linear-gradient(var(--m), var(--m)) calc(100% - 7px) calc(100% - 7px) / 1.2px 10px no-repeat,
+      var(--g-sheet);
+    box-shadow: 5px 6px 0 -1px var(--g-shadow);
+    padding: 1.2rem 1.4rem 1.05rem;
+  }
+  .journal-field:hover { box-shadow: 5px 6px 0 -1px var(--g-shadow), inset 0 0 0 1px var(--line-strong); }
+  .journal-field:focus, .journal-field:focus-visible {
+    background-color: var(--g-sheet);
+    box-shadow: 5px 6px 0 -1px var(--g-shadow), inset 0 0 0 1.5px var(--accent), 0 0 0 4px color-mix(in oklab, var(--accent) 12%, transparent);
+  }
+  .journal-field--small { padding: 0.6rem 0.8rem 0.55rem; box-shadow: 3px 4px 0 -1px var(--g-shadow); }
+
+  /* Saved thoughts: sketchbook sheets, taped down, numbered. Text upright; controls in line. */
+  .mine-title { font-family: var(--font-world-display); font-weight: 720; font-stretch: 90%; font-size: 1.3rem; letter-spacing: -0.02em; }
+  .passages { padding-top: 0.6rem; }
+  .passage, .passage:first-child {
+    margin-bottom: 1.1rem;
+    padding: 1.15rem 1rem 1.3rem 1.15rem;
+    border: 1px solid var(--g-sheet-line);
+    border-radius: 2px;
+    background: var(--g-sheet);
+    box-shadow: 5px 6px 0 -1px var(--g-shadow);
+  }
+  .passage::before { content: ''; position: absolute; top: -7px; left: 16%; width: 58px; height: 15px; background: var(--g-tape); transform: rotate(-3deg); }
+  .passage:nth-child(even)::before { left: auto; right: 20%; transform: rotate(4deg); }
+  .passage-gone { border-top: 0; }
+  .passage-mark .cat { font-style: normal; font-weight: 600; font-size: 19px; line-height: 1; letter-spacing: 0; }
+  .passage-mark .cat::before { display: none; }
+  .passage-stamp[data-n] { display: block; position: absolute; right: 12px; bottom: 6px; font-family: var(--font-world-meta); font-size: 15px; color: var(--ink-faint); }
+  .passage-stamp[data-n]::before { content: 'sheet ' attr(data-n); }
+  .passage-menu { margin-top: -0.5rem; margin-right: -0.4rem; }
+  @media (min-width: 1280px) { .passage-mark { padding-top: 0.1rem; } }
+
+  @media (min-width: 1024px) { .w-slot--compose { display: block; margin: 2.5rem 0 0 -0.25rem; max-width: 26rem; aspect-ratio: 320 / 170; } }
+  .guhit-empty { display: flex; align-items: flex-end; gap: 0.4rem; }
+}
+@media (prefers-reduced-motion: reduce) { .guhit-flourish path { transition: none; } }
+
+/* ── Biyahe: thoughts through a moving window ────────────────────────────────────────────── */
+
+:root[data-world='biyahe'], .w-scope[data-world='biyahe'] {
+  /* A daylight ride: pale road-side air, navy ink, route teal; sodium amber for signs. */
+  --paper: #eef0ec;
+  --card: #fbfcfa;
+  --card-2: #e0e5df;
+  --ink: #17212a;
+  --ink-soft: #3d4b56;
+  --ink-faint: #56646f;
+  --line: #d6dcd5;
+  --line-strong: #b5beb7;
+  --accent: #1f6f78;
+  --accent-soft: #d3e7e7;
+  --accent-ink: #175a62;
+  --action: #17212a;
+  --action-ink: #fbfcfa;
+  --glow: color-mix(in oklab, #f2cf96 26%, transparent);
+  --font-world-display: 'Barlow Condensed', var(--font-display);
+  --font-world-em: 'Barlow Condensed', var(--font-display);
+  --font-world-meta: 'Barlow Condensed', var(--font-display);
+  --b-sky-top: #bcd3dc;
+  --b-sky-low: #f5dfb8;
+  --b-sun: #f0a94b;
+  --b-hills: #9db3a8;
+  --b-city: #7b8e99;
+  --b-lit: transparent;
+  --b-road: #5d6b70;
+  --b-road-line: #e9e2cf;
+  --b-wire: #3a4650;
+  --b-post: #3a4650;
+  --b-lamp: #f7efd8;
+  --b-lamp-beam: transparent;
+  --b-glint: #ffffff;
+  --b-frame: #26323b;
+  --b-latch: #c9d1cf;
+  --b-map: #fbfaf4;
+  --b-map-line: #cfd4cb;
+  --b-route: #1f6f78;
+  --b-route-2: #c9791a;
+  --b-ticket: #f7e7c1;
+  --b-ticket-ink: #7a5a1c;
+  --b-stop: #fbfcfa;
+}
+:root.dark[data-world='biyahe'], .dark .w-scope[data-world='biyahe'] {
+  /* The late ride home: navy dark, the city lit, sodium lamps. */
+  --paper: #0e1320;
+  --card: #151b2b;
+  --card-2: #1b2234;
+  --ink: #e8ecf2;
+  --ink-soft: #b2bccb;
+  --ink-faint: #8792a5;
+  --line: #222a3d;
+  --line-strong: #35405a;
+  --accent: #f0b35a;
+  --accent-soft: #2a2416;
+  --accent-ink: #f6cb86;
+  --action: #e8ecf2;
+  --action-ink: #0e1320;
+  --glow: color-mix(in oklab, #3a3a52 45%, transparent);
+  --font-world-display: 'Barlow Condensed', var(--font-display);
+  --font-world-em: 'Barlow Condensed', var(--font-display);
+  --font-world-meta: 'Barlow Condensed', var(--font-display);
+  --b-sky-top: #0c1326;
+  --b-sky-low: #3d3140;
+  --b-sun: #efe6cf;
+  --b-hills: #141b2c;
+  --b-city: #0a0f1c;
+  --b-lit: #f0b35a;
+  --b-road: #070a12;
+  --b-road-line: #3a3f4b;
+  --b-wire: #2a3246;
+  --b-post: #4a5268;
+  --b-lamp: #ffd88f;
+  --b-lamp-beam: rgb(255 200 110 / 0.18);
+  --b-glint: #b8c6e6;
+  --b-frame: #04070d;
+  --b-latch: #2a3246;
+  --b-map: #1a2133;
+  --b-map-line: #2e3850;
+  --b-route: #f0b35a;
+  --b-route-2: #6fb8c0;
+  --b-ticket: #2b2718;
+  --b-ticket-ink: #d9b56e;
+  --b-stop: #0e1320;
+}
+
+@scope ([data-world='biyahe']) to ([data-world]:not([data-world='biyahe'])) {
+  .journal-scene[data-scene] .journal-sky { --art-w: calc(var(--art-h) * 1.7); }
+  @media (min-width: 1024px) { .journal-scene[data-scene] .journal-sky { --art-w: calc(var(--art-h) * 2.4); } }
+  /* A route under the window: the dashes of a road, a stop every so often. */
+  .journal-water {
+    background:
+      radial-gradient(circle, var(--accent) 3.2px, var(--paper) 3.4px, var(--paper) 5px, transparent 5.4px) 40px 50% / 140px 12px repeat-x,
+      linear-gradient(90deg, var(--line-strong) 55%, transparent 0) 0 50% / 12px 2px repeat-x;
+  }
+  .journal-title { font-weight: 600; font-size: clamp(2rem, 1.4rem + 2.6vw, 3.4rem); line-height: 0.98; letter-spacing: -0.01em; }
+  .journal-title em { font-style: italic; font-weight: 600; letter-spacing: -0.005em; color: var(--accent-ink); }
+  .w-invite { font-family: var(--font-world-meta); font-weight: 500; font-size: 15.5px; letter-spacing: 0.06em; text-transform: uppercase; color: var(--ink-soft); }
+
+  .journal-field { border-radius: 16px; background: var(--card); box-shadow: 0 0 0 1px var(--line), 0 1px 0 1px var(--line); }
+  .journal-field:hover { box-shadow: 0 0 0 1px var(--line-strong), 0 1px 0 1px var(--line-strong); }
+  .journal-field:focus, .journal-field:focus-visible { box-shadow: 0 0 0 1.5px var(--accent), 0 0 0 5px color-mix(in oklab, var(--accent) 14%, transparent); }
+
+  /* The collection: a route, one stop per thought, in the order they happened. */
+  .mine-title { font-family: var(--font-world-display); font-weight: 600; font-size: 1.45rem; letter-spacing: 0; }
+  .passages { position: relative; padding-left: 1.5rem; }
+  .passages::before { content: ''; position: absolute; left: 6px; top: 1.1rem; bottom: 1.1rem; border-left: 2px dashed var(--line-strong); }
+  .passage::after { content: ''; position: absolute; left: -1.5rem; top: 1.35rem; width: 14px; height: 14px; border-radius: 999px; background: var(--b-stop); box-shadow: inset 0 0 0 3px var(--tone, var(--line-strong)); }
+  .passage:first-child::after { top: 0.7rem; }
+  .passage-gone { margin-left: 0; }
+  .passage-mark { font-family: var(--font-world-meta); font-size: 14px; letter-spacing: 0.04em; text-transform: uppercase; }
+  .passage-mark .cat { font-family: var(--font-world-meta); font-style: normal; font-weight: 600; font-size: 14px; letter-spacing: 0.06em; }
+  .passage-mark .cat::before { display: none; }
+  /* The date as a ticket stub, perforated on one side. */
+  .passage-stamp {
+    position: relative;
+    display: inline-block;
+    padding: 1px 12px 1px 9px;
+    border-radius: 3px;
+    background: var(--b-ticket);
+    color: var(--b-ticket-ink);
+    font-weight: 600;
+    letter-spacing: 0.08em;
+    -webkit-mask: radial-gradient(circle at 0 50%, transparent 3px, #000 3.5px) 0 0 / 100% 100%;
+    mask: radial-gradient(circle at 0 50%, transparent 3px, #000 3.5px) 0 0 / 100% 100%;
+  }
+  .passage-stamp::before { content: attr(data-day) ' ' attr(data-mon); }
+  /* A new thought's ticket is punched, once. */
+  .passage.anim-reflect .passage-stamp::after { content: ''; position: absolute; right: 4px; top: 50%; width: 5px; height: 5px; margin-top: -2.5px; border-radius: 999px; background: var(--paper); animation: b-punch 420ms 280ms var(--ease-out-soft) both; }
+  @media (min-width: 1280px) {
+    .mine .mark-indent { padding-left: calc(var(--mark-col) + var(--mark-gap) + 1.5rem); }
+    .passage-mark { gap: 0.3rem; }
+  }
+  @media (min-width: 1024px) { .w-slot--compose { display: block; margin: 2.5rem 0 0 -0.5rem; max-width: 25rem; aspect-ratio: 320 / 150; } }
+  .biyahe-empty { display: flex; align-items: flex-end; gap: 0.3rem; }
+}
+@keyframes b-punch { from { transform: scale(0); } to { transform: scale(1); } }
+@media (prefers-reduced-motion: reduce) { .passage.anim-reflect .passage-stamp::after { animation: none; } }
+
+/* ── Bola: the court after the noise settles ─────────────────────────────────────────────── */
+
+:root[data-world='bola'], .w-scope[data-world='bola'] {
+  /* Sun-warmed concrete, court clay, court green, painted cream lines. */
+  --paper: #efe6d8;
+  --card: #faf5ec;
+  --card-2: #e6dac7;
+  --ink: #1b1a17;
+  --ink-soft: #4a4640;
+  --ink-faint: #665f57;
+  --line: #ddd0bc;
+  --line-strong: #c4b39a;
+  --accent: #b44c22;
+  --accent-soft: #f3d9c9;
+  --accent-ink: #983f18;
+  --action: #1b1a17;
+  --action-ink: #faf5ec;
+  --glow: color-mix(in oklab, #f1b98c 30%, transparent);
+  --font-world-display: 'Archivo Variable', var(--font-display);
+  --font-world-em: 'Archivo Variable', var(--font-display);
+  --font-world-meta: 'Archivo Variable', var(--font-display);
+  --bo-ink: #1b1a17;
+  --bo-court: #c9683c;
+  --bo-lane: #e3c9ad;
+  --bo-line: #fbf4e6;
+  --bo-line-strong: #c9683c;
+  --bo-paint: rgb(201 104 60 / 0.3);
+  --bo-ball: #d9642c;
+  --bo-shine: rgb(255 230 200 / 0.8);
+  --bo-shadow: rgb(60 30 10 / 0.22);
+  --bo-board: #fbf8f1;
+  --bo-rim: #c24a1f;
+  --bo-net: #f7f1e4;
+  --bo-slipper: #2e6f60;
+  --bo-strap: #f2e8d5;
+  --bo-num: #d9b99a;
+  --bo-green: #1f5c4f;
+}
+:root.dark[data-world='bola'], .dark .w-scope[data-world='bola'] {
+  /* One floodlight left on over an empty court. */
+  --paper: #111513;
+  --card: #181d1a;
+  --card-2: #1f2521;
+  --ink: #efe9df;
+  --ink-soft: #bcb4a7;
+  --ink-faint: #928a7e;
+  --line: #262d29;
+  --line-strong: #39423c;
+  --accent: #f08a4b;
+  --accent-soft: #33221a;
+  --accent-ink: #f7b085;
+  --action: #efe9df;
+  --action-ink: #111513;
+  --glow: color-mix(in oklab, #4a4a34 42%, transparent);
+  --font-world-display: 'Archivo Variable', var(--font-display);
+  --font-world-em: 'Archivo Variable', var(--font-display);
+  --font-world-meta: 'Archivo Variable', var(--font-display);
+  --bo-ink: #0b0d0c;
+  --bo-court: #5a3322;
+  --bo-lane: #2a2520;
+  --bo-line: #d8cbb4;
+  --bo-line-strong: #8a5a3e;
+  --bo-paint: rgb(240 138 75 / 0.18);
+  --bo-ball: #d0602c;
+  --bo-shine: rgb(255 220 180 / 0.55);
+  --bo-shadow: rgb(0 0 0 / 0.45);
+  --bo-board: #d9d4c8;
+  --bo-rim: #e0703d;
+  --bo-net: #b9b1a2;
+  --bo-slipper: #3d8a78;
+  --bo-strap: #d8cbb4;
+  --bo-num: #4a3a2e;
+  --bo-green: #5fa48f;
+}
+
+@scope ([data-world='bola']) to ([data-world]:not([data-world='bola'])) {
+  /* A painted arc runs through the band; at night, a floodlight. */
+  .journal-scene[data-scene] .journal-sky { --art-w: calc(var(--art-h) * 1.7); }
+  :scope:where(.dark, .dark *) .journal-scene[data-scene] .journal-sky { background: radial-gradient(520px 200px at 88% -30%, rgb(255 236 190 / 0.12), transparent 70%); }
+  @media (min-width: 1024px) { .journal-scene[data-scene] .journal-sky { --art-w: calc(var(--art-h) * 2.2); } }
+  .journal-water { background: linear-gradient(var(--bo-court), var(--bo-court)) 0 4px / 100% 3px no-repeat; }
+  .journal-title { font-weight: 820; font-stretch: 112%; font-size: clamp(1.6rem, 1rem + 2.5vw, 3rem); line-height: 1; letter-spacing: -0.035em; text-transform: uppercase; }
+  .journal-title em { font-style: italic; font-weight: 700; font-stretch: 72%; letter-spacing: -0.01em; color: var(--accent-ink); }
+  .w-invite { font-family: var(--font-world-meta); font-weight: 600; font-stretch: 80%; font-size: 15px; letter-spacing: 0.02em; }
+
+  .journal-field { border-radius: 4px; background: var(--card); box-shadow: inset 0 0 0 1px var(--line), 0 3px 0 var(--bo-court); }
+  .journal-field:hover { box-shadow: inset 0 0 0 1px var(--line-strong), 0 3px 0 var(--bo-court); }
+  .journal-field:focus, .journal-field:focus-visible { box-shadow: inset 0 0 0 1.5px var(--accent), 0 3px 0 var(--bo-court), 0 0 0 5px color-mix(in oklab, var(--accent) 13%, transparent); }
+
+  /* The collection: strong spacing, painted lines, dates worn like jersey numbers. */
+  .mine-title { font-family: var(--font-world-display); font-weight: 820; font-stretch: 112%; font-size: 1.15rem; letter-spacing: -0.01em; text-transform: uppercase; }
+  .passage { border-top: 3px solid var(--line); padding-top: 1.35rem; padding-bottom: 1.5rem; }
+  .passage:first-child { border-top: 0; }
+  .passage-mark { font-family: var(--font-world-meta); font-stretch: 85%; font-weight: 500; font-size: 12.5px; letter-spacing: 0.02em; }
+  .passage-mark .cat { font-family: var(--font-world-meta); font-style: normal; font-weight: 750; font-stretch: 80%; font-size: 12.5px; letter-spacing: 0.08em; text-transform: uppercase; }
+  .passage-mark .cat::before { display: none; }
+  .passage-stamp { display: inline-flex; align-items: baseline; gap: 0.3rem; order: -1; color: var(--bo-num); }
+  .passage-stamp::before { content: attr(data-day); font-weight: 900; font-stretch: 125%; font-size: 1.35rem; line-height: 0.9; letter-spacing: -0.04em; }
+  .passage-stamp::after { content: attr(data-mon); font-weight: 700; font-size: 11px; letter-spacing: 0.1em; text-transform: uppercase; }
+  @media (min-width: 1280px) {
+    .passage-stamp { flex-direction: column; align-items: flex-end; gap: 0; }
+    .passage-stamp::before { font-size: 3.1rem; }
+    .passage-stamp::after { margin-top: 0.2rem; }
+  }
+  @media (min-width: 1024px) { .w-slot--compose { display: block; margin: 2.25rem 0 0 -1.25rem; max-width: 25rem; aspect-ratio: 320 / 150; } }
+  .bola-empty { position: relative; display: grid; place-items: center; }
+  .bola-empty > * { grid-area: 1 / 1; }
+  .bola-bounce { animation: bo-bounce 900ms cubic-bezier(0.3, 0, 0.3, 1) both; }
+  .bola-shadow { animation: bo-shadow 900ms cubic-bezier(0.3, 0, 0.3, 1) both; transform-box: fill-box; transform-origin: center; }
+}
+@keyframes bo-bounce { 0% { transform: translateY(0); } 30% { transform: translateY(-12px); } 55% { transform: translateY(0) scale(1.05, 0.93); } 72% { transform: translateY(-3px); } 100% { transform: none; } }
+@keyframes bo-shadow { 0%, 100% { transform: scale(1); opacity: 1; } 30% { transform: scale(0.7); opacity: 0.55; } 55% { transform: scale(1.05); opacity: 1; } }
+@media (prefers-reduced-motion: reduce) { .bola-bounce, .bola-shadow { animation: none; } }
+
+/* ── Pahina: a private reading room ──────────────────────────────────────────────────────── */
+
+:root[data-world='pahina'], .w-scope[data-world='pahina'] {
+  /* An afternoon beside a window: antique ivory, sepia-black, oxblood, bookcloth green. */
+  --paper: #f5efe2;
+  --card: #fbf7ee;
+  --card-2: #ebe2cf;
+  --ink: #231c16;
+  --ink-soft: #52463a;
+  --ink-faint: #6b5d4c;
+  --line: #e2d7c2;
+  --line-strong: #c7b79b;
+  --accent: #7a2e28;
+  --accent-soft: #f1dcd6;
+  --accent-ink: #6c2721;
+  --action: #231c16;
+  --action-ink: #fbf7ee;
+  --glow: color-mix(in oklab, #f3dcae 28%, transparent);
+  --font-world-display: 'Newsreader Variable', Georgia, serif;
+  --font-world-em: 'Newsreader Variable', Georgia, serif;
+  --font-world-meta: 'Newsreader Variable', Georgia, serif;
+  --mark-col: 0px;
+  --mark-gap: 0px;
+  --pa-ink: #231c16;
+  --pa-ink-soft: #52463a;
+  --pa-cloth: #2f4a3a;
+  --pa-ox: #7a2e28;
+  --pa-ochre: #b8863a;
+  --pa-gilt: #c9a869;
+  --pa-ribbon: #7a2e28;
+  --pa-ribbon-line: rgb(255 255 255 / 0.25);
+  --pa-lens: rgb(210 225 230 / 0.35);
+  --pa-shade: #2f4a3a;
+  --pa-bulb: #f7e6b4;
+  --pa-lamp-light: transparent;
+  --pa-window: rgb(255 244 214 / 0.55);
+}
+:root.dark[data-world='pahina'], .dark .w-scope[data-world='pahina'] {
+  /* A reading lamp, and quiet around it. */
+  --paper: #13100c;
+  --card: #1b1712;
+  --card-2: #231e18;
+  --ink: #ede3d0;
+  --ink-soft: #c2b59f;
+  --ink-faint: #9b8d78;
+  --line: #2a241c;
+  --line-strong: #3f3629;
+  --accent: #d9a45e;
+  --accent-soft: #2d2419;
+  --accent-ink: #ecc48c;
+  --action: #ede3d0;
+  --action-ink: #13100c;
+  --glow: color-mix(in oklab, #5a4424 34%, transparent);
+  --font-world-display: 'Newsreader Variable', Georgia, serif;
+  --font-world-em: 'Newsreader Variable', Georgia, serif;
+  --font-world-meta: 'Newsreader Variable', Georgia, serif;
+  --mark-col: 0px;
+  --mark-gap: 0px;
+  --pa-ink: #0a0806;
+  --pa-ink-soft: #4a3f33;
+  --pa-cloth: #33503f;
+  --pa-ox: #8a3a31;
+  --pa-ochre: #a87a36;
+  --pa-gilt: #b8955a;
+  --pa-ribbon: #a8453a;
+  --pa-ribbon-line: rgb(255 255 255 / 0.18);
+  --pa-lens: rgb(255 230 180 / 0.15);
+  --pa-shade: #3a5a47;
+  --pa-bulb: #ffe7a8;
+  --pa-lamp-light: rgb(255 214 140 / 0.16);
+  --pa-window: transparent;
+}
+
+@scope ([data-world='pahina']) to ([data-world]:not([data-world='pahina'])) {
+  /* Afternoon light through a window, or at night the lamp's pool. */
+  .journal-scene[data-scene] .journal-sky {
+    --art-w: calc(var(--art-h) * 1.6);
+    background: linear-gradient(100deg, transparent 52%, var(--pa-window) 58%, transparent 64%, transparent 66%, var(--pa-window) 72%, transparent 80%);
+  }
+  :scope:where(.dark, .dark *) .journal-scene[data-scene] .journal-sky { background: radial-gradient(420px 220px at 92% 110%, rgb(255 205 130 / 0.13), transparent 70%); }
+  @media (min-width: 1024px) { .journal-scene[data-scene] .journal-sky { --art-w: calc(var(--art-h) * 2); } }
+  .journal-water { background: linear-gradient(var(--line-strong), var(--line-strong)) 0 3px / 100% 1px no-repeat, linear-gradient(var(--line-strong), var(--line-strong)) 0 6px / 100% 1px no-repeat; }
+  .journal-title { font-weight: 480; font-size: clamp(1.9rem, 1.3rem + 2.5vw, 3.2rem); line-height: 1.02; letter-spacing: -0.02em; }
+  .journal-title em { font-style: italic; font-weight: 400; letter-spacing: -0.01em; }
+  .w-invite { font-family: var(--font-world-meta); font-style: italic; font-size: 17px; }
+  .w-title-slot { display: block; order: 1; width: 15rem; height: 10px; margin-top: 8px; }
+  .w-invite { order: 2; }
+  .pahina-rule { display: block; width: 100%; height: 100%; }
+
+  /* Writing: a page in a volume. The words are set in the book's own face. */
+  .journal-field {
+    font-family: var(--font-world-display);
+    font-size: 1.25rem;
+    line-height: 1.6;
+    padding: 1.15rem 1.3rem 1.05rem;
+    border-radius: 2px;
+    background: var(--card);
+    box-shadow: inset 0 1px 0 var(--line-strong), inset 0 -1px 0 var(--line-strong), 0 12px 26px -22px rgb(60 40 20 / 0.45);
+  }
+  .journal-field:hover { box-shadow: inset 0 1px 0 var(--ink-faint), inset 0 -1px 0 var(--ink-faint), 0 12px 26px -22px rgb(60 40 20 / 0.45); }
+  .journal-field:focus, .journal-field:focus-visible { box-shadow: inset 0 1px 0 var(--accent), inset 0 -2px 0 var(--accent), 0 0 0 4px color-mix(in oklab, var(--accent) 11%, transparent); }
+  .journal-field--small { font-size: 16px; }
+
+  /* The collection: a table of contents. Chapter, category, a dotted leader to the time. */
+  .mine-title { font-family: var(--font-world-display); font-weight: 500; font-size: 1.45rem; letter-spacing: -0.01em; }
+  .passage, .passage:first-child { grid-template-columns: minmax(0, 1fr) auto; padding: 1.1rem 0 1.3rem; border-top: 0; }
+  .passage + .passage { border-top: 1px solid var(--line); }
+  .passage-mark { grid-column: 1; grid-row: auto; flex-direction: row; align-items: baseline; gap: 0.5rem; padding-top: 0; text-align: left; font-family: var(--font-world-meta); font-size: 15px; white-space: nowrap; }
+  .passage-mark::after { content: ''; flex: 1; order: 2; min-width: 1.5rem; margin: 0 0.25rem; transform: translateY(-0.25em); border-bottom: 1.5px dotted var(--line-strong); }
+  .passage-mark .cat { order: 1; font-style: italic; font-size: 16px; }
+  .passage-mark .cat::before { display: none; }
+  .passage-mark .period { order: 1; font-style: italic; }
+  .passage-when { order: 3; font-variant-numeric: oldstyle-nums; }
+  .passage-stamp[data-rn] { display: inline; order: 0; font-variant: small-caps; letter-spacing: 0.06em; color: var(--accent-ink); }
+  .passage-stamp[data-rn]::before { content: attr(data-rn) '.'; }
+  .passage-body { grid-column: 1; }
+  .passage-menu { grid-column: 2; grid-row: 1 / span 2; }
+  .passage-text { font-family: var(--font-world-display); font-size: 1.15rem; line-height: 1.62; }
+  .passage-text[data-short] { font-size: 1.35rem; line-height: 1.45; letter-spacing: -0.005em; }
+
+  /* The ribbon bookmark: over the writing, or over your collection when you're there. */
+  .pahina-ribbon { display: none; }
+  @media (min-width: 1024px) {
+    .w-slot--page { overflow: visible; }
+    .journal-body { --pa-c2: 33rem; }
+    .journal-body[data-empty] { --pa-c2: 39rem; }
+    .pahina-ribbon { display: block; position: absolute; top: -1.6rem; left: -1.4rem; transition: transform 650ms var(--ease-out-soft); }
+    .journal-body:has(.home-collection:focus-within) .pahina-ribbon { transform: translateX(var(--pa-c2)); }
+  }
+  @media (min-width: 1280px) {
+    .journal-body { --pa-c2: 42rem; }
+    .journal-body[data-empty] { --pa-c2: 47rem; }
+  }
+  .pahina-empty { display: flex; align-items: flex-end; gap: 0.3rem; }
+}
+@media (prefers-reduced-motion: reduce) { .pahina-ribbon { transition: none !important; } }
+
+/* ── Himig: the listening room for imaginary music videos ────────────────────────────────── */
+
+:root[data-world='himig'], .w-scope[data-world='himig'] {
+  /* Sleeve paper, black ink, tomato, mustard and a deep green. */
+  --paper: #f1ebe0;
+  --card: #faf6ee;
+  --card-2: #e7dfd0;
+  --ink: #16161a;
+  --ink-soft: #45434a;
+  --ink-faint: #625f68;
+  --line: #e0d7c7;
+  --line-strong: #c5b9a4;
+  --accent: #b83a26;
+  --accent-soft: #f4d8d0;
+  --accent-ink: #9c2f1d;
+  --action: #16161a;
+  --action-ink: #faf6ee;
+  --glow: color-mix(in oklab, #eec46b 22%, transparent);
+  --font-world-display: 'Unbounded Variable', var(--font-display);
+  --font-world-em: 'Unbounded Variable', var(--font-display);
+  --font-world-meta: 'DM Mono', ui-monospace, monospace;
+  --hi-ink: #16161a;
+  --hi-vinyl: #161617;
+  --hi-groove: #3a3a3e;
+  --hi-shine: rgb(255 255 255 / 0.22);
+  --hi-label: #b83a26;
+  --hi-label-ink: #f6e8d8;
+  --hi-sleeve: #d9a21b;
+  --hi-sleeve-2: #efe3c9;
+  --hi-sun: #efe3c9;
+  --hi-tomato: #c8452f;
+  --hi-green: #1d4d3f;
+  --hi-crate: #b98b52;
+  --hi-deck: #e7dccb;
+  --hi-ring: rgb(217 162 27 / 0.16);
+}
+:root.dark[data-world='himig'], .dark .w-scope[data-world='himig'] {
+  /* The room with the lights down: black vinyl, the same inks glowing. */
+  --paper: #0f0e0e;
+  --card: #171616;
+  --card-2: #1f1d1c;
+  --ink: #f1ebe0;
+  --ink-soft: #c2b9aa;
+  --ink-faint: #968e82;
+  --line: #262322;
+  --line-strong: #3b3634;
+  --accent: #ff7d5c;
+  --accent-soft: #33201a;
+  --accent-ink: #ffab93;
+  --action: #f1ebe0;
+  --action-ink: #0f0e0e;
+  --glow: color-mix(in oklab, #4a3416 40%, transparent);
+  --font-world-display: 'Unbounded Variable', var(--font-display);
+  --font-world-em: 'Unbounded Variable', var(--font-display);
+  --font-world-meta: 'DM Mono', ui-monospace, monospace;
+  --hi-ink: #050505;
+  --hi-vinyl: #050505;
+  --hi-groove: #2a2a2d;
+  --hi-shine: rgb(255 255 255 / 0.16);
+  --hi-label: #e0573d;
+  --hi-label-ink: #1a1512;
+  --hi-sleeve: #c99417;
+  --hi-sleeve-2: #d8ccb3;
+  --hi-sun: #eadfc6;
+  --hi-tomato: #e0573d;
+  --hi-green: #2f7a63;
+  --hi-crate: #6e5332;
+  --hi-deck: #262220;
+  --hi-ring: rgb(232 183 58 / 0.1);
+}
+
+@scope ([data-world='himig']) to ([data-world]:not([data-world='himig'])) {
+  .journal-scene[data-scene] .journal-sky { --art-w: calc(var(--art-h) * 1.6); }
+  @media (min-width: 640px) {
+    .journal-scene[data-scene] .journal-sky { background: radial-gradient(circle at calc(100% - var(--art-h) * 0.5) 50%, var(--hi-ring) 0, var(--hi-ring) calc(var(--art-h) * 0.95), transparent calc(var(--art-h) * 0.95 + 1px)); }
+  }
+  @media (min-width: 1024px) { .journal-scene[data-scene] .journal-sky { --art-w: calc(var(--art-h) * 2); } }
+  .journal-water { background: repeating-linear-gradient(180deg, var(--line-strong) 0 1px, transparent 1px 3px) 0 2px / 100% 7px no-repeat; }
+  .journal-title { font-weight: 700; font-size: clamp(1.55rem, 1rem + 2.2vw, 2.7rem); line-height: 1.06; letter-spacing: -0.04em; }
+  .journal-title em { font-style: normal; font-weight: 300; letter-spacing: -0.03em; }
+  .w-invite { font-family: var(--font-world-meta); font-size: 12.5px; letter-spacing: 0.08em; text-transform: uppercase; }
+  .w-title-slot { display: block; order: 1; width: 13rem; height: 14px; margin-top: 10px; }
+  .w-invite { order: 2; }
+  .himig-wave { display: block; width: 100%; height: 100%; }
+
+  /* Liner notes: a plain sheet with a printed rule. */
+  .journal-field { border-radius: 2px; background: var(--card); box-shadow: inset 0 3px 0 var(--ink), inset 0 0 0 1px var(--line); }
+  .journal-field:hover { box-shadow: inset 0 3px 0 var(--ink), inset 0 0 0 1px var(--line-strong); }
+  .journal-field:focus, .journal-field:focus-visible { box-shadow: inset 0 3px 0 var(--accent), inset 0 0 0 1.5px var(--accent), 0 0 0 4px color-mix(in oklab, var(--accent) 12%, transparent); }
+
+  /* Tracks: numbered, divided by grooves. */
+  .mine-title { font-family: var(--font-world-display); font-weight: 700; font-size: 1.15rem; letter-spacing: -0.03em; }
+  .passage { border-top: 0; }
+  .passage + .passage::before { content: ''; position: absolute; left: 0; right: 0; top: 0; height: 5px; background: repeating-linear-gradient(180deg, var(--line-strong) 0 1px, transparent 1px 2px); opacity: 0.8; }
+  .passage-gone { border-top: 0; }
+  .passage-mark { font-family: var(--font-world-meta); font-size: 12px; letter-spacing: 0.04em; }
+  .passage-mark .cat { font-family: var(--font-world-meta); font-style: normal; font-weight: 500; font-size: 11px; letter-spacing: 0.1em; text-transform: uppercase; }
+  .passage-mark .cat::before { width: 8px; height: 8px; border-radius: 999px; vertical-align: 0.05em; }
+  .passage-stamp[data-n] { display: inline; order: -1; font-weight: 500; color: var(--accent-ink); }
+  .passage-stamp[data-n]::before { content: 'A' attr(data-n); }
+  @media (min-width: 1280px) { .passage-stamp[data-n] { font-size: 1.05rem; } }
+  @media (min-width: 1024px) { .w-slot--compose { display: block; margin: 2.5rem 0 0 -0.25rem; max-width: 24rem; aspect-ratio: 320 / 150; } }
+  .himig-empty { display: flex; align-items: flex-end; gap: 0.3rem; }
+  .himig-spin { animation: hi-spin 1100ms cubic-bezier(0.4, 0, 0.2, 1) both; }
+}
+@keyframes hi-spin { from { transform: rotate(0); } to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) { .himig-spin { animation: w-appear 1000ms ease both; animation-name: hi-glow; } }
+@keyframes hi-glow { 0%, 100% { filter: none; } 40% { filter: brightness(1.35); } }
+
+/* ── Porma: everyday life, unnecessarily well dressed ────────────────────────────────────── */
+
+:root[data-world='porma'], .w-scope[data-world='porma'] {
+  /* Fine ivory stationery, near-black ink, invitation blue, tone-on-tone emboss. No gold. */
+  --paper: #f7f4ee;
+  --card: #fdfcf9;
+  --card-2: #ece7dd;
+  --ink: #17161a;
+  --ink-soft: #46434a;
+  --ink-faint: #615e66;
+  --line: #e4dfd4;
+  --line-strong: #cbc4b5;
+  --accent: #27406b;
+  --accent-soft: #dfe5ef;
+  --accent-ink: #213860;
+  --action: #17161a;
+  --action-ink: #fdfcf9;
+  --glow: transparent;
+  --font-world-display: 'Bodoni Moda Variable', Didot, 'Bodoni 72', serif;
+  --font-world-em: 'Bodoni Moda Variable', Didot, 'Bodoni 72', serif;
+  --font-world-meta: 'Bodoni Moda Variable', Didot, 'Bodoni 72', serif;
+  --po-ink: #17161a;
+  --po-kraft: #c9a778;
+  --po-kraft-dark: #a9885c;
+  --po-string: #f4efe4;
+  --po-label: #fdfcf9;
+  --po-tray: #d9d8d3;
+  --po-tray-line: #bdbcb6;
+  --po-silver: #dcdcd8;
+  --po-silver-dark: #b9b9b4;
+  --po-shine: rgb(255 255 255 / 0.85);
+  --po-card: #fdfcf9;
+  --po-card-line: #cbc4b5;
+  --po-card-ink: #27406b;
+  --po-emboss-hi: rgb(255 255 255 / 0.95);
+  --po-emboss-mid: #ebe6db;
+  --po-emboss-lo: rgb(90 80 60 / 0.42);
+  --po-mat: #9c8b6c;
+  --po-mat-line: #c7b894;
+  --po-weave: rgb(39 64 107 / 0.07);
+}
+:root.dark[data-world='porma'], .dark .w-scope[data-world='porma'] {
+  /* Black tie: evening black, ecru ink, silvered blue. */
+  --paper: #0e0e10;
+  --card: #151518;
+  --card-2: #1c1c20;
+  --ink: #efe8da;
+  --ink-soft: #c1bcb0;
+  --ink-faint: #958f86;
+  --line: #232328;
+  --line-strong: #37373e;
+  --accent: #9fb4d8;
+  --accent-soft: #1b2230;
+  --accent-ink: #bccbe6;
+  --action: #efe8da;
+  --action-ink: #0e0e10;
+  --glow: transparent;
+  --font-world-display: 'Bodoni Moda Variable', Didot, 'Bodoni 72', serif;
+  --font-world-em: 'Bodoni Moda Variable', Didot, 'Bodoni 72', serif;
+  --font-world-meta: 'Bodoni Moda Variable', Didot, 'Bodoni 72', serif;
+  --po-ink: #050506;
+  --po-kraft: #9c7f58;
+  --po-kraft-dark: #7d6444;
+  --po-string: #d8d0c0;
+  --po-label: #e6e0d4;
+  --po-tray: #6d6d72;
+  --po-tray-line: #505056;
+  --po-silver: #a7a7ac;
+  --po-silver-dark: #7d7d83;
+  --po-shine: rgb(255 255 255 / 0.5);
+  --po-card: #1c1c20;
+  --po-card-line: #3e3e46;
+  --po-card-ink: #9fb4d8;
+  --po-emboss-hi: rgb(255 255 255 / 0.12);
+  --po-emboss-mid: #19191c;
+  --po-emboss-lo: rgb(0 0 0 / 0.75);
+  --po-mat: #3d3528;
+  --po-mat-line: #5f5340;
+  --po-weave: rgb(239 232 218 / 0.05);
+}
+
+@scope ([data-world='porma']) to ([data-world]:not([data-world='porma'])) {
+  /* A sheer weave at the page's far edge, where there's room for it. */
+  @media (min-width: 1400px) {
+    .app-bg {
+      background:
+        repeating-linear-gradient(45deg, var(--po-weave) 0 1px, transparent 1px 9px) right top / 56px 100% no-repeat,
+        repeating-linear-gradient(-45deg, var(--po-weave) 0 1px, transparent 1px 9px) right top / 56px 100% no-repeat,
+        var(--paper);
+    }
+  }
+  .journal-scene[data-scene] .journal-sky { --art-w: calc(var(--art-h) * 1.6); }
+  @media (min-width: 1024px) { .journal-scene[data-scene] .journal-sky { --art-w: calc(var(--art-h) * 2); } }
+  /* Fine double rule. */
+  .journal-water { background: linear-gradient(var(--ink), var(--ink)) 0 2px / 100% 1px no-repeat, linear-gradient(var(--ink), var(--ink)) 0 5px / 100% 0.5px no-repeat; opacity: 0.55; }
+  .journal-title { font-weight: 500; font-size: clamp(1.9rem, 1.2rem + 2.7vw, 3.3rem); line-height: 1.02; letter-spacing: -0.015em; }
+  .journal-title em { font-style: italic; font-weight: 400; letter-spacing: -0.01em; }
+  .w-invite { font-family: var(--font-sans); font-size: 11.5px; font-weight: 500; letter-spacing: 0.22em; text-transform: uppercase; color: var(--ink-soft); }
+  .w-title-slot { display: block; order: -1; width: 44px; height: 30px; margin-bottom: 10px; }
+  .porma-seal { display: block; width: 100%; height: 100%; overflow: visible; }
+  .porma-seal[data-press] { animation: po-press 700ms var(--ease-out-soft) both; transform-origin: center; }
+
+  /* Stationery: a double frame, a hairline inside. */
+  .journal-field {
+    border-radius: 1px;
+    background: var(--card);
+    box-shadow: inset 0 0 0 1px var(--line-strong), inset 0 0 0 5px var(--card), inset 0 0 0 5.5px var(--line);
+    padding: 1.2rem 1.4rem 1.1rem;
+  }
+  .journal-field:hover { box-shadow: inset 0 0 0 1px var(--ink-faint), inset 0 0 0 5px var(--card), inset 0 0 0 5.5px var(--line); }
+  .journal-field:focus, .journal-field:focus-visible { box-shadow: inset 0 0 0 1.5px var(--accent), inset 0 0 0 5px var(--card), inset 0 0 0 5.5px var(--accent-soft), 0 0 0 4px color-mix(in oklab, var(--accent) 10%, transparent); }
+
+  /* An invitation archive: numbered, hairline rules, small caps. */
+  .mine-title { font-family: var(--font-world-display); font-style: italic; font-weight: 500; font-size: 1.5rem; letter-spacing: -0.01em; }
+  .passage { border-top: 0.5px solid var(--line-strong); }
+  .passage:first-child { border-top: 0; }
+  .passage-mark { font-family: var(--font-sans); font-size: 11px; letter-spacing: 0.12em; text-transform: uppercase; }
+  .passage-mark .cat { font-family: var(--font-sans); font-style: normal; font-weight: 600; font-size: 10.5px; letter-spacing: 0.2em; }
+  .passage-mark .cat::before { display: none; }
+  .passage-stamp[data-n] { display: inline; order: -1; font-family: var(--font-world-display); font-style: italic; font-size: 16px; letter-spacing: 0; text-transform: none; color: var(--accent-ink); }
+  .passage-stamp[data-n]::before { content: 'No. ' attr(data-n); }
+  @media (min-width: 1280px) { .passage-stamp[data-n] { font-size: 21px; line-height: 1; margin-bottom: 0.3rem; } }
+  .passage-text[data-short] { font-family: var(--font-world-display); font-size: 1.4rem; line-height: 1.5; }
+  .porma-empty { display: flex; align-items: flex-end; gap: 0.4rem; }
+}
+@keyframes po-press { 0% { transform: scale(1); } 35% { transform: scale(0.93); filter: contrast(1.3); } 100% { transform: scale(1); } }
+@media (prefers-reduced-motion: reduce) { .porma-seal[data-press] { animation: none; } }
+
+/* ── Sibol: a small balcony with room to grow ────────────────────────────────────────────── */
+
+:root[data-world='sibol'], .w-scope[data-world='sibol'] {
+  /* Pale sage-cream, deep green-black ink, clay; light through leaves. */
+  --paper: #eef0e6;
+  --card: #fafbf5;
+  --card-2: #e1e5d6;
+  --ink: #1f2a22;
+  --ink-soft: #425145;
+  --ink-faint: #5a685c;
+  --line: #d9ddcd;
+  --line-strong: #bac2ab;
+  --accent: #a24f2b;
+  --accent-soft: #f1dccf;
+  --accent-ink: #8a4022;
+  --action: #1f2a22;
+  --action-ink: #fafbf5;
+  --glow: color-mix(in oklab, #f4e9b8 30%, transparent);
+  --font-world-display: 'Alegreya Variable', Georgia, serif;
+  --font-world-em: 'Alegreya Variable', Georgia, serif;
+  --font-world-meta: 'Alegreya Variable', Georgia, serif;
+  --si-ink: #1f2a22;
+  --si-leaf: #5e9152;
+  --si-leaf-deep: #3f6f3c;
+  --si-leaf-new: #86b85e;
+  --si-leaf-line: #2c4a28;
+  --si-snake: #6c8a4a;
+  --si-stem: #4a6a3e;
+  --si-clay: #b8653d;
+  --si-clay-rim: #c9784e;
+  --si-rail: #2c3a30;
+  --si-fruit: #e0a33a;
+  --si-fruit-green: #9bbf4a;
+  --si-tag: #fbf7ea;
+  --si-tag-ink: #8a7d5c;
+  --si-can: #7fa0a0;
+  --si-dapple: rgb(255 246 206 / 0.55);
+}
+:root.dark[data-world='sibol'], .dark .w-scope[data-world='sibol'] {
+  /* The balcony at night: deep green-black, a warm lamp inside, clay in lamplight. */
+  --paper: #0f1411;
+  --card: #161c18;
+  --card-2: #1d241f;
+  --ink: #e5eadf;
+  --ink-soft: #b4bfb0;
+  --ink-faint: #8a968a;
+  --line: #222a24;
+  --line-strong: #354037;
+  --accent: #e3936b;
+  --accent-soft: #2d211a;
+  --accent-ink: #f0b393;
+  --action: #e5eadf;
+  --action-ink: #0f1411;
+  --glow: color-mix(in oklab, #3a3a22 40%, transparent);
+  --font-world-display: 'Alegreya Variable', Georgia, serif;
+  --font-world-em: 'Alegreya Variable', Georgia, serif;
+  --font-world-meta: 'Alegreya Variable', Georgia, serif;
+  --si-ink: #070a08;
+  --si-leaf: #4d7a45;
+  --si-leaf-deep: #335a31;
+  --si-leaf-new: #6f9e50;
+  --si-leaf-line: #1a2c18;
+  --si-snake: #56703c;
+  --si-stem: #3e5a36;
+  --si-clay: #8f4d2f;
+  --si-clay-rim: #a45c38;
+  --si-rail: #56645a;
+  --si-fruit: #c9892a;
+  --si-fruit-green: #7c9a3c;
+  --si-tag: #262d27;
+  --si-tag-ink: #9aa58f;
+  --si-can: #4f6a6a;
+  --si-dapple: rgb(255 214 150 / 0.07);
+}
+
+@scope ([data-world='sibol']) to ([data-world]:not([data-world='sibol'])) {
+  /* Soft patches of light through leaves. Still: nothing moves behind the words. */
+  .journal-scene[data-scene] .journal-sky { --art-w: calc(var(--art-h) * 1.8); }
+  @media (min-width: 640px) {
+    .journal-scene[data-scene] .journal-sky {
+      background:
+        radial-gradient(90px 44px at 70% 28%, var(--si-dapple), transparent 70%),
+        radial-gradient(60px 30px at 80% 62%, var(--si-dapple), transparent 70%),
+        radial-gradient(110px 46px at 90% 76%, var(--si-dapple), transparent 72%),
+        radial-gradient(70px 36px at 94% 18%, var(--si-dapple), transparent 70%);
+    }
+    :scope:where(.dark, .dark *) .journal-scene[data-scene] .journal-sky { background: radial-gradient(360px 180px at 96% 40%, rgb(255 206 140 / 0.08), transparent 70%); }
+  }
+  @media (min-width: 1024px) { .journal-scene[data-scene] .journal-sky { --art-w: calc(var(--art-h) * 2.3); } }
+  .journal-water { background: linear-gradient(var(--si-rail), var(--si-rail)) 0 2px / 100% 2px no-repeat; opacity: 0.5; }
+  .journal-title { font-weight: 560; font-size: clamp(1.9rem, 1.3rem + 2.6vw, 3.2rem); line-height: 1.02; letter-spacing: -0.015em; }
+  .journal-title em { font-style: italic; font-weight: 500; letter-spacing: -0.01em; }
+  .w-invite { font-family: var(--font-world-meta); font-style: italic; font-size: 18px; }
+
+  /* Sheltered and breathable: rounded, soft, with room around the words. */
+  .journal-field { border-radius: 20px; padding: 1.2rem 1.35rem 1.1rem; background: var(--card); box-shadow: 0 0 0 1px var(--line), 0 16px 32px -26px rgb(40 60 30 / 0.45); }
+  .journal-field:hover { box-shadow: 0 0 0 1px var(--line-strong), 0 16px 32px -26px rgb(40 60 30 / 0.45); }
+  .journal-field:focus, .journal-field:focus-visible { box-shadow: 0 0 0 1.5px var(--accent), 0 0 0 5px color-mix(in oklab, var(--accent) 12%, transparent); }
+  .journal-field--small { border-radius: 14px; }
+
+  /* A garden notebook: a pressed leaf by each thought, dates on plant tags, rows like seed lines. */
+  .mine-title { font-family: var(--font-world-display); font-weight: 600; font-size: 1.4rem; }
+  .passage { border-top: 1.5px dotted var(--line-strong); }
+  .passage:first-child { border-top: 0; }
+  .passage-mark .cat { font-style: italic; font-size: 16px; font-weight: 500; }
+  .passage-mark .cat::before {
+    width: 14px;
+    height: 14px;
+    margin-right: 0.35rem;
+    vertical-align: -0.1em;
+    border-radius: 0;
+    background: var(--tone, var(--si-leaf));
+    -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 14 14'%3E%3Cpath d='M1 13C1 6 5 1 13 1c0 8-5 12-12 12Z'/%3E%3C/svg%3E") center / contain no-repeat;
+    mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 14 14'%3E%3Cpath d='M1 13C1 6 5 1 13 1c0 8-5 12-12 12Z'/%3E%3C/svg%3E") center / contain no-repeat;
+  }
+  @media (min-width: 1280px) { .passage-mark .cat::before { display: inline-block; margin: 0 0.35rem 0 0; } }
+  .passage-stamp { display: inline-block; position: relative; padding: 0 7px 0 13px; border-radius: 3px 8px 8px 3px; background: var(--si-tag); box-shadow: inset 0 0 0 1px var(--line-strong); font-family: var(--font-world-meta); font-style: italic; font-size: 13px; color: var(--ink-soft); }
+  .passage-stamp::before { content: attr(data-day) ' ' attr(data-mon); }
+  .passage-stamp::after { content: ''; position: absolute; left: 4px; top: 50%; width: 4px; height: 4px; margin-top: -2px; border-radius: 999px; box-shadow: inset 0 0 0 1px var(--ink-faint); }
+  .passage-text { line-height: 1.7; }
+  @media (min-width: 1024px) { .w-slot--compose { display: block; margin: 2rem 0 0 -0.5rem; max-width: 24rem; aspect-ratio: 320 / 150; } }
+  .sibol-empty { display: flex; align-items: flex-end; gap: 0.3rem; }
+  .sibol-unfurl { animation: si-unfurl 1300ms var(--ease-out-soft) both; transform-origin: 0 0; }
+}
+@keyframes si-unfurl { 0% { transform: rotate(-70deg) scale(0.2); opacity: 0.4; } 60% { transform: rotate(8deg) scale(1.05); opacity: 1; } 100% { transform: none; } }
+@media (prefers-reduced-motion: reduce) { .sibol-unfurl { animation: w-appear 1200ms ease both; animation-name: si-fade; } }
+@keyframes si-fade { from { opacity: 0.3; } to { opacity: 1; } }

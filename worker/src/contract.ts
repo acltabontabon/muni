@@ -37,6 +37,12 @@ export interface Me {
   /** Until when security-sensitive changes are allowed without confirming again. */
   recent_auth_until: string
   pending_join_requests: { id: string; workspace_name: string; created_at: string }[]
+  /**
+   * The person's own character and whether their pages wear its world. Private: returned here
+   * only, never in anything shared with a team. `intro`: offer the chooser ('choose', a new
+   * account), a quiet note ('note', an account from before characters), or nothing ('done').
+   */
+  avatar: { id: string | null; theme: boolean; intro: 'choose' | 'note' | 'done' }
   /** Only on sign-in responses: whether that verification created a new account. */
   created?: boolean
 }

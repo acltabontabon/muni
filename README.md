@@ -66,6 +66,8 @@ cd web && npm run typecheck && npm run lint && npm test && npm run build
 
 Browser end-to-end suites run against `wrangler dev` serving the production build:
 `node e2e/entrance.mjs` and `node e2e/offline.mjs` (from `web/`, with `MUNI_URL` if not port 8787).
+`node e2e/worlds.mjs` checks the eight character worlds against the Vite dev server (add `OFFLINE=1`
+against the production build for the offline part); `SHOTS=dir` saves every world's screenshots.
 
 ## Deploy your own
 

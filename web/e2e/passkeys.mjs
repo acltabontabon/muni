@@ -140,6 +140,11 @@ let firstCredential
   await page.click('button:has-text("Continue")')
   await out(page)
   check('recovery email added and verified during onboarding', (await api(page, 'GET', '/api/auth/me')).body.email === email)
+  // A new account's first page: choose a character (web/e2e/worlds.mjs covers the chooser itself).
+  await page.waitForSelector('.w-chooser')
+  check('a new account meets the character chooser once', (await page.locator('.w-tile').count()) === 8)
+  await page.click('button:has-text("Choose Kape")')
+  await page.waitForSelector('header button')
   firstCredential = (await va.credentials())[0]
 
   // Sign out; the page must not sign the account straight back in.
@@ -265,7 +270,7 @@ let firstCredential
   const { url } = await created.json()
   await op.waitForSelector('svg[aria-label^="Invite QR code"]')
   await shot(op, '11-team-qr')
-  check('the QR encodes an ordinary https link with the token in the fragment', /^https:\/\/localhost:8793\/join#[A-Za-z0-9_-]{43}$/.test(url))
+  check('the QR encodes an ordinary https link with the token in the fragment', new RegExp(`^${BASE.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}/join#[A-Za-z0-9_-]{43}$`).test(url))
 
   const joiner = await newCtx(MOBILE)
   const jp = await joiner.newPage()

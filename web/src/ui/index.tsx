@@ -126,12 +126,12 @@ export function Kbd({ children }: { children: ReactNode }) {
 }
 
 // ---------- Dialog ----------
-export function Dialog({ open, onOpenChange, title, description, children, wide }: { open: boolean; onOpenChange: (o: boolean) => void; title: ReactNode; description?: ReactNode; children: ReactNode; wide?: boolean }) {
+export function Dialog({ open, onOpenChange, title, description, children, wide, size, onOpenAutoFocus, onCloseAutoFocus }: { open: boolean; onOpenChange: (o: boolean) => void; title: ReactNode; description?: ReactNode; children: ReactNode; wide?: boolean; size?: 'xl'; onOpenAutoFocus?: (e: Event) => void; onCloseAutoFocus?: (e: Event) => void }) {
   return (
     <DialogPrimitive.Root open={open} onOpenChange={onOpenChange}>
       <DialogPrimitive.Portal>
         <DialogPrimitive.Overlay className="fixed inset-0 z-40 bg-ink/40 anim-fade backdrop-blur-[2px]" />
-        <DialogPrimitive.Content className={clsx('fixed left-1/2 top-1/2 z-50 w-[calc(100vw-32px)] -translate-x-1/2 -translate-y-1/2 rounded-2xl bg-card p-6 shadow-[var(--shadow-float)] border border-line anim-settle max-h-[calc(100dvh-32px)] overflow-y-auto', wide ? 'max-w-2xl' : 'max-w-md')}>
+        <DialogPrimitive.Content onOpenAutoFocus={onOpenAutoFocus} onCloseAutoFocus={onCloseAutoFocus} className={clsx('fixed left-1/2 top-1/2 z-50 w-[calc(100vw-32px)] -translate-x-1/2 -translate-y-1/2 rounded-2xl bg-card p-6 shadow-[var(--shadow-float)] border border-line anim-settle max-h-[calc(100dvh-32px)] overflow-y-auto', size === 'xl' ? 'max-w-5xl max-sm:p-4' : wide ? 'max-w-2xl' : 'max-w-md')}>
           <div className="flex items-start justify-between gap-4">
             <DialogPrimitive.Title className="font-display text-xl leading-tight">{title}</DialogPrimitive.Title>
             <DialogPrimitive.Close className="rounded-full p-1.5 text-ink-soft hover:bg-ink/6" aria-label="Close">

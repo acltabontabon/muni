@@ -31,6 +31,8 @@
   --color-ok: var(--ok);
   --color-warn: var(--warn);
   --color-danger: var(--danger);
+  --color-status: var(--status);
+  --color-status-ink: var(--status-ink);
 
   --radius-card: 12px;
   --shadow-card: 0 1px 2px rgb(20 20 30 / 0.05), 0 1px 1px rgb(20 20 30 / 0.03);
@@ -78,6 +80,18 @@
   --star: #ffffff;
   --e-panel: #fbf8f2;
   --glow: color-mix(in oklab, var(--sky-glow) 22%, transparent);
+  /* Semantic, never re-dressed by a character world (web/src/worlds/worlds.css): a thought's
+     state reads the same in every world. */
+  --status: #a4452a;
+  --status-ink: #8f3a22;
+  --focus: var(--accent);
+  /* The personal pages' type. A world may swap these; the wordmark and shared pages never change. */
+  --font-world-display: var(--font-display);
+  --font-world-em: var(--font-wordmark);
+  --font-world-meta: var(--font-wordmark);
+  /* The margin beside saved thoughts on wide screens (the marker column and its gap). */
+  --mark-col: 6.25rem;
+  --mark-gap: 1.25rem;
   color-scheme: light;
 }
 
@@ -118,6 +132,8 @@
   --star: #e9e4da;
   --e-panel: #16171b;
   --glow: color-mix(in oklab, #28252c 50%, transparent);
+  --status: #dca273;
+  --status-ink: #efc4a1;
   color-scheme: dark;
 }
 
@@ -149,8 +165,16 @@ body {
   letter-spacing: -0.015em;
 }
 /* The entrance's voice, used sparingly: one serif-italic word in a sans heading. */
-.font-display em, .journal-title em, .serif-em {
+.font-display em, .serif-em {
   font-family: var(--font-wordmark);
+  font-style: italic;
+  font-weight: 400;
+  letter-spacing: -0.01em;
+  color: var(--accent-ink);
+  padding-right: 0.04em;
+}
+.journal-title em {
+  font-family: var(--font-world-em);
   font-style: italic;
   font-weight: 400;
   letter-spacing: -0.01em;
@@ -164,7 +188,7 @@ body {
 }
 
 ::selection { background: var(--accent-soft); }
-:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 6px; }
+:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; border-radius: 6px; }
 
 @keyframes rise { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
 @keyframes fade { from { opacity: 0; } to { opacity: 1; } }
@@ -223,9 +247,9 @@ body {
 /* ── A thought's state: the dot from the Muni mark. Hollow on this device, filled in the sprint. */
 .dot { display: inline-block; width: 9px; height: 9px; flex: none; border-radius: 999px; }
 .dot--draft { box-shadow: inset 0 0 0 1.5px var(--ink-faint); }
-.dot--queued { box-shadow: inset 0 0 0 1.5px var(--accent); }
-.dot--sending { background: conic-gradient(var(--accent) 0 50%, transparent 50% 100%); box-shadow: inset 0 0 0 1.5px var(--accent); }
-.dot--submitted { background: var(--accent); }
+.dot--queued { box-shadow: inset 0 0 0 1.5px var(--status); }
+.dot--sending { background: conic-gradient(var(--status) 0 50%, transparent 50% 100%); box-shadow: inset 0 0 0 1.5px var(--status); }
+.dot--submitted { background: var(--status); }
 .dot--attention { background: var(--warn); }
 
 /* The waterline: what's written above it is still yours to finish; below it, it has been kept. */
@@ -291,7 +315,7 @@ body {
 @media (min-width: 640px) { .journal-head { padding: 1.75rem calc(var(--art-h) * 1.45 + 1.5rem) 1rem 0; } }
 /* On a phone only the heading shares the art's height; the lines above it use the full width. */
 @media (max-width: 639px) { .journal-head .journal-title { padding-right: calc(var(--art-h) * 1.45 + 0.75rem); } }
-.journal-title { font-family: var(--font-display); font-weight: 600; font-size: clamp(1.7rem, 1.2rem + 2.2vw, 2.85rem); line-height: 1.04; letter-spacing: -0.035em; text-wrap: balance; overflow-wrap: anywhere; }
+.journal-title { font-family: var(--font-world-display); font-weight: 600; font-size: clamp(1.7rem, 1.2rem + 2.2vw, 2.85rem); line-height: 1.04; letter-spacing: -0.035em; text-wrap: balance; overflow-wrap: anywhere; }
 .journal-title label { cursor: text; }
 .journal-art {
   position: absolute;
@@ -421,9 +445,11 @@ body {
 .passage { position: relative; display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 0.35rem 0.75rem; padding: 1.15rem 0 1.25rem; border-top: 1px solid var(--line); }
 .passage:first-child { border-top: 0; padding-top: 0.5rem; }
 .passage-mark { grid-column: 1; display: flex; align-items: baseline; gap: 0.6rem; font-size: 12.5px; color: var(--ink-faint); }
-.passage-mark .cat { font-family: var(--font-wordmark); font-style: italic; font-size: 15px; color: var(--tone, var(--ink-faint)); letter-spacing: -0.005em; }
+.passage-mark .cat { font-family: var(--font-world-meta); font-style: italic; font-size: 15px; color: var(--tone, var(--ink-faint)); letter-spacing: -0.005em; }
 .passage-mark .cat::before { content: ''; display: inline-block; width: 12px; height: 1.5px; margin-right: 0.45rem; vertical-align: 0.3em; background: var(--tone, var(--line-strong)); border-radius: 2px; }
 .passage-body { grid-column: 1; min-width: 0; }
+/* A world's decorative date or number (ticket, jersey, track); Muni's own look doesn't draw one. */
+.passage-stamp { display: none; }
 .passage-menu { grid-column: 2; grid-row: 1 / span 2; align-self: start; margin-top: -0.35rem; }
 .passage-text { max-width: 34rem; font-size: 1.0625rem; line-height: 1.72; white-space: pre-wrap; overflow-wrap: anywhere; }
 .passage-text[data-short] { font-size: 1.25rem; line-height: 1.5; letter-spacing: -0.012em; }
@@ -433,21 +459,22 @@ body {
 .passage-context dd { display: inline; margin: 0; }
 .passage-context div + div { margin-top: 0.3rem; }
 .passage-status { display: flex; flex-wrap: wrap; align-items: center; gap: 0.5rem; margin-bottom: 0.4rem; font-size: 13px; font-weight: 550; }
-.passage[data-state='queued'] .passage-status, .passage[data-state='sending'] .passage-status { color: var(--accent-ink); }
+.passage[data-state='queued'] .passage-status, .passage[data-state='sending'] .passage-status { color: var(--status-ink); }
 .passage[data-state='attention'] .passage-status { color: var(--warn); }
-.passage[data-state='queued'], .passage[data-state='sending'] { background: linear-gradient(90deg, color-mix(in oklab, var(--accent) 6%, transparent), transparent 70%); padding-left: 0.85rem; box-shadow: inset 2px 0 0 color-mix(in oklab, var(--accent) 55%, transparent); border-radius: 2px; }
+.passage[data-state='queued'], .passage[data-state='sending'] { background: linear-gradient(90deg, color-mix(in oklab, var(--status) 6%, transparent), transparent 70%); padding-left: 0.85rem; box-shadow: inset 2px 0 0 color-mix(in oklab, var(--status) 55%, transparent); border-radius: 2px; }
 .passage[data-state='attention'] { background: linear-gradient(90deg, color-mix(in oklab, var(--warn) 7%, transparent), transparent 75%); padding-left: 0.85rem; box-shadow: inset 2px 0 0 var(--warn); border-radius: 2px; }
 .passage[data-editing] .passage-text { display: none; }
 .passage-gone { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 0.5rem; padding: 0.9rem 0; border-top: 1px solid var(--line); font-size: 14px; color: var(--ink-soft); }
 .passage-gone:first-child { border-top: 0; }
 @media (min-width: 1280px) {
   /* A margin column on wide screens: the marker sits beside the text, like a note in a journal. */
-  .passage { grid-template-columns: 6.25rem minmax(0, 1fr) auto; column-gap: 1.25rem; }
+  .passage { grid-template-columns: var(--mark-col) minmax(0, 1fr) auto; column-gap: var(--mark-gap); }
   .passage-mark { grid-column: 1; grid-row: 1 / span 2; flex-direction: column; align-items: flex-end; gap: 0.15rem; padding-top: 0.2rem; text-align: right; }
   .passage-mark .cat::before { display: block; margin: 0 0 0.35rem auto; }
   .passage-body { grid-column: 2; }
   .passage-menu { grid-column: 3; }
-  .passages-in-margin { padding-left: 7.5rem; }
+  .mark-indent { padding-left: calc(var(--mark-col) + var(--mark-gap)); }
+  .mark-outdent { margin-left: calc(-1 * (var(--mark-col) + var(--mark-gap))); }
 }
 .icon-btn { display: inline-grid; place-items: center; width: 36px; height: 36px; border-radius: 999px; color: var(--ink-faint); transition: background 150ms, color 150ms; }
 .icon-btn:hover, .icon-btn[data-state='open'] { background: color-mix(in oklab, var(--ink) 6%, transparent); color: var(--ink); }

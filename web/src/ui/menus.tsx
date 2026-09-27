@@ -6,18 +6,20 @@ import { useEffect, useState, type FormEvent, type ReactNode } from 'react'
 import { Link, useNavigate } from 'react-router'
 import * as Popover from '@radix-ui/react-popover'
 import { clsx } from 'clsx'
-import { Check, ChevronDown, Download, LayoutList, LogOut, Monitor, Moon, Plus, Settings2, Shield, Sun, Trash2, UserRound, Users } from 'lucide-react'
+import { Check, ChevronDown, Download, LayoutList, LogOut, Monitor, Moon, Plus, Settings2, Shield, Smile, Sun, Trash2, UserRound, Users } from 'lucide-react'
 import { ApiError, post } from '@/api/client'
 import type { Me, Workspace } from '@/api/types'
 import { useAuth } from '@/lib/auth'
 import { useLocal } from '@/lib/local/LocalProvider'
-import { applyTheme, forgetSignedInState, readPrefs, writePrefs } from '@/lib/prefs'
+import { applyAppearance, forgetSignedInState, readPrefs, writePrefs } from '@/lib/prefs'
 import { installInstructions, promptInstall, usePwa } from '@/lib/pwa'
 import { chooseWorkspace } from '@/lib/workspace'
 import { keyring } from '@/lib/e2ee/keyring'
 import { announceSignOut, markSignedOutLocally } from '@/lib/signout'
 import { useDeviceKeys } from '@/lib/e2ee/E2eeProvider'
 import { Button, Dialog, ErrorText, Input, Label, Switch, useToast } from '@/ui'
+import { Portrait } from '@/worlds/portraits'
+import { useWorld } from '@/worlds/world'
 
 const panel = 'z-50 w-[min(20rem,calc(100vw-24px))] rounded-2xl border border-line bg-card p-1.5 shadow-[var(--shadow-float)] anim-rise'
 const item = 'flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left text-[15px] text-ink hover:bg-ink/5 focus-visible:bg-ink/5'
@@ -151,6 +153,7 @@ export function AccountMenu() {
   const [open, setOpen] = useState(false)
   const [dialog, setDialog] = useState<null | 'signout' | 'clear' | 'keep-off' | 'install'>(null)
   const [theme, setTheme] = useState(readPrefs().theme ?? 'system')
+  const world = useWorld()
   if (!me) return null
   const initial = me.display_name.trim()[0]?.toUpperCase() ?? '·'
   const close = (d: typeof dialog = null) => {
@@ -161,8 +164,9 @@ export function AccountMenu() {
     <>
       <Popover.Root open={open} onOpenChange={setOpen}>
         <Popover.Trigger asChild>
-          <button className="grid size-9 place-items-center rounded-full bg-accent-soft text-sm font-semibold text-accent-ink hover:brightness-95" aria-label={`Account menu for ${me.display_name}`}>
-            {initial}
+          <button data-account-trigger className="grid size-9 place-items-center overflow-hidden rounded-full bg-accent-soft text-sm font-semibold text-accent-ink hover:brightness-95" aria-label={`Account menu for ${me.display_name}`}>
+            {/* Their own character, on their own pages only: shared pages (often on a shared screen) show the initial. */}
+            {world.personal && world.character ? <Portrait id={world.character.id} size={36} /> : initial}
           </button>
         </Popover.Trigger>
         <Popover.Portal>
@@ -175,6 +179,15 @@ export function AccountMenu() {
             <Link to="/account" className={item} onClick={() => setOpen(false)}>
               <UserRound className="size-4 text-ink-soft" /> Account, devices &amp; notifications
             </Link>
+            <button
+              className={item}
+              onClick={() => {
+                setOpen(false)
+                world.setChooserOpen(true)
+              }}
+            >
+              {world.character ? <Portrait id={world.character.id} size={16} /> : <Smile className="size-4 text-ink-soft" />} {world.character ? 'Change character' : 'Choose a character'}
+            </button>
             <div className="flex items-center gap-2 px-3 py-2" role="group" aria-label="Theme">
               {([['system', Monitor], ['light', Sun], ['dark', Moon]] as const).map(([t, Icon]) => (
                 <button
@@ -184,7 +197,7 @@ export function AccountMenu() {
                   onClick={() => {
                     setTheme(t)
                     writePrefs({ theme: t })
-                    applyTheme(t)
+                    applyAppearance({ mode: t })
                   }}
                 >
                   <Icon className="size-3.5" /> {t}

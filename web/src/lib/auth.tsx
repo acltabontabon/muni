@@ -1,7 +1,7 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { ApiError, get, onUnauthorized, post } from '@/api/client'
 import type { Me } from '@/api/types'
-import { adoptLegacyKeep, keepsLocal, keptAccounts, readPrefs } from '@/lib/prefs'
+import { adoptLegacyKeep, keepsLocal, keptAccounts, readPrefs, worldFor } from '@/lib/prefs'
 import { deviceStore } from '@/lib/local/store'
 import { hasDeviceStorage } from '@/lib/local/LocalProvider'
 import { clearPendingSignOut, hasPendingSignOut, onSignOutElsewhere } from '@/lib/signout'
@@ -33,7 +33,9 @@ async function cachedIdentity(): Promise<Me | null> {
     const i = await deviceStore().getIdentity()
     // Only someone who chose to keep drafts on this device can open Muni from it offline.
     if (!i || (!legacy && !keptAccounts().includes(i.account_id))) return null
-    return { account_id: i.account_id, display_name: i.display_name, needs_name: false, email: '', workspaces: i.workspaces.map((w) => ({ ...w, is_demo: false })), session_expires_at: '', email_transport: '', ai_provider: '', passkeys: 0, auth_method: null, recent_auth_until: '', pending_join_requests: [] }
+    // Their character comes from this device's copy; offline is never the moment for the chooser.
+    const w = worldFor(i.account_id)
+    return { account_id: i.account_id, display_name: i.display_name, needs_name: false, email: '', workspaces: i.workspaces.map((w) => ({ ...w, is_demo: false })), session_expires_at: '', email_transport: '', ai_provider: '', passkeys: 0, auth_method: null, recent_auth_until: '', pending_join_requests: [], avatar: { id: w?.avatar ?? null, theme: w?.theme ?? true, intro: 'done' } }
   } catch {
     return null
   }

@@ -16,7 +16,8 @@ import { Button, Spinner, useDocumentTitle } from '@/ui'
 import { Composer, LocalThoughtList, MyThoughts } from '@/ui/capture'
 import { NewWorkspaceDialog } from '@/ui/menus'
 import { AppShell } from '@/ui/shell'
-import { JournalScene } from '@/ui/journal'
+import { WorldScene, WorldSlot } from '@/worlds/WorldScene'
+import { CharacterNote } from '@/worlds/Character'
 import { RetroWhen } from '@/ui/when'
 import { DeviceKeyNotice } from '@/ui/keys'
 
@@ -136,12 +137,12 @@ export function Home() {
   ) : null
   const extras = (
     <>
-      <div className="xl:pl-[7.5rem]"><PendingJoins /></div>
+      <div className="mark-indent"><PendingJoins /></div>
       {unsentElsewhere.length ? (
-        <section className="mt-14 xl:pl-[7.5rem]" aria-labelledby="unsent">
+        <section className="mt-14 mark-indent" aria-labelledby="unsent">
           <h2 id="unsent" className="font-display text-lg">Not sent yet <span className="ml-1 font-normal text-ink-faint">{unsentElsewhere.length}</span></h2>
           <p className="mb-2 text-sm text-ink-soft">Kept on this device for other sprints.</p>
-          <div className="xl:-ml-[7.5rem]"><LocalThoughtList items={unsentElsewhere} moveChoices={moveChoices} showDestination /></div>
+          <div className="mark-outdent"><LocalThoughtList items={unsentElsewhere} moveChoices={moveChoices} showDestination /></div>
         </section>
       ) : null}
       {myCommitments.length ? <Commitments items={myCommitments} me={me} /> : null}
@@ -153,14 +154,15 @@ export function Home() {
     const empty = collected === 0
     return (
       <AppShell workspace={ws} wide>
-        <JournalScene bubble={empty} respond>
+        <WorldScene bubble={empty} respond invite={collected !== null && !empty}>
           <Context s={composerFor} status={dest ? 'collecting' : 'closed-now'} elsewhere={elsewhere} me={me} several={collectingHere.length > 1} chosen={!!dest} />
           <h1 className="journal-title mt-3">
             <label htmlFor="thought-field">What’s worth <em>remembering</em>?</label>
           </h1>
-        </JournalScene>
+        </WorldScene>
         <div className="journal-body" data-empty={empty || undefined}>
           <div className="home-compose min-w-0 self-start">
+            <CharacterNote />
             {offlineNote}
             {live ? <LiveBanner s={live} /> : null}
             {composerFor.encryption === 'e1' ? <div className="mb-4"><DeviceKeyNotice need="write" /></div> : null}
@@ -172,11 +174,14 @@ export function Home() {
               onChoose={choose}
               closed={!dest ? <>This sprint stopped collecting. Your text is still here — copy it{choices.length ? ', or choose another sprint' : ''}.</> : undefined}
             />
+            <WorldSlot part="Compose" />
           </div>
-          <div className="min-w-0 pt-1">
+          <div className="home-collection min-w-0 pt-1">
             <MyThoughts sprintId={composerFor.id} editable={!!dest && !offline} moveChoices={moveChoices} online={!offline} onCount={setCollected} />
             {extras}
+            <WorldSlot part="Collection" />
           </div>
+          <WorldSlot part="Page" />
         </div>
       </AppShell>
     )
@@ -184,10 +189,10 @@ export function Home() {
 
   // ── Everything else: the same scene with the state as its heading, then one readable column.
   const scene = (kicker: ReactNode, title: ReactNode, opts: { lights?: number; bubble?: boolean } = {}) => (
-    <JournalScene lights={opts.lights} bubble={opts.bubble}>
+    <WorldScene lights={opts.lights} bubble={opts.bubble}>
       <p className="text-sm text-ink-soft">{kicker}</p>
       <h1 className="journal-title mt-2">{title}</h1>
-    </JournalScene>
+    </WorldScene>
   )
   const sprintLink = (s: Sprintish) => <Link to={`/sprints/${s.id}`} className="font-medium text-ink [overflow-wrap:anywhere] hover:underline">{s.name}</Link>
   let head: ReactNode
@@ -233,6 +238,7 @@ export function Home() {
     <AppShell workspace={ws} wide>
       {head}
       <div className="mt-4 max-w-3xl">
+        <CharacterNote />
         {offlineNote}
         {body}
         {extras}
@@ -250,7 +256,7 @@ function Context({ s, status, elsewhere, me, several, chosen }: { s: Sprintish; 
       </p>
       <p className="min-w-0 [&>*]:align-baseline">
         {status === 'collecting' ? (
-          <span className="text-accent-ink"><span className="dot dot--submitted mr-1.5" style={{ width: 7, height: 7 }} aria-hidden />Collecting</span>
+          <span className="text-status-ink"><span className="dot dot--submitted mr-1.5" style={{ width: 7, height: 7 }} aria-hidden />Collecting</span>
         ) : (
           <span className="font-medium text-warn"><span className="dot dot--attention mr-1.5" style={{ width: 7, height: 7 }} aria-hidden />Collection just closed</span>
         )}
@@ -355,7 +361,7 @@ function ExperimentList({ items, me, empty }: { items: Experiment[]; me: Me; emp
 
 function Commitments({ items, me }: { items: Experiment[]; me: Me }) {
   return (
-    <section className="mt-14 xl:pl-[7.5rem]" aria-labelledby="commitments">
+    <section className="mt-14 mark-indent" aria-labelledby="commitments">
       <h2 id="commitments" className="font-display text-lg">Your commitments</h2>
       <p className="text-sm text-ink-soft">Experiments you own, until the team revisits them.</p>
       <ExperimentList items={items} me={me} />
@@ -388,11 +394,12 @@ function Welcome() {
   const [creating, setCreating] = useState(false)
   return (
     <AppShell workspace={null} wide>
-      <JournalScene bubble>
+      <WorldScene bubble>
         <p className="text-sm text-ink-soft">A moment to reflect</p>
         <h1 className="journal-title mt-2">Welcome to <em>Muni</em></h1>
-      </JournalScene>
+      </WorldScene>
       <div className="mt-4 max-w-2xl">
+        <CharacterNote />
         <PendingJoins />
         <p className="mt-6 max-w-prose text-lg text-ink-soft">If you were invited to a team, open your invite link or scan the team’s QR code — it brings you straight to your sprint.</p>
         <p className="mt-6 text-sm text-ink-soft">

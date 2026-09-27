@@ -7,6 +7,7 @@ import { uuid } from '../lib/crypto'
 import { all, batch, one, run } from '../lib/db'
 import { notFound } from '../lib/errors'
 import { addDays, localDate, normalizeEmail } from '../lib/util'
+import { INTRO } from '../lib/avatars'
 import { newAccountStatement } from '../lib/accounts'
 
 const isoHandle = () => btoa(String.fromCharCode(...crypto.getRandomValues(new Uint8Array(32)))).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '')
@@ -131,15 +132,17 @@ demo.post('/api/demo/seed', async (c) => {
 demo.post('/api/dev/legacy-account', async (c) => {
   const cfg = config(c.env)
   if (cfg.env === 'production' || !cfg.allowDemoSeed) throw notFound()
-  const body = (await c.req.json().catch(() => ({}))) as { email?: string; name?: string }
+  const body = (await c.req.json().catch(() => ({}))) as { email?: string; name?: string; intro?: 'choose' | 'note' | 'done' }
   const email = normalizeEmail(body.email ?? '')
   if (!email) throw notFound()
+  // Scripts and tests aren't interrupted by the character chooser unless they ask to see it.
+  const intro = INTRO[body.intro === 'choose' || body.intro === 'note' ? body.intro : 'done']
   const existing = await one<{ id: string }>(c.env.DB, 'SELECT account_id AS id FROM account_emails WHERE email = ?', email)
   if (existing) return c.json({ account_id: existing.id })
   const id = uuid()
   const now = Date.now()
   await batch(c.env.DB, [
-    ['INSERT INTO accounts (id, email, display_name, created_at, name_set_at) VALUES (?,?,?,?,?)', id, email, body.name ?? '', now, body.name ? now : null],
+    ['INSERT INTO accounts (id, email, display_name, created_at, name_set_at, avatar_intro) VALUES (?,?,?,?,?,?)', id, email, body.name ?? '', now, body.name ? now : null, intro],
     ['INSERT INTO account_emails (account_id, email, verified_at) VALUES (?,?,?)', id, email, now],
   ])
   return c.json({ account_id: id })

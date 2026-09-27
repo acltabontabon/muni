@@ -9,6 +9,7 @@ import { clientClass, limit } from '../lib/ratelimit'
 import { maskEmail, nonempty, normalizeEmail } from '../lib/util'
 import { accountByEmail, emailOf, setAccountEmail } from '../lib/accounts'
 import { issueCode, spendCode } from '../lib/codes'
+import { INTRO, introName, isAvatarId } from '../lib/avatars'
 
 export { RESEND_COOLDOWN_MS } from '../lib/codes'
 
@@ -17,7 +18,11 @@ export const auth = new Hono<HonoEnv>()
 /** `session` is the one asking (absent right after a sign-in, when the new session is fresh). */
 export async function buildMe(env: HonoEnv['Bindings'], accountId: string, session?: Pick<Auth, 'authMethod' | 'authenticatedAt'>, extra: { created?: boolean } = {}) {
   const cfg = config(env)
-  const acct = await one<{ display_name: string; name_set_at: number | null }>(env.DB, 'SELECT display_name, name_set_at FROM accounts WHERE id = ?', accountId)
+  const acct = await one<{ display_name: string; name_set_at: number | null; avatar_id: string | null; avatar_theme: number; avatar_intro: number }>(
+    env.DB,
+    'SELECT display_name, name_set_at, avatar_id, avatar_theme, avatar_intro FROM accounts WHERE id = ?',
+    accountId,
+  )
   const email = await emailOf(env.DB, accountId)
   const rows = await all<{ id: string; name: string; role: string; is_demo: number }>(
     env.DB,
@@ -48,6 +53,8 @@ export async function buildMe(env: HonoEnv['Bindings'], accountId: string, sessi
     /** Until when security-sensitive changes are allowed without signing in again. */
     recent_auth_until: new Date(authedAt + RECENT_AUTH_MS).toISOString(),
     pending_join_requests: pending.map((p) => ({ id: p.id, workspace_name: p.workspace_name, created_at: new Date(p.created_at).toISOString() })),
+    /** Yours alone: no other response carries it. An id this build doesn't know reads as none. */
+    avatar: { id: isAvatarId(acct?.avatar_id) ? acct.avatar_id : null, theme: (acct?.avatar_theme ?? 1) === 1, intro: introName(acct?.avatar_intro) },
     ...(extra.created !== undefined ? { created: extra.created } : {}),
   }
 }
@@ -96,11 +103,41 @@ auth.get('/api/auth/me', async (c) => {
   return c.json(await buildMe(c.env, a.account.id, a))
 })
 
+/**
+ * Your own profile: any of your name, your character, whether your pages wear its world, and
+ * dismissing the character introduction. Each field is optional; at least one is needed. A
+ * character is a preference, not a security change: nothing is recorded in security activity.
+ */
 auth.patch('/api/auth/me', async (c) => {
   const a = await requireAuth(c, config(c.env), c.env.DB)
-  const body = (await c.req.json().catch(() => ({}))) as { display_name?: string }
-  const name = nonempty(body.display_name, 80, 'Name')
-  await run(c.env.DB, 'UPDATE accounts SET display_name = ?, name_set_at = COALESCE(name_set_at, ?) WHERE id = ?', name, Date.now(), a.account.id)
+  const raw: unknown = await c.req.json().catch(() => null)
+  const body = (raw && typeof raw === 'object' && !Array.isArray(raw) ? raw : {}) as { display_name?: unknown; avatar_id?: unknown; avatar_theme?: unknown; avatar_intro?: unknown }
+  const sets: string[] = []
+  const args: unknown[] = []
+  if (body.display_name !== undefined) {
+    sets.push('display_name = ?', 'name_set_at = COALESCE(name_set_at, ?)')
+    args.push(nonempty(typeof body.display_name === 'string' ? body.display_name : undefined, 80, 'Name'), Date.now())
+  }
+  if (body.avatar_id !== undefined) {
+    if (body.avatar_id !== null && !isAvatarId(body.avatar_id)) throw bad('choose one of Muni’s characters')
+    // Choosing (or clearing) a character answers the introduction.
+    sets.push('avatar_id = ?', 'avatar_intro = ?')
+    args.push(body.avatar_id, INTRO.done)
+  }
+  if (body.avatar_theme !== undefined) {
+    if (typeof body.avatar_theme !== 'boolean') throw bad('avatar_theme must be true or false')
+    sets.push('avatar_theme = ?')
+    args.push(body.avatar_theme ? 1 : 0)
+  }
+  if (body.avatar_intro !== undefined) {
+    if (body.avatar_intro !== 'done') throw bad('avatar_intro can only be set to done')
+    if (!sets.includes('avatar_intro = ?')) {
+      sets.push('avatar_intro = ?')
+      args.push(INTRO.done)
+    }
+  }
+  if (!sets.length) throw bad('nothing to change')
+  await run(c.env.DB, `UPDATE accounts SET ${sets.join(', ')} WHERE id = ?`, ...args, a.account.id)
   return c.json(await buildMe(c.env, a.account.id, a))
 })
 

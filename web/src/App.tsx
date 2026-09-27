@@ -19,6 +19,8 @@ import { EntranceShell, NameStep, PROGRESS } from './ui/entrance'
 import { LeaveDialog } from './ui/menus'
 import { LocalProvider } from './lib/local/LocalProvider'
 import { OfflineStart } from './ui/status'
+import { isPersonalPath, WorldProvider } from './worlds/world'
+import { CharacterGate } from './worlds/Character'
 
 function Protected({ children }: { children: React.ReactElement }) {
   const { me, loading, offline } = useAuth()
@@ -35,6 +37,9 @@ function Protected({ children }: { children: React.ReactElement }) {
   // Verified but no name chosen yet (an interrupted first sign-in): finish that here, on the same URL,
   // so the deep link is kept and nothing else is reachable first.
   if (me.needs_name && !offline) return <NameGate />
+  // A new account's first visit to its own pages: choose a character (or decide later). Never in
+  // front of a shared page someone was sent to (a room, a join link), and never offline.
+  if (me.avatar?.intro === 'choose' && !offline && isPersonalPath(loc.pathname)) return <CharacterGate />
   return children
 }
 
@@ -69,6 +74,7 @@ export function App() {
   return (
     // Keyed by account: switching people on a device starts every view afresh, so text typed by
     // one person can never be saved or sent under another.
+    <WorldProvider>
     <LocalProvider key={me?.account_id ?? 'signed-out'} accountId={me?.account_id ?? null}>
     <Routes>
       <Route path="/signin" element={<SignIn />} />
@@ -98,5 +104,6 @@ export function App() {
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
     </LocalProvider>
+    </WorldProvider>
   )
 }

@@ -4,7 +4,7 @@ import { env } from 'cloudflare:test'
 import { closeCollection, entry, get, go, ids, openSocket, patch, post, req, runJobs, sprint, team } from './harness'
 
 /** Any shared payload must not carry these keys next to entry text. */
-const FORBIDDEN_KEYS = ['author', 'author_account_id', 'account_id', 'email', 'created_at', 'updated_at', 'ip', 'user_agent', 'alias', 'avatar']
+const FORBIDDEN_KEYS = ['author', 'author_account_id', 'account_id', 'email', 'created_at', 'updated_at', 'ip', 'user_agent', 'alias', 'avatar', 'avatar_id', 'avatar_theme', 'avatar_intro']
 
 function walk(v: unknown, f: (k: string, v: unknown) => void) {
   if (Array.isArray(v)) v.forEach((x) => walk(x, f))
@@ -16,10 +16,10 @@ function walk(v: unknown, f: (k: string, v: unknown) => void) {
   }
 }
 
-/** Entries are objects with `body` and `category`; check their keys. */
+/** Entries (`body` + `category`) and context notes (`body` alone) are what people wrote; check their keys. */
 function assertNoAuthorFields(payload: unknown, context: string) {
   const check = (obj: Record<string, unknown>) => {
-    if ('body' in obj && 'category' in obj) for (const key of Object.keys(obj)) expect(FORBIDDEN_KEYS, `${context}: entry object carries \`${key}\``).not.toContain(key)
+    if ('body' in obj) for (const key of Object.keys(obj)) expect(FORBIDDEN_KEYS, `${context}: entry object carries \`${key}\``).not.toContain(key)
   }
   if (payload && typeof payload === 'object' && !Array.isArray(payload)) check(payload as Record<string, unknown>)
   walk(payload, (_k, v) => {

@@ -31,6 +31,7 @@ Last checked 2026-09-28, against `main` plus the encryption changes (docs/ENCRYP
 | Votes are private; totals only after a round closes | Test | `privacy.test.ts` “keeps votes private…”; `voting.test.ts` |
 | Added context appears without names, on release | Test | `meeting.test.ts` “collects context privately and reveals it under the theme only on release” |
 | Where names do appear: members, participants, attendance, speaking, experiment owners; facilitator sees passes | Code | `routes/meeting.ts` `snapshot()` (`ready` only for facilitator/self); `routes/sprints.ts` `detail()` |
+| Your character (avatar) and its theme are visible only to you: never in anything a teammate sees, never attached to a thought, vote, export, the live socket or the AI input | Test | `avatars.test.ts` “only ever reaches its owner” (deep scan of every shared route, socket and AI snapshot for avatar keys and the eight ids); only `buildMe` selects the columns |
 | Reopening keeps what people saw visible | Code | `routes/sprints.ts` `preparing>collecting` (confirmation message) |
 | Authorship can still be inferred (wording, small teams, lone votes, reopen) | — | Stated limitation; see security review §4 |
 

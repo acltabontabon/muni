@@ -7,6 +7,7 @@ import { useAuth } from '@/lib/auth'
 import { useCurrentWorkspace } from '@/lib/workspace'
 import { AccountMenu, WorkspaceSwitcher } from '@/ui/menus'
 import { SessionBanner, SyncChip, UpdateNotice } from '@/ui/status'
+import { CharacterDialog } from '@/worlds/Character'
 
 /**
  * One header everywhere: Muni, the workspace you're in, the two places you go (writing, and the
@@ -48,6 +49,7 @@ export function AppShell({ children, wide, workspace }: { children: ReactNode; w
       <SessionBanner />
       <main className={clsx('pb-safe mx-auto w-full flex-1 px-4 pb-16 pt-6 sm:px-6 sm:pt-8', wide ? 'max-w-7xl' : 'max-w-5xl')}>{children}</main>
       <UpdateNotice />
+      {me ? <CharacterDialog /> : null}
     </div>
   )
 }
