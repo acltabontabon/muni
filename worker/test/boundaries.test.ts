@@ -78,7 +78,7 @@ describe('sprint scope', () => {
     await closeCollection(a.owner, sa)
     const tA = (await post(`/api/sprints/${sa}/themes`, a.owner, { title: 'A' })).body.themes[0].id as string
     const outsider = b.owner
-    for (const path of [`/api/sprints/${sa}`, `/api/sprints/${sa}/entries`, `/api/sprints/${sa}/entries/mine`, `/api/sprints/${sa}/themes`, `/api/sprints/${sa}/votes`, `/api/sprints/${sa}/experiments`, `/api/sprints/${sa}/recap`, `/api/sprints/${sa}/ai`, `/api/sprints/${sa}/export.md?scope=raw`, `/api/sprints/${sa}/export.csv`])
+    for (const path of [`/api/sprints/${sa}`, `/api/sprints/${sa}/entries`, `/api/sprints/${sa}/entries/mine`, `/api/sprints/${sa}/themes`, `/api/sprints/${sa}/votes`, `/api/sprints/${sa}/experiments`, `/api/sprints/${sa}/recap`, `/api/sprints/${sa}/export.md?scope=raw`, `/api/sprints/${sa}/export.csv`])
       expect((await req('GET', path, outsider)).status, path).toBe(404)
     for (const path of [`/api/workspaces/${a.ws}`, `/api/workspaces/${a.ws}/sprints`, `/api/workspaces/${a.ws}/experiments`, `/api/workspaces/${a.ws}/audit`]) expect((await get(path, outsider)).status, path).toBe(403)
     expect((await patch(`/api/sprints/${sa}/themes/${tA}`, outsider, { title: 'pwned' })).status).toBe(404)

@@ -87,7 +87,6 @@ describe('privacy', () => {
       await closeCollection(owner, s)
       expect((await post(`/api/sprints/${s}/entries`, members[1], { body: `${needle} late` })).status).toBe(409)
       expect((await req('GET', `/api/sprints/${s}/export.csv?scope=raw`, owner)).status).toBe(200)
-      expect((await post(`/api/sprints/${s}/ai/grouping`, owner)).status).toBe(200)
       expect((await post(`/api/workspaces/${ws}/invitations`, owner, { email: `${needle}@example.com` })).status).toBe(200)
       await runJobs()
       // An unexpected failure is logged (path, method, a short error) — and still carries no content.
@@ -214,25 +213,6 @@ describe('privacy', () => {
     const p = await req('PATCH', `/api/sprints/${s}/entries/${mine.body[0].id}`, members[0], { category: 'keep', body: 'edit-needle-4412' })
     expect(p.status).toBe(409)
     expect(JSON.stringify(p.body)).not.toContain('edit-needle')
-  })
-
-  it('sends the AI provider text and opaque ids only', async () => {
-    const { owner, members, ws } = await team(1)
-    const s = await sprint(owner, members, ws, 'collecting')
-    await entry(members[0], s, 'improve', 'ai-input needle', { impact: 'impact needle' })
-    await closeCollection(owner, s)
-    expect((await post(`/api/sprints/${s}/ai/grouping`, owner)).status).toBe(200)
-    const row = await env.DB.prepare('SELECT input_snapshot FROM ai_jobs WHERE sprint_id = ?').bind(s).first<{ input_snapshot: string }>()
-    const snapshot = row!.input_snapshot
-    expect(snapshot).toContain('ai-input needle')
-    expect(snapshot).toContain('impact needle')
-    expect(snapshot).not.toContain(members[0].email)
-    expect(snapshot).not.toContain(members[0].account_id)
-    expect(snapshot).not.toContain('Member 0')
-    for (const key of ['author', 'account', 'email', 'created_at', 'updated_at']) expect(snapshot, `snapshot carries ${key}`).not.toContain(key)
-    const keys = new Set<string>()
-    walk(JSON.parse(snapshot), (k) => keys.add(k))
-    expect([...keys].sort()).toEqual(['body', 'category', 'id', 'impact', 'might_help'])
   })
 
   it('offers no author lookup route', async () => {

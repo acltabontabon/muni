@@ -33,7 +33,7 @@ async function account(ctx, { keepLocal = true, name = 'Ana Reyes' } = {}) {
       const post = (u, b) => fetch(u, { method: 'POST', headers: { ...h, 'x-csrf-token': csrf() }, body: JSON.stringify(b) }).then((r) => r.json())
       const ws = await post('/api/workspaces', { name: 'Payments team' })
       const d = (n) => new Date(Date.now() + n * 86400000).toISOString().slice(0, 10)
-      const s = await post(`/api/workspaces/${ws.id}/sprints`, { name: 'Sprint 43 — Search relevance', timezone: 'Asia/Manila', starts_on: d(-4), ends_on: d(9), retro_date: d(10), retro_time: '14:00', retro_duration_min: 45, participant_ids: [me.account_id], facilitator_id: me.account_id, ai_processing: false, reminders_enabled: false })
+      const s = await post(`/api/workspaces/${ws.id}/sprints`, { name: 'Sprint 43 — Search relevance', timezone: 'Asia/Manila', starts_on: d(-4), ends_on: d(9), retro_date: d(10), retro_time: '14:00', retro_duration_min: 45, participant_ids: [me.account_id], facilitator_id: me.account_id, reminders_enabled: false })
       await post(`/api/sprints/${s.id}/transition`, { to: 'collecting', confirm: true })
       localStorage.setItem('muni.prefs', JSON.stringify({ lastWorkspace: ws.id, keepLocal }))
       return { email, accountId: me.account_id, workspaceId: ws.id, sprintId: s.id }
@@ -245,7 +245,7 @@ const browser = await chromium.launch()
   await a.page.waitForTimeout(500)
   try {
     writeFileSync(swPath, `${original}\n// e2e: a newer build\n`)
-    // The dev server notices a changed file after a moment (longer with the speech model in dist).
+    // The dev server notices a changed file after a moment.
     await a.page.waitForFunction(async () => (await (await fetch('/sw.js', { cache: 'no-store' })).text()).includes('// e2e: a newer build'), null, { timeout: 20000, polling: 250 })
     await a.page.evaluate(async () => {
       const r = await navigator.serviceWorker.getRegistration()

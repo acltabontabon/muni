@@ -31,7 +31,7 @@ Last checked 2026-09-28, against `main` plus the encryption changes (docs/ENCRYP
 | Votes are private; totals only after a round closes | Test | `privacy.test.ts` “keeps votes private…”; `voting.test.ts` |
 | Added context appears without names, on release | Test | `meeting.test.ts` “collects context privately and reveals it under the theme only on release” |
 | Where names do appear: members, participants, attendance, speaking, experiment owners; facilitator sees passes | Code | `routes/meeting.ts` `snapshot()` (`ready` only for facilitator/self); `routes/sprints.ts` `detail()` |
-| Your character (avatar) and its theme are visible only to you: never in anything a teammate sees, never attached to a thought, vote, export, the live socket or the AI input | Test | `avatars.test.ts` “only ever reaches its owner” (deep scan of every shared route, socket and AI snapshot for avatar keys and the eight ids); only `buildMe` selects the columns |
+| Your character (avatar) and its theme are visible only to you: never in anything a teammate sees, never attached to a thought, vote, export or the live socket | Test | `avatars.test.ts` “only ever reaches its owner” (deep scan of every shared route and the socket for avatar keys and the eight ids); only `buildMe` selects the columns |
 | Reopening keeps what people saw visible | Code | `routes/sprints.ts` `preparing>collecting` (confirmation message) |
 | Authorship can still be inferred (wording, small teams, lone votes, reopen) | — | Stated limitation; see security review §4 |
 
@@ -47,8 +47,7 @@ Last checked 2026-09-28, against `main` plus the encryption changes (docs/ENCRYP
 | Muni's own logging records failures only: path, method, short error; no text or email | Test | `privacy.test.ts` “writes no entry text or email address to the log” (spies on `console.*` across a full flow, including a provoked 500) |
 | Resend receives the address and an invitation (workspace, inviter name, link) or a reminder (sprint name, link); never a thought, never a code | Code + Config | `lib/email.ts` templates (the only two); `EMAIL_PROVIDER=resend` in the production config |
 | munimuni.app is on GitHub Pages behind Cloudflare, with Google Fonts | Config | `.github/workflows/pages.yml`; live response headers (`server: cloudflare`, `x-github-request-id`); `site/index.html` font link |
-| No analytics, ads, session recording or error reporting; the app can't load code from or send data to other sites | Code + Config | No such dependency (`web/package.json`); CSP in `web/public/_headers` (`script-src 'self' 'wasm-unsafe-eval'; connect-src 'self'`; `'wasm-unsafe-eval'` allows compiling WebAssembly for voice, not `eval`), confirmed on the live app shell |
-| Voice: audio is transcribed on the device, never uploaded, stored or logged; the model is downloaded from Muni's own origin only after the person agrees; dictation only fills the draft | Code + Test | `web/src/lib/voice/*` (worker loads only `/voice/…` and hashed runtime files; `modelFetch`), `session.test.ts`, `e2e/voice.mjs` ("No request leaves this origin", "No request carries the transcript", "Nothing was submitted to the sprint"); [VOICE.md](VOICE.md) |
+| No analytics, ads, session recording or error reporting; the app can't load code from or send data to other sites | Code + Config | No such dependency (`web/package.json`); CSP in `web/public/_headers` (`script-src 'self'; connect-src 'self'`), confirmed on the live app shell |
 | No IP address or device details stored with an account | Code | `sessions` table has no IP/user-agent columns; rate-limit buckets hold SHA-256 hashes (`boundaries.test.ts` “stores no plaintext address or network…”) |
 | We don't sell personal data; contributions not used for advertising; emails not added to marketing lists | Commitment | No advertising or marketing integration exists in code; the only emails are the three templates |
 
@@ -56,10 +55,8 @@ Last checked 2026-09-28, against `main` plus the encryption changes (docs/ENCRYP
 
 | Claim | Kind | Evidence |
 | --- | --- | --- |
-| The hosted Muni has no AI service switched on; no thought goes to an AI provider | Config | `AI_PROVIDER=none` in the rendered production config (gitignored). With `none`, `POST /ai/grouping` is refused and `ai_processing` can't be set (`routes/ai.ts`, `routes/sprints.ts`). Not observable from outside: `/healthz` isn't routed to the Worker in production |
+| Muni has no AI features; no thought is sent to an AI provider | Code + Test | No AI provider, model or inference code in `worker/` or `web/` (theme drafting and on-device voice transcription were removed; `0009_no_ai.sql` dropped the drafting tables); `no-ai.test.ts` (drafting endpoints 404, no AI field in any response, no drafting tables left); CSP `connect-src 'self'` |
 | Muni doesn't train AI models on contributions | Code | No training pipeline or data export for training exists |
-| If AI were offered: facilitator opts in before collection; text + category/impact/might-help only, after close, no names/emails/authorship | Test | `lifecycle.test.ts` “never widens AI processing after collection has started”; `privacy.test.ts` “sends the AI provider text and opaque ids only”; `ai.test.ts` |
-| This page will say so before AI is offered here | Commitment | — |
 
 ## Encryption
 
@@ -100,8 +97,6 @@ Last checked 2026-09-28, against `main` plus the encryption changes (docs/ENCRYP
 - No account deletion, member self-removal, workspace deletion, or personal data export.
 - No purge for sprints that are never finished; `audit_events` kept forever.
 - Operator access to the database isn't logged by Muni; any claim of audited access needs that first.
-- If AI is ever enabled here: the capture screen doesn't show a sprint's AI setting (only the sprint
-  page does). Show it at the point of writing before offering AI, then update the page.
 - The Cloudflare plan (Free/Paid) decides the log and backup windows; record it to state exact numbers.
 - Log redaction of cookies in Workers Logs hasn't been observed on the live dashboard.
 
@@ -120,6 +115,6 @@ Last checked 2026-09-28, against `main` plus the encryption changes (docs/ENCRYP
 | Signing out keeps this device able to unlock only after signing in again; no plaintext key is stored | Test | `keyring.test.ts` “the original bug…”, “what stays on the device”; `web/e2e/unlock.mjs` |
 | Muni can't recover a lost key | Code | Server holds only wraps it can't open (recovery blob, passkey wraps) and device shares that open nothing alone (`routes/keys.ts`) |
 | Devices won't share a key with a teammate whose key changed until confirmed | Test | `keyring.test.ts` “pins teammates’ keys on first use…” |
-| Encrypted sprints never use AI; exports and recap drafts are made in the browser | Test | `encryption.test.ts` (AI grouping, export, server recap → 409); `lib/e2ee/local-export.ts` |
+| Encrypted sprints' exports and recap drafts are made in the browser | Test | `encryption.test.ts` (export, server recap → 409); `lib/e2ee/local-export.ts` |
 | What stays readable: names, goal, dates, people, categories, authorship, timing, counts | Code | `docs/ENCRYPTION.md` §2; `routes/*` store these as plain columns |
 | Depends on the genuine app being delivered; not audited | — | Stated limitation |

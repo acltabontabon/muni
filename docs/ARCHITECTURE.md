@@ -19,22 +19,21 @@ browser ──HTTPS──▶ Worker (TypeScript, Hono)  /api/*  ──▶ D1 (SQ
    │               static assets (the built web/) are     └─▶ MeetingRoom Durable Object, one per sprint:
    │               served by the platform, not the Worker      live meeting state + WebSocket fan-out
    └──WebSocket /api/sprints/:id/ws ──▶ Worker (auth) ──▶ MeetingRoom (hints only, no content)
-cron */15 ──▶ Worker: due jobs (email, reminders, AI drafts) and a daily retention sweep
+cron */15 ──▶ Worker: due jobs (email, reminders) and a daily retention sweep
 ```
 
 | path | what |
 | --- | --- |
 | `worker/src/index.ts` | entry: configuration check, client-revision gate, routes, error mapping, cron |
-| `worker/src/routes/` | one module per area: auth and invitations, workspaces, sprints, entries, themes, voting, meeting, commitments, exports, AI, demo |
+| `worker/src/routes/` | one module per area: auth and invitations, workspaces, sprints, entries, themes, voting, meeting, commitments, exports, demo |
 | `worker/src/room.ts` | `MeetingRoom`: phase, topic, timer deadline, controller, attendance, speaking round, version |
-| `worker/src/lib/` | sessions/CSRF/authorization, D1 helpers, email adapter, AI adapter, rate limits, config |
-| `worker/src/jobs.ts` | durable jobs in D1, reminders, AI drafting, retention |
+| `worker/src/lib/` | sessions/CSRF/authorization, D1 helpers, email adapter, rate limits, config |
+| `worker/src/jobs.ts` | durable jobs in D1, reminders, retention |
 | `worker/src/contract.ts` | the typed API contract, imported by the web app |
 | `worker/migrations/` | additive SQL migrations |
 | `web/` | React 19 + Vite + Tailwind 4 client, an installable PWA |
 | `web/src/lib/local/` | the device store and send queue for offline capture |
-| `web/src/lib/voice/` | on-device voice capture: recorder, speech worker (Whisper via Transformers.js), state model |
-| `web/src/sw.ts` | service worker: app shell (plus world fonts and the voice runtime once used), never `/api` |
+| `web/src/sw.ts` | service worker: app shell (plus a chosen world's fonts), never `/api` |
 
 **Division of state.** D1 is authoritative for everything durable (accounts, sessions,
 workspaces, sprints, entries, themes, votes, notes, experiments, jobs). The room object is
@@ -70,7 +69,7 @@ workspaces (retention windows)                   memberships (workspace, account
 invitations (sha256(token), email, expiry)       verification_challenges (sha256(code:id), attempts)
 sprints (lifecycle, schedule, settings)          sprint_participants (is_facilitator, reminder opt-out)
 entries (body, category, …, author_account_id ← private, reveal_order)
-themes, theme_entries                            ai_jobs (input snapshot), ai_proposals
+themes, theme_entries
 vote_rounds, votes (account_id ← private)        context_additions (author_account_id ← private)
 discussion_notes, experiments, recaps            jobs, audit_events (ids only), rate_events (hashed keys)
 ```
@@ -101,9 +100,9 @@ This is application-level anonymity. It is implemented as follows.
 5. **No per-person status.** No typing indicators, no "someone just submitted", no per-person
    counts. Collection is summarised only after close, as a total.
 6. **Votes stay private.** Totals appear only after a round closes; nobody sees who voted.
-7. **AI sees text and opaque IDs only**, and only for sprints where it was enabled before
-   collection started. Outputs are proposals tied to an input snapshot hash; originals are never
-   replaced. The production configuration here ships with AI turned off.
+7. **People do the interpreting.** Muni has no AI or model inference: the facilitator groups
+   thoughts and names themes, the team talks, and outcomes are what the facilitator records. No
+   content is sent to an AI provider.
 8. **Logs carry no content.** The app logs failures with the path and a short error only. The
    platform's request logs record method, URL and (redacted) headers; URLs carry resource IDs,
    never invitation tokens, codes or text.
@@ -117,7 +116,7 @@ access, can join `author_account_id` to accounts — the mitigation is operation
 cryptographic. New sprints' content is encrypted client-side (docs/ENCRYPTION.md), which removes
 the operator's stored ability to read it but not to see authorship or to ship a malicious
 frontend; legacy sprints stay plaintext. Small teams and distinctive writing can
-identify an author. Exports and AI requests are copies retention can't retract.
+identify an author. Exports are copies retention can't retract.
 
 ## Authentication and authorization
 
@@ -155,21 +154,9 @@ device", otherwise in memory for the tab. The service worker caches the app shel
 response, session token or other person's entry is stored on the device. Sign-out ends the session
 on the server first, names unsent work, then removes that account's local records.
 
-## Voice capture (web)
-
-Dictation is transcription on the device ([VOICE.md](VOICE.md)): an AudioWorklet captures the
-microphone into memory, a module Web Worker runs Whisper small through Transformers.js and ONNX
-Runtime's WebAssembly build, and the words are inserted into the composer's draft like typing.
-Nothing about it touches the server: the model and runtime are static files on Muni's own origin
-(`/voice/…`, `/assets/ort-wasm…`, split under the 25 MiB asset limit and verified by SHA-256 in
-the browser), fetched only after the person agrees, and cached by the worker (model) and service
-worker (runtime). The page is cross-origin isolated (COOP/COEP in `_headers`) so the runtime can
-use threads. Every result is tied to the account, sprint, local-data generation and recording it
-came from, and dropped if any has changed (`lib/voice/session.ts`).
-
 ## Retention
 
-A daily sweep deletes a finished sprint's raw content (entries, themes, votes, notes, AI drafts,
+A daily sweep deletes a finished sprint's raw content (entries, themes, votes, notes,
 unpublished recaps) after the workspace's window (90 days by default) and its outcomes
 (experiments, published recaps) after a longer one (730 days). Verification codes, rate-limit
 rows, sessions and finished jobs expire on short schedules. Not yet covered: sprints that are
@@ -181,7 +168,7 @@ Paid).
 
 Configuration is Worker vars and secrets, validated once per isolate. A production deployment
 refuses insecure settings instead of degrading: a non-HTTPS `PUBLIC_ORIGIN`, the console email
-inbox, the fake AI provider, demo seeding. Without an email provider, sign-in answers
+inbox, demo seeding. Without an email provider, sign-in answers
 `setup_required`; there is no development login bypass. `worker/wrangler.jsonc` is for local
 development and tests only; a production deployment uses its own rendered config
 (see [`DEPLOYMENT.md`](DEPLOYMENT.md)). Clients send their build revision; one older than

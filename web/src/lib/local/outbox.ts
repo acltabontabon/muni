@@ -10,7 +10,7 @@
 import type { LocalStore, OutboxItem, AttentionReason } from './store'
 
 /** Sent as `x-muni-client`. Raise together with the server's MIN_CLIENT_REVISION. */
-export const CLIENT_REVISION = 4
+export const CLIENT_REVISION = 5
 /** A queued thought for an encrypted sprint that this device can't seal yet (no key here). */
 export const WAITING_KEY = 'waiting_key'
 /** A send that has been "in flight" this long was interrupted (tab closed, device slept). */

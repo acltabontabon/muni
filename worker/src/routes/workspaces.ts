@@ -15,9 +15,9 @@ import { EMAIL_OF_A } from '../lib/accounts'
 export const workspaces = new Hono<HonoEnv>()
 
 export async function loadWorkspace(env: HonoEnv['Bindings'], id: string, role: string) {
-  const w = await one<{ id: string; name: string; retention_days: number; outcome_retention_days: number; ai_enabled_default: number; is_demo: number; created_at: number }>(env.DB, 'SELECT * FROM workspaces WHERE id = ?', id)
+  const w = await one<{ id: string; name: string; retention_days: number; outcome_retention_days: number; is_demo: number; created_at: number }>(env.DB, 'SELECT * FROM workspaces WHERE id = ?', id)
   if (!w) throw notFound()
-  return { id: w.id, name: w.name, role, retention_days: w.retention_days, outcome_retention_days: w.outcome_retention_days, ai_enabled_default: bool(w.ai_enabled_default), ai_provider: config(env).ai, is_demo: bool(w.is_demo), created_at: new Date(w.created_at).toISOString() }
+  return { id: w.id, name: w.name, role, retention_days: w.retention_days, outcome_retention_days: w.outcome_retention_days, is_demo: bool(w.is_demo), created_at: new Date(w.created_at).toISOString() }
 }
 
 export async function canInvite(db: D1Database, workspaceId: string, accountId: string, role: string) {
@@ -61,7 +61,7 @@ workspaces.get('/api/workspaces/:workspaceId', async (c) => {
 workspaces.patch('/api/workspaces/:workspaceId', async (c) => {
   const m = await requireMember(c, config(c.env), c.env.DB, c.req.param('workspaceId'))
   requireOwner(m)
-  const body = (await c.req.json().catch(() => ({}))) as { name?: string; retention_days?: number; outcome_retention_days?: number; ai_enabled_default?: boolean }
+  const body = (await c.req.json().catch(() => ({}))) as { name?: string; retention_days?: number; outcome_retention_days?: number }
   if (body.name !== undefined) await run(c.env.DB, 'UPDATE workspaces SET name = ? WHERE id = ?', nonempty(body.name, 80, 'Workspace name'), m.workspaceId)
   if (body.retention_days !== undefined) {
     const d = Number(body.retention_days)
@@ -73,7 +73,6 @@ workspaces.patch('/api/workspaces/:workspaceId', async (c) => {
     if (!(d >= 30 && d <= 3650)) throw bad('outcome retention must be between 30 and 3650 days')
     await run(c.env.DB, 'UPDATE workspaces SET outcome_retention_days = ? WHERE id = ?', d, m.workspaceId)
   }
-  if (body.ai_enabled_default !== undefined) await run(c.env.DB, 'UPDATE workspaces SET ai_enabled_default = ? WHERE id = ?', body.ai_enabled_default ? 1 : 0, m.workspaceId)
   await audit(c.env.DB, m.workspaceId, null, m.auth.account.id, 'workspace.settings_updated')
   return c.json(await loadWorkspace(c.env, m.workspaceId, m.role))
 })

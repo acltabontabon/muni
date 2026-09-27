@@ -53,7 +53,6 @@ type Form = {
   retro_duration_min: number
   facilitator_id: string
   participant_ids: string[]
-  ai_processing: boolean
   reminders_enabled: boolean
   vote_budget: number
   include_facilitator_in_rotation: boolean
@@ -119,7 +118,6 @@ export function SprintSetup() {
     retro_duration_min: 45,
     facilitator_id: '',
     participant_ids: [],
-    ai_processing: false,
     reminders_enabled: true,
     vote_budget: 3,
     include_facilitator_in_rotation: false,
@@ -150,7 +148,6 @@ export function SprintSetup() {
             retro_duration_min: s.retro_duration_min,
             facilitator_id: s.participants.find((x) => x.is_facilitator)?.account_id ?? '',
             participant_ids: s.participants.map((x) => x.account_id),
-            ai_processing: s.ai_processing,
             reminders_enabled: s.reminders_enabled,
             vote_budget: s.vote_budget,
             include_facilitator_in_rotation: s.include_facilitator_in_rotation,
@@ -161,7 +158,7 @@ export function SprintSetup() {
         setWs(w)
         if (!sprintId) {
           const me = w.members.find((m) => m.is_you)
-          setF((p) => ({ ...p, facilitator_id: me?.account_id ?? '', participant_ids: w.members.map((m) => m.account_id), ai_processing: w.workspace.ai_enabled_default && w.workspace.ai_provider !== 'none' }))
+          setF((p) => ({ ...p, facilitator_id: me?.account_id ?? '', participant_ids: w.members.map((m) => m.account_id) }))
         }
       } catch (err) {
         setError(err instanceof ApiError ? err.message : 'Couldn’t load')
@@ -190,7 +187,6 @@ export function SprintSetup() {
       const schedule = { timezone: f.timezone, starts_on: f.starts_on, ends_on: f.ends_on, retro_date: f.retro_date, retro_time: f.retro_time, retro_duration_min: Number(f.retro_duration_min) }
       if (existing) {
         const body: Record<string, unknown> = { name: f.name, external_ref: f.external_ref, goal: f.goal, opening_question: f.opening_question, schedule, facilitator_id: f.facilitator_id, reminders_enabled: f.reminders_enabled, vote_budget: Number(f.vote_budget), include_facilitator_in_rotation: f.include_facilitator_in_rotation }
-        if (existing.status === 'draft' && existing.encryption !== 'e1') body.ai_processing = f.ai_processing
         const oldFac = existing.participants.find((p) => p.is_facilitator)?.account_id
         if (existing.encryption === 'e1' && f.facilitator_id !== oldFac) {
           // The sprint's key goes with the role, sealed on this device to the new facilitator.
@@ -225,7 +221,7 @@ export function SprintSetup() {
           enc = { id, encryption: 'e1', ...keyring.newSprintKey(id, 1, { account_id: f.facilitator_id, public_key: facPk }) }
           if (opening) opening = keyring.sealForNew(id, 1, 'opening_question', opening)
         }
-        const s = await post<SprintDetail>(`/api/workspaces/${wsParam}/sprints`, { name: f.name, external_ref: f.external_ref || undefined, goal: f.goal || undefined, opening_question: opening, ...schedule, participant_ids: f.participant_ids, facilitator_id: f.facilitator_id, ai_processing: f.ai_processing && !f.encrypt, reminders_enabled: f.reminders_enabled, vote_budget: Number(f.vote_budget), include_facilitator_in_rotation: f.include_facilitator_in_rotation, ...enc })
+        const s = await post<SprintDetail>(`/api/workspaces/${wsParam}/sprints`, { name: f.name, external_ref: f.external_ref || undefined, goal: f.goal || undefined, opening_question: opening, ...schedule, participant_ids: f.participant_ids, facilitator_id: f.facilitator_id, reminders_enabled: f.reminders_enabled, vote_budget: Number(f.vote_budget), include_facilitator_in_rotation: f.include_facilitator_in_rotation, ...enc })
         if (mode === 'open') {
           try {
             await post(`/api/sprints/${s.id}/transition`, { to: 'collecting' })
@@ -249,8 +245,6 @@ export function SprintSetup() {
         {error ? <ErrorText>{error}</ErrorText> : <div className="grid place-items-center py-20"><Spinner /></div>}
       </AppShell>
     )
-  const aiAvailable = ws.workspace.ai_provider !== 'none'
-  const locked = !!existing && existing.status !== 'draft'
   const retroAt = instant(f.retro_date, f.retro_time, f.timezone)
   const preview = retroAt ? describeRetro(retroAt, f.timezone) : null
   const facilitatorIsYou = ws.members.find((m) => m.is_you)?.account_id === f.facilitator_id
@@ -367,7 +361,7 @@ export function SprintSetup() {
 
         {!existing ? (
           <Section n={4} title="Privacy" lead="What Muni’s servers can read.">
-            <Switch id="f-encrypt" checked={f.encrypt} onCheckedChange={(v) => set('encrypt', v)} label="Encrypt this sprint’s content" description="Thoughts, themes, notes, experiments and the recap are encrypted on participants’ devices before they reach Muni’s servers. The sprint’s name, goal, dates, people and categories stay readable — keep sensitive detail out of them. AI theme drafts aren’t available for encrypted sprints." />
+            <Switch id="f-encrypt" checked={f.encrypt} onCheckedChange={(v) => set('encrypt', v)} label="Encrypt this sprint’s content" description="Thoughts, themes, notes, experiments and the recap are encrypted on participants’ devices before they reach Muni’s servers. The sprint’s name, goal, dates, people and categories stay readable — keep sensitive detail out of them." />
             {f.encrypt && facilitatorIsYou ? <DeviceKeyNotice need="write" /> : null}
           </Section>
         ) : existing.encryption === 'e1' ? (
@@ -377,9 +371,11 @@ export function SprintSetup() {
         )}
 
         <section className="border-t border-line/70 pt-6">
-          <button type="button" className="inline-flex items-center gap-2 text-[15px] font-medium text-ink" onClick={() => setAdvanced((a) => !a)} aria-expanded={advanced} aria-controls="advanced">
-            <ChevronDown className={clsx('size-4 transition-transform', advanced && 'rotate-180')} aria-hidden /> More options
-            <span className="font-normal text-ink-soft">— reminders, voting, opening question{aiAvailable ? ', AI' : ''}</span>
+          <button type="button" className="flex flex-wrap items-center gap-x-2 text-left text-[15px] font-medium text-ink" onClick={() => setAdvanced((a) => !a)} aria-expanded={advanced} aria-controls="advanced">
+            <span className="inline-flex items-center gap-2 whitespace-nowrap">
+              <ChevronDown className={clsx('size-4 transition-transform', advanced && 'rotate-180')} aria-hidden /> More options
+            </span>
+            <span className="pl-6 font-normal text-ink-soft sm:pl-0">— reminders, voting, opening question</span>
           </button>
           {advanced ? (
             <div id="advanced" className="anim-rise mt-5 grid gap-5 md:ml-[calc(13rem+2.5rem)]">
@@ -401,9 +397,6 @@ export function SprintSetup() {
                 </div>
               </div>
               <Switch id="f-rot" checked={f.include_facilitator_in_rotation} onCheckedChange={(v) => set('include_facilitator_in_rotation', v)} label="Include the facilitator when inviting voices" description="Otherwise the facilitator guides and isn’t invited to speak in turn." />
-              {aiAvailable && !f.encrypt && existing?.encryption !== 'e1' ? (
-                <Switch id="f-ai" checked={f.ai_processing} onCheckedChange={(v) => set('ai_processing', v)} disabled={locked} label="Offer AI theme drafts after collection closes" description={locked ? 'Decided before collection opened; it applies to the next sprint.' : `Thought text and opaque ids go to ${ws.workspace.ai_provider} — never names, emails or who wrote what. Participants can see this choice.`} />
-              ) : null}
             </div>
           ) : null}
         </section>

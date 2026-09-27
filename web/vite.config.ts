@@ -45,29 +45,24 @@ function serviceWorker(): Plugin {
     async writeBundle(_, bundle) {
       // Non-Latin font subsets load on demand (unicode-range); precaching them would only cost bandwidth.
       const skip = /(\.map|\.html|_headers|robots\.txt|sw\.js|-(cyrillic|cyrillic-ext|greek|vietnamese)-wght-[^/]*\.woff2)$/
-      // Voice is loaded only by people who use it: its runtime is cached on first use (sw.ts), and
-      // the speech model is cached by the speech worker itself (src/lib/voice/assets.ts).
-      const isVoice = (f: string) => /^assets\/(voice-|ort-wasm)/.test(f)
-      const isModel = (f: string) => f.startsWith('voice/')
       const walk = (dir: string, base = ''): string[] =>
         readdirSync(dir).flatMap((f) => (statSync(path.join(dir, f)).isDirectory() ? walk(path.join(dir, f), `${base}${f}/`) : [`${base}${f}`]))
       const all = [...new Set([...Object.keys(bundle), ...walk(publicDir)])]
       // Browsers that load these fonts use woff2; the .woff fallbacks are never fetched.
-      const files = all.filter((f) => !skip.test(f) && !f.endsWith('.woff') && !familyOf(f) && !isVoice(f) && !isModel(f))
-      const voice = all.filter(isVoice).sort().map((f) => `/${f}`)
+      const files = all.filter((f) => !skip.test(f) && !f.endsWith('.woff') && !familyOf(f))
       const assets = files.sort().map((f) => `/${f}`)
       // Each world's Latin font files, cached on demand (sw.ts: 'muni:warm').
       const worlds = Object.fromEntries(
         Object.entries(WORLD_FONTS).map(([w, fams]) => [w, all.filter((f) => f.endsWith('.woff2') && fams.includes(familyOf(f) ?? '') && /-latin(-ext)?-/.test(path.basename(f))).sort().map((f) => `/${f}`)]),
       )
-      const version = createHash('sha256').update(assets.join('\n')).update(JSON.stringify(worlds)).update(voice.join('\n')).update(readFileSync(path.join(outDir, 'index.html'))).digest('hex').slice(0, 12)
+      const version = createHash('sha256').update(assets.join('\n')).update(JSON.stringify(worlds)).update(readFileSync(path.join(outDir, 'index.html'))).digest('hex').slice(0, 12)
       const { build } = await import('rolldown')
       await build({
         input: path.join(src, 'sw.ts'),
         resolve: { alias: { '@': src } },
         platform: 'browser',
         logLevel: 'warn',
-        output: { file: path.join(outDir, 'sw.js'), format: 'iife', minify: true, banner: `self.__MUNI_BUILD=${JSON.stringify({ version, assets, worlds, voice })};` },
+        output: { file: path.join(outDir, 'sw.js'), format: 'iife', minify: true, banner: `self.__MUNI_BUILD=${JSON.stringify({ version, assets, worlds })};` },
       })
     },
   }
@@ -75,30 +70,14 @@ function serviceWorker(): Plugin {
 
 export default defineConfig({
   plugins: [react(), tailwindcss(), serviceWorker()],
-  resolve: {
-    alias: [
-      { find: '@', replacement: src },
-      // Transformers.js imports ONNX Runtime's WebGPU bundle, which carries a 27 MB WebAssembly
-      // file (over Cloudflare's 25 MiB limit) that Muni never uses: voice runs on the CPU build,
-      // whose .wasm/.mjs are served as separate hashed files (src/lib/voice/engine.ts).
-      { find: /^onnxruntime-web\/webgpu$/, replacement: fileURLToPath(new URL('./node_modules/onnxruntime-web/dist/ort.wasm.min.mjs', import.meta.url)) },
-    ],
-  },
+  resolve: { alias: { '@': src } },
   server: {
     port: 5173,
     fs: { allow: ['..'] },
-    // As in production (public/_headers): cross-origin isolated, so the speech model can use threads.
-    headers: { 'Cross-Origin-Opener-Policy': 'same-origin', 'Cross-Origin-Embedder-Policy': 'require-corp' },
     // MUNI_API points the dev server at another local Worker (e.g. a second pair of dev servers).
     proxy: { '/api': { target: process.env.MUNI_API ?? 'http://127.0.0.1:8787', changeOrigin: false, ws: true } },
   },
   build: { sourcemap: false, target: 'es2022' },
-  // The speech worker (src/lib/voice/whisper.worker.ts) and everything it pulls in are named
-  // voice-*, so the service worker can leave them out of the install cache.
-  worker: {
-    format: 'es',
-    rolldownOptions: { output: { entryFileNames: 'assets/voice-[name]-[hash].js', chunkFileNames: 'assets/voice-[name]-[hash].js', assetFileNames: 'assets/voice-[name]-[hash][extname]' } },
-  },
   // The worlds' tests read the stylesheets as text (src/worlds/worlds.test.ts).
   test: { css: { include: [/src\/styles\.css/, /src\/worlds\/worlds\.css/] } },
 })

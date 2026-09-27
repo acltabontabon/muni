@@ -32,37 +32,37 @@ node scripts/production-config.mjs
 This writes `worker/wrangler.production.jsonc` from `wrangler.production.example.jsonc`. The file
 is gitignored — it describes your account, not the project. Optional overrides:
 `MUNI_WORKER_NAME` (default `muni`), `MUNI_D1_DATABASE_NAME` (`muni`), `MUNI_EMAIL_PROVIDER`
-(`resend` or `brevo`), `MUNI_AI_PROVIDER` (`none`).
+(`resend` or `brevo`).
 
 ## 3. Secrets, schema, deploy
 
 ```bash
 pnpm exec wrangler secret put RESEND_API_KEY --config wrangler.production.jsonc   # or BREVO_API_KEY
 pnpm migrate:remote                                                              # additive migrations
-cd ../web && npm ci && node scripts/voice-assets.mjs && npm run build && cd ../worker
+cd ../web && npm ci && npm run build && cd ../worker
 pnpm run deploy
 ```
-
-`scripts/voice-assets.mjs` puts the speech model (252 MB, pinned and checksummed; see
-[VOICE.md](VOICE.md)) into `web/public/voice/` so it's served from your own origin. It downloads
-from Hugging Face only when the files are missing, and is safe to run every time. Without it, the
-app works but voice can't download its model.
 
 The Worker attaches itself to `MUNI_DOMAIN` as a custom domain. Open `https://<your domain>`,
 create an account with a passkey, and create a workspace. Until the email secret is set, emailed
 invitations and reminders answer `setup_required` instead of pretending to send (invite links and
 QR codes work without it).
 
-AI-drafted themes are off by default. To offer them, render with `MUNI_AI_PROVIDER=anthropic` and
-add `ANTHROPIC_API_KEY` as a secret; each sprint still opts in before collection starts, and entry
-text (no names or emails) is then sent to that provider.
-
 ## Updating
 
-Pull, rebuild the web app (`node scripts/voice-assets.mjs && npm run build`), then `pnpm migrate:remote && pnpm run deploy`. Migrations are additive
-(new tables and columns, no drops), so the previous Worker keeps working against a newer schema.
+Pull, rebuild the web app (`npm run build`), then `pnpm migrate:remote && pnpm run deploy`. Migrations are usually additive
+(new tables and columns), so the previous Worker keeps working against a newer schema.
 `pnpm exec wrangler rollback --config wrangler.production.jsonc` restores the previous Worker
 version; migrations are not reversed.
+
+**No AI** (`0009_no_ai.sql`) drops the theme-drafting tables and switches. Deploy the Worker
+*first*, then migrate: the new Worker works with or without the old columns, but the previous one
+can't run against the migrated schema, so don't roll the Worker back past this release. Thoughts,
+themes (including ones that began as drafts), notes, experiments and recaps are untouched. If you
+had set `AI_PROVIDER` or an `ANTHROPIC_API_KEY` secret, they're no longer read: remove the var from
+`wrangler.production.jsonc`, and the secret with `wrangler secret delete ANTHROPIC_API_KEY` if
+nothing else of yours uses it. Delete any `web/public/voice/` left from the speech model so the
+build stops serving it.
 
 **Passkeys** (`0004_passkeys_and_join.sql`) need no new secret: the relying-party ID is rendered
 from `MUNI_DOMAIN` as `WEBAUTHN_RP_ID`, and the Worker refuses to start if it isn't exactly
@@ -97,4 +97,4 @@ Pull-request workflows never receive these: `ci.yml` runs with a read-only token
 - **Your privacy page.** The app's Privacy & data page (`web/src/routes/Privacy.tsx`) describes the
   hosted act.munimuni.app: its operator, contact address and providers. Change those for your
   deployment, and check the rest against [`privacy-claims.md`](privacy-claims.md) — for example if you
-  use Brevo or turn AI on.
+  use Brevo.

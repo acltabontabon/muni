@@ -28,7 +28,6 @@
     "APP_ENV": "development",
     "PUBLIC_ORIGIN": "http://localhost:8787",
     "EMAIL_PROVIDER": "console",
-    "AI_PROVIDER": "fake",
     "ALLOW_DEMO_SEED": "true",
     // Local development creates many throwaway accounts from one address (and e2e runs do).
     "SIGNUPS_PER_NETWORK_DAILY": "100000",

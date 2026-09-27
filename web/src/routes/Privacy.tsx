@@ -27,7 +27,6 @@ const SECTIONS = [
   ['authorship', 'Can someone tell it was you?'],
   ['operator', 'What the operator can access'],
   ['providers', 'Service providers'],
-  ['ai', 'AI'],
   ['encryption', 'Encryption, and its limits'],
   ['device', 'What stays on your device'],
   ['retention', 'How long things are kept'],
@@ -126,12 +125,7 @@ function Page({ signedIn }: { signedIn: boolean }) {
         <Item title="Cloudflare">Hosts the app, its database and the live retro connection, so it processes everything you send to Muni. Its request logs keep, for up to 7 days, when each request happened, the address requested (which contains only ids, never text or email addresses) and technical details such as your IP address and browser. What you type isn’t in them. Muni’s own logging records failures only: the page and a short error, never what you wrote or your email address.</Item>
         <Item title="Resend">Delivers Muni’s emails. It receives your email address and the message: an invitation (the workspace’s name, the inviter’s name and a link) or a reminder (the sprint’s name and a link). Never a thought. Resend keeps delivery records under its own terms.</Item>
         <Item title="GitHub and Google (munimuni.app only)">The website at munimuni.app — not the app — is hosted on GitHub Pages, reached through Cloudflare, and loads its fonts from Google Fonts, so those companies receive a visitor’s IP address and browser details. The app serves its own fonts.</Item>
-        <P>There are no analytics, advertising, session-recording or error-reporting services. The app’s security settings don’t let it load code from, or send data to, any other website. We don’t sell personal data, and your email address isn’t added to any mailing list.</P>
-      </Section>
-
-      <Section id="ai">
-        <P>Encrypted sprints never use AI: their content can’t leave your team’s devices unencrypted. The hosted Muni also has no AI service switched on. Grouping thoughts into themes is done by people, and no thought is sent to an AI provider. Muni doesn’t train AI models on what you write.</P>
-        <P>Muni’s code has an optional feature that asks an AI provider (Anthropic) to draft themes. If it’s ever offered here, this page will say so first. Even then it would only apply to a sprint whose facilitator turned it on before collection opened — it can’t be switched on later — and it would send the thoughts’ text, with any category, impact and “what might help”, after collection closes and without names, email addresses or who wrote what. The provider’s own terms would govern what it keeps, and a copy that has been sent can’t be recalled.</P>
+        <P>There are no analytics, advertising, session-recording, error-reporting or AI services, and no thought is sent to an AI provider. The app’s security settings don’t let it load code from, or send data to, any other website. We don’t sell personal data, and your email address isn’t added to any mailing list.</P>
       </Section>
 
       <Section id="encryption">
@@ -149,7 +143,6 @@ function Page({ signedIn }: { signedIn: boolean }) {
         <Item title="Keep drafts on this device: off">The default. Your draft and any thoughts waiting to be sent exist only in the open tab, and closing it loses anything unsent — Muni tells you when that applies.</Item>
         <Item title="Keep drafts on this device: on">A choice per person, per browser. Your draft, thoughts waiting to be sent, the names and retro times of the sprints they’re for, and your name and workspaces (so Muni can open offline) are stored in this browser. Anyone who can use this browser profile could read them, so turn it on only on a personal device.</Item>
         <Item title="Your encryption key">Stored in this browser once you set up or unlock encryption, so encrypted sprints open without asking every time. Anyone who can use this browser profile could use it; signing out removes it. What you write is kept readable on the device while it’s a draft or waiting to be sent, and encrypted when it’s sent.</Item>
-        <Item title="Voice">If you choose Speak, your speech is turned into text on this device. The recording stays in memory only until its words are in your draft, and is never uploaded or saved. The first time, Muni downloads its speech model (252 MB) from act.munimuni.app, with your agreement; that download carries nothing about you, and the model stays in this browser until you remove it (Account → Voice).</Item>
         <Item title="Either way">The browser keeps a few preferences, such as your theme and the last sprint you opened, and a copy of the app so it opens quickly and offline. Your sign-in is a secure cookie that the page itself can’t read. Muni never stores other people’s thoughts on your device.</Item>
         <P>Signing out, or “Clear local data”, removes what this device keeps for your account, and warns you first if something hasn’t been sent. Neither deletes anything from Muni’s servers. If you lose access to a sprint while a device is offline, its copies stay there until it reconnects — Muni can’t erase a device remotely.</P>
       </Section>

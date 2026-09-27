@@ -323,9 +323,6 @@
   .kape-empty { display: flex; align-items: flex-end; gap: 0.25rem; }
   .kape-empty svg:first-child { border-radius: 999px; }
   .kape-steam path { stroke-dasharray: 1; animation: w-draw 1700ms var(--ease-out-soft) both; }
-
-  /* Voice: a cup's rim and its crema. */
-  .journal-voice-ring { box-shadow: 0 0 0 2px var(--accent), 0 0 0 7px color-mix(in oklab, var(--accent) 16%, transparent); }
 }
 @media (prefers-reduced-motion: reduce) {
   .kape-steam path { stroke-dasharray: none; animation: w-appear 1500ms ease-out both; }
@@ -466,11 +463,6 @@
 
   @media (min-width: 1024px) { .w-slot--compose { display: block; margin: 2.5rem 0 0 -0.25rem; max-width: 26rem; aspect-ratio: 320 / 170; } }
   .guhit-empty { display: flex; align-items: flex-end; gap: 0.4rem; }
-
-  /* Voice: a pencil line, and a stop button cut from paper. */
-  .journal-voice-line { stroke-dasharray: 3 2.4; stroke-width: 2; }
-  .journal-voice-ring { border-radius: 47% 53% 51% 49% / 52% 48% 52% 48%; }
-  .journal-voice-stop { box-shadow: 3px 4px 0 -1px var(--g-shadow); }
 }
 @media (prefers-reduced-motion: reduce) { .guhit-flourish path { transition: none; } }
 
@@ -610,12 +602,6 @@
   }
   @media (min-width: 1024px) { .w-slot--compose { display: block; margin: 2.5rem 0 0 -0.5rem; max-width: 25rem; aspect-ratio: 320 / 150; } }
   .biyahe-empty { display: flex; align-items: flex-end; gap: 0.3rem; }
-
-  /* Voice: a signboard's lamps. */
-  .journal-voice-line { display: none; }
-  .journal-voice-bars { display: inline; }
-  .journal-voice-stop { border-radius: 12px; }
-  .journal-voice-ring { border-radius: 16px; }
 }
 @keyframes b-punch { from { transform: scale(0); } to { transform: scale(1); } }
 @media (prefers-reduced-motion: reduce) { .passage.anim-reflect .passage-stamp::after { animation: none; } }
@@ -729,11 +715,6 @@
   .bola-empty > * { grid-area: 1 / 1; }
   .bola-bounce { animation: bo-bounce 900ms cubic-bezier(0.3, 0, 0.3, 1) both; }
   .bola-shadow { animation: bo-shadow 900ms cubic-bezier(0.3, 0, 0.3, 1) both; transform-box: fill-box; transform-origin: center; }
-
-  /* Voice: a scoreboard's bars and a heavier ring. */
-  .journal-voice-line { display: none; }
-  .journal-voice-bars { display: inline; }
-  .journal-voice-ring { box-shadow: 0 0 0 3px var(--accent); }
 }
 @keyframes bo-bounce { 0% { transform: translateY(0); } 30% { transform: translateY(-12px); } 55% { transform: translateY(0) scale(1.05, 0.93); } 72% { transform: translateY(-3px); } 100% { transform: none; } }
 @keyframes bo-shadow { 0%, 100% { transform: scale(1); opacity: 1; } 30% { transform: scale(0.7); opacity: 0.55; } 55% { transform: scale(1.05); opacity: 1; } }
@@ -873,10 +854,6 @@
     .journal-body[data-empty] { --pa-c2: 47rem; }
   }
   .pahina-empty { display: flex; align-items: flex-end; gap: 0.3rem; }
-
-  /* Voice: a double rule, as in a printed page. */
-  .journal-voice-line { stroke-width: 1.2; }
-  .journal-voice-ring { box-shadow: 0 0 0 1px var(--accent), 0 0 0 4px var(--paper), 0 0 0 5px var(--accent); }
 }
 @media (prefers-reduced-motion: reduce) { .pahina-ribbon { transition: none !important; } }
 
@@ -984,12 +961,6 @@
   @media (min-width: 1024px) { .w-slot--compose { display: block; margin: 2.5rem 0 0 -0.25rem; max-width: 24rem; aspect-ratio: 320 / 150; } }
   .himig-empty { display: flex; align-items: flex-end; gap: 0.3rem; }
   .himig-spin { animation: hi-spin 1100ms cubic-bezier(0.4, 0, 0.2, 1) both; }
-
-  /* Voice: a level meter, like a mixing desk. */
-  .journal-voice-line { display: none; }
-  .journal-voice-bars { display: inline; }
-  .journal-voice-stop { border-radius: 3px; }
-  .journal-voice-ring { border-radius: 5px; }
 }
 @keyframes hi-spin { from { transform: rotate(0); } to { transform: rotate(360deg); } }
 @media (prefers-reduced-motion: reduce) { .himig-spin { animation: w-appear 1000ms ease both; animation-name: hi-glow; } }
@@ -1119,10 +1090,6 @@
   @media (min-width: 1280px) { .passage-stamp[data-n] { font-size: 21px; line-height: 1; margin-bottom: 0.3rem; } }
   .passage-text[data-short] { font-family: var(--font-world-display); font-size: 1.4rem; line-height: 1.5; }
   .porma-empty { display: flex; align-items: flex-end; gap: 0.4rem; }
-
-  /* Voice: a hairline. */
-  .journal-voice-line { stroke-width: 1; }
-  .journal-voice-ring { box-shadow: 0 0 0 1px var(--accent); }
 }
 @keyframes po-press { 0% { transform: scale(1); } 35% { transform: scale(0.93); filter: contrast(1.3); } 100% { transform: scale(1); } }
 @media (prefers-reduced-motion: reduce) { .porma-seal[data-press] { animation: none; } }
@@ -1250,10 +1217,6 @@
   @media (min-width: 1024px) { .w-slot--compose { display: block; margin: 2rem 0 0 -0.5rem; max-width: 24rem; aspect-ratio: 320 / 150; } }
   .sibol-empty { display: flex; align-items: flex-end; gap: 0.3rem; }
   .sibol-unfurl { animation: si-unfurl 1300ms var(--ease-out-soft) both; transform-origin: 0 0; }
-
-  /* Voice: a leaf's outline. */
-  .journal-voice-ring { border-radius: 0 999px 999px 999px; }
-  .journal-voice-stop { border-radius: 0 999px 999px 999px; }
 }
 @keyframes si-unfurl { 0% { transform: rotate(-70deg) scale(0.2); opacity: 0.4; } 60% { transform: rotate(8deg) scale(1.05); opacity: 1; } 100% { transform: none; } }
 @media (prefers-reduced-motion: reduce) { .sibol-unfurl { animation: w-appear 1200ms ease both; animation-name: si-fade; } }

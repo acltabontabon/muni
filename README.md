@@ -16,7 +16,8 @@ and API may still change.
   included.
 - **A sealed reveal.** When collection closes, everyone's thoughts appear as one batch, without
   names, in random order.
-- **Themes and votes.** Group thoughts by hand (optional AI drafts, off by default); vote privately.
+- **Themes and votes.** The facilitator gathers thoughts into themes and names them; everyone votes
+  privately on what to talk about first.
 - **A paced live retro** with a gentle speaking invitation, added context shown without names, and one to
   three experiments that come back first next sprint.
 - **An installable web app** that keeps capture working offline for people who choose to keep
@@ -55,8 +56,7 @@ cd web && npm install && npm run dev                           # app with hot re
 
 Local defaults (`worker/wrangler.jsonc`): invitation and reminder emails go to a development inbox
 at `GET /api/dev/inbox`, scripts can create a signed-in account with `POST /api/dev/session`
-(development only), a local stand-in replaces the AI provider, and
-`POST /api/demo/seed` builds a fictional sprint for the signed-in account.
+(development only), and `POST /api/demo/seed` builds a fictional sprint for the signed-in account.
 
 Checks:
 

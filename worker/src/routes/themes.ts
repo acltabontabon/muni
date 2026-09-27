@@ -1,5 +1,5 @@
 /**
- * Manual grouping. Works fully without AI. Structural changes bump the
+ * Grouping, by the facilitator's hand. Structural changes bump the
  * sprint's grouping revision and must explicitly reset an open vote round.
  */
 import { Hono } from 'hono'
@@ -26,14 +26,13 @@ interface ThemeRow {
   parked: number
   needs_attention: number
   order_reason: string | null
-  source: string
 }
 
 export async function grouping(env: HonoEnv['Bindings'], ctx: SprintCtx) {
   requireRevealed(ctx)
   const db = env.DB
   const sp = (await one<{ status: string; grouping_revision: number }>(db, 'SELECT status, grouping_revision FROM sprints WHERE id = ?', ctx.sprint.id))!
-  const rows = await all<ThemeRow>(db, 'SELECT id, title, summary, question, draft_experiment, position, parked, needs_attention, order_reason, source FROM themes WHERE sprint_id = ? ORDER BY position, created_at LIMIT 100', ctx.sprint.id)
+  const rows = await all<ThemeRow>(db, 'SELECT id, title, summary, question, draft_experiment, position, parked, needs_attention, order_reason FROM themes WHERE sprint_id = ? ORDER BY position, created_at LIMIT 100', ctx.sprint.id)
   const allEntries = await sharedEntries(db, ctx.sprint.id)
   const context = await all<{ id: string; theme_id: string; body: string }>(db, 'SELECT id, theme_id, body FROM context_additions WHERE sprint_id = ? AND released_batch IS NOT NULL AND theme_id IS NOT NULL ORDER BY released_batch, reveal_order, id LIMIT 500', ctx.sprint.id)
   const takeaways = await all<{ theme_id: string; takeaway: string; discussed: number }>(db, 'SELECT theme_id, takeaway, discussed FROM discussion_notes WHERE sprint_id = ?', ctx.sprint.id)
@@ -53,7 +52,6 @@ export async function grouping(env: HonoEnv['Bindings'], ctx: SprintCtx) {
       parked: bool(t.parked),
       needs_attention: bool(t.needs_attention),
       order_reason: t.order_reason,
-      source: t.source,
       entry_count: ents.length,
       category_mix: mix,
       entries: ents,

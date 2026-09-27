@@ -11,7 +11,7 @@ import { useAuth } from '@/lib/auth'
 import { writePrefs } from '@/lib/prefs'
 import { dateRange, shortDate } from '@/lib/schedule'
 import { chooseWorkspace } from '@/lib/workspace'
-import { Button, Dialog, ErrorText, Help, Input, Label, Spinner, Switch, useDocumentTitle, useToast } from '@/ui'
+import { Button, Dialog, ErrorText, Help, Input, Label, Spinner, useDocumentTitle, useToast } from '@/ui'
 import { AppShell } from '@/ui/shell'
 import { HorizonBand, Postcard } from '@/ui/art'
 import { StepPips } from '@/ui/guide'
@@ -477,16 +477,14 @@ function SettingsForm({ ws, onSaved }: { ws: WorkspaceDetail; onSaved: () => voi
   const [name, setName] = useState(ws.workspace.name)
   const [retention, setRetention] = useState(String(ws.workspace.retention_days))
   const [outcome, setOutcome] = useState(String(ws.workspace.outcome_retention_days))
-  const [aiDefault, setAiDefault] = useState(ws.workspace.ai_enabled_default)
   const [error, setError] = useState('')
   const [busy, setBusy] = useState(false)
-  const aiAvailable = ws.workspace.ai_provider !== 'none'
   const save = async (e: FormEvent) => {
     e.preventDefault()
     setError('')
     setBusy(true)
     try {
-      await patch(`/api/workspaces/${ws.workspace.id}`, { name, retention_days: Number(retention), outcome_retention_days: Number(outcome), ...(aiAvailable ? { ai_enabled_default: aiDefault } : {}) })
+      await patch(`/api/workspaces/${ws.workspace.id}`, { name, retention_days: Number(retention), outcome_retention_days: Number(outcome) })
       toast('Settings saved')
       onSaved()
       await refresh()
@@ -515,15 +513,7 @@ function SettingsForm({ ws, onSaved }: { ws: WorkspaceDetail; onSaved: () => voi
             <div className="flex items-center gap-2"><Input id="oret" type="number" min={30} max={3650} value={outcome} onChange={(e) => setOutcome(e.target.value)} className="w-28" /> <span className="text-sm text-ink-soft">days</span></div>
           </div>
         </div>
-        <Help>Counted from when a sprint finishes. Thoughts, themes, notes and AI drafts go after the first period; accepted experiments and published recaps stay for the second, so the next retro can revisit them. <Link to="/privacy#retention" className="underline underline-offset-2">Retention</Link></Help>
-      </section>
-      <section className="space-y-2">
-        <h2 className="font-display text-lg">AI theme drafts</h2>
-        {aiAvailable ? (
-          <Switch id="ai-default" checked={aiDefault} onCheckedChange={setAiDefault} label="Suggest AI theme drafts for new sprints" description={`Each sprint still decides before collection opens, and participants can see the choice. Provider on this server: ${ws.workspace.ai_provider}.`} />
-        ) : (
-          <p className="text-sm text-ink-soft">Not available on this server — grouping is done by the facilitator. <Link to="/privacy#ai" className="underline underline-offset-2">About AI</Link></p>
-        )}
+        <Help>Counted from when a sprint finishes. Thoughts, themes and notes go after the first period; accepted experiments and published recaps stay for the second, so the next retro can revisit them. <Link to="/privacy#retention" className="underline underline-offset-2">Retention</Link></Help>
       </section>
       <ErrorText>{error}</ErrorText>
       <Button type="submit" variant="primary" busy={busy}>Save settings</Button>

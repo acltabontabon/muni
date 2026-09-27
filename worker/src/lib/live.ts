@@ -3,7 +3,7 @@
  * is the only place live meeting state lives; the Worker never caches it.
  * Hints carry a resource name only, never content.
  */
-export type Resource = 'sprint' | 'entries' | 'themes' | 'meeting' | 'votes' | 'commitments' | 'ai' | 'all'
+export type Resource = 'sprint' | 'entries' | 'themes' | 'meeting' | 'votes' | 'commitments' | 'all'
 
 export function room(env: { ROOMS: DurableObjectNamespace }, sprintId: string): DurableObjectStub {
   return env.ROOMS.get(env.ROOMS.idFromName(sprintId))

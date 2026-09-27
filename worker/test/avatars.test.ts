@@ -2,12 +2,12 @@
  * Characters: a person's avatar and whether their own pages wear its world. Stored on the account,
  * returned by /api/auth/me only, and never attached to anything another person can see — not
  * entries, themes, votes, the meeting, member or participant lists, experiments, join requests,
- * audit records, exports, live-socket hints or what the AI provider is sent.
+ * audit records, exports or live-socket hints.
  */
 import { describe, expect, it } from 'vitest'
 import { env } from 'cloudflare:test'
 import { SoftAuthenticator } from './authenticator'
-import { closeCollection, entry, get, go, ids, openSocket, passkeySignup, patch, post, req, runJobs, signin, sprint, tag, team, type User } from './harness'
+import { closeCollection, entry, get, go, ids, openSocket, passkeySignup, patch, post, req, signin, sprint, tag, team, type User } from './harness'
 import { AVATAR_IDS } from '../src/lib/avatars'
 
 const me = async (u: User) => (await get('/api/auth/me', u)).body
@@ -94,8 +94,6 @@ describe('a person’s character', () => {
     const shared = await closeCollection(owner, s)
     const themed = await post(`/api/sprints/${s}/themes`, owner, { title: 'Planning', entry_ids: ids(shared) })
     const theme = themed.body.themes[0].id as string
-    expect((await post(`/api/sprints/${s}/ai/grouping`, owner)).status).toBe(200)
-    await runJobs()
     expect((await go(owner, s, 'ready')).status).toBe(200)
     expect((await post(`/api/sprints/${s}/votes/rounds`, owner)).status).toBe(200)
     expect((await post(`/api/sprints/${s}/votes`, members[0], { theme_id: theme, cast: true })).status).toBe(200)
@@ -148,7 +146,6 @@ describe('a person’s character', () => {
       `/api/sprints/${s}/meeting`,
       `/api/sprints/${s}/experiments`,
       `/api/sprints/${s}/recap`,
-      `/api/sprints/${s}/ai`,
       `/api/sprints/${s}/keys`,
       `/api/sprints/${s}/export.md?scope=raw`,
       `/api/sprints/${s}/export.csv?scope=raw`,
@@ -164,9 +161,6 @@ describe('a person’s character', () => {
     expect(reached, 'most shared views answered').toBeGreaterThan(paths.length * 2)
     socket.close()
     scan('socket', messages)
-    const snapshots = await env.DB.prepare('SELECT input_snapshot FROM ai_jobs WHERE sprint_id = ?').bind(s).all<{ input_snapshot: string }>()
-    expect(snapshots.results.length).toBeGreaterThan(0)
-    scan('ai input', snapshots.results.map((x) => x.input_snapshot))
     expect(found).toEqual([])
 
     // …while each person still sees their own.

@@ -64,6 +64,8 @@ at close they get a random `reveal_order`.
 **Email and AI:**
 - Email goes to Resend. The message contains the recipient, the workspace name, the inviter's display name and a link or code, never any entry content.
 - AI is `none` in production. If it's enabled, entry text and opaque ids are sent to the provider.
+  *Since removed:* AI theme drafting and on-device voice transcription are gone from Muni
+  (`worker/migrations/0009_no_ai.sql`); nothing is sent to an AI provider.
 
 **Browser (`web/src/lib/local/*`, `sw.ts`):**
 - Drafts, unsent thoughts, minimal sprint context and the last identity are kept per account.

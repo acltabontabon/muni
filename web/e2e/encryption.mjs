@@ -18,7 +18,7 @@ const SECRET = `Synthetic-${tag}: the staging database fell over on Wednesday`
 async function api(page, method, path, body) {
   return page.evaluate(async ([m, p, b]) => {
     const csrf = document.cookie.match(/muni_csrf=([^;]+)/)?.[1] ?? ''
-    const r = await fetch(p, { method: m, headers: { 'content-type': 'application/json', 'x-csrf-token': csrf, 'x-muni-client': '4' }, body: b ? JSON.stringify(b) : undefined })
+    const r = await fetch(p, { method: m, headers: { 'content-type': 'application/json', 'x-csrf-token': csrf, 'x-muni-client': '5' }, body: b ? JSON.stringify(b) : undefined })
     return { status: r.status, body: await r.json().catch(() => null) }
   }, [method, path, body])
 }
@@ -88,7 +88,6 @@ try {
   const sprintId = owner.url().split('/').pop()
   const detail = (await api(owner, 'GET', `/api/sprints/${sprintId}`)).body
   check('Sprint is encrypted and collecting', detail.encryption === 'e1' && detail.status === 'collecting', `${detail.encryption} ${detail.status}`)
-  check('AI is off for the encrypted sprint', detail.ai_processing === false)
 
   // Maya writes. What leaves her browser must not contain the text.
   const sent = []
@@ -100,7 +99,7 @@ try {
   await maya.click('button:has-text("Save thought")')
   await maya.waitForSelector('text=Submitted', { timeout: 10000 })
   check('No request body contains the thought’s text', sent.length > 0 && sent.every((b) => !b.includes('staging database')), `${sent.length} requests`)
-  const raw = await maya.evaluate(async (id) => (await fetch(`/api/sprints/${id}/entries/mine`, { headers: { 'x-muni-client': '4' } }).then((r) => r.json())), sprintId)
+  const raw = await maya.evaluate(async (id) => (await fetch(`/api/sprints/${id}/entries/mine`, { headers: { 'x-muni-client': '5' } }).then((r) => r.json())), sprintId)
   check('The server returns only an envelope', raw.length === 1 && raw[0].body.startsWith('e1.') && !raw[0].body.includes('staging') && raw[0].impact === null)
   check('Maya sees her own thought, decrypted', (await maya.locator(`text=${SECRET}`).count()) === 1)
 
@@ -123,7 +122,7 @@ try {
   await owner.fill('input[aria-label="New theme title"]', `Synthetic-${tag} staging ownership`)
   await owner.click('button:has-text("Add")')
   await owner.waitForTimeout(800)
-  const themes = (await owner.evaluate(async (id) => (await fetch(`/api/sprints/${id}/themes`, { headers: { 'x-muni-client': '4' } }).then((r) => r.json())), sprintId)).themes
+  const themes = (await owner.evaluate(async (id) => (await fetch(`/api/sprints/${id}/themes`, { headers: { 'x-muni-client': '5' } }).then((r) => r.json())), sprintId)).themes
   check('Theme titles are stored as envelopes', themes.length === 1 && themes[0].title.startsWith('e1.'))
   check('…and shown decrypted', (await owner.locator(`input[value="Synthetic-${tag} staging ownership"]`).count()) === 1)
 

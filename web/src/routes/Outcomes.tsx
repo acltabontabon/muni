@@ -119,9 +119,9 @@ export function Outcomes() {
           {fac ? (
             <div className="card p-4">
               <Textarea rows={18} value={draft} onChange={(e) => setDraft(e.target.value)} className="font-mono text-sm" aria-label="Recap (Markdown)" />
-              <Help>Generated from the meeting record when you ask for a draft; everything here is editable. Publishing makes it visible to participants. Nothing is emailed automatically.</Help>
+              <Help>Fill it in from what the retro recorded — topics discussed, takeaways and agreed experiments — then write the rest yourself; everything here is editable. Publishing makes it visible to participants. Nothing is emailed automatically.</Help>
               <div className="mt-3 flex flex-wrap gap-2">
-                <Button size="sm" onClick={async () => { if (encrypted) { setDraft(recapDraft(s, await themes(), exps)); toast('Draft written from the meeting record — save to keep it'); return } const r = await put<Recap>(`/api/sprints/${sprintId}/recap`, {}); setRecap(r); setDraft(r.body); toast('Draft regenerated from the meeting record') }}>{encrypted ? 'Draft from the meeting' : 'Regenerate draft'}</Button>
+                <Button size="sm" onClick={async () => { if (encrypted) { setDraft(recapDraft(s, await themes(), exps)); toast('Filled in from the retro record — save to keep it'); return } const r = await put<Recap>(`/api/sprints/${sprintId}/recap`, {}); setRecap(r); setDraft(r.body); toast('Filled in again from the retro record') }}>{encrypted ? 'Fill in from the record' : 'Refill from the record'}</Button>
                 <Button size="sm" onClick={async () => { const r = await put<Recap>(`/api/sprints/${sprintId}/recap`, { body: draft }); setRecap(r); toast('Saved') }}>Save</Button>
                 <Button size="sm" variant="primary" onClick={async () => { const r = await put<Recap>(`/api/sprints/${sprintId}/recap`, { body: draft, publish: true }); setRecap(r); toast('Recap published to participants') }}>Publish</Button>
               </div>

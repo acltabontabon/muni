@@ -165,25 +165,6 @@ describe('lifecycle', () => {
     expect(asOwner.body.is_participant).toBe(false)
   })
 
-  it('never widens AI processing after collection has started', async () => {
-    const { owner, members, ws } = await team(1)
-    const s = await sprint(owner, members, ws, 'draft', { ai_processing: false })
-    expect((await get(`/api/sprints/${s}`, owner)).body.ai_processing).toBe(false)
-    // In draft it can still be switched on or off.
-    expect((await patch(`/api/sprints/${s}`, owner, { ai_processing: true })).body.ai_processing).toBe(true)
-    expect((await patch(`/api/sprints/${s}`, owner, { ai_processing: false })).body.ai_processing).toBe(false)
-    await go(owner, s, 'collecting')
-    expect((await get(`/api/sprints/${s}`, owner)).body.ai_locked).toBe(true)
-    const widen = await patch(`/api/sprints/${s}`, owner, { ai_processing: true })
-    expect(widen.status).toBe(409)
-    expect(widen.body.error).toContain('can’t be turned on after collection has started')
-    expect((await get(`/api/sprints/${s}`, owner)).body.ai_processing).toBe(false)
-    // Narrowing is always allowed.
-    const s2 = await sprint(owner, members, ws, 'collecting', { ai_processing: true })
-    expect((await patch(`/api/sprints/${s2}`, owner, { ai_processing: false })).body.ai_processing).toBe(false)
-    expect((await patch(`/api/sprints/${s2}`, owner, { ai_processing: true })).status).toBe(409)
-  })
-
   it('invites straight into a sprint', async () => {
     const { owner, members, ws } = await team(1)
     const s = await sprint(owner, members, ws, 'collecting')

@@ -1,7 +1,5 @@
 // The API contract is one TypeScript file shared with the Worker (worker/src/contract.ts).
 export type {
-  AiProposalView,
-  AiStatus,
   AuditEvent,
   CaptureTarget,
   Category,

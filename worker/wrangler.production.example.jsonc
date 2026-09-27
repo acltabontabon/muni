@@ -31,8 +31,6 @@
     // Until it is set, invitation emails and reminders answer `setup_required` rather than pretending to send.
     "EMAIL_PROVIDER": "${MUNI_EMAIL_PROVIDER}",
     "EMAIL_FROM": "${MUNI_EMAIL_FROM}",
-    // none | anthropic (then also `wrangler secret put ANTHROPIC_API_KEY`); each sprint still opts in.
-    "AI_PROVIDER": "${MUNI_AI_PROVIDER}",
     "ALLOW_DEMO_SEED": "false",
     // Passkeys belong to exactly this host (e.g. act.munimuni.app) — not the marketing site, not
     // previews, not other subdomains. The Worker refuses to start if this differs from PUBLIC_ORIGIN's host.

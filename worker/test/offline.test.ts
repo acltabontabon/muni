@@ -87,7 +87,9 @@ describe('offline submissions', () => {
     expect((await req('GET', '/api/auth/me', u, undefined, { 'x-muni-client': '2' })).status).toBe(426)
     // 3 still kept the account key in plaintext on the device and deleted it on sign-out.
     expect((await req('GET', '/api/auth/me', u, undefined, { 'x-muni-client': '3' })).status).toBe(426)
-    expect((await req('GET', '/api/auth/me', u, undefined, { 'x-muni-client': '4' })).status).toBe(200)
+    // 4 still offered AI theme drafts and voice transcription, both gone.
+    expect((await req('GET', '/api/auth/me', u, undefined, { 'x-muni-client': '4' })).status).toBe(426)
+    expect((await req('GET', '/api/auth/me', u, undefined, { 'x-muni-client': '5' })).status).toBe(200)
     expect((await req('GET', '/api/auth/me', u)).status).toBe(200) // no header: browsers, curl, tests
   })
 })

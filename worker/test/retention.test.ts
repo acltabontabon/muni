@@ -1,7 +1,7 @@
 /** Retention: content is purged after the workspace window; outcomes live under their own, longer window. */
 import { describe, expect, it } from 'vitest'
 import { env } from 'cloudflare:test'
-import { closeCollection, command, entry, get, go, ids, patch, post, put, runJobs, sprint, team, type User } from './harness'
+import { closeCollection, command, entry, get, go, ids, patch, post, put, sprint, team, type User } from './harness'
 import { retention } from '../src/jobs'
 
 const DAY = 86_400_000
@@ -15,8 +15,6 @@ async function completedSprint(owner: User, members: User[], ws: string, publish
   const entries = await closeCollection(owner, s)
   const g = await post(`/api/sprints/${s}/themes`, owner, { title: 'Theme', entry_ids: ids(entries) })
   const theme = g.body.themes[0].id as string
-  expect((await post(`/api/sprints/${s}/ai/grouping`, owner)).status).toBe(200)
-  await runJobs()
   await go(owner, s, 'ready')
   await post(`/api/sprints/${s}/votes/rounds`, owner)
   await post(`/api/sprints/${s}/votes`, members[0], { theme_id: theme, cast: true })
@@ -40,8 +38,6 @@ describe('retention', () => {
     const fresh = await completedSprint(owner, members, ws, true)
     // Everything is there before the window closes.
     expect(await n('SELECT count(*) AS n FROM entries WHERE sprint_id = ?', s)).toBe(2)
-    expect(await n('SELECT count(*) AS n FROM ai_jobs WHERE sprint_id = ?', s)).toBe(1)
-    expect(await n('SELECT count(*) AS n FROM ai_proposals WHERE sprint_id = ?', s)).toBe(1)
     expect(await n('SELECT count(*) AS n FROM votes WHERE round_id IN (SELECT id FROM vote_rounds WHERE sprint_id = ?)', s)).toBe(1)
     await retention(env as any)
     expect(await n('SELECT count(*) AS n FROM entries WHERE sprint_id = ?', s)).toBe(2)
@@ -54,8 +50,6 @@ describe('retention', () => {
       ['themes', 'SELECT count(*) AS n FROM themes WHERE sprint_id = ?'],
       ['discussion_notes', 'SELECT count(*) AS n FROM discussion_notes WHERE sprint_id = ?'],
       ['context_additions', 'SELECT count(*) AS n FROM context_additions WHERE sprint_id = ?'],
-      ['ai_jobs', 'SELECT count(*) AS n FROM ai_jobs WHERE sprint_id = ?'],
-      ['ai_proposals', 'SELECT count(*) AS n FROM ai_proposals WHERE sprint_id = ?'],
       ['vote_rounds', 'SELECT count(*) AS n FROM vote_rounds WHERE sprint_id = ?'],
       ['votes', 'SELECT count(*) AS n FROM votes WHERE round_id IN (SELECT id FROM vote_rounds WHERE sprint_id = ?)'],
       ['theme_entries', 'SELECT count(*) AS n FROM theme_entries WHERE theme_id IN (SELECT id FROM themes WHERE sprint_id = ?)'],

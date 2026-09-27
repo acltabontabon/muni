@@ -832,7 +832,6 @@ async function decryptDeep<T>(data: T, sprintHint: string | null = null): Promis
 const SEALED: [RegExp, string[]][] = [
   [/^\/api\/sprints\/[^/]+\/themes(\/[^/]+)?(\/split)?$/, ['title', 'summary', 'question', 'draft_experiment', 'order_reason', 'reset_voting_reason']],
   [/^\/api\/sprints\/[^/]+\/themes\/(ungroup|reorder|[^/]+\/merge)$/, ['reset_voting_reason', 'reason']],
-  [/^\/api\/sprints\/[^/]+\/ai\/proposals\/[^/]+\/apply$/, ['reset_voting_reason']],
   [/^\/api\/sprints\/[^/]+\/meeting\/notes\/[^/]+$/, ['takeaway', 'what_happened', 'impact', 'could_try', 'notes']],
   [/^\/api\/sprints\/[^/]+\/meeting\/context$/, ['body']],
   [/^\/api\/sprints\/[^/]+\/experiments(\/[^/]+)?$/, ['change_to_try', 'success_signal', 'outcome_note']],

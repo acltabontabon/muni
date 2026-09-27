@@ -167,7 +167,6 @@ export function SprintHome() {
             <h2 id="details" className="font-display text-base">Privacy</h2>
             <p className="mt-2 text-ink-soft"><EncryptionLine encryption={s.encryption} /></p>
             <p className="mt-2 text-ink-soft">
-              AI theme drafts: <span className="text-ink">{s.ai_processing ? `on (${s.ai_provider})` : 'off'}</span>{s.ai_locked ? ', decided before collection opened' : ''}.{' '}
               Muni’s servers record who wrote each thought, and wording can still give someone away. <Link to="/privacy#visibility" className="underline underline-offset-2">Privacy &amp; data</Link>
             </p>
             {s.reminders_enabled ? <p className="mt-2 text-ink-soft">Reminder emails: {s.my_reminders_opt_out ? 'off for you' : 'on'} · <Link to="/account#notifications" className="underline underline-offset-2">change</Link></p> : null}

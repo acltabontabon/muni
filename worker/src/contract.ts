@@ -29,7 +29,6 @@ export interface Me {
   workspaces: WorkspaceSummary[]
   session_expires_at: string
   email_transport: string
-  ai_provider: string
   /** How many passkeys the account has: at least one, since a passkey is the only way in. */
   passkeys: number
   /** How the current session signed in; null right after a sign-in response. */
@@ -128,8 +127,6 @@ export interface Workspace {
   role: string
   retention_days: number
   outcome_retention_days: number
-  ai_enabled_default: boolean
-  ai_provider: string
   is_demo: boolean
   created_at: string
 }
@@ -195,9 +192,6 @@ export interface Participant {
 }
 export interface SprintDetail extends SprintSummary {
   opening_question: string | null
-  ai_processing: boolean
-  ai_locked: boolean
-  ai_provider: string
   vote_budget: number
   include_facilitator_in_rotation: boolean
   participants: Participant[]
@@ -258,7 +252,6 @@ export interface ThemeView {
   parked: boolean
   needs_attention: boolean
   order_reason: string | null
-  source: string
   /** Thoughts, not people. */
   entry_count: number
   category_mix: Record<string, number>
@@ -410,44 +403,6 @@ export interface Recap {
   published_at: string | null
   updated_at: string | null
   exists: boolean
-}
-
-export interface AiJobView {
-  id: string
-  status: string
-  error_summary: string | null
-  provider: string
-  model: string | null
-  created_at: string | null
-  finished_at: string | null
-}
-export interface ProposedTheme {
-  title: string
-  summary: string
-  question: string
-  draft_experiment: string | null
-  entry_ids: string[]
-}
-export interface Proposal {
-  themes: ProposedTheme[]
-  ungrouped_entry_ids: string[]
-  notes: string[]
-}
-export interface AiProposalView {
-  id: string
-  job_id: string
-  proposal: Proposal
-  applied_at: string | null
-  rejected_at: string | null
-  created_at: string | null
-}
-export interface AiStatus {
-  available: boolean
-  enabled: boolean
-  provider: string
-  jobs: AiJobView[]
-  proposals: AiProposalView[]
-  explanation: string
 }
 
 /** Encryption keys. Public keys and wrapped (sealed) keys only: nothing here opens content. */

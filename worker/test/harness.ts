@@ -75,7 +75,7 @@ export async function signin(email: string, name: string | null = 'Someone'): Pr
 /** The authenticator holding someone's passkey (to add another, or sign in with a specific one). */
 export const authenticatorOf = (email: string) => people.get(email.toLowerCase())
 
-/** Runs queued jobs (emails, AI) until none are due. */
+/** Runs queued jobs (emails, reminders) until none are due. */
 export async function runJobs() {
   const { runDue } = await import('../src/jobs')
   await runDue(env as any, 50)
@@ -123,7 +123,6 @@ export async function sprint(owner: User, members: User[], ws: string, status: s
     retro_duration_min: 45,
     participant_ids: members.map((m) => m.account_id),
     facilitator_id: owner.account_id,
-    ai_processing: true,
     reminders_enabled: false,
     ...extra,
   })

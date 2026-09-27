@@ -16,7 +16,6 @@ import { voting } from './routes/voting'
 import { meeting } from './routes/meeting'
 import { commitments } from './routes/commitments'
 import { exportsRoutes } from './routes/exports'
-import { ai } from './routes/ai'
 import { demo } from './routes/demo'
 import { keys } from './routes/keys'
 import { passkeys } from './routes/passkeys'
@@ -36,7 +35,9 @@ export { MeetingRoom } from './room'
 // 3: encrypted sprints (content fields carry client envelopes; older clients can't read or write them).
 // 4: passkey-unlocked encryption (the account key is never kept in plaintext on a device, and signing
 // out no longer deletes it; a revision-3 tab would still do both).
-const MIN_CLIENT_REVISION = 4
+// 5: AI theme drafts and voice transcription removed (a revision-4 tab still offers both; its
+// grouping page waits on an endpoint that no longer exists).
+const MIN_CLIENT_REVISION = 5
 
 const app = new Hono<HonoEnv>()
 
@@ -60,11 +61,11 @@ app.use('*', async (c, next) => {
   c.header('cache-control', 'no-store')
 })
 
-app.get('/healthz', (c) => c.json({ status: 'ok', email_transport: config(c.env).email, ai_provider: config(c.env).ai }))
+app.get('/healthz', (c) => c.json({ status: 'ok', email_transport: config(c.env).email }))
 app.get('/readyz', async (c) => {
   try {
     await c.env.DB.prepare('SELECT 1').first()
-    return c.json({ status: 'ready', database: 'ok', email_transport: config(c.env).email, ai_provider: config(c.env).ai })
+    return c.json({ status: 'ready', database: 'ok', email_transport: config(c.env).email })
   } catch {
     return c.json({ status: 'not ready', database: 'unreachable' }, 503)
   }
@@ -79,7 +80,6 @@ app.route('/', voting)
 app.route('/', meeting)
 app.route('/', commitments)
 app.route('/', exportsRoutes)
-app.route('/', ai)
 app.route('/', demo)
 app.route('/', keys)
 app.route('/', passkeys)

@@ -7,9 +7,8 @@ import { describe, expect, it } from 'vitest'
 import stylesCss from '../styles.css?raw'
 import worldsCss from '../worlds/worlds.css?raw'
 
-// Each is shown only while its state lasts: a draft being generated, a transcription running,
-// a join request waiting.
-const WHILE_BUSY = ['.anim-pulse', '.journal-voice-think', '.entrance-wait i']
+// Shown only while its state lasts: a join request waiting.
+const WHILE_BUSY = ['.entrance-wait i']
 
 function infinite(css: string) {
   const out: string[] = []

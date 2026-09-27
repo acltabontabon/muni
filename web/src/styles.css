@@ -202,12 +202,10 @@ body {
 .anim-rise { animation: rise 220ms var(--ease-out-soft) both; }
 .anim-fade { animation: fade 180ms ease-out both; }
 .anim-settle { animation: settle 380ms var(--ease-out-soft) both; }
-.anim-pulse { animation: pulse-soft 2.4s ease-in-out infinite; }
 .anim-gather { animation: gather 520ms var(--ease-out-soft) both; }
 
 @media (prefers-reduced-motion: reduce) {
   .anim-rise, .anim-settle, .anim-gather { animation: fade 120ms ease-out both; }
-  .anim-pulse { animation: none; }
   * { scroll-behavior: auto !important; transition-duration: 0.01ms !important; }
 }
 
@@ -434,81 +432,6 @@ body {
 .privacy-mark:hover, .privacy-mark[data-state='open'] { color: var(--ink); background: color-mix(in oklab, var(--ink) 5%, transparent); }
 .kbd-hint { display: none; }
 @media (pointer: fine) { .kbd-hint { display: inline-flex; } }
-
-/* ── Voice: speak into the field. The microphone sits with the other tools; recording shows a
-   ripple and a trace drawn from the real input level, in the page's accent (a world's own, on
-   personal pages). Phones get a sheet at the bottom, within thumb reach and clear of the
-   keyboard; wider screens get a quiet row under the tools, so the field never moves. ──────── */
-.journal-voice-mic.is-recording { color: var(--accent-ink); }
-@media (max-width: 379px) { .journal-voice-mic:not(.is-recording) .journal-voice-mic-label { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); } }
-.journal-voice { font-size: 14px; color: var(--ink-soft); }
-.journal-voice[hidden] { display: none; }
-.journal-voice.is-open { animation: rise 220ms var(--ease-out-soft) both; }
-.journal-voice--inline { margin-top: 0.5rem; }
-.journal-voice--sheet {
-  margin-top: 0.75rem;
-  padding: 0.85rem 1rem;
-  border-radius: 14px;
-  background: var(--card);
-  box-shadow: inset 0 0 0 1px var(--line);
-}
-@media (max-width: 639px) {
-  .journal-voice--sheet {
-    position: fixed; z-index: 40; left: 0; right: 0; bottom: 0; margin: 0;
-    padding: 1rem max(1.1rem, env(safe-area-inset-right)) max(1rem, env(safe-area-inset-bottom)) max(1.1rem, env(safe-area-inset-left));
-    border-radius: 18px 18px 0 0;
-    box-shadow: 0 -1px 0 var(--line), 0 -18px 40px -24px rgb(0 0 0 / 0.35);
-  }
-  .journal-voice--sheet.is-open { animation: voice-sheet 260ms var(--ease-out-soft) both; }
-}
-@keyframes voice-sheet { from { transform: translateY(100%); } to { transform: translateY(0); } }
-.journal-voice-row { display: flex; align-items: center; gap: 0.85rem; min-height: 2.75rem; }
-.journal-voice-row--done { min-height: 1.75rem; gap: 0.6rem; font-size: 12.5px; }
-.journal-voice-row--done .journal-voice-status { color: var(--ink-faint); gap: 0.5rem; }
-.journal-voice-title { font-family: var(--font-world-display); font-size: 1.1rem; font-weight: 600; color: var(--ink); }
-.journal-voice-note { margin-top: 0.35rem; max-width: 38rem; line-height: 1.5; }
-.journal-voice-status { display: inline-flex; align-items: center; gap: 0.6rem; line-height: 1.45; color: var(--ink); }
-.journal-voice-transcript { margin-top: 0.5rem; padding: 0.6rem 0.75rem; border-radius: 8px; background: var(--card-2); color: var(--ink); white-space: pre-wrap; max-height: 9rem; overflow: auto; user-select: text; }
-.journal-voice-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 0.5rem 1rem; margin-top: 0.75rem; }
-.journal-voice-primary { display: inline-flex; align-items: center; gap: 0.45rem; min-height: 2.75rem; padding: 0 1.1rem; border-radius: 999px; background: var(--action); color: var(--action-ink); font-weight: 500; }
-.journal-voice-primary:hover { background: color-mix(in oklab, var(--action) 84%, var(--accent)); }
-.journal-voice-quiet { display: inline-flex; align-items: center; justify-content: center; min-width: 2.75rem; min-height: 2.75rem; padding: 0 0.6rem; border-radius: 8px; color: var(--ink-soft); }
-.journal-voice-quiet:hover { color: var(--ink); background: color-mix(in oklab, var(--ink) 5%, transparent); }
-/* Stop: the largest thing in the panel, ink like every primary action; the ring is the rubric. */
-.journal-voice-stop { position: relative; display: grid; place-items: center; flex: none; width: 3.25rem; height: 3.25rem; border-radius: 999px; background: var(--action); color: var(--action-ink); }
-.journal-voice-live { position: absolute; inset: 0; pointer-events: none; }
-.journal-voice-ring {
-  position: absolute; inset: -5px; border-radius: 999px;
-  box-shadow: 0 0 0 2px var(--accent);
-  opacity: calc(0.35 + var(--lvl, 0) * 0.65);
-  transform: scale(calc(1 + var(--lvl, 0) * 0.28));
-  transition: transform 90ms linear, opacity 90ms linear;
-}
-.journal-voice-trace { position: absolute; left: calc(100% + 0.85rem); top: 50%; width: 5.5rem; height: 1.5rem; transform: translateY(-50%); display: none; }
-.journal-voice-line { fill: none; stroke: var(--accent); stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; vector-effect: non-scaling-stroke; }
-.journal-voice-bars { display: none; fill: var(--accent); }
-.journal-voice-rec { display: inline-flex; align-items: baseline; gap: 0.45rem; color: var(--ink); font-weight: 500; }
-@media (min-width: 420px) {
-  .journal-voice-trace { display: block; }
-  .journal-voice-rec { margin-left: 6.5rem; }
-}
-.journal-voice-dot { width: 8px; height: 8px; border-radius: 999px; background: var(--accent); align-self: center; }
-.journal-voice-time { font-family: var(--font-world-meta); font-weight: 400; color: var(--ink-soft); }
-.journal-voice-limit { color: var(--ink-faint); }
-.journal-voice-limit.is-near { color: var(--warn); }
-.journal-voice-think { width: 8px; height: 8px; border-radius: 999px; background: var(--accent); animation: pulse-soft 2.4s ease-in-out infinite; }
-.journal-voice-dl { display: flex; flex-direction: column; gap: 0.35rem; margin-top: 0.6rem; font-size: 12.5px; color: var(--ink-faint); }
-.journal-voice-bar { display: block; height: 3px; border-radius: 999px; background: var(--line); overflow: hidden; }
-.journal-voice-bar > span { display: block; height: 100%; background: var(--accent); transition: width 300ms ease-out; }
-@media (prefers-reduced-motion: reduce) {
-  .journal-voice.is-open, .journal-voice--sheet.is-open { animation: fade 120ms ease-out both; }
-  /* The level still shows (it's information), without movement: the ring only brightens. */
-  .journal-voice-ring { transform: none; transition: none; }
-  .journal-voice-think { animation: none; }
-}
-@media (forced-colors: active) {
-  .journal-voice-ring, .journal-voice-dot, .journal-voice-think { background: CanvasText; box-shadow: 0 0 0 2px CanvasText; }
-}
 
 /* Categories as words with a small marker, not five pills. */
 .cat-choices { display: flex; flex-wrap: wrap; gap: 0.15rem 0.25rem; margin-left: -0.45rem; }

@@ -41,7 +41,7 @@ async function cachedIdentity(): Promise<Me | null> {
     if (!i || (!legacy && !keptAccounts().includes(i.account_id))) return null
     // Their character comes from this device's copy; offline is never the moment for the chooser.
     const w = worldFor(i.account_id)
-    return { account_id: i.account_id, display_name: i.display_name, needs_name: false, email: '', workspaces: i.workspaces.map((w) => ({ ...w, is_demo: false })), session_expires_at: '', email_transport: '', ai_provider: '', passkeys: 0, auth_method: null, recent_auth_until: '', pending_join_requests: [], avatar: { id: w?.avatar ?? null, theme: w?.theme ?? true, intro: 'done' } }
+    return { account_id: i.account_id, display_name: i.display_name, needs_name: false, email: '', workspaces: i.workspaces.map((w) => ({ ...w, is_demo: false })), session_expires_at: '', email_transport: '', passkeys: 0, auth_method: null, recent_auth_until: '', pending_join_requests: [], avatar: { id: w?.avatar ?? null, theme: w?.theme ?? true, intro: 'done' } }
   } catch {
     return null
   }

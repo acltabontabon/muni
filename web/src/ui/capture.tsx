@@ -17,8 +17,7 @@ import { Copy, CornerDownRight, Lightbulb, MoreHorizontal, Pencil, Plus, Shield,
 import { ApiError, del, get, patch } from '@/api/client'
 import type { Category, MyEntry, Period } from '@/api/types'
 import { CATEGORIES, categoryMeta, MEMORY_PROMPTS, PERIODS } from '@/lib/categories'
-import { useAuth } from '@/lib/auth'
-import { setComposerDirty, setVoiceBusy } from '@/lib/dirty'
+import { setComposerDirty } from '@/lib/dirty'
 import { draftKeeper } from '@/lib/drafts'
 import { announceKept } from '@/lib/kept'
 import { localGeneration, useLocal, type Destination } from '@/lib/local/LocalProvider'
@@ -27,11 +26,6 @@ import { WAITING_KEY } from '@/lib/local/outbox'
 import { isLocked } from '@/lib/e2ee/keyring'
 import { useKeysEpoch } from '@/lib/e2ee/E2eeProvider'
 import { splitLinks } from '@/lib/text'
-import { anchorFor } from '@/lib/voice/insert'
-import { voiceEngine, voiceSupport } from '@/lib/voice/engine'
-import { openRecorder } from '@/lib/voice/recorder'
-import { createVoiceSession } from '@/lib/voice/session'
-import { MAX_MS, usePhase, VoiceButton, VoicePanel } from '@/ui/voice'
 import { Button, ErrorText, Kbd, useToast } from '@/ui'
 import { StatusLabel, type ThoughtState } from '@/ui/status'
 import { Hammock } from '@/ui/journal'
@@ -127,8 +121,8 @@ export function Composer({
   const uid = useId()
   const bodyId = fieldId ?? `${uid}-body`
   const [p, setP] = useState<Payload>(emptyPayload)
-  // The text as of the last keystroke, before React renders it. Anything that adds to the text
-  // later (dictation) builds on this, so it can never overwrite an edit that hasn't rendered yet.
+  // The text as of the last keystroke, before React renders it. A draft restored from the device
+  // checks this, so it can never replace something typed before it arrived.
   const latest = useRef<Payload>(p)
   const [more, setMore] = useState(false)
   const [busy, setBusy] = useState(false)
@@ -188,56 +182,6 @@ export function Composer({
     setNotice(null)
     setError(null)
   }
-
-  // Voice: dictation into this draft, for this account only (lib/voice/session.ts).
-  const { me } = useAuth()
-  const account = me?.account_id ?? null
-  const fieldTouched = useRef(false)
-  const live = useRef({ account, sprintId, keeper, kind: local.kind, set })
-  live.current = { account, sprintId, keeper, kind: local.kind, set }
-  const [voice] = useState(() =>
-    createVoiceSession({
-      openRecorder,
-      engine: voiceEngine,
-      context: () => ({ account: live.current.account, draft: live.current.sprintId, generation: localGeneration() }),
-      anchor: () => anchorFor(latest.current.body, area.current, fieldTouched.current),
-      body: () => latest.current.body,
-      apply(body, caret) {
-        live.current.set({ body })
-        if (!isFinePointer()) return
-        requestAnimationFrame(() => {
-          area.current?.focus({ preventScroll: true })
-          area.current?.setSelectionRange(caret, caret)
-        })
-      },
-      async persist() {
-        const r = await live.current.keeper.flush()
-        if (r === 'failed') return 'failed'
-        if (r === 'skipped' || !live.current.sprintId) return 'unsaved'
-        return live.current.kind === 'device' ? 'device' : 'tab'
-      },
-      language: () => 'tl',
-      maxChars: 2000,
-      maxMs: MAX_MS,
-      now: () => Date.now(),
-      newId: () => crypto.randomUUID(),
-    }),
-  )
-  useEffect(() => () => voice.dispose(), [voice])
-  useEffect(() => {
-    voiceEngine.bind(account)
-    if (account && voiceSupport().ok) void voiceEngine.check()
-  }, [account])
-  const voicePhase = usePhase(voice)
-  const voiceBusy = voicePhase.kind === 'starting' || voicePhase.kind === 'recording' || voicePhase.kind === 'processing' || voicePhase.kind === 'interrupted'
-  useEffect(() => {
-    setVoiceBusy(voiceBusy)
-    return () => setVoiceBusy(false)
-  }, [voiceBusy])
-  const voicePanel = `${uid}-voice`
-  const restoreFocus = useCallback(() => {
-    if (isFinePointer()) area.current?.focus({ preventScroll: true })
-  }, [])
 
   const choose = async (d: Destination) => {
     if (d.sprintId === sprintId) return
@@ -342,7 +286,6 @@ export function Composer({
         className="journal-field"
         value={p.body}
         onChange={(e) => set({ body: e.target.value })}
-        onFocus={() => (fieldTouched.current = true)}
         onKeyDown={onKey}
         placeholder="Something that happened, helped, or got in the way…"
         aria-describedby={`${uid}-privacy`}
@@ -388,7 +331,6 @@ export function Composer({
       ) : null}
 
       <div className="mt-3 flex flex-wrap items-center gap-x-1 gap-y-2">
-        <VoiceButton session={voice} panelId={voicePanel} />
         <button type="button" className="journal-tool" onClick={() => setMore((m) => !m)} aria-expanded={more} aria-controls={`${uid}-more`}>
           <Plus className={clsx('size-4 transition-transform', more && 'rotate-45')} aria-hidden /> {more ? 'Less context' : 'Context'}
         </button>
@@ -405,7 +347,6 @@ export function Composer({
         </span>
       </div>
 
-      <VoicePanel session={voice} id={voicePanel} onRestore={restoreFocus} />
       <ErrorText>{error}</ErrorText>
       {notice ? (
         <p role="status" className={clsx('mt-3 flex items-start gap-2 text-sm', notice.tone === 'ok' ? 'text-status-ink' : notice.tone === 'warn' ? 'rounded-xl bg-warn/12 px-3 py-2 text-warn' : 'text-ink')}>

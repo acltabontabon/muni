@@ -9,9 +9,7 @@ import { config } from './lib/config'
 import { uuid } from './lib/crypto'
 import { all, one, run } from './lib/db'
 import { sendMail, templates } from './lib/email'
-import { normalise, provider, AiError } from './lib/ai'
 import { addDays, daysBetween, resolveLocal } from './lib/util'
-import { hint } from './lib/live'
 
 export async function enqueue(db: D1Database, kind: string, payload: Record<string, unknown>, runAt: number, key: string | null): Promise<void> {
   await run(db, 'INSERT OR IGNORE INTO jobs (id, kind, payload, idempotency_key, run_at, created_at) VALUES (?,?,?,?,?,?)', uuid(), kind, JSON.stringify(payload), key, runAt, Date.now())
@@ -63,11 +61,10 @@ async function execute(env: AppEnv, job: JobRow) {
     // only copy of its token). Once it's sent or given up on, only the bookkeeping stays.
     await run(env.DB, "UPDATE jobs SET status='succeeded', finished_at=?, locked_at=NULL, payload=CASE WHEN kind='email' THEN '{}' ELSE payload END WHERE id=?", Date.now(), job.id)
   } catch (e) {
-    // Never log payloads: they may contain an email address or AI input.
+    // Never log payloads: they may contain an email address.
     const summary = String(e instanceof Error ? e.message : e).slice(0, 500)
     if (job.attempts >= job.max_attempts) {
       await run(env.DB, "UPDATE jobs SET status='failed', finished_at=?, locked_at=NULL, last_error=?, payload=CASE WHEN kind='email' THEN '{}' ELSE payload END WHERE id=?", Date.now(), summary, job.id)
-      if (job.kind === 'ai_grouping') await markAiFailed(env, payload, summary)
     } else {
       const backoff = 15_000 * 2 ** Math.min(job.attempts, 6)
       await run(env.DB, "UPDATE jobs SET status='queued', run_at=?, locked_at=NULL, last_error=? WHERE id=?", Date.now() + backoff, summary, job.id)
@@ -82,8 +79,6 @@ async function dispatch(env: AppEnv, kind: string, payload: Record<string, unkno
       return sendMail(cfg, env.DB, { to: String(payload.to), subject: String(payload.subject ?? 'Muni'), body: String(payload.body ?? '') })
     case 'reminder':
       return reminders(env, String(payload.sprint_id), String(payload.kind ?? 'day_before'))
-    case 'ai_grouping':
-      return aiGrouping(env, String(payload.ai_job_id))
     case 'retention':
       return retention(env)
     default:
@@ -128,42 +123,6 @@ async function reminders(env: AppEnv, sprintId: string, kind: string) {
   }
 }
 
-async function aiGrouping(env: AppEnv, jobId: string) {
-  const cfg = config(env)
-  const row = await one<{ sprint_id: string; workspace_id: string; status: string; input_snapshot: string }>(env.DB, 'SELECT sprint_id, workspace_id, status, input_snapshot FROM ai_jobs WHERE id = ?', jobId)
-  if (!row || row.status === 'succeeded' || row.status === 'skipped') return
-  const allowed = await one<{ ai_processing: number }>(env.DB, 'SELECT ai_processing FROM sprints WHERE id = ?', row.sprint_id)
-  const p = provider(cfg)
-  if (!allowed?.ai_processing || !p) {
-    await run(env.DB, "UPDATE ai_jobs SET status='skipped', error_summary=?, finished_at=? WHERE id=?", allowed?.ai_processing ? 'no AI provider is configured' : 'AI processing is not enabled for this sprint', Date.now(), jobId)
-    return
-  }
-  await run(env.DB, "UPDATE ai_jobs SET status='running', attempts=attempts+1 WHERE id=?", jobId)
-  const input = JSON.parse(row.input_snapshot)
-  let proposal
-  try {
-    proposal = normalise(await p.propose(input), input)
-  } catch (e) {
-    if (e instanceof AiError && e.kind === 'malformed') {
-      await run(env.DB, "UPDATE ai_jobs SET status='failed', error_summary=?, finished_at=? WHERE id=?", e.message.slice(0, 300), Date.now(), jobId)
-      await hint(env, row.sprint_id, 'ai')
-      return
-    }
-    throw e
-  }
-  await env.DB.batch([
-    env.DB.prepare('INSERT INTO ai_proposals (id, job_id, sprint_id, proposal, created_at) VALUES (?,?,?,?,?)').bind(uuid(), jobId, row.sprint_id, JSON.stringify(proposal), Date.now()),
-    env.DB.prepare("UPDATE ai_jobs SET status='succeeded', finished_at=?, model=? WHERE id=?").bind(Date.now(), p.model, jobId),
-  ])
-  await hint(env, row.sprint_id, 'ai')
-}
-
-async function markAiFailed(env: AppEnv, payload: Record<string, unknown>, summary: string) {
-  const jobId = String(payload.ai_job_id ?? '')
-  const row = await one<{ sprint_id: string }>(env.DB, "UPDATE ai_jobs SET status='failed', error_summary=?, finished_at=? WHERE id=? AND status <> 'succeeded' RETURNING sprint_id", summary.slice(0, 300), Date.now(), jobId)
-  if (row) await hint(env, row.sprint_id, 'ai')
-}
-
 /** Retention: content-derived records are deleted after the workspace window; outcomes under the separate, disclosed window. */
 export async function retention(env: AppEnv) {
   const db = env.DB
@@ -189,7 +148,6 @@ export async function retention(env: AppEnv) {
     db.prepare("UPDATE join_requests SET status = 'expired' WHERE status = 'pending' AND created_at < ?").bind(now - 14 * 86_400_000),
     db.prepare("DELETE FROM join_requests WHERE status <> 'pending' AND COALESCE(decided_at, created_at) < ?").bind(now - 180 * 86_400_000),
     db.prepare('DELETE FROM join_links WHERE COALESCE(revoked_at, expires_at) < ? AND NOT EXISTS (SELECT 1 FROM join_requests r WHERE r.link_id = join_links.id)').bind(now - 180 * 86_400_000),
-    db.prepare('DELETE FROM ai_usage WHERE at < ?').bind(now - 2 * 86_400_000),
     db.prepare('DELETE FROM dev_mail WHERE created_at < ?').bind(now - 86_400_000),
   ])
 }
@@ -198,8 +156,6 @@ export async function purgeSprintContent(db: D1Database, sprintId: string, works
   await db.batch([
     db.prepare('DELETE FROM context_additions WHERE sprint_id = ?').bind(sprintId),
     db.prepare('DELETE FROM discussion_notes WHERE sprint_id = ?').bind(sprintId),
-    db.prepare('DELETE FROM ai_proposals WHERE sprint_id = ?').bind(sprintId),
-    db.prepare('DELETE FROM ai_jobs WHERE sprint_id = ?').bind(sprintId),
     db.prepare('DELETE FROM votes WHERE round_id IN (SELECT id FROM vote_rounds WHERE sprint_id = ?)').bind(sprintId),
     db.prepare('DELETE FROM vote_rounds WHERE sprint_id = ?').bind(sprintId),
     db.prepare('UPDATE experiments SET theme_id = NULL WHERE sprint_id = ?').bind(sprintId),

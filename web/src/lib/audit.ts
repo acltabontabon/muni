@@ -27,6 +27,7 @@ const ACTIONS: Record<string, string> = {
   'sprint.updated': 'changed a sprint’s setup',
   'grouping.changed': 'reorganized themes',
   'themes.reordered': 'reordered themes',
+  // Past activity only: AI theme drafts were removed from Muni, but workspaces keep their history.
   'ai.grouping_requested': 'asked for an AI theme draft',
   'ai.proposal_applied': 'used an AI theme draft',
   'votes.round_opened': 'opened voting',

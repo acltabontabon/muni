@@ -44,7 +44,6 @@ export async function buildMe(env: HonoEnv['Bindings'], accountId: string, sessi
     workspaces: rows.map((r) => ({ id: r.id, name: r.name, role: r.role, is_demo: r.is_demo === 1 })),
     session_expires_at: new Date(Number(exp?.e ?? Date.now())).toISOString(),
     email_transport: cfg.email,
-    ai_provider: cfg.ai,
     passkeys: Number(passkeys?.n ?? 0),
     auth_method: session?.authMethod ?? null,
     /** Until when security-sensitive changes are allowed without signing in again. */

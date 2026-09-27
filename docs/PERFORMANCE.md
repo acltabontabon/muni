@@ -91,8 +91,8 @@ page. Measured with handle-free waits, nothing is left behind.
 ### Guarded by
 
 - `web/src/lib/motion.test.ts`: no decorative `infinite` animation anywhere in `styles.css` or
-  `worlds.css` (only indicators that exist while something is in progress: drafting, transcribing,
-  a pending join, a focused code field's caret); every scene animation has a finite count and
+  `worlds.css` (only indicators that exist while something is in progress: a pending join, a
+  focused code field's caret); every scene animation has a finite count and
   holds its end; no scene animation under a filter. It fails on the old stylesheet.
 - `web/src/lib/local/passes.test.ts`: a save during a pass gets its own pass and result; routine
   triggers join; a failure doesn't block the next.

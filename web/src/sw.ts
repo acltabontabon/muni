@@ -6,9 +6,7 @@
  *  - precaches this build's app shell and versioned assets;
  *  - caches a character world's fonts when the page says that world was chosen, and serves them
  *    from the cache after that (so a person's own world works offline, and nobody downloads all eight);
- *  - caches the voice runtime (speech worker, ONNX Runtime) the first time someone dictates, and
- *    serves it from the cache after that; the speech model itself is cached by the speech worker,
- *    and never by this worker (src/lib/voice/assets.ts);
+ *  - removes caches older versions made that nothing uses any more (src/lib/retired.ts);
  *  - serves navigations network-first, falling back to the cached shell when offline;
  *  - never touches /api (no authenticated response is ever cached);
  *  - waits to take over until the page says it is a safe moment (no forced reloads);
@@ -17,13 +15,14 @@
  */
 import { flush } from './lib/local/outbox'
 import { deviceStore } from './lib/local/store'
+import { dropRetiredCaches } from './lib/retired'
 
 type ExtendableEvent = Event & { waitUntil(p: Promise<unknown>): void }
 type FetchEvent = ExtendableEvent & { request: Request; respondWith(r: Promise<Response> | Response): void }
 type SyncEvent = ExtendableEvent & { tag: string }
 type MessageEv = ExtendableEvent & { data: unknown }
 interface Scope {
-  __MUNI_BUILD: { version: string; assets: string[]; worlds?: Record<string, string[]>; voice?: string[] }
+  __MUNI_BUILD: { version: string; assets: string[]; worlds?: Record<string, string[]> }
   location: Location
   skipWaiting(): Promise<void>
   clients: { claim(): Promise<void>; matchAll(o?: { type?: string; includeUncontrolled?: boolean }): Promise<{ postMessage(m: unknown): void }[]> }
@@ -40,8 +39,6 @@ const PRECACHE = new Set(BUILD.assets)
 const FONTS = 'muni-fonts'
 const WORLDS = BUILD.worlds ?? {}
 const WORLD_FILES = new Set(Object.values(WORLDS).flat())
-const VOICE = 'muni-voice'
-const VOICE_FILES = new Set(BUILD.voice ?? [])
 
 sw.addEventListener('install', (e) => {
   e.waitUntil(caches.open(SHELL).then((c) => c.addAll(['/', ...BUILD.assets])))
@@ -55,9 +52,7 @@ sw.addEventListener('activate', (e) => {
       // World fonts this build no longer uses (renamed, or retired) are dropped; the rest are kept.
       .then(() => caches.open(FONTS))
       .then(async (c) => Promise.all((await c.keys()).filter((r) => !WORLD_FILES.has(new URL(r.url).pathname)).map((r) => c.delete(r))))
-      // Likewise the voice runtime: only this build's files stay.
-      .then(() => caches.open(VOICE))
-      .then(async (c) => Promise.all((await c.keys()).filter((r) => !VOICE_FILES.has(new URL(r.url).pathname)).map((r) => c.delete(r))))
+      .then(() => dropRetiredCaches())
       .then(() => sw.clients.claim()),
   )
 })
@@ -82,13 +77,12 @@ sw.addEventListener('fetch', (e) => {
   if (url.pathname.startsWith('/api/') || url.pathname === '/sw.js') return
   if (req.mode === 'navigate') e.respondWith(navigate(req))
   else if (PRECACHE.has(url.pathname)) e.respondWith(caches.match(url.pathname, { cacheName: SHELL }).then((r) => r ?? fetch(req)))
-  else if (WORLD_FILES.has(url.pathname)) e.respondWith(cached(FONTS, req, url.pathname))
-  else if (VOICE_FILES.has(url.pathname)) e.respondWith(cached(VOICE, req, url.pathname))
+  else if (WORLD_FILES.has(url.pathname)) e.respondWith(font(req, url.pathname))
 })
 
-/** A world's font or the voice runtime: from the cache when it's there; otherwise from the network, kept for next time. */
-async function cached(name: string, req: Request, path: string): Promise<Response> {
-  const c = await caches.open(name)
+/** A world's font: from the cache when it's there; otherwise from the network, kept for next time. */
+async function font(req: Request, path: string): Promise<Response> {
+  const c = await caches.open(FONTS)
   const hit = await c.match(path)
   if (hit) return hit
   const res = await fetch(req)

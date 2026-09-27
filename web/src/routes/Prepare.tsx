@@ -1,12 +1,12 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router'
 import { clsx } from 'clsx'
-import { ArrowRight, ChevronDown, FolderInput, GitMerge, Sparkles, Trash2 } from 'lucide-react'
+import { ArrowRight, ChevronDown, FolderInput, GitMerge, Trash2 } from 'lucide-react'
 import { ApiError, del, get, patch, post } from '@/api/client'
-import type { AiStatus, GroupingView, SharedEntry, SprintDetail, ThemeView } from '@/api/types'
+import type { GroupingView, SharedEntry, SprintDetail, ThemeView } from '@/api/types'
 import { useLive } from '@/lib/live'
 import { useKeysEpoch } from '@/lib/e2ee/E2eeProvider'
-import { Badge, Button, Dialog, EmptyState, ErrorText, Help, Input, Spinner, Textarea, useDocumentTitle, useToast } from '@/ui'
+import { Badge, Button, Dialog, EmptyState, Input, Spinner, Textarea, useDocumentTitle, useToast } from '@/ui'
 import { AppShell, PageTitle } from '@/ui/shell'
 import { CategoryMix, EntryCard } from '@/ui/entries'
 
@@ -16,7 +16,6 @@ export function Prepare() {
   const toast = useToast()
   const [s, setS] = useState<SprintDetail | null>(null)
   const [g, setG] = useState<GroupingView | null>(null)
-  const [ai, setAi] = useState<AiStatus | null>(null)
   const [error, setError] = useState('')
   const [selected, setSelected] = useState<Set<string>>(new Set())
   const [newTitle, setNewTitle] = useState('')
@@ -36,9 +35,7 @@ export function Prepare() {
         setG(null)
         return
       }
-      const [gv, av] = await Promise.all([get<GroupingView>(`/api/sprints/${sprintId}/themes`), get<AiStatus>(`/api/sprints/${sprintId}/ai`)])
-      setG(gv)
-      setAi(av)
+      setG(await get<GroupingView>(`/api/sprints/${sprintId}/themes`))
     } catch (err) {
       setError(err instanceof ApiError ? err.message : 'Couldn’t load')
     }
@@ -117,8 +114,6 @@ export function Prepare() {
         {g.voting_open ? <span className="ml-2 text-warn">A voting round is open — changing the theme set will ask you to reset it.</span> : null}
       </PageTitle>
 
-      {ai ? <AiPanel ai={ai} sprintId={sprintId} onChange={load} canEdit={canEdit} structural={structural} /> : null}
-
       <div className="grid gap-6 lg:grid-cols-[minmax(320px,1fr)_minmax(0,1.6fr)]">
         <section aria-label="Ungrouped entries">
           <div className="mb-3 flex items-center justify-between gap-2">
@@ -147,7 +142,7 @@ export function Prepare() {
             ) : null}
           </div>
           {themes.length === 0 ? (
-            <EmptyState title="No themes yet">Pick an entry on the left and move it to a new theme, or ask for an AI draft above if this sprint opted in. You can also run the retro with no themes — entries stay readable.</EmptyState>
+            <EmptyState title="No themes yet">Name a theme above, or pick thoughts on the left and move them into a new one. Themes are optional — a retro without them still shows every thought.</EmptyState>
           ) : (
             <div className="space-y-3">
               {themes.map((t) => (
@@ -241,7 +236,6 @@ function ThemeCard({ t, all, sprintId, canEdit, onDropEntry, onMove, structural,
           <div className="mt-1 flex flex-wrap items-center gap-2 text-xs text-ink-soft">
             <span>{t.entry_count} {t.entry_count === 1 ? 'entry' : 'entries'}</span>
             <CategoryMix mix={t.category_mix} />
-            {t.source === 'ai' ? <Badge tone="accent">AI draft — review required</Badge> : null}
             {t.parked ? <Badge>parked</Badge> : null}
             {t.needs_attention ? <Badge tone="warn">needs attention</Badge> : null}
             {typeof t.votes === 'number' ? <Badge>{t.votes} votes</Badge> : null}
@@ -305,76 +299,5 @@ function ThemeCard({ t, all, sprintId, canEdit, onDropEntry, onMove, structural,
         </div>
       </Dialog>
     </article>
-  )
-}
-
-function AiPanel({ ai, sprintId, onChange, canEdit, structural }: { ai: AiStatus; sprintId: string; onChange: () => void; canEdit: boolean; structural: (fn: (reason?: string) => Promise<unknown>) => Promise<void> }) {
-  const toast = useToast()
-  const [open, setOpen] = useState(() => !ai.proposals.some((p) => p.applied_at))
-  const [error, setError] = useState('')
-  const running = ai.jobs.some((j) => j.status === 'queued' || j.status === 'running')
-  const failed = ai.jobs[0]?.status === 'failed' ? ai.jobs[0] : null
-  const live = ai.proposals.filter((p) => !p.rejected_at)
-  const pollRef = useRef<number>(0)
-  useEffect(() => {
-    if (running) pollRef.current = window.setInterval(onChange, 2000)
-    return () => window.clearInterval(pollRef.current)
-  }, [running, onChange])
-  const proposalThemes = useMemo(() => live[0]?.proposal.themes ?? [], [live])
-  const first = live[0]
-  if (!ai.available) return null
-  if (!ai.enabled)
-    return (
-      <div className="mb-6 rounded-xl border border-dashed border-line px-4 py-3 text-sm text-ink-soft">
-        <Sparkles className="mr-1 inline size-4" /> AI assistance is off for this sprint (decided before collection started). Grouping here is manual, which works just as well.
-      </div>
-    )
-  return (
-    <section className="card mb-6 p-4">
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <button className="inline-flex items-center gap-2 font-display text-lg" onClick={() => setOpen((o) => !o)} aria-expanded={open}>
-          <Sparkles className="size-4 text-accent" /> AI draft <ChevronDown className={clsx('size-4 transition-transform', open && 'rotate-180')} />
-        </button>
-        {canEdit ? (
-          <Button size="sm" busy={running} onClick={async () => { setError(''); try { await post(`/api/sprints/${sprintId}/ai/grouping`); onChange() } catch (e) { setError(e instanceof ApiError ? e.message : 'Couldn’t ask') } }}>
-            {live.length ? 'Draft again' : 'Draft themes'}
-          </Button>
-        ) : null}
-      </div>
-      {open ? (
-        <div className="mt-2 text-sm text-ink-soft">
-          <p>{ai.explanation}</p>
-          <ErrorText>{error}</ErrorText>
-          {running ? <p className="mt-2 anim-pulse">Drafting… entries and opaque ids only. You can keep grouping manually meanwhile.</p> : null}
-          {failed ? <p className="mt-2 text-danger">The last draft didn’t work out: {failed.error_summary ?? 'provider error'}. Manual grouping is unaffected.</p> : null}
-          {first ? (
-            <div className="mt-3 rounded-xl border border-line bg-paper p-3">
-              <div className="flex flex-wrap items-center justify-between gap-2">
-                <div>
-                  <Badge tone="accent">AI draft — review required</Badge>
-                  <span className="ml-2 text-xs">{first.created_at ? new Date(first.created_at).toLocaleTimeString() : ''} · {proposalThemes.length} themes, {first.proposal.ungrouped_entry_ids.length} left ungrouped{first.applied_at ? ' · applied' : ''}</span>
-                </div>
-                {canEdit && !first.applied_at ? (
-                  <div className="flex gap-2">
-                    <Button size="sm" variant="primary" onClick={() => structural((reason) => post(`/api/sprints/${sprintId}/ai/proposals/${first.id}/apply`, { mode: 'replace', reset_voting_reason: reason })).then(() => toast('Draft applied — everything is editable'))}>Use as starting point</Button>
-                    <Button size="sm" onClick={() => structural((reason) => post(`/api/sprints/${sprintId}/ai/proposals/${first.id}/apply`, { mode: 'add', reset_voting_reason: reason }))}>Add alongside mine</Button>
-                    <Button size="sm" variant="ghost" onClick={async () => { await post(`/api/sprints/${sprintId}/ai/proposals/${first.id}/reject`); onChange() }}>Discard</Button>
-                  </div>
-                ) : null}
-              </div>
-              <ul className="mt-2 grid gap-1 sm:grid-cols-2">
-                {proposalThemes.map((t, i) => (
-                  <li key={i} className="rounded-lg bg-card px-3 py-2">
-                    <div className="font-medium text-ink">{t.title} <span className="text-xs text-ink-faint">{t.entry_ids.length}</span></div>
-                    <div className="text-xs">{t.summary}</div>
-                  </li>
-                ))}
-              </ul>
-              {first.proposal.notes?.length ? <Help>{first.proposal.notes.join(' ')}</Help> : null}
-            </div>
-          ) : null}
-        </div>
-      ) : null}
-    </section>
   )
 }

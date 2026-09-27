@@ -75,7 +75,7 @@ demo.post('/api/demo/seed', async (c) => {
   const ws = uuid()
   const people = [a.account.id]
   const stmts: [string, ...unknown[]][] = [
-    ['INSERT INTO workspaces (id, name, is_demo, ai_enabled_default, created_at) VALUES (?,?,1,1,?)', ws, 'Demo team (fictional)', now],
+    ['INSERT INTO workspaces (id, name, is_demo, created_at) VALUES (?,?,1,?)', ws, 'Demo team (fictional)', now],
     ['INSERT INTO memberships (workspace_id, account_id, role, created_at) VALUES (?,?,?,?)', ws, a.account.id, 'owner', now],
   ]
   for (const [name, email] of PEOPLE) {
@@ -93,8 +93,8 @@ demo.post('/api/demo/seed', async (c) => {
   const prev = uuid()
   const prevRetro = now - 21 * 86_400_000
   stmts.push([
-    `INSERT INTO sprints (id, workspace_id, name, goal, timezone, starts_on, ends_on, retro_at, retro_local_date, retro_local_time, status, ai_locked, collection_opened_at, collection_closed_at, revealed_once, completed_at, session_started_at, session_ended_at, created_by, created_at, updated_at)
-     VALUES (?,?,?,?,?,?,?,?,?,?,'completed',1,?,?,1,?,?,?,?,?,?)`,
+    `INSERT INTO sprints (id, workspace_id, name, goal, timezone, starts_on, ends_on, retro_at, retro_local_date, retro_local_time, status, collection_opened_at, collection_closed_at, revealed_once, completed_at, session_started_at, session_ended_at, created_by, created_at, updated_at)
+     VALUES (?,?,?,?,?,?,?,?,?,?,'completed',?,?,1,?,?,?,?,?,?)`,
     prev, ws, 'Sprint 41 — Search foundations', 'Ship the first vertical slice of search', tz, addDays(today, -35), addDays(today, -22), prevRetro, localDate(tz, prevRetro), '14:00', prevRetro - 13 * 86_400_000, prevRetro - 3_600_000, prevRetro, prevRetro - 3_600_000, prevRetro, a.account.id, prevRetro, prevRetro,
   ])
   people.forEach((p, i) => stmts.push(['INSERT INTO sprint_participants (sprint_id, account_id, is_facilitator, created_at) VALUES (?,?,?,?)', prev, p, i === 0 ? 1 : 0, now]))
@@ -106,9 +106,9 @@ demo.post('/api/demo/seed', async (c) => {
   const cur = uuid()
   const retroAt = now + 3 * 3_600_000
   stmts.push([
-    `INSERT INTO sprints (id, workspace_id, name, external_ref, goal, opening_question, timezone, starts_on, ends_on, retro_at, retro_local_date, retro_local_time, status, ai_processing, ai_locked, collection_opened_at, collection_closed_at, revealed_once, grouping_revision, created_by, created_at, updated_at)
-     VALUES (?,?,?,?,?,?,?,?,?,?,?,?,'preparing',?,1,?,?,1,1,?,?,?)`,
-    cur, ws, 'Sprint 42 — Billing export', 'PROJ-42', 'Ship the billing export and stabilise search', 'What’s one thing from this sprint you’d want a new teammate to know?', tz, addDays(today, -13), addDays(today, 1), retroAt, localDate(tz, retroAt), '14:00', cfg.ai !== 'none' ? 1 : 0, now - 13 * 86_400_000, now, a.account.id, now - 13 * 86_400_000, now,
+    `INSERT INTO sprints (id, workspace_id, name, external_ref, goal, opening_question, timezone, starts_on, ends_on, retro_at, retro_local_date, retro_local_time, status, collection_opened_at, collection_closed_at, revealed_once, grouping_revision, created_by, created_at, updated_at)
+     VALUES (?,?,?,?,?,?,?,?,?,?,?,?,'preparing',?,?,1,1,?,?,?)`,
+    cur, ws, 'Sprint 42 — Billing export', 'PROJ-42', 'Ship the billing export and stabilise search', 'What’s one thing from this sprint you’d want a new teammate to know?', tz, addDays(today, -13), addDays(today, 1), retroAt, localDate(tz, retroAt), '14:00', now - 13 * 86_400_000, now, a.account.id, now - 13 * 86_400_000, now,
   ])
   people.forEach((p, i) => stmts.push(['INSERT INTO sprint_participants (sprint_id, account_id, is_facilitator, created_at) VALUES (?,?,?,?)', cur, p, i === 0 ? 1 : 0, now]))
   const themeIds: Record<string, string> = {}

@@ -178,7 +178,7 @@ No glassmorphism, no gradients on text.
 6. Companion — phone-friendly, follows the stage, private votes and
    "Ready to speak / Pass for now", with a visible "look around" toggle.
 7. Outcomes — experiments with owners and review dates, recap, exports.
-8. Settings — account, privacy explanation, workspace, retention, AI.
+8. Settings — account, privacy explanation, workspace, retention.
 
 ## Accessibility
 

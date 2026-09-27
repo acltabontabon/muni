@@ -45,8 +45,6 @@ interface FullRow {
   retro_local_date: string
   retro_local_time: string
   retro_duration_min: number
-  ai_processing: number
-  ai_locked: number
   reminders_enabled: number
   vote_budget: number
   include_facilitator_in_rotation: number
@@ -106,9 +104,6 @@ export async function detail(env: HonoEnv['Bindings'], ctx: SprintCtx) {
   return {
     ...s,
     opening_question: r.opening_question,
-    ai_processing: bool(r.ai_processing),
-    ai_locked: bool(r.ai_locked),
-    ai_provider: config(env).ai,
     vote_budget: r.vote_budget,
     include_facilitator_in_rotation: bool(r.include_facilitator_in_rotation),
     participants: prows.map((p) => ({ account_id: p.id, display_name: p.display_name, is_facilitator: bool(p.is_facilitator), is_you: p.id === ctx.auth.account.id })),
@@ -185,10 +180,9 @@ sprints.post('/api/workspaces/:workspaceId/sprints', async (c) => {
   const stmts: [string, ...unknown[]][] = [
     [
       `INSERT INTO sprints (id, workspace_id, name, external_ref, goal, opening_question, timezone, starts_on, ends_on, retro_at, retro_local_date, retro_local_time, retro_duration_min,
-        ai_processing, reminders_enabled, vote_budget, include_facilitator_in_rotation, created_by, created_at, updated_at, encryption) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+        reminders_enabled, vote_budget, include_facilitator_in_rotation, created_by, created_at, updated_at, encryption) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
       id, m.workspaceId, name, external_ref, goal, opening_question, sch.timezone, sch.starts_on, sch.ends_on, sch.retro_at, sch.retro_date, sch.retro_time, sch.retro_duration_min,
-      // External AI never sees encrypted content: there is no disclosed processing model for it.
-      body.ai_processing && cfg.ai !== 'none' && !encrypted ? 1 : 0, body.reminders_enabled === false ? 0 : 1, budget, body.include_facilitator_in_rotation ? 1 : 0, m.auth.account.id, now, now, encrypted ? ENCRYPTION : null,
+      body.reminders_enabled === false ? 0 : 1, budget, body.include_facilitator_in_rotation ? 1 : 0, m.auth.account.id, now, now, encrypted ? ENCRYPTION : null,
     ],
   ]
   if (encrypted) {
@@ -266,11 +260,6 @@ sprints.patch('/api/sprints/:sprintId', async (c) => {
     await run(db, 'UPDATE sprints SET timezone=?, starts_on=?, ends_on=?, retro_at=?, retro_local_date=?, retro_local_time=?, retro_duration_min=?, updated_at=? WHERE id=?', sch.timezone, sch.starts_on, sch.ends_on, sch.retro_at, sch.retro_date, sch.retro_time, sch.retro_duration_min, Date.now(), sid)
     await cancelReminders(db, sid)
     if (ctx.sprint.status === 'collecting') await scheduleReminders(db, sid)
-  }
-  if (body.ai_processing !== undefined) {
-    // Never widen processing after people have submitted.
-    if (ctx.sprint.status !== 'draft' && body.ai_processing && !bool(ctx.sprint.ai_processing)) throw conflict('AI processing can’t be turned on after collection has started — it applies to the next sprint')
-    await run(db, 'UPDATE sprints SET ai_processing = ? WHERE id = ?', body.ai_processing && cfg.ai !== 'none' && !encrypted ? 1 : 0, sid)
   }
   if (body.reminders_enabled !== undefined) {
     await run(db, 'UPDATE sprints SET reminders_enabled = ? WHERE id = ?', body.reminders_enabled ? 1 : 0, sid)
@@ -370,7 +359,7 @@ sprints.post('/api/sprints/:sprintId/transition', async (c) => {
   switch (`${from}>${to}`) {
     case 'draft>collecting': {
       if (!(await count(db, 'SELECT count(*) AS n FROM sprint_participants WHERE sprint_id = ?', sid))) throw conflict('add at least one participant before opening collection')
-      await guard("UPDATE sprints SET status='collecting', ai_locked=1, collection_opened_at=COALESCE(collection_opened_at, ?), updated_at=? WHERE id=? AND status='draft'", now, now, sid)
+      await guard("UPDATE sprints SET status='collecting', collection_opened_at=COALESCE(collection_opened_at, ?), updated_at=? WHERE id=? AND status='draft'", now, now, sid)
       if (bool(row.reminders_enabled)) await scheduleReminders(db, sid)
       break
     }

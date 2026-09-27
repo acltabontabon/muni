@@ -33,7 +33,7 @@ async function encryptedSprint(fac: Person, members: Person[], ws: string) {
   const id = crypto.randomUUID()
   const r = await post(`/api/workspaces/${ws}/sprints`, fac.user, {
     id, name: 'Sprint E', timezone: 'UTC', starts_on: '2026-09-14', ends_on: '2026-09-27', retro_date: '2026-09-28', retro_time: '14:00',
-    participant_ids: members.map((m) => m.user.account_id), facilitator_id: fac.user.account_id, reminders_enabled: false, ai_processing: true,
+    participant_ids: members.map((m) => m.user.account_id), facilitator_id: fac.user.account_id, reminders_enabled: false,
     encryption: 'e1', sprint_key: { public_key: b64u(k.pk) },
     key_wraps: [{ account_id: fac.user.account_id, version: 1, recipient_public_key: b64u(fac.keys.pk), wrapped: wrapSprintSecret(fac.keys.pk, secret, { sprintId: id, version: 1, recipientId: fac.user.account_id }) }],
   })
@@ -69,7 +69,6 @@ describe('encrypted sprints', () => {
     const [maya, priya] = await Promise.all(t.members.map(withKeys))
     const s = await encryptedSprint(fac, [maya, priya], t.ws)
     expect(s.detail.encryption).toBe('e1')
-    expect(s.detail.ai_processing).toBe(false) // never sent to an AI provider
     expect((await go(fac.user, s.id, 'collecting')).status).toBe(200)
 
     // Plaintext is refused, whatever the client.
@@ -111,7 +110,6 @@ describe('encrypted sprints', () => {
     expect(openField(parseEnvelope(tv.title) as FieldEnvelope, got, { sprintId: s.id, field: 'title' })).toBe(SYNTHETIC[2])
 
     // Server-side processing is off for encrypted content.
-    expect((await post(`/api/sprints/${s.id}/ai/grouping`, fac.user, {})).status).toBe(409)
     expect((await get(`/api/sprints/${s.id}/export.md`, fac.user)).status).toBe(409)
 
     // The live meeting: notes and outcomes are envelopes too, and the room stores nothing readable.

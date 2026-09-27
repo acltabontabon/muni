@@ -1,5 +1,4 @@
 # Local secrets for `wrangler dev` (copy to worker/.dev.vars; never commit .dev.vars).
-# Vars like APP_ENV / PUBLIC_ORIGIN / EMAIL_PROVIDER / AI_PROVIDER live in wrangler.jsonc.
+# Vars like APP_ENV / PUBLIC_ORIGIN / EMAIL_PROVIDER live in wrangler.jsonc.
 # RESEND_API_KEY=
 # BREVO_API_KEY=
-# ANTHROPIC_API_KEY=
