@@ -68,7 +68,7 @@
       <a href="#how">How it works</a>
       <a href="#room">The retro</a>
       <a href="#privacy">Privacy</a>
-      <a href="#meaning">The name</a>
+      <a href="#source">Open source</a>
     </nav>
     <a class="btn btn-small app-link" href="#" data-soon="Coming soon">Open Muni</a>
   </header>
@@ -105,7 +105,7 @@
           <li class="caption" data-step="0">
             <p class="kicker"><span class="num">01</span> During the sprint</p>
             <h3>Set it down while it’s <em>fresh</em>.</h3>
-            <p>A thought takes ten seconds to write on Tuesday and is gone by Friday. Muni keeps a quiet place open all sprint — on your phone, between tasks, even when the signal drops. It tells you plainly when a thought has reached the sprint.</p>
+            <p>A thought takes ten seconds to write on Tuesday and is gone by Friday. Muni keeps a quiet place open all sprint — on your phone, between tasks. If the signal drops, it waits and sends when you’re back, and tells you plainly when a thought has reached the sprint.</p>
           </li>
           <li class="caption" data-step="1">
             <p class="kicker"><span class="num">02</span> Sealed</p>
@@ -115,12 +115,12 @@
           <li class="caption" data-step="2">
             <p class="kicker"><span class="num">03</span> Opening the sprint</p>
             <h3>One batch. Random order. <em>No names.</em></h3>
-            <p>Everything is revealed at once, shuffled. Shared screens never show who wrote a thought, when it was written, or anything that ties one person’s thoughts together.</p>
+            <p>Everything is revealed at once, shuffled. Shared screens never show who wrote a thought, or anything that ties one person’s thoughts together.</p>
           </li>
           <li class="caption" data-step="3">
             <p class="kicker"><span class="num">04</span> Discover</p>
             <h3>Thoughts become <em>themes</em>.</h3>
-            <p>The facilitator groups them by meaning, not keywords. The original words are never replaced. Votes are private until the round closes.</p>
+            <p>The facilitator gathers them into themes by hand. The original words are never replaced. Votes are private until the round closes.</p>
           </li>
         </ol>
         <div class="field" aria-hidden="true">
@@ -152,11 +152,11 @@
             <span class="stage-timer" data-timer>12:40</span>
           </div>
           <div class="stage-body">
-            <p class="stage-kicker">Topic 1 of 3</p>
+            <p class="stage-kicker">Discuss · 1 of 3</p>
             <p class="stage-title">PR review turnaround</p>
             <p class="stage-question">What would make a first review arrive within a day without making reviews shallower?</p>
             <div class="obs-grid">
-              <article class="obs"><span class="cat c-improve">Improve</span><p>PRs sat waiting for review for two or three days. I stopped opening small PRs because it wasn’t worth the wait.</p><p class="obs-more">Might help: a daily 15-minute review window?</p></article>
+              <article class="obs"><span class="cat c-improve">Improve</span><p>PRs sat waiting for review for two or three days. I stopped opening small PRs because it wasn’t worth the wait.</p></article>
               <article class="obs"><span class="cat c-improve">Improve</span><p>Reviews: I actually liked that reviews were slower this sprint — the comments were more thoughtful than the usual rubber stamp.</p></article>
               <article class="obs"><span class="cat c-keep">Keep</span><p>The retro experiment (daily review window) helped: my two PRs were reviewed the same day.</p></article>
               <article class="obs"><span class="cat c-improve">Improve</span><p>The daily review window didn’t change much for me — reviews still waited until someone had slack.</p></article>
@@ -173,7 +173,7 @@
 
         <ul class="features">
           <li><h3>Voices, one at a time</h3><p>Invitations follow who is present and ready — never who wrote what. Passing is one tap, and it’s immediate.</p></li>
-          <li><h3>A companion on every phone</h3><p>Follow the stage, vote privately, add context to a topic, or step out of the rotation.</p></li>
+          <li><h3>A companion on every phone</h3><p>Follow the stage, vote privately, add context to a topic, step out of the rotation, or say “I’ll own this” to an experiment.</p></li>
           <li><h3>Disagreement stays visible</h3><p>Opposing views sit side by side in their own words. Nothing is averaged into a paragraph.</p></li>
         </ul>
       </div>
@@ -185,7 +185,7 @@
         <div>
           <p class="kicker"><span class="num">06</span> Decide</p>
           <h2 id="decide-title" class="display">Leave with something to <em>try</em>.</h2>
-          <p class="lede">One to three concrete changes. Each has an owner who says yes, a signal that it helped, and a date to look back.</p>
+          <p class="lede">One to three concrete changes, each with an owner who says yes, a sign that it helped, and a date to revisit.</p>
         </div>
         <div class="experiment" data-inview>
           <p class="takeaway"><span class="label">Takeaway</span><span class="typed" data-text="Reviews wait because nobody owns the first look.">Reviews wait because nobody owns the first look.</span></p>
@@ -193,9 +193,9 @@
             <p class="label">Experiment</p>
             <p class="exp-change">For the next sprint, reserve a 15-minute daily review window right after standup.</p>
             <dl>
-              <div><dt>We’ll know it helped if</dt><dd>PRs wait less than one working day for a first review.</dd></div>
+              <div><dt>We’ll know by</dt><dd>PRs wait less than one working day for a first review.</dd></div>
               <div><dt>Owner</dt><dd><span class="avatar">M</span> Maya Reyes <span class="accepted">accepted</span></dd></div>
-              <div><dt>Look back on</dt><dd>Next retro</dd></div>
+              <div><dt>Revisit</dt><dd>Next retro</dd></div>
             </dl>
           </div>
         </div>
@@ -238,10 +238,45 @@
         <p class="lede privacy-lede">Muni uses your account information and contributions to provide and protect the service. We don’t sell your personal data, use your contributions for advertising, or use them to train AI models.</p>
         <div class="facts">
           <div><h3>Sealed, then shared without names</h3><p>Until the facilitator closes collection, nobody on your team can read what you wrote — the facilitator included. Then the sprint sees every thought at once, in random order, without names.</p></div>
-          <div><h3>Honest about the limits</h3><p>Muni’s servers record who wrote each thought, so only you can edit yours. That makes it privacy from your team, not from the service: it isn’t end-to-end encrypted, and your wording can still give you away.</p></div>
+          <div><h3>Encrypted on your team’s devices</h3><p>New sprints are encrypted in the browser before anything reaches Muni’s servers, and the servers don’t hold the keys to read them. Muni still knows who wrote each thought and when, sprints from before encryption aren’t covered, and your wording can still give you away.</p></div>
+          <div><h3>No password, no email needed</h3><p>You sign in with a passkey — your fingerprint, face or screen lock. Adding an email is optional, for recovery and invitations.</p></div>
           <div><h3>No ads, no trackers, no AI</h3><p>The app has no analytics, ad trackers or session recording, and no thought is sent to an AI service.</p></div>
         </div>
         <p class="privacy-more"><a class="btn btn-ghost" href="https://act.munimuni.app/privacy">How privacy works <span aria-hidden="true">→</span></a></p>
+      </div>
+    </section>
+
+    <!-- ── Open source: the promise above the water, the code beneath it ── -->
+    <section class="source" id="source" data-sky="dusk" aria-labelledby="source-title">
+      <div class="container">
+        <p class="kicker">Open source</p>
+        <div class="waterline source-water">
+          <h2 id="source-title" class="display">Nothing hidden <em>below the surface</em>.</h2>
+        </div>
+        <!-- Real lines from the repository, seen through the water. -->
+        <div class="depths" aria-hidden="true">
+          <div class="depth">
+            <p class="depth-file">web/src/lib/e2ee/crypto.ts</p>
+            <pre><code><span class="c">// A thought: one fresh content key, sealed twice —</span>
+<span class="c">// to the sprint and to its author.</span>
+const cek = randomBytes(32)
+ws: sealTo(c.sprintPk, cek, …),
+wa: sealTo(c.authorPk, cek, …),</code></pre>
+          </div>
+          <div class="depth">
+            <p class="depth-file">worker/src/lib/sealed.ts</p>
+            <pre><code><span class="c">// The server refuses plaintext for encrypted sprints.</span>
+if (typeof v !== 'string' || !ENVELOPE_RE.test(v))
+  throw encryptionRequired(label)</code></pre>
+          </div>
+        </div>
+        <p class="lede source-lede">Muni’s source code is public under the Apache 2.0 license. Read how a thought is sealed on your device, check what the server keeps, or run your own copy on Cloudflare.</p>
+        <div class="ctas source-ctas">
+          <a class="btn btn-primary" href="https://github.com/acltabontabon/muni">Read the code on GitHub <span aria-hidden="true">→</span></a>
+          <a class="btn btn-ghost" href="https://github.com/acltabontabon/muni/blob/main/docs/ENCRYPTION.md">How encryption works</a>
+          <a class="btn btn-ghost" href="https://github.com/acltabontabon/muni/blob/main/docs/DEPLOYMENT.md">Run your own</a>
+        </div>
+        <p class="source-note">The whole encryption design is written down, so anyone can check it. If you spot a problem, <a href="https://github.com/acltabontabon/muni/security/advisories/new">tell us privately</a>.</p>
       </div>
     </section>
 
@@ -265,7 +300,7 @@
       <div class="container">
         <svg class="closing-mark" width="96" height="96" aria-hidden="true"><use href="#mark" /></svg>
         <h2 id="closing-title" class="display">Bring it to your <em>next sprint</em>.</h2>
-        <p class="closing-note">Works in any browser, or install it on your phone. If the connection drops, Muni holds on to what you wrote, sends it when you’re back, and tells you when it has arrived.</p>
+        <p class="closing-note">Join from your team’s QR code or an invite link with a passkey — no password, no email. Use it in the browser, or install it on your phone.</p>
         <div class="ctas center">
           <a class="btn btn-primary app-link" href="#" data-soon="Coming soon">Open Muni <span aria-hidden="true">→</span></a>
           <a class="btn btn-ghost" href="#how">Watch the sprint again</a>
@@ -277,7 +312,7 @@
   <footer class="footer" data-sky="night">
     <span><svg width="18" height="18" aria-hidden="true"><use href="#mark" /></svg> muni</span>
     <span>Muni is an independently maintained project, built and operated by one developer.</span>
-    <span><a href="https://act.munimuni.app/privacy">Privacy</a> · © 2026 · <a href="https://acltabontabon.com">acltabontabon</a></span>
+    <span><a href="https://act.munimuni.app/privacy">Privacy</a> · <a href="https://github.com/acltabontabon/muni">GitHub</a> · <a href="https://ko-fi.com/aclt_attic">Support Muni</a> · © 2026 · <a href="https://acltabontabon.com">acltabontabon</a></span>
   </footer>
 
   <script src="main.js" defer></script>

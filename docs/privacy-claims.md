@@ -66,7 +66,7 @@ Last checked 2026-09-28, against `main` plus the encryption changes (docs/ENCRYP
 | --- | --- | --- |
 | HTTPS in transit | Config | Custom domain on Cloudflare; HSTS in `_headers` (live) |
 | Stored data encrypted at rest with AES-256, Cloudflare-managed keys | Provider | D1 and Durable Objects data-security docs |
-| Not end-to-end encrypted; no application-level encryption; the server can read thoughts | Code | No encryption of `entries.body` or any column in the Worker |
+| Sprints from before encryption (and sprints with encryption turned off) aren't encrypted at the application level; the server can read their thoughts. New sprints: see *Encryption (new sprints)* below | Code | `sprints.encryption` is null for them; `lib/sealed.ts` accepts plaintext only there |
 | Email addresses stored readable; codes and session tokens only as hashes | Code | `accounts.email` plain; `verification_challenges.code_hash`, `sessions.token_hash` (`lib/auth.ts`, `routes/auth.ts`) |
 
 ## Device
