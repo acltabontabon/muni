@@ -74,14 +74,15 @@ export function problems({ tag } = {}) {
   const want = changelogLinks(repo, versions)
   for (const [k, url] of Object.entries(want)) if (log.links[k.toLowerCase()] !== url) out.push(`CHANGELOG.md: the link reference for [${k}] should be ${url}`)
   for (const k of Object.keys(log.links)) if (!(k in want) && !Object.keys(want).some((w) => w.toLowerCase() === k)) out.push(`CHANGELOG.md: [${k}] links to a version that isn’t in the file`)
+  // The demo every release attaches: checked on every push, so main can always be tagged.
+  for (const f of Object.values(DEMO)) {
+    if (!existsSync(path(f))) out.push(`${f} is missing (docs/demo/README.md)`)
+    else if (statSync(path(f)).size > DEMO_MAX_BYTES) out.push(`${f} is over ${DEMO_MAX_BYTES / 1024 / 1024} MB (docs/demo/export.sh)`)
+  }
   if (tag !== undefined) {
     if (!/^v\d/.test(tag) || !SEMVER.test(tag.slice(1))) out.push(`tag “${tag}” isn’t vMAJOR.MINOR.PATCH`)
     else if (tag !== `v${version}`) out.push(`tag ${tag} doesn’t match the committed version ${version}`)
     if (entry && entry.date > new Date(Date.now() + 36 * 3600_000).toISOString().slice(0, 10)) out.push(`CHANGELOG.md dates ${version} ${entry.date}, which hasn’t happened yet`)
-    for (const f of Object.values(DEMO)) {
-      if (!existsSync(path(f))) out.push(`${f} is missing (docs/demo/README.md)`)
-      else if (statSync(path(f)).size > DEMO_MAX_BYTES) out.push(`${f} is over ${DEMO_MAX_BYTES / 1024 / 1024} MB`)
-    }
   }
   return out
 }
@@ -104,7 +105,7 @@ export function releaseNotes(tag) {
   const stable = version.replace(/-.*$/, '')
   const sep = ' &nbsp;·&nbsp; '
   return [
-    `<p align="center"><a href="${asset('muni-demo.mp4')}"><img src="${asset('muni-demo.gif')}" alt="Muni in 52 seconds: thoughts written on a laptop and a phone, the same page in four characters’ rooms, the facilitator closing collection and gathering thoughts into themes, everyone’s thoughts revealed without names, the live retro, and the experiments agreed." width="720"></a></p>`,
+    `<p align="center"><a href="${asset('muni-demo.mp4')}"><img src="${asset('muni-demo.gif')}" alt="Muni in 52 seconds: thoughts written on a laptop and a phone, the same page in four characters’ rooms, the facilitator closing collection and gathering thoughts into themes, everyone’s thoughts revealed without names, the live retro, and the experiments agreed." width="640"></a></p>`,
     '',
     '<h3 align="center">Keep the thought. Bring it to the conversation.</h3>',
     `<p align="center">${tagline}</p>`,

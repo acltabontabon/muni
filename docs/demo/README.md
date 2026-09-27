@@ -1,6 +1,6 @@
 # The release demo
 
-`muni-demo.mp4` (1920×1200 at 60 fps) and `muni-demo.gif` (720 wide, for the release page) are a
+`muni-demo.mp4` (1920×1200 at 60 fps) and `muni-demo.gif` (640 wide, for the release page) are a
 52-second reel of the real app. Every app frame in it is this build of Muni running locally, driven through
 its own UI by [`web/e2e/demo.mjs`](../../web/e2e/demo.mjs), and never retouched. The reel around the
 footage is added by [`web/e2e/demo-reel.mjs`](../../web/e2e/demo-reel.mjs): Muni's paper, a
@@ -85,12 +85,16 @@ end before it (`cut`), to leave out idle moments. Set `REEL_FPS` to render at an
 docs/demo/export.sh /tmp/muni-demo/capture
 ```
 
-- `muni-demo.mp4`: 1920×1200, H.264 High, yuv420p (BT.709, limited range), CRF 18, `+faststart`,
+- `muni-demo.mp4`: 1920×1200, H.264 High, yuv420p (BT.709, limited range), CRF 22 at the `veryslow` preset, `+faststart`,
   no audio.
-- `muni-demo.gif`: 720 wide at 15 fps, one 160-colour palette for the whole film (palettegen with
+- `muni-demo.gif`: 640 wide at 15 fps, one 128-colour palette for the whole film (palettegen with
   `stats_mode=diff`, paletteuse with Bayer dithering at scale 4 and `diff_mode=rectangle`), loops
-  forever. The camera moves make every frame change, so keep an eye on the size (about 13 MB); the
-  release page shows it at 720. `GIF_FPS` and `GIF_WIDTH` change it.
+  forever. The release page shows it at 640. `GIF_FPS` and `GIF_WIDTH` change it.
+
+Each file has to stay under 10 MB: `node scripts/release.mjs check` (in CI on every push, and on
+every tag) refuses a larger one, and the export says so. The slow camera changes every pixel of
+every frame, so the GIF's size follows its area and frame rate; fewer colours or gentler dithering
+barely help. At 15 fps and 640 wide it's about 10 MB, and the MP4 about 8 MB.
 
 Set `OUT_MP4` / `OUT_GIF` to write somewhere else first. Before committing, look at a few frames:
 

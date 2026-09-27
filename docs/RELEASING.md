@@ -106,7 +106,7 @@ check. Promoting is a normal release: `prepare 1.0.0`, a short changelog entry, 
 (`concurrency: production-release`, never cancelled mid-deploy):
 
 1. **check** (no secrets): the tag is `v` + the committed version, `CHANGELOG.md` has a dated entry for
-   it, the demo files exist, and the tagged commit is on `main`. Then the web app's typecheck, lint,
+   it, the demo files exist and are each under 10 MB, and the tagged commit is on `main`. Then the web app's typecheck, lint,
    tests and build, and the Worker's typecheck and tests.
 2. **deploy** (the `production` environment): asks production what it's running. If it's already this
    version *and* this commit, it skips to verification (a re-run). If it's a later version, it stops:
