@@ -53,7 +53,8 @@ export function CharacterDialog() {
   const { chooserOpen, setChooserOpen, character, choose } = useWorld()
   const { offline } = useAuth()
   const [busy, setBusy] = useState(false)
-  // Focus goes back where it was when the dialog opened (the account button, or the settings button).
+  // Focus goes back where it was when the dialog opened (the settings button), or to the account button
+  // when it was opened from the account menu.
   const back = useRef<HTMLElement | null>(null)
   return (
     <Dialog
@@ -63,12 +64,15 @@ export function CharacterDialog() {
       title="Choose a character"
       description="Your character dresses your own writing page and collection. Nobody on your team sees it."
       onOpenAutoFocus={() => {
-        back.current = document.activeElement as HTMLElement | null
+        // From the account menu, focus is on its item (which unmounts as the menu closes) or has already
+        // fallen to <body>: neither is somewhere to return to, so the account button is used instead.
+        const el = document.activeElement
+        back.current = el instanceof HTMLElement && el !== document.body && !el.closest('[data-radix-popper-content-wrapper]') ? el : null
       }}
       onCloseAutoFocus={(e) => {
         const el = back.current
         back.current = null
-        const target = el && el.isConnected ? el : document.querySelector<HTMLElement>('[data-account-trigger]')
+        const target = el?.isConnected ? el : document.querySelector<HTMLElement>('[data-account-trigger]')
         if (target) {
           e.preventDefault()
           target.focus()
