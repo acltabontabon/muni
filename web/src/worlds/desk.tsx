@@ -580,28 +580,39 @@ export function DeskSheet({ tab, title, children, topDecor, decor }: { tab: Reac
 }
 
 /**
+ * What every world's own page provides to the shared pieces inside it: its class namespace, its
+ * category control for inline edits, and how its collection is grouped. A world whose page isn't
+ * the usual grid (Bola's arena) composes inside this directly.
+ */
+export function DeskProviders({ ns, byDay = false, children }: { ns: string; byDay?: boolean; children: ReactNode }) {
+  return (
+    <Ns.Provider value={ns}>
+      <CollectionLook.Provider value={byDay ? BY_DAY : BY_THOUGHT}>
+        <CategoryField.Provider value={categoryField}>{children}</CategoryField.Provider>
+      </CollectionLook.Provider>
+    </Ns.Provider>
+  )
+}
+
+/**
  * The page: notices and the writing surface; the collection beside it on a wide screen and after
  * it on a narrow one; and the world's scene — under the writing on a wide screen, after the
  * collection on a narrow one, so nobody scrolls past a picture to reach their thoughts.
  */
 export function Desk({ ns, notices, book, collection, extras, empty, scene, byDay = false }: { ns: string; notices?: ReactNode; book: ReactNode; collection: ReactNode; extras?: ReactNode; empty?: boolean; scene?: ReactNode; /** Group the collection under a heading per day. */ byDay?: boolean }) {
   return (
-    <Ns.Provider value={ns}>
-      <CollectionLook.Provider value={byDay ? BY_DAY : BY_THOUGHT}>
-      <CategoryField.Provider value={categoryField}>
-        <div className={`${ns}-studio`} data-empty={empty || undefined}>
-          <div className={`${ns}-desk`}>
-            {notices ? <div className={`${ns}-notices`}>{notices}</div> : null}
-            {book}
-          </div>
-          <div className={`${ns}-shelf`}>
-            {collection}
-            {extras}
-          </div>
-          {scene ? <div className={`${ns}-scene`}>{scene}</div> : null}
+    <DeskProviders ns={ns} byDay={byDay}>
+      <div className={`${ns}-studio`} data-empty={empty || undefined}>
+        <div className={`${ns}-desk`}>
+          {notices ? <div className={`${ns}-notices`}>{notices}</div> : null}
+          {book}
         </div>
-      </CategoryField.Provider>
-      </CollectionLook.Provider>
-    </Ns.Provider>
+        <div className={`${ns}-shelf`}>
+          {collection}
+          {extras}
+        </div>
+        {scene ? <div className={`${ns}-scene`}>{scene}</div> : null}
+      </div>
+    </DeskProviders>
   )
 }

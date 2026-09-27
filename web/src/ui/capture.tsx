@@ -919,7 +919,7 @@ export function MyThoughts({ sprintId, editable, moveChoices, online, className,
             <Fragment key={e.id}>
               {/* A day's heading, when this world groups by day (the order is unchanged: newest first). */}
               {byDay && (i === 0 || dayKey(list[i - 1].created_at) !== dayKey(e.created_at)) ? (
-                <li className="passages-day" role="presentation">
+                <li className="passages-day" role="presentation" data-day={new Date(e.created_at).getDate()} data-mon={new Date(e.created_at).toLocaleDateString(undefined, { month: 'short' })}>
                   <h3>{dayLabel(e.created_at)}</h3>
                 </li>
               ) : null}

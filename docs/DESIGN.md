@@ -113,7 +113,7 @@ anything a teammate sees (tested in `worker/test/avatars.test.ts`).
 | **Kape** — The Morning Thinker | the café corner outside of time: a tabletop, pandesal, sugar sachets, a café stamp | morning light on warm paper / the café stayed open for you | Young Serif, DM Mono | a receipt roll: torn ends, perforations, order numbers, stamp labels | a curl of steam rises from the cup |
 | **Guhit** — The Creative | the gloriously unfinished studio, as its own layout: a working sketchbook on a desk, the sprint as its index tab, a pencil on the sheet, the barangay master plan taped below | warm desk and sketchbook stock / charcoal paper on a darker desk | Bricolage Grotesque, Caveat | numbered pages (“p. 5”) in the same book | the underline inks once on entry; a save draws a tick and adds the next ambitious thing to the master plan |
 | **Biyahe** — The Commuter | one stop past the plan, as its own layout: the writing sheet framed like a vehicle window with a livery stripe, the sprint on a destination board, and the missed stop under the writing | pale stone and petrol by day / midnight navy, amber city lights | Barlow Condensed | stops on a quiet route line, a heading per day, each thought keeping only its time | the missed stop plays once when first seen; a saved thought's stop appears on the route |
-| **Bola** — The Neighborhood Athlete | the court after the noise settles: the hoop, the painted arc, tsinelas courtside | sun-warmed concrete / one floodlight | Archivo (expanded and condensed) | strong spacing; dates worn like jersey numbers | the ball settles with one bounce |
+| **Bola** — The Neighborhood Athlete | last game, extended indefinitely, as its own layout: the page opens on the court at sunrise edge to edge, LAST GAME painted on the wall, and the writing panel is set down on the court floor | chalk concrete, terracotta and court green / asphalt at dawn, amber paint | Archivo (expanded and condensed) | plain panels with an accent edge, under jersey-style date numerals (real dates only) | the sunrise plays once when first seen (one bounce, the rooster steps in, one finger up); a saved thought gets a painted accent |
 | **Pahina** — The Reader | a private reading room: a stack of books, folded glasses, a lamp | afternoon by a window / a reading lamp | Newsreader | a table of contents: chapter numerals, dotted leaders | a ribbon bookmark glides to where you are |
 | **Himig** — The Music Lover | the listening room for imaginary music videos: a sleeve, a record half out | sleeve paper / black vinyl | Unbounded, DM Mono | tracks (A1, A2…) divided by grooves | the record turns once |
 | **Porma** — The Dressed-Up Dreamer | everyday life, unnecessarily well dressed: a cloche lifted off… a parcel | fine stationery / black tie | Bodoni Moda | an invitation archive: “No. 7”, hairlines, small caps | the monogram is pressed |
@@ -124,7 +124,7 @@ and so is behaviour: drafts, the send queue, encryption, what “submitted” me
 deleting. Most worlds change composition, palette, type, illustration and decoration only.
 
 **Worlds with their own layout.** A world may compose the writing page itself when restyling Muni's
-journal can't carry it: Guhit (`worlds/guhit/`), Kape (`worlds/kape/`) and Biyahe (`worlds/biyahe/`), listed in
+journal can't carry it: Guhit (`worlds/guhit/`), Kape (`worlds/kape/`), Biyahe (`worlds/biyahe/`) and Bola (`worlds/bola/`), listed in
 `worlds/pages.tsx`. The shared parts live in `worlds/desk.tsx` — the sprint label and its details
 (other sprints grouped by team), the category picker, the composer's layout, the state sheet and
 the page grid — each rendered with classes in the world's namespace (`<ns>-sheet`…) so a world
@@ -154,7 +154,13 @@ prepared; the “Dito sana” sign slides past above the roof; the route placard
 character arc; the rehearsal note is final_final_v7; the subtitle reads “Nakapag-practice. Hindi
 nakababa.” Scenes share `useOncePlay` (desk.tsx): armed in their first pose until seen, played once
 per visit, paused in hidden tabs, the finished picture under reduced motion. `e2e/desk.mjs` covers
-all three worlds. Each world's palette passes WCAG AA for text in light and dark, and Muni's
+all four worlds.
+Bola breaks the usual grid (`DeskProviders` lets a world compose freely): the court at sunrise runs
+edge to edge across the top (`bola/Court.tsx`) — LAST GAME painted on the wall behind the fence,
+“extended (basta)” under it, the referee asleep on the bench with the whistle on the lanyard, a rooster
+reporting for the morning shift, Bola in front of the lettering with the ball at the hip and one
+finger up — and the writing panel is set down on the court's floor (on a phone, just below it, so
+no one in the picture is covered). Nothing on Bola's page keeps score. Each world's palette passes WCAG AA for text in light and dark, and Muni's
 semantic colours (status, categories, ok/warn/danger) are never redeclared (`worlds.test.ts`).
 Art sits beside content, never behind text, and never moves while someone writes: the one moment
 plays after a confirmed save, pauses in hidden tabs, and becomes a static change under reduced

@@ -1619,7 +1619,7 @@
   --accent: #b44c22;
   --accent-soft: #f3d9c9;
   --accent-ink: #983f18;
-  --action: #1b1a17;
+  --action: #1f5c4f;
   --action-ink: #faf5ec;
   --glow: color-mix(in oklab, #f1b98c 30%, transparent);
   --font-world-display: 'Archivo Variable', var(--font-display);
@@ -1641,21 +1641,68 @@
   --bo-strap: #f2e8d5;
   --bo-num: #d9b99a;
   --bo-green: #1f5c4f;
+  --bo-rail: #b44c22;
+  --bo-rail-2: #e0a92e;
+  --bo-placard: #1f5c4f;
+  --bo-placard-ink: #f7f1e4;
+  --bo-placard-soft: #c7d6cf;
+  --bo-placard-warn: #f3b38c;
+  --bo-arc-page: rgb(180 76 34 / 0.16);
+  --bo-num-ink: #b44c22;
+  --bo-lift: rgb(60 30 10 / 0.3);
+  --bo-line-ink: #231a14;
+  --bo-sky-a: #f3e1c4;
+  --bo-sky-b: #f6cf9c;
+  --bo-sky-c: #f1b27a;
+  --bo-glow: rgb(255 214 150 / 0.7);
+  --bo-sun: #fbe0a6;
+  --bo-house: #d9b99a;
+  --bo-win: #f7e7c8;
+  --bo-string: #7a5a44;
+  --bo-flag-0: #b44c22;
+  --bo-flag-1: #e0a92e;
+  --bo-flag-2: #1f5c4f;
+  --bo-chain: rgb(80 70 60 / 0.28);
+  --bo-fence: #7d7064;
+  --bo-notice: #fbf8f1;
+  --bo-notice-ink: #665f57;
+  --bo-floor: #d8c3a6;
+  --bo-baseline: #fbf4e6;
+  --bo-key: rgb(180 76 34 / 0.55);
+  --bo-pole: #4a4640;
+  --bo-bench: #6b4a33;
+  --bo-trousers: #2f2b27;
+  --bo-refshirt: #f7f3ea;
+  --bo-refskin: #c89572;
+  --bo-whistle: #c9cfd3;
+  --bo-z: #4a4640;
+  --bo-skin: #5c3620;
+  --bo-sock: #f7f1e4;
+  --bo-sneaker: #f2ede2;
+  --bo-rooster: #f1e2c6;
+  --bo-tail: #1f3a33;
+  --bo-comb: #c43a24;
+  --bo-beak: #e0a92e;
+  --bo-wall: #e9d6bb;
+  --bo-coping: #d8c1a2;
+  --bo-mural: #c05a2c;
+  --bo-extended: #1f5c4f;
+  --bo-mural-shadow: #8f3c1a;
 }
 :root.dark[data-world='bola'], .dark .w-scope[data-world='bola'] {
   /* One floodlight left on over an empty court. */
   --paper: #111513;
-  --card: #181d1a;
-  --card-2: #1f2521;
+  --card: #1d2420;
+  --card-2: #242c28;
   --ink: #efe9df;
   --ink-soft: #bcb4a7;
   --ink-faint: #928a7e;
-  --line: #262d29;
-  --line-strong: #39423c;
-  --accent: #f08a4b;
+  --line: #2b3430;
+  --line-strong: #3e4943;
+  --accent: #e38752;
   --accent-soft: #33221a;
-  --accent-ink: #f7b085;
-  --action: #efe9df;
+  --accent-ink: #f2ad84;
+  --action: #e6b25e;
   --action-ink: #111513;
   --glow: color-mix(in oklab, #4a4a34 42%, transparent);
   --font-world-display: 'Archivo Variable', var(--font-display);
@@ -1677,9 +1724,363 @@
   --bo-strap: #d8cbb4;
   --bo-num: #4a3a2e;
   --bo-green: #5fa48f;
+  --bo-rail: #d0703f;
+  --bo-rail-2: #e6b25e;
+  --bo-placard: #173a32;
+  --bo-placard-ink: #f3ecdf;
+  --bo-placard-soft: #aac2b8;
+  --bo-placard-warn: #f3b38c;
+  --bo-arc-page: rgb(208 112 63 / 0.14);
+  --bo-num-ink: #e38a57;
+  --bo-lift: rgb(0 0 0 / 0.6);
+  --bo-line-ink: #120e0b;
+  --bo-sky-a: #1b2430;
+  --bo-sky-b: #54475a;
+  --bo-sky-c: #d9895a;
+  --bo-glow: rgb(255 190 120 / 0.45);
+  --bo-sun: #f6c98c;
+  --bo-house: #2a2a2c;
+  --bo-win: #e6b25e;
+  --bo-string: #8a7a6a;
+  --bo-flag-0: #b85a30;
+  --bo-flag-1: #c8963a;
+  --bo-flag-2: #2e6b5d;
+  --bo-chain: rgb(200 190 170 / 0.12);
+  --bo-fence: #4a4640;
+  --bo-notice: #e8e1d2;
+  --bo-notice-ink: #5a544c;
+  --bo-floor: #3a302a;
+  --bo-baseline: #d8cbb4;
+  --bo-key: rgb(208 112 63 / 0.4);
+  --bo-pole: #2a2826;
+  --bo-bench: #5a3f2c;
+  --bo-trousers: #16130f;
+  --bo-refshirt: #e8e1d2;
+  --bo-refskin: #b88563;
+  --bo-whistle: #9aa3ad;
+  --bo-z: #d8cbb4;
+  --bo-skin: #5c3620;
+  --bo-sock: #e8e1d2;
+  --bo-sneaker: #e2dccf;
+  --bo-rooster: #e3d3b4;
+  --bo-tail: #2e5a4f;
+  --bo-comb: #c9472c;
+  --bo-beak: #e6b25e;
+  --bo-wall: #3b3530;
+  --bo-coping: #4a433c;
+  --bo-mural: #b85f36;
+  --bo-extended: #e6b25e;
+  --bo-mural-shadow: #5a2c17;
 }
 
 @scope ([data-world='bola']) to ([data-world]:not([data-world='bola'])) {
+  /*
+   * Bola's page is its own layout (worlds/bola/Journal.tsx): a court journal. Straight edges and
+   * strong horizontals — a panel with a painted accent rail, the sprint on a courtside placard set
+   * on that rail, one painted arc cropped at the page's edge — and the court at sunrise under the
+   * writing. Nothing sits behind text; nothing keeps score.
+   */
+  .app-bg { background: var(--paper); }
+
+  /* ── The arena: the court edge to edge across the top, the panel set down on its floor ── */
+  .bola-arena { position: relative; }
+  .bola-hero { position: relative; height: clamp(15.5rem, 32vw, 29rem); margin: -1.5rem calc(50% - 50vw) 0; overflow: hidden; }
+  @media (min-width: 640px) { .bola-hero { margin-top: -2rem; } }
+  .bola-floor { position: relative; display: grid; gap: 2.5rem; margin-top: calc(-1 * clamp(2.5rem, 7vw, 7.5rem)); }
+  /* On a phone the panel starts where the court ends: nobody in the scene is covered. */
+  @media (max-width: 639px) { .bola-floor { margin-top: -0.75rem; } }
+  @media (min-width: 1024px) {
+    .bola-floor { grid-template-columns: minmax(0, 1fr) minmax(0, 20.5rem); column-gap: 3rem; align-items: start; }
+    /* The collection starts below the court; only the panel is set down on it. */
+    .bola-shelf { padding-top: calc(clamp(2.5rem, 7vw, 7.5rem) + 1.75rem); }
+  }
+  @media (min-width: 1280px) { .bola-floor { grid-template-columns: minmax(0, 46rem) minmax(0, 23rem); column-gap: 5rem; justify-content: center; } }
+  .bola-desk, .bola-shelf { position: relative; min-width: 0; }
+  .bola-notices:empty { display: none; }
+  .bola-notices { margin-bottom: 1.25rem; padding: 0.75rem; border-radius: 6px; background: color-mix(in oklab, var(--paper) 88%, transparent); }
+
+  /* ── The panel, its rail, the courtside placard ── */
+  .bola-book { position: relative; }
+  .bola-book-top { display: flex; align-items: flex-end; }
+
+  .bola-tab {
+    position: relative;
+    display: flex; flex-direction: column; align-items: flex-start; gap: 0.1rem;
+    min-width: 0; max-width: min(30rem, 100%);
+    padding: 0.6rem 2.6rem 0.7rem 1.35rem;
+    border-radius: 4px 4px 0 0;
+    background: var(--bo-placard);
+    color: var(--bo-placard-ink);
+    box-shadow: inset 6px 0 0 var(--bo-rail-2);
+    text-align: left;
+    transition: background-color 140ms;
+  }
+  .bola-tab[data-static] { padding-right: 1.2rem; }
+  button.bola-tab:hover, .bola-tab[data-state='open'] { background-color: color-mix(in oklab, var(--bo-placard) 88%, var(--bo-placard-ink)); }
+  .bola-tab:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
+  .bola-tab-kicker { font-family: var(--font-world-meta); font-stretch: 80%; font-size: 11px; font-weight: 650; letter-spacing: 0.14em; text-transform: uppercase; color: var(--bo-rail-2); }
+  .bola-tab-name {
+    display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden;
+    font-family: var(--font-world-display); font-weight: 800; font-stretch: 110%; font-size: 17.5px; line-height: 1.2; letter-spacing: -0.01em; overflow-wrap: anywhere;
+  }
+  .bola-tab-meta { font-size: 13px; line-height: 1.35; color: var(--bo-placard-soft); }
+  .bola-tab-state { display: inline-flex; align-items: center; gap: 0.35rem; font-weight: 550; color: var(--bo-placard-ink); }
+  .bola-tab-dot { width: 7px; height: 7px; border-radius: 999px; box-shadow: inset 0 0 0 1.5px var(--bo-placard-soft); }
+  .bola-tab-state[data-state='collecting'] .bola-tab-dot { background: var(--bo-rail-2); box-shadow: none; }
+  .bola-tab-state[data-state='closed-now'] { color: var(--bo-placard-warn); }
+  .bola-tab-state[data-state='closed-now'] .bola-tab-dot { background: var(--bo-placard-warn); box-shadow: none; }
+  .bola-tab-chev { position: absolute; right: 0.85rem; top: 50%; width: 16px; height: 16px; margin-top: -8px; color: var(--bo-placard-soft); transition: transform 160ms; }
+  .bola-tab[data-state='open'] .bola-tab-chev { transform: rotate(180deg); }
+
+  .bola-sheet {
+    position: relative;
+    padding: 2.3rem 1.2rem 1.4rem;
+    background: var(--card);
+    border: 1px solid var(--line);
+    border-top: 0;
+    border-radius: 0 4px 4px 4px;
+    /* The painted accent rail along the top, a short gold segment at its end. */
+    box-shadow: inset 0 8px 0 var(--bo-rail), 0 2px 0 var(--line-strong), 0 36px 60px -30px var(--bo-lift);
+  }
+  .bola-sheet::before { content: ''; position: absolute; top: 0; right: 1.5rem; width: 3.5rem; height: 8px; background: var(--bo-rail-2); pointer-events: none; }
+  @media (min-width: 640px) { .bola-sheet { padding: 2.8rem 2.6rem 1.6rem; } }
+
+  .bola-title { max-width: 18ch; font-family: var(--font-world-display); font-weight: 850; font-stretch: 122%; font-size: clamp(1.9rem, 1.35rem + 1.7vw, 2.75rem); line-height: 1.02; letter-spacing: -0.025em; text-wrap: balance; overflow-wrap: anywhere; }
+  .bola-title label { cursor: text; }
+  .bola-title em { font-style: normal; color: var(--accent-ink); }
+  .bola-invite { margin-top: 0.65rem; font-size: 16px; line-height: 1.45; color: var(--ink-soft); }
+
+  .bola-field {
+    display: block; width: 100%;
+    margin-top: 1.3rem; padding: 0.3rem 0 0.6rem;
+    resize: none; field-sizing: content; min-height: 8.5rem; max-height: 55vh;
+    border: 0; border-radius: 0; background: transparent;
+    font-size: 1.1875rem; line-height: 1.62; color: var(--ink);
+    box-shadow: inset 0 -2px 0 var(--line);
+    transition: box-shadow 140ms;
+    scroll-margin-bottom: 8rem;
+  }
+  .bola-field::placeholder { color: var(--ink-faint); }
+  .bola-field:hover { box-shadow: inset 0 -2px 0 var(--line-strong); }
+  .bola-field:focus, .bola-field:focus-visible { outline: none; box-shadow: inset 0 -3px 0 var(--accent); }
+  @media (max-width: 639px) { .bola-field { font-size: 1.0625rem; min-height: 6.5rem; } }
+  .bola-field--small { margin-top: 0.3rem; padding: 0.5rem 0.7rem; min-height: 3.4rem; font-size: 15px; line-height: 1.55; border-radius: 4px; background: color-mix(in oklab, var(--paper) 40%, var(--card)); box-shadow: inset 0 0 0 1px var(--line); scroll-margin-bottom: 6rem; }
+  .bola-field--small:hover { box-shadow: inset 0 0 0 1px var(--line-strong); }
+  .bola-field--small:focus, .bola-field--small:focus-visible { box-shadow: inset 0 0 0 1.5px var(--accent); }
+
+  .bola-under { display: flex; align-items: center; justify-content: space-between; gap: 1rem; min-height: 1.9rem; margin-top: 0.2rem; }
+  .bola-draft { font-size: 12.5px; color: var(--ink-faint); text-align: right; }
+  .bola-link { padding: 0.15rem 0; font-size: 13.5px; color: var(--ink-soft); text-decoration: underline dotted; text-decoration-color: var(--line-strong); text-underline-offset: 3px; border-radius: 3px; }
+  .bola-link:hover { color: var(--ink); text-decoration-color: var(--accent); }
+  .bola-prompt { display: flex; align-items: flex-start; gap: 0.5rem; margin-top: 1rem; padding: 0.5rem 0.25rem 0.5rem 0.85rem; border-left: 4px solid var(--bo-rail-2); background: color-mix(in oklab, var(--accent-soft) 45%, transparent); border-radius: 0 4px 4px 0; }
+  .bola-prompt p { flex: 1; min-width: 0; padding-top: 0.25rem; font-size: 15.5px; line-height: 1.45; color: var(--ink); }
+  .bola-prompt-lead { color: var(--ink-faint); }
+  .bola-prompt-tools { display: flex; align-items: center; gap: 0.15rem; flex: none; }
+  .bola-prompt-x { width: 32px; height: 32px; }
+
+  .bola-context { display: grid; gap: 0.9rem; margin-top: 0.9rem; animation: rise 200ms var(--ease-out-soft) both; }
+  @media (min-width: 640px) { .bola-context { grid-template-columns: 1fr 1fr; } }
+  .bola-context label, .bola-context-label { display: block; font-size: 13px; font-weight: 600; color: var(--ink-soft); }
+  .bola-context-wide { grid-column: 1 / -1; }
+  .bola-context .cat-choices { margin-top: 0.2rem; }
+
+  .bola-actions { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 0.6rem 1rem; margin-top: 1rem; padding-top: 1rem; border-top: 1px solid var(--line); }
+  .bola-opts { display: flex; flex-wrap: wrap; align-items: center; gap: 0.1rem 0.25rem; min-width: 0; margin-left: -0.6rem; }
+  .bola-opt { display: inline-flex; align-items: center; gap: 0.4rem; min-width: 0; max-width: 100%; height: 2.25rem; padding: 0 0.65rem; border-radius: 4px; font-size: 14px; color: var(--ink-soft); white-space: nowrap; transition: background 140ms, color 140ms; }
+  .bola-opt:hover, .bola-opt[data-state='open'], .bola-opt[aria-expanded='true'] { color: var(--ink); background: color-mix(in oklab, var(--ink) 6%, transparent); }
+  .bola-opt[data-set] { color: var(--ink); font-weight: 600; }
+  .bola-opt > span:last-child { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+  .bola-opt-dot { flex: none; width: 8px; height: 8px; border-radius: 2px; background: var(--c, var(--accent)); }
+  .bola-opt-dot--ink { background: var(--ink-faint); }
+  .bola-opt-sum { font-weight: 400; color: var(--ink-soft); }
+  @media (max-width: 420px) { .bola-opt-sum { display: none; } }
+  .bola-save { min-width: 9.75rem; margin-left: auto; border-radius: 6px; }
+  @media (max-width: 639px) { .bola-actions { gap: 0.5rem; } .bola-save { min-width: 8.5rem; } }
+
+  .bola-fine { max-width: 40rem; margin-top: 0.9rem; font-size: 13px; line-height: 1.45; color: var(--ink-faint); }
+  .bola-note { display: flex; align-items: center; gap: 0.55rem; margin-top: 0.8rem; font-size: 14px; line-height: 1.45; color: var(--ink); animation: fade 160ms ease-out both; }
+  .bola-note strong { font-weight: 650; overflow-wrap: anywhere; }
+  .bola-note[data-tone='warn'] { align-items: flex-start; padding: 0.5rem 0.7rem; border-radius: 4px; background: color-mix(in oklab, var(--warn) 11%, transparent); color: var(--warn); }
+  .bola-okmark { flex: none; width: 26px; height: 13px; overflow: visible; }
+  .bola-okmark path { fill: none; stroke: var(--bo-rail-2); stroke-width: 4.5; stroke-linecap: round; }
+  .bola-closed { margin-top: 1rem; padding: 0.6rem 0.8rem; border-radius: 4px; background: color-mix(in oklab, var(--warn) 10%, transparent); font-size: 14px; line-height: 1.45; }
+  .bola-state-body { margin-top: 1.1rem; }
+
+  /* ── Panels ── */
+  .bola-pop { z-index: 50; width: min(21rem, calc(100vw - 24px)); padding: 0.4rem; border: 1px solid var(--line-strong); border-radius: 6px; background: var(--card); box-shadow: inset 0 4px 0 var(--bo-rail), 0 22px 40px -22px var(--bo-lift); animation: rise 160ms var(--ease-out-soft) both; }
+  .bola-pop:has(.bola-details) { width: min(25rem, calc(100vw - 24px)); }
+  .bola-veil { position: fixed; inset: 0; z-index: 50; background: rgb(20 18 14 / 0.4); animation: fade 160ms ease-out both; }
+  .bola-drawer { position: fixed; z-index: 51; left: 0; right: 0; bottom: 0; max-height: 86dvh; overflow-y: auto; overscroll-behavior: contain; padding: 0.6rem 0.75rem max(0.9rem, env(safe-area-inset-bottom)); border-radius: 10px 10px 0 0; background: var(--card); box-shadow: inset 0 5px 0 var(--bo-rail), 0 -14px 30px -20px var(--bo-lift); animation: bola-up 220ms var(--ease-out-soft) both; }
+  .bola-drawer:focus { outline: none; }
+  .bola-drawer-head { display: flex; align-items: center; justify-content: space-between; gap: 1rem; padding: 0.4rem 0 0.35rem 0.55rem; }
+  .bola-panel-title { font-size: 15px; font-weight: 700; color: var(--ink); }
+  .bola-cats { list-style: none; margin: 0; padding: 0; }
+  .bola-cat { display: grid; grid-template-columns: 10px auto minmax(0, 1fr); align-items: baseline; column-gap: 0.6rem; width: 100%; min-height: 2.5rem; padding: 0.55rem 0.65rem; border-radius: 4px; text-align: left; font-size: 14.5px; color: var(--ink); }
+  .bola-cat:hover { background: color-mix(in oklab, var(--ink) 5%, transparent); }
+  .bola-cat:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+  .bola-cat[aria-pressed='true'] { background: color-mix(in oklab, var(--c) 13%, transparent); }
+  .bola-cat-dot { align-self: center; width: 9px; height: 9px; border-radius: 2px; box-shadow: inset 0 0 0 1.5px var(--c); }
+  .bola-cat[aria-pressed='true'] .bola-cat-dot { background: var(--c); }
+  .bola-cat-dot--none { box-shadow: inset 0 0 0 1.5px var(--ink-faint); }
+  .bola-cat-label { font-weight: 600; white-space: nowrap; }
+  .bola-cat-hint { font-size: 13px; color: var(--ink-faint); }
+  .bola-cats-clear { margin-top: 0.25rem; padding-top: 0.25rem; border-top: 1px solid var(--line); }
+  @media (max-width: 639px) { .bola-cat { min-height: 3rem; align-items: center; } }
+  .bola-details { padding: 0.75rem 0.6rem 0.45rem; }
+  .bola-kicker { font-family: var(--font-world-meta); font-stretch: 80%; font-size: 11.5px; font-weight: 650; letter-spacing: 0.12em; text-transform: uppercase; color: var(--ink-faint); }
+  .bola-details-name { margin-top: 0.25rem; font-family: var(--font-world-display); font-weight: 800; font-stretch: 110%; font-size: 18px; line-height: 1.2; overflow-wrap: anywhere; }
+  .bola-details-sub { font-size: 13px; color: var(--ink-faint); }
+  .bola-details-list { margin-top: 0.75rem; font-size: 13.5px; line-height: 1.5; }
+  .bola-details-list div + div { margin-top: 0.55rem; }
+  .bola-details-list dt { font-weight: 650; color: var(--ink); }
+  .bola-details-list dd { margin: 0.05rem 0 0; color: var(--ink-soft); }
+  .bola-details-links { display: flex; flex-wrap: wrap; gap: 0.3rem 1rem; margin-top: 0.8rem; font-size: 13.5px; }
+  .bola-details-links a { font-weight: 600; color: var(--accent-ink); text-decoration: underline; text-decoration-color: color-mix(in oklab, var(--accent) 40%, transparent); text-underline-offset: 3px; }
+  .bola-details-more { margin-top: 0.8rem; padding-top: 0.65rem; border-top: 1px solid var(--line); }
+  .bola-details-more ul { list-style: none; margin: 0.25rem 0 0.2rem -0.45rem; padding: 0; }
+  .bola-details-team + .bola-details-team { margin-top: 0.35rem; }
+  .bola-details-team-name { margin-top: 0.45rem; font-size: 12.5px; color: var(--ink-faint); }
+  .bola-row { display: block; width: 100%; padding: 0.5rem 0.45rem; border-radius: 4px; text-align: left; font-size: 14px; font-weight: 600; color: var(--ink); overflow-wrap: anywhere; }
+  .bola-row:hover { background: color-mix(in oklab, var(--ink) 5%, transparent); }
+  .bola-tip { z-index: 60; display: flex; align-items: center; gap: 0.3rem; padding: 0.35rem 0.55rem; border-radius: 4px; background: var(--ink); color: var(--card); font-size: 12.5px; animation: fade 120ms ease-out both; }
+
+  /* ── The collection: plain panels under jersey-style dates (real dates only) ── */
+  .bola-shelf .mark-indent { padding-left: 0; }
+  .bola-shelf .mark-outdent { margin-left: 0; }
+  .mine-title { font-family: var(--font-world-display); font-weight: 850; font-stretch: 118%; font-size: 1.3rem; letter-spacing: -0.02em; }
+  .bola-shelf .passages { display: grid; gap: 0.65rem; margin-top: 0.8rem; }
+  .passages-day { display: flex; align-items: baseline; gap: 0.55rem; list-style: none; margin-top: 0.6rem; padding-bottom: 0.3rem; border-bottom: 2px solid var(--bo-rail); }
+  .passages-day:first-child { margin-top: 0; }
+  .passages-day::before { content: attr(data-day); font-family: var(--font-world-display); font-weight: 900; font-stretch: 125%; font-size: 1.9rem; line-height: 0.9; letter-spacing: -0.03em; color: var(--bo-num-ink); font-variant-numeric: tabular-nums; }
+  .passages-day h3 { font-family: var(--font-world-meta); font-stretch: 85%; font-size: 13px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; color: var(--ink); }
+  .passages-day::after { content: attr(data-mon); font-family: var(--font-world-meta); font-stretch: 85%; font-size: 12px; font-weight: 600; letter-spacing: 0.1em; text-transform: uppercase; color: var(--ink-faint); }
+  .passage, .passage:first-child {
+    grid-template-columns: minmax(0, 1fr) auto; column-gap: 0.5rem; row-gap: 0.3rem;
+    margin: 0; padding: 0.8rem 0.55rem 0.95rem 1.15rem;
+    border: 1px solid var(--line); border-radius: 3px;
+    background: var(--card);
+    box-shadow: inset 4px 0 0 var(--tone, var(--line-strong));
+  }
+  .passage-mark { grid-column: 1; grid-row: 1; flex-direction: row; align-items: center; gap: 0.6rem; min-height: 1.5rem; padding-top: 0; font-size: 12.5px; text-align: left; }
+  .passage-mark .cat { font-family: var(--font-sans); font-style: normal; font-size: 12.5px; font-weight: 650; letter-spacing: 0; line-height: 1; }
+  .passage-mark .cat::before { display: none; }
+  .passage-mark .period { color: var(--ink-faint); }
+  .passage-stamp { display: none; }
+  .passage-body { grid-column: 1 / -1; grid-row: 2; }
+  .passage-menu { grid-column: 2; grid-row: 1; align-self: center; margin: -0.4rem -0.1rem -0.4rem 0; }
+  .passage-text { max-width: none; font-size: 1rem; line-height: 1.6; }
+  .passage-text[data-short] { font-size: 1.08rem; line-height: 1.5; }
+  .passage-context { max-width: none; border-left: 2px solid var(--line-strong); }
+  .passage[data-state='queued'], .passage[data-state='sending'] { padding-left: 1.15rem; background: linear-gradient(90deg, color-mix(in oklab, var(--status) 7%, var(--card)), var(--card) 70%); box-shadow: inset 4px 0 0 color-mix(in oklab, var(--status) 60%, transparent); border-radius: 3px; }
+  .passage[data-state='attention'] { padding-left: 1.15rem; background: linear-gradient(90deg, color-mix(in oklab, var(--warn) 8%, var(--card)), var(--card) 75%); box-shadow: inset 4px 0 0 var(--warn); border-radius: 3px; }
+  .passage[data-editing] { padding-right: 1rem; }
+  /* A confirmed thought: a short painted accent beside it. */
+  .passage.anim-reflect { animation: fade 220ms ease-out both; }
+  .passage.anim-reflect::after { content: ''; position: absolute; left: -12px; top: 0.9rem; width: 5px; height: 1.8rem; border-radius: 3px; background: var(--bo-rail-2); transform-origin: 50% 0; animation: bola-paint 520ms 150ms var(--ease-out-soft) both; }
+  .passage-gone, .passage-gone:first-child { padding: 0.7rem 0.6rem 0.7rem 1.15rem; border: 1px dashed var(--line-strong); border-radius: 3px; }
+  @media (min-width: 1280px) {
+    .passage { grid-template-columns: minmax(0, 1fr) auto; column-gap: 0.5rem; }
+    .passage-mark { grid-column: 1; grid-row: 1; flex-direction: row; align-items: center; gap: 0.6rem; padding-top: 0; text-align: left; }
+    .passage-body { grid-column: 1 / -1; }
+    .passage-menu { grid-column: 2; }
+  }
+  .passage .journal-field--edit { margin-top: 0.1rem; padding: 0.6rem 0.75rem; min-height: 5rem; border-radius: 4px; background: color-mix(in oklab, var(--paper) 40%, var(--card)); box-shadow: inset 0 0 0 1px var(--line); font-size: 1rem; line-height: 1.6; }
+  .passage .journal-field--edit:focus, .passage .journal-field--edit:focus-visible { outline: none; box-shadow: inset 0 0 0 1.5px var(--accent); }
+  .passage .journal-field--small { border-radius: 4px; background: color-mix(in oklab, var(--paper) 40%, var(--card)); box-shadow: inset 0 0 0 1px var(--line); padding: 0.5rem 0.65rem; }
+  .journal-edit-opts { display: flex; flex-wrap: wrap; align-items: center; gap: 0.1rem 0.25rem; margin: 0.5rem 0 0 -0.6rem; }
+  .journal-edit-opts .journal-tool { height: 2.25rem; margin: 0; padding: 0 0.65rem; border-radius: 4px; font-size: 14px; }
+
+  :scope .bola-shelf .mine-empty { display: block; padding: 0; text-align: left; }
+  .bola-quiet { display: flex; flex-direction: column; gap: 0.7rem; margin-top: 0.9rem; padding: 1.1rem 1.1rem 1.2rem; border: 1px solid var(--line); border-radius: 3px; background: var(--card); box-shadow: inset 0 4px 0 var(--bo-rail); }
+  .bola-quiet-art svg { display: block; width: 150px; height: 70px; }
+  .bola-quiet-bench { fill: none; stroke: var(--bo-bench); stroke-width: 3.2; stroke-linecap: round; }
+  .bola-quiet-shadow { fill: var(--bo-shadow); }
+  .bola-quiet-ball { fill: var(--bo-ball); stroke: var(--bo-line-ink); stroke-width: 1.2; }
+  .bola-quiet-seam { fill: none; stroke: var(--bo-line-ink); stroke-width: 1; }
+  .bola-quiet-spot { stroke: var(--bo-rail-2); stroke-width: 3; stroke-linecap: round; stroke-dasharray: 2 5; }
+  .bola-quiet-text { font-size: 15px; line-height: 1.5; color: var(--ink-soft); text-wrap: pretty; }
+  .bola-quiet-sub { display: block; margin-top: 0.15rem; font-size: 13.5px; color: var(--ink-faint); }
+
+  /* ── The court at sunrise, edge to edge ── */
+  .bola-court { display: block; width: 100%; height: 100%; }
+  .bola-court[data-narrow] .bola-c-mural--wide, .bola-court:not([data-narrow]) .bola-c-mural--narrow { display: none; }
+  .bola-c-wall { fill: var(--bo-wall); }
+  .bola-c-coping { stroke: var(--bo-coping); stroke-width: 6; }
+  .bola-c-mural-t { fill: var(--bo-mural); letter-spacing: -0.01em; font-stretch: 125%; }
+  .bola-c-fleck { fill: var(--bo-wall); }
+  .bola-c-mural-s { fill: var(--bo-mural-shadow); letter-spacing: -0.01em; font-stretch: 125%; }
+  .bola-c-swoosh { fill: none; stroke: var(--bo-rail-2); stroke-width: 7; stroke-linecap: round; opacity: 0.55; }
+  .bola-c-extended { fill: var(--bo-extended); }
+  .bola-c-floor-a { stop-color: var(--bo-floor); }
+  .bola-c-floor-b { stop-color: var(--paper); }
+  .bola-c-sky-a { stop-color: var(--bo-sky-a); }
+  .bola-c-sky-b { stop-color: var(--bo-sky-b); }
+  .bola-c-sky-c { stop-color: var(--bo-sky-c); }
+  .bola-c-glow-a { stop-color: var(--bo-glow); }
+  .bola-c-glow-b { stop-color: var(--bo-glow); stop-opacity: 0; }
+  .bola-c-sun { fill: var(--bo-sun); }
+  .bola-c-house path { fill: var(--bo-house); }
+  .bola-c-win { fill: var(--bo-win); }
+  .bola-c-string { fill: none; stroke: var(--bo-string); stroke-width: 1; }
+  .bola-c-flag--0 { fill: var(--bo-flag-0); }
+  .bola-c-flag--1 { fill: var(--bo-flag-1); }
+  .bola-c-flag--2 { fill: var(--bo-flag-2); }
+  .bola-c-chain { fill: none; stroke: var(--bo-chain); stroke-width: 0.8; }
+  .bola-c-fence { fill: none; stroke: var(--bo-fence); stroke-width: 3; }
+  .bola-c-baseline { stroke: var(--bo-baseline); stroke-width: 3; }
+  .bola-c-key { fill: var(--bo-key); }
+  .bola-c-arc { fill: none; stroke: var(--bo-baseline); stroke-width: 3; }
+  .bola-c-pole { fill: none; stroke: var(--bo-pole); stroke-width: 6; stroke-linecap: round; }
+  .bola-c-board { fill: var(--bo-board); stroke: var(--bo-line-ink); stroke-width: 1.2; }
+  .bola-c-rim { stroke: var(--bo-rim); stroke-width: 3; stroke-linecap: round; }
+  .bola-c-net { fill: none; stroke: var(--bo-net); stroke-width: 1.2; }
+  .bola-c-bench path { fill: none; stroke: var(--bo-bench); stroke-width: 4; stroke-linecap: round; }
+  .bola-c-trousers { fill: var(--bo-trousers); }
+  .bola-c-shoe { fill: var(--bo-line-ink); }
+  .bola-c-refshirt { fill: var(--bo-refshirt); stroke: var(--bo-line-ink); stroke-width: 1.2; }
+  .bola-c-stripes { fill: none; stroke: var(--bo-line-ink); stroke-width: 3; }
+  .bola-c-refskin { fill: var(--bo-refskin); stroke: var(--bo-line-ink); stroke-width: 1.1; }
+  .bola-c-refhair { fill: var(--bo-line-ink); }
+  .bola-c-shut { fill: none; stroke: var(--bo-line-ink); stroke-width: 1.2; stroke-linecap: round; }
+  .bola-c-peek { fill: var(--bo-line-ink); opacity: 0; }
+  .bola-c-snore { fill: var(--bo-line-ink); opacity: 0.7; }
+  .bola-c-lanyard { fill: none; stroke: var(--bo-rail); stroke-width: 1.4; }
+  .bola-c-whistle { fill: var(--bo-whistle); stroke: var(--bo-line-ink); stroke-width: 0.8; }
+  .bola-c-z { fill: var(--bo-z); }
+  .bola-c-shadow { fill: var(--bo-shadow); }
+  .bola-c-skin { fill: var(--bo-skin); stroke: var(--bo-line-ink); stroke-width: 1.1; stroke-linejoin: round; }
+  .bola-c-sock { fill: var(--bo-sock); }
+  .bola-c-sneaker { fill: var(--bo-sneaker); stroke: var(--bo-line-ink); stroke-width: 1.1; }
+  .bola-c-shorts { fill: var(--bo-green); stroke: var(--bo-line-ink); stroke-width: 1.1; stroke-linejoin: round; }
+  .bola-c-trim { fill: none; stroke: var(--bo-strap); stroke-width: 2.4; }
+  .bola-c-jersey { fill: var(--bo-green); stroke: var(--bo-line-ink); stroke-width: 1.1; }
+  .bola-c-ballfill { fill: var(--bo-ball); stroke: var(--bo-line-ink); stroke-width: 1.3; }
+  .bola-c-seam { fill: none; stroke: var(--bo-line-ink); stroke-width: 1.2; }
+  .bola-c-stake { stroke: var(--bo-pole); stroke-width: 3; }
+  .bola-c-marker { fill: var(--bo-rail-2); stroke: var(--bo-line-ink); stroke-width: 1; }
+  .bola-c-marker-t { fill: var(--bo-line-ink); letter-spacing: 0.06em; }
+  .bola-c-legs { fill: none; stroke: var(--bo-beak); stroke-width: 2.2; stroke-linecap: round; }
+  .bola-c-tail { fill: var(--bo-tail); }
+  .bola-c-body { fill: var(--bo-rooster); stroke: var(--bo-line-ink); stroke-width: 1.1; }
+  .bola-c-wing { fill: none; stroke: var(--bo-line-ink); stroke-width: 1.1; stroke-linecap: round; }
+  .bola-c-neck { fill: none; stroke: var(--bo-rooster); stroke-width: 9; stroke-linecap: round; }
+  .bola-c-comb { fill: var(--bo-comb); }
+  .bola-c-beak { fill: var(--bo-beak); }
+  .bola-c-eye { fill: var(--bo-line-ink); }
+
+  /* Once: one relaxed bounce, the rooster steps in, one finger up, the referee peeks and decides against it. */
+  .bola-c-arm { transform-box: fill-box; transform-origin: 11% 88%; }
+  .bola-c-ball { transform-box: fill-box; transform-origin: 50% 100%; }
+  .bola-court[data-armed] .bola-c-rooster { transform: translateX(130px); }
+  .bola-court[data-armed] .bola-c-arm { transform: rotate(96deg); }
+  .bola-court[data-play] .bola-c-ball { animation: bola-dribble 4800ms 250ms both; }
+  .bola-court[data-play] .bola-c-rooster { animation: bola-rooster 4800ms 250ms both; }
+  .bola-court[data-play] .bola-c-arm { animation: bola-one 4800ms 250ms both; }
+  .bola-court[data-play] .bola-c-peek { animation: bola-peek 4800ms 250ms both; }
+  .bola-court[data-paused] .bola-c-ball, .bola-court[data-paused] .bola-c-rooster, .bola-court[data-paused] .bola-c-arm, .bola-court[data-paused] .bola-c-peek { animation-play-state: paused; }
+
+  /* ── Muni's journal classes, still used by the welcome page ── */
+
   /* A painted arc runs through the band; at night, a floodlight. */
   .journal-scene[data-scene] .journal-sky { --art-w: calc(var(--art-h) * 1.7); }
   :scope:where(.dark, .dark *) .journal-scene[data-scene] .journal-sky { background: radial-gradient(520px 200px at 88% -30%, rgb(255 236 190 / 0.12), transparent 70%); }
@@ -1689,34 +2090,34 @@
   .journal-title em { font-style: italic; font-weight: 700; font-stretch: 72%; letter-spacing: -0.01em; color: var(--accent-ink); }
   .w-invite { font-family: var(--font-world-meta); font-weight: 600; font-stretch: 80%; font-size: 15px; letter-spacing: 0.02em; }
 
-  .journal-field { border-radius: 4px; background: var(--card); box-shadow: inset 0 0 0 1px var(--line), 0 3px 0 var(--bo-court); }
-  .journal-field:hover { box-shadow: inset 0 0 0 1px var(--line-strong), 0 3px 0 var(--bo-court); }
-  .journal-field:focus, .journal-field:focus-visible { box-shadow: inset 0 0 0 1.5px var(--accent), 0 3px 0 var(--bo-court), 0 0 0 5px color-mix(in oklab, var(--accent) 13%, transparent); }
 
-  /* The collection: strong spacing, painted lines, dates worn like jersey numbers. */
-  .mine-title { font-family: var(--font-world-display); font-weight: 820; font-stretch: 112%; font-size: 1.15rem; letter-spacing: -0.01em; text-transform: uppercase; }
-  .passage { border-top: 3px solid var(--line); padding-top: 1.35rem; padding-bottom: 1.5rem; }
-  .passage:first-child { border-top: 0; }
-  .passage-mark { font-family: var(--font-world-meta); font-stretch: 85%; font-weight: 500; font-size: 12.5px; letter-spacing: 0.02em; }
-  .passage-mark .cat { font-family: var(--font-world-meta); font-style: normal; font-weight: 750; font-stretch: 80%; font-size: 12.5px; letter-spacing: 0.08em; text-transform: uppercase; }
-  .passage-mark .cat::before { display: none; }
-  .passage-stamp { display: inline-flex; align-items: baseline; gap: 0.3rem; order: -1; color: var(--bo-num); }
-  .passage-stamp::before { content: attr(data-day); font-weight: 900; font-stretch: 125%; font-size: 1.35rem; line-height: 0.9; letter-spacing: -0.04em; }
-  .passage-stamp::after { content: attr(data-mon); font-weight: 700; font-size: 11px; letter-spacing: 0.1em; text-transform: uppercase; }
-  @media (min-width: 1280px) {
-    .passage-stamp { flex-direction: column; align-items: flex-end; gap: 0; }
-    .passage-stamp::before { font-size: 3.1rem; }
-    .passage-stamp::after { margin-top: 0.2rem; }
-  }
-  @media (min-width: 1024px) { .w-slot--compose { display: block; margin: 2.25rem 0 0 -1.25rem; max-width: 25rem; aspect-ratio: 320 / 150; } }
   .bola-empty { position: relative; display: grid; place-items: center; }
   .bola-empty > * { grid-area: 1 / 1; }
   .bola-bounce { animation: bo-bounce 900ms cubic-bezier(0.3, 0, 0.3, 1) both; }
   .bola-shadow { animation: bo-shadow 900ms cubic-bezier(0.3, 0, 0.3, 1) both; transform-box: fill-box; transform-origin: center; }
+  .bola-preview { display: grid; grid-template-columns: minmax(0, 1.35fr) minmax(0, 1fr); gap: 22px; align-items: start; padding: 26px 22px 26px; }
+  .bola-preview .bola-sheet { padding: 2rem 1.3rem 1.2rem; }
+  .bola-preview .bola-title { font-size: 1.7rem; }
+  .bola-preview .bola-field { min-height: 4.5rem; color: var(--ink-faint); }
+  .bola-preview .mine { padding-top: 0.5rem; }
+  .bola-preview .passage-text { font-size: 0.95rem; }
+
+  @media (prefers-reduced-motion: reduce) {
+    .bola-court[data-play] .bola-c-ball, .bola-court[data-play] .bola-c-rooster, .bola-court[data-play] .bola-c-arm, .bola-court[data-play] .bola-c-peek { animation: none; }
+    .bola-context, .bola-pop, .bola-drawer, .bola-note, .bola-veil, .bola-tip { animation: fade 120ms ease-out both; }
+    .passage.anim-reflect, .passage.anim-reflect::after { animation: fade 160ms ease-out both; }
+  }
 }
+@keyframes bola-dribble { 0% { transform: none; } 7% { transform: translateY(68px) scale(1.08, 0.9); } 9% { transform: translateY(62px); } 18%, 100% { transform: none; } }
+@keyframes bola-rooster { 0%, 24% { transform: translateX(130px); } 32% { transform: translate(92px, -5px); } 40% { transform: translateX(62px); } 48% { transform: translate(30px, -5px); } 56%, 100% { transform: none; } }
+@keyframes bola-one { 0%, 56% { transform: rotate(96deg); } 70%, 100% { transform: none; } }
+@keyframes bola-peek { 0%, 74% { opacity: 0; } 78%, 86% { opacity: 1; } 90%, 100% { opacity: 0; } }
+@keyframes bola-paint { from { transform: scaleY(0); } to { transform: none; } }
+@keyframes bola-up { from { transform: translateY(24px); opacity: 0.4; } to { transform: none; opacity: 1; } }
 @keyframes bo-bounce { 0% { transform: translateY(0); } 30% { transform: translateY(-12px); } 55% { transform: translateY(0) scale(1.05, 0.93); } 72% { transform: translateY(-3px); } 100% { transform: none; } }
 @keyframes bo-shadow { 0%, 100% { transform: scale(1); opacity: 1; } 30% { transform: scale(0.7); opacity: 0.55; } 55% { transform: scale(1.05); opacity: 1; } }
 @media (prefers-reduced-motion: reduce) { .bola-bounce, .bola-shadow { animation: none; } }
+
 
 /* ── Pahina: a private reading room ──────────────────────────────────────────────────────── */
 

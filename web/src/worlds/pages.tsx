@@ -8,6 +8,7 @@ import type { AvatarId } from './characters'
 import { GuhitComposer, GuhitEmpty, GuhitSheet, GuhitStudio } from './guhit/Studio'
 import { KapeCafe, KapeComposer, KapeEmpty, KapeSheet } from './kape/Cafe'
 import { BiyaheComposer, BiyaheEmpty, BiyaheRide, BiyaheSheet } from './biyahe/Ride'
+import { BolaComposer, BolaEmpty, BolaJournal, BolaSheet } from './bola/Journal'
 
 export type OwnPage = {
   Page: ComponentType<{ notices?: ReactNode; book: ReactNode; collection: ReactNode; extras?: ReactNode; empty?: boolean; count?: number | null }>
@@ -21,5 +22,6 @@ export type OwnPage = {
 export const OWN_PAGES: Partial<Record<AvatarId, OwnPage>> = {
   guhit: { Page: GuhitStudio, Composer: GuhitComposer, Sheet: GuhitSheet, Empty: GuhitEmpty },
   kape: { Page: KapeCafe, Composer: KapeComposer, Sheet: KapeSheet, Empty: KapeEmpty, kicker: 'Writing for' },
+  bola: { Page: BolaJournal, Composer: BolaComposer, Sheet: BolaSheet, Empty: BolaEmpty, kicker: 'Writing for' },
   biyahe: { Page: BiyaheRide, Composer: BiyaheComposer, Sheet: BiyaheSheet, Empty: BiyaheEmpty, kicker: 'Writing for' },
 }

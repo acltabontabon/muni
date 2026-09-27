@@ -51,21 +51,25 @@ async function open(a, wsId, opts = {}) {
   const errors = []
   page.on('pageerror', (e) => errors.push(e.message))
   await page.goto(`${BASE}/`)
-  await page.locator('.guhit-sheet, .kape-sheet, .biyahe-sheet').first().waitFor({ timeout: 15000 })
+  await page.locator('.guhit-sheet, .kape-sheet, .biyahe-sheet, .bola-sheet').first().waitFor({ timeout: 15000 })
   return { ctx, page, errors }
 }
 const field = (page) => page.locator('textarea[name="thought"]')
 const mine = (a, sprintId) => a.req('GET', `/api/sprints/${sprintId}/entries/mine`)
 
-const HEADING = { guhit: 'What’s worth remembering?', kape: 'What’s on your mind?', biyahe: 'What stayed with you today?' }
-const NAME = { guhit: 'Guhit', kape: 'Kape', biyahe: 'Biyahe', bola: 'Bola' }
+const HEADING = { guhit: 'What’s worth remembering?', kape: 'What’s on your mind?', biyahe: 'What stayed with you today?', bola: 'What stayed with you?' }
+const NAME = { guhit: 'Guhit', kape: 'Kape', biyahe: 'Biyahe', bola: 'Bola', himig: 'Himig' }
 /** Each world's scene that plays once, and the part of it kept off a phone. */
-const SCENE = { kape: ['.kape-stir', '.kape-s-wide'], biyahe: ['.biyahe-ride', '.biyahe-r-wide'] }
-const WORLDS = (process.env.WORLDS ?? 'guhit,kape,biyahe').split(',')
+const SCENE = { kape: ['.kape-stir', '.kape-s-wide'], biyahe: ['.biyahe-ride', '.biyahe-r-wide'], bola: ['.bola-court', '.bola-c-mural--wide'] }
+/** Bola's scene is the page's opening, above the writing; the others sit after it. */
+const HERO = new Set(['bola'])
+const WORLDS = (process.env.WORLDS ?? 'guhit,kape,biyahe,bola').split(',')
 
 for (const W of WORLDS) try {
   console.log(`\n── ${NAME[W]}`)
   const $ = (cls) => `.${W}-${cls}`
+  // A world that keeps Muni's journal, to switch to and back.
+  const OTHER = 'himig'
   const ana = await account('Ana Reyes')
   await ana.req('PATCH', '/api/auth/me', { avatar_id: W, avatar_theme: true })
   const ws = await ana.req('POST', '/api/workspaces', { name: 'Studio' })
@@ -216,19 +220,19 @@ for (const W of WORLDS) try {
     await page.waitForTimeout(600)
     await page.locator('[data-account-trigger]').click()
     await page.locator('button:has-text("Change character")').click()
-    await page.locator('[role=dialog] [role=radio][aria-label^="Bola"]').click()
-    await page.locator('[role=dialog] button:has-text("Choose Bola")').click()
-    await page.waitForFunction(() => document.documentElement.dataset.world === 'bola')
+    await page.locator(`[role=dialog] [role=radio][aria-label^="${NAME[OTHER]}"]`).click()
+    await page.locator(`[role=dialog] button:has-text("Choose ${NAME[OTHER]}")`).click()
+    await page.waitForFunction((o) => document.documentElement.dataset.world === o, OTHER)
     await page.locator('textarea[name="thought"].journal-field').waitFor()
     const kept = await page.waitForFunction((t) => document.querySelector('textarea[name="thought"]')?.value === t, draft, { timeout: 5000 }).then(() => true).catch(() => false)
-    check(`${NAME[W]} → Bola: the draft is still there`, kept)
+    check(`${NAME[W]} → ${NAME[OTHER]}: the draft is still there`, kept)
     await page.locator('[data-account-trigger]').click()
     await page.locator('button:has-text("Change character")').click()
     await page.locator(`[role=dialog] [role=radio][aria-label^="${NAME[W]}"]`).click()
     await page.locator(`[role=dialog] button:has-text("Choose ${NAME[W]}")`).click()
     await page.locator(`form.${W}-book`).waitFor()
     const back = await page.waitForFunction((t) => document.querySelector('textarea[name="thought"]')?.value === t, draft, { timeout: 5000 }).then(() => true).catch(() => false)
-    check(`Bola → ${NAME[W]}: still there`, back)
+    check(`${NAME[OTHER]} → ${NAME[W]}: still there`, back)
     await field(page).fill('')
     await page.waitForTimeout(600)
     await ctx.close()
@@ -258,8 +262,9 @@ for (const W of WORLDS) try {
     if (W === 'guhit') check(`Phone (${theme}): the master plan stays off the small screen`, !(await page.locator('.guhit-plan').isVisible()))
     if (SCENE[W]) {
       const [sc, wide] = SCENE[W]
-      const pos = await page.evaluate((w) => ({ scene: document.querySelector(`.${w}-scene`).getBoundingClientRect().top, mine: document.querySelector('.mine').getBoundingClientRect().top }), W)
-      check(`Phone (${theme}): the scene comes after your thoughts`, pos.scene > pos.mine)
+      const pos = await page.evaluate((w) => ({ scene: (document.querySelector(`.${w}-scene`) ?? document.querySelector(`.${w}-hero`)).getBoundingClientRect().top, mine: document.querySelector('.mine').getBoundingClientRect().top }), W)
+      if (HERO.has(W)) check(`Phone (${theme}): the scene opens the page, and only the floor sits under the label`, (await page.evaluate((w) => document.querySelector(`.${w}-hero`).getBoundingClientRect().bottom - document.querySelector(`.${w}-tab`).getBoundingClientRect().top <= 16, W)))
+      else check(`Phone (${theme}): the scene comes after your thoughts`, pos.scene > pos.mine)
       check(`Phone (${theme}): the scene is framed for a phone`, (await page.locator(`${sc}[data-narrow]`).count()) === 1 && !(await page.locator(wide).first().isVisible()))
     }
     await page.locator(`.${W}-opt`, { hasText: 'Category' }).click()

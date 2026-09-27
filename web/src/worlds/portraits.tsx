@@ -457,6 +457,12 @@ export function BiyaheFigure() {
   return <Biyahe k={k} />
 }
 
+/** Bola as in the portrait (100×100 units), for the court scene (worlds/bola/Court.tsx): the bust on a body drawn there. */
+export function BolaFigure() {
+  const k: K = { icon: false, p: PAL.bola, u: 'bola-fig' }
+  return <Bola k={k} />
+}
+
 /**
  * A character's portrait in its round frame. `size` in CSS pixels picks the cut: under 56px, the
  * icon (cropped to the head, heavier features); from 56px, the bust.
