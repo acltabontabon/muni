@@ -4,12 +4,14 @@ import { ApiError, get, patch } from '@/api/client'
 import type { CaptureTarget, SprintSummary } from '@/api/types'
 import { useAuth } from '@/lib/auth'
 import { applyAppearance, readPrefs, writePrefs } from '@/lib/prefs'
-import { Button, ErrorText, Help, Input, Label, Switch, useDocumentTitle, useToast } from '@/ui'
+import { Button, ErrorText, Input, Label, Switch, useDocumentTitle, useToast } from '@/ui'
 import { DeviceControls, LeaveDialog } from '@/ui/menus'
 import { AppShell, PageTitle } from '@/ui/shell'
 import { EncryptionSettings } from '@/ui/keys'
 import { MailAddress, SecurityActivity, Sessions, SignInMethods } from '@/ui/security'
 import { CharacterSettings } from '@/worlds/Character'
+import { APP_VERSION } from '@/lib/release'
+import { ChevronRight } from 'lucide-react'
 
 
 function Block({ id, title, lead, children }: { id: string; title: string; lead?: ReactNode; children: ReactNode }) {
@@ -21,6 +23,19 @@ function Block({ id, title, lead, children }: { id: string; title: string; lead?
       </div>
       <div className="min-w-0">{children}</div>
     </section>
+  )
+}
+
+/** A settings row that opens another page: a title, one line of what's there, and the way in. */
+function SettingsLink({ to, title, detail }: { to: string; title: string; detail: ReactNode }) {
+  return (
+    <Link to={to} className="group flex max-w-xl items-center gap-4 rounded-2xl border border-line bg-card px-4 py-3.5 hover:border-line-strong">
+      <span className="min-w-0 flex-1">
+        <span className="block font-medium text-ink">{title}</span>
+        <span className="mt-0.5 block text-sm text-ink-soft">{detail}</span>
+      </span>
+      <ChevronRight className="size-4 shrink-0 text-ink-faint transition-transform group-hover:translate-x-0.5" aria-hidden />
+    </Link>
   )
 }
 
@@ -71,12 +86,12 @@ export function Account() {
           <SignInMethods />
         </Block>
 
-        <Block id="encryption" title="Encryption" lead="Encrypted sprints are sealed on your team’s devices. Your passkey unlocks your key when you sign in; Muni’s servers only ever hold it locked.">
+        <Block id="encryption" title="Encryption" lead="Whether this device can open your encrypted writing, and your ways back in.">
           <EncryptionSettings onForget={() => setForgetting(true)} />
           <LeaveDialog kind={forgetting ? 'signout' : null} forget onClose={() => setForgetting(false)} />
         </Block>
 
-        <Block id="notifications" title="Notifications" lead="Muni emails only invitations and these reminders, never marketing — and only to an address you were invited at.">
+        <Block id="notifications" title="Notifications" lead="Invitations and sprint reminders.">
           <MailAddress />
           <div className="mt-4" />
           {sprints === null ? null : reminding.length === 0 ? (
@@ -106,7 +121,7 @@ export function Account() {
           )}
         </Block>
 
-        <Block id="character" title="Character" lead="Yours alone: it dresses your own pages, and is never shown to your team or attached to anything you write.">
+        <Block id="character" title="Character" lead="It dresses your own pages. Only you see it.">
           <CharacterSettings />
         </Block>
 
@@ -126,11 +141,18 @@ export function Account() {
 
         <Block id="sessions" title="Signed-in sessions" lead="Every browser or installed app signed in to your account. Same account, same votes.">
           <Sessions />
-          <Help>Who can see your thoughts and when, what the operator can access, and how long things are kept: <Link to="/privacy" className="underline underline-offset-2">Privacy &amp; data</Link>.</Help>
         </Block>
 
-        <Block id="activity" title="Security activity" lead="Recent sign-ins and changes to how you sign in. Codes, keys and passkeys themselves are never recorded.">
+        <Block id="activity" title="Security activity" lead="Recent sign-ins and changes to how you sign in.">
           <SecurityActivity />
+        </Block>
+
+        <Block id="privacy" title="Privacy">
+          <SettingsLink to="/privacy" title="Privacy & data" detail="Who sees your thoughts and when, what encryption covers, and what Muni keeps." />
+        </Block>
+
+        <Block id="about" title="About">
+          <SettingsLink to="/about" title="About Muni" detail={`Version ${APP_VERSION}, and what’s new.`} />
         </Block>
       </div>
     </AppShell>

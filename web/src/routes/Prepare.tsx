@@ -110,7 +110,7 @@ export function Prepare() {
           </>
         }
       >
-        {g.total_entries} {g.total_entries === 1 ? 'thought' : 'thoughts'}, {themes.length} {themes.length === 1 ? 'theme' : 'themes'}, {g.ungrouped.length} not grouped yet. Thoughts are anonymous, in random order, and stay exactly as written — themes only gather them. {s.status === 'preparing' ? 'Mark ready when the discussion has a shape.' : ''}
+        {g.total_entries} {g.total_entries === 1 ? 'thought' : 'thoughts'}, {themes.length} {themes.length === 1 ? 'theme' : 'themes'}, {g.ungrouped.length} not grouped yet. Thoughts stay exactly as written — themes only gather them. {s.status === 'preparing' ? 'Mark ready when the discussion has a shape.' : ''}
         {g.voting_open ? <span className="ml-2 text-warn">A voting round is open — changing the theme set will ask you to reset it.</span> : null}
       </PageTitle>
 

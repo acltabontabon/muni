@@ -212,7 +212,6 @@ export function Waiting({ requestId, onAgain }: { requestId: string; onAgain?: (
   if (req.status === 'approved')
     return (
       <Step describedBy="join-in" title="You’re in." lead={<>You’ve joined {req.workspace_name}.{req.workspace_id ? null : ' Your access has since changed — ask the team if that’s unexpected.'}</>}>
-        <p className="quiet mt-4">Encrypted sprints also need your encryption key on this device. Muni shows what to do when you open one; teammates’ devices share the sprint’s key with you once you’re a participant.</p>
         {req.workspace_id ? (
           <Button variant="primary" size="lg" className="mt-6 w-full" onClick={() => nav(destination(req), { replace: true })} autoFocus>Continue</Button>
         ) : (

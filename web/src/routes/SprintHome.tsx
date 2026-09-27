@@ -95,7 +95,7 @@ export function SprintHome() {
   const closedFacts =
     !['draft', 'collecting'].includes(s.status) && s.entry_count !== null ? (
       <p className="mt-3 border-t border-line/70 pt-3 text-sm text-ink-soft">
-        {s.entry_count === 1 ? '1 thought was' : `${s.entry_count} thoughts were`} revealed to the {s.participants.length} participants, without names{s.collection_closed_at ? `, on ${new Date(s.collection_closed_at).toLocaleDateString(undefined, { weekday: 'short', day: 'numeric', month: 'short' })}` : ''}.
+        {s.entry_count === 1 ? '1 thought was' : `${s.entry_count} thoughts were`} revealed to the {s.participants.length} participants{s.collection_closed_at ? `, on ${new Date(s.collection_closed_at).toLocaleDateString(undefined, { weekday: 'short', day: 'numeric', month: 'short' })}` : ''}.
         {s.reopened_count ? ` Collection was reopened ${s.reopened_count === 1 ? 'once' : `${s.reopened_count} times`}; what was seen before stays visible.` : ''}
       </p>
     ) : null
@@ -161,16 +161,14 @@ export function SprintHome() {
                 </li>
               ))}
             </ul>
-            <p className="mt-2 text-ink-faint">Thoughts are counted, never attributed. Nobody sees who wrote what.</p>
           </section>
-          <section aria-labelledby="details">
-            <h2 id="details" className="font-display text-base">Privacy</h2>
-            <p className="mt-2 text-ink-soft"><EncryptionLine encryption={s.encryption} /></p>
-            <p className="mt-2 text-ink-soft">
-              Muni’s servers record who wrote each thought, and wording can still give someone away. <Link to="/privacy#visibility" className="underline underline-offset-2">Privacy &amp; data</Link>
-            </p>
-            {s.reminders_enabled ? <p className="mt-2 text-ink-soft">Reminder emails: {s.my_reminders_opt_out ? 'off for you' : 'on'} · <Link to="/account#notifications" className="underline underline-offset-2">change</Link></p> : null}
-          </section>
+          {s.reminders_enabled || s.encryption !== 'e1' ? (
+            <section aria-labelledby="details" className="space-y-2 text-ink-soft">
+              <h2 id="details" className="font-display text-base text-ink">Details</h2>
+              {s.reminders_enabled ? <p>Reminder emails: {s.my_reminders_opt_out ? 'off for you' : 'on'} · <Link to="/account#notifications" className="underline underline-offset-2">change</Link></p> : null}
+              {s.encryption !== 'e1' ? <p><EncryptionLine encryption={s.encryption} /></p> : null}
+            </section>
+          ) : null}
         </aside>
       </div>
       <InviteDialog open={inviting} onClose={() => setInviting(false)} workspaceId={s.workspace_id} sprints={s.is_facilitator ? [{ id: s.id, name: s.name }] : []} defaultSprint={s.is_facilitator ? s.id : undefined} onInvited={load} />

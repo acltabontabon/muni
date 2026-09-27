@@ -6,7 +6,7 @@ import { useEffect, useState, type FormEvent, type ReactNode } from 'react'
 import { Link, useNavigate } from 'react-router'
 import * as Popover from '@radix-ui/react-popover'
 import { clsx } from 'clsx'
-import { Check, ChevronDown, Download, LayoutList, LogOut, Monitor, Moon, Plus, Settings2, Shield, Smile, Sun, Trash2, UserRound, Users } from 'lucide-react'
+import { Check, ChevronDown, Download, LayoutList, LogOut, Monitor, Moon, Info, Plus, Settings2, Smile, Sun, Trash2, UserRound, Users } from 'lucide-react'
 import { ApiError, post } from '@/api/client'
 import type { Me, Workspace } from '@/api/types'
 import { useAuth } from '@/lib/auth'
@@ -177,7 +177,7 @@ export function AccountMenu() {
             </div>
             <div className="my-1 h-px bg-line" />
             <Link to="/account" className={item} onClick={() => setOpen(false)}>
-              <UserRound className="size-4 text-ink-soft" /> Account, devices &amp; notifications
+              <UserRound className="size-4 text-ink-soft" /> Account &amp; settings
             </Link>
             <button
               className={item}
@@ -219,8 +219,8 @@ export function AccountMenu() {
                 <Download className="size-4 text-ink-soft" /> Install Muni
               </button>
             ) : null}
-            <Link to="/privacy" className={item} onClick={() => setOpen(false)}>
-              <Shield className="size-4 text-ink-soft" /> Privacy &amp; data
+            <Link to="/about" className={item} onClick={() => setOpen(false)}>
+              <Info className="size-4 text-ink-soft" /> About Muni
             </Link>
             <button className={item} onClick={() => close('clear')}>
               <Trash2 className="size-4 text-ink-soft" /> Clear local data

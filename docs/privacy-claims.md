@@ -1,10 +1,14 @@
 # Privacy claims checklist
 
-Every public statement about privacy, and what backs it. The public wording lives in
-`web/src/routes/Privacy.tsx` (the full page, act.munimuni.app/privacy), `site/index.html` (the
-munimuni.app section), `web/src/ui/entrance.tsx` (sign-in), `web/src/ui/capture.tsx` (composer),
-`web/src/routes/SprintHome.tsx` and `web/src/routes/Account.tsx`. Change a claim and its evidence
-together; if the evidence goes away, the claim goes too.
+Every public statement about privacy, and what backs it. The explanation has one home:
+`web/src/routes/Privacy.tsx` (act.munimuni.app/privacy, reached from Account & settings, About and the
+sign-in). Elsewhere the app only states what matters at a decision point, in a line, and links there:
+the close-collection confirmation (`web/src/lib/lifecycle.ts`), opening collection and the encryption
+switch in sprint setup (`web/src/routes/SprintSetup.tsx`), the downloads line on Outcomes, and the note
+on a sprint from before encryption (`EncryptionLine` in `web/src/ui/keys.tsx`). Recovery and key-change
+instructions in Account (`web/src/ui/security.tsx`, `keys.tsx`) are instructions, not claims. The
+marketing site's section is `site/index.html`; release notes (`CHANGELOG.md`) repeat only claims listed
+here. Change a claim and its evidence together; if the evidence goes away, the claim goes too.
 
 Kinds of evidence:
 
@@ -14,7 +18,7 @@ Kinds of evidence:
 - **Provider** — stated by a provider's documentation, not observed by us.
 - **Commitment** — a policy the operator keeps. Nothing technical enforces it.
 
-Last checked 2026-09-28, against `main` plus the encryption changes (docs/ENCRYPTION.md).
+Last checked 2026-09-28, against `main` at 1.0.0-rc.1 (the Privacy page was reorganised around who sees what, what teammates and facilitators can do, authorship, encryption, and what's kept; three stale statements about keys were corrected — see *Encryption (new sprints)*).
 
 ## Visibility and authorship
 
@@ -113,6 +117,8 @@ Last checked 2026-09-28, against `main` plus the encryption changes (docs/ENCRYP
 | A passkey that only signs in doesn't unlock content on a device that didn't have it (nor a device bound before it existed); a passkey that unlocks, or the recovery key, does | Test | `encryption.test.ts` “recovery…”; `unlock.test.ts` release rule; `web/e2e/encryption.mjs` new-device steps |
 | Signing in with a passkey (PRF) unlocks your writing; its PRF output never reaches Muni | Test | `keyring.test.ts`, `passkeys.test.ts` (web), `unlock.test.ts` (PRF results refused, D1 scan); `web/e2e/unlock.mjs` (captured bodies, PRF output compared) |
 | Signing out keeps this device able to unlock only after signing in again; no plaintext key is stored | Test | `keyring.test.ts` “the original bug…”, “what stays on the device”; `web/e2e/unlock.mjs` |
+| “Forget this device” removes what lets this browser reopen your key (the device envelope and the server's share); signing out keeps it, openable only after signing in again | Test + Code | `keyring.test.ts` “what stays on the device”; `ui/menus.tsx` `LeaveDialog forget`; docs/ENCRYPTION.md §4 |
+| The key is held by the server only locked: per passkey (PRF wrap), by an optional recovery key, and per device by a share that opens nothing alone | Code + Test | `routes/keys.ts` (stores `p1.` wraps, the recovery blob and `device_unlocks` shares it can't open); `unlock.test.ts` D1 scan |
 | Muni can't recover a lost key | Code | Server holds only wraps it can't open (recovery blob, passkey wraps) and device shares that open nothing alone (`routes/keys.ts`) |
 | Devices won't share a key with a teammate whose key changed until confirmed | Test | `keyring.test.ts` “pins teammates’ keys on first use…” |
 | Encrypted sprints' exports and recap drafts are made in the browser | Test | `encryption.test.ts` (export, server recap → 409); `lib/e2ee/local-export.ts` |

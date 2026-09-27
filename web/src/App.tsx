@@ -16,6 +16,7 @@ import { Companion } from './routes/Companion'
 import { Outcomes } from './routes/Outcomes'
 import { Account } from './routes/Account'
 import { Privacy } from './routes/Privacy'
+import { About, WhatsNew } from './routes/About'
 import { useState } from 'react'
 import { Spinner, useDocumentTitle } from './ui'
 import { EntranceShell, NameStep, PROGRESS } from './ui/entrance'
@@ -45,11 +46,6 @@ function Protected({ children }: { children: React.ReactElement }) {
   // front of a shared page someone was sent to (a room, a join link), and never offline.
   if (me.avatar?.intro === 'choose' && !offline && isPersonalPath(loc.pathname)) return <CharacterGate />
   return children
-}
-
-function ToPrivacy() {
-  const { hash } = useLocation()
-  return <Navigate to={`/privacy${hash}`} replace />
 }
 
 function NameGate() {
@@ -91,8 +87,9 @@ export function App() {
       <Route path="/join" element={<Join />} />
       <Route path="/join/requests/:requestId" element={<Protected><JoinStatus /></Protected>} />
       <Route path="/privacy" element={<Privacy />} />
-      {/* The privacy page's earlier address. */}
-      <Route path="/about" element={<ToPrivacy />} />
+      {/* Public, like Privacy. /about was the privacy page's earlier address: its section links still land there. */}
+      <Route path="/about" element={<About />} />
+      <Route path="/about/whats-new" element={<WhatsNew />} />
       <Route path="/" element={<Protected><Home /></Protected>} />
       {/* The old bookmarkable capture link opens the same home (a ?sprint= deep link is kept). */}
       <Route path="/capture" element={<Protected><Home /></Protected>} />

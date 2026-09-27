@@ -66,3 +66,23 @@ export function PageTitle({ eyebrow, title, children, actions }: { eyebrow?: Rea
     </div>
   )
 }
+
+/**
+ * A page anyone can read, signed in or not (Privacy, About): inside the app's header when signed
+ * in; otherwise a quiet header with the wordmark and a way to sign in.
+ */
+export function InfoShell({ children }: { children: ReactNode }) {
+  const { me } = useAuth()
+  if (me) return <AppShell>{children}</AppShell>
+  return (
+    <div className="app-bg min-h-dvh">
+      <header className="pt-safe border-b border-line/70">
+        <div className="mx-auto flex h-14 max-w-5xl items-center justify-between px-4">
+          <Link to="/" className="rounded-md px-1 text-ink" aria-label="Muni home"><Wordmark size={20} /></Link>
+          <Link to="/signin" className="rounded-full px-3 py-1.5 text-sm font-medium text-ink hover:bg-ink/5">Sign in</Link>
+        </div>
+      </header>
+      <main className="pb-safe px-4 pt-8">{children}</main>
+    </div>
+  )
+}

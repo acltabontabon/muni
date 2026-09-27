@@ -22,7 +22,7 @@ import { Check, ChevronDown, Plus, X } from 'lucide-react'
 import type { Category, Me, Period } from '@/api/types'
 import { CATEGORIES, categoryMeta, MEMORY_PROMPTS, PERIODS } from '@/lib/categories'
 import type { Destination } from '@/lib/local/LocalProvider'
-import { describeRetro, retroShort } from '@/lib/schedule'
+import { dateRange, describeRetro, retroShort } from '@/lib/schedule'
 import { writePrefs } from '@/lib/prefs'
 import { chooseWorkspace } from '@/lib/workspace'
 import { Button, ErrorText, Kbd } from '@/ui'
@@ -131,7 +131,7 @@ export function Panel({ trigger, title, open, onOpenChange, children, align = 's
 
 // ─────────────────────────────────────────────────────────────── the sprint label
 
-export type TabSprint = { id: string; name: string; workspace_id: string; timezone: string; retro_at?: string; is_facilitator?: boolean; encryption?: 'e1' | null }
+export type TabSprint = { id: string; name: string; workspace_id: string; timezone: string; retro_at?: string; starts_on?: string; ends_on?: string; is_facilitator?: boolean; encryption?: 'e1' | null }
 export type TabState = 'collecting' | 'closed-now' | 'closed' | 'live' | 'done' | 'none' | 'choose'
 export const STATE_LABEL: Record<TabState, string> = {
   collecting: 'Collecting',
@@ -145,8 +145,8 @@ export const STATE_LABEL: Record<TabState, string> = {
 
 /**
  * Which sprint this page is about: where a thought goes, the sprint's name, its state and the next
- * date worth knowing. The rest — the full time in both timezones, who can read what, other sprints
- * to write for, grouped by team — is one press away, in the details. Choosing another sprint there
+ * date worth knowing. The rest — the team, the sprint's dates, the retro's full time with its
+ * timezone, the way to the sprint, other sprints to write for — is one press away, in the details. Choosing another sprint there
  * moves what's being written with it (the writing host's own move).
  */
 export function SprintTab({
@@ -207,54 +207,50 @@ export function SprintTab({
         </button>
       }
     >
-      <SprintDetails s={s} state={state} me={me} choices={choices} onSwitch={move} elsewhere={elsewhere} close={() => setOpen(false)} />
+      <SprintDetails s={s} me={me} choices={choices} onSwitch={move} elsewhere={elsewhere} close={() => setOpen(false)} />
     </Panel>
   )
 }
 
-function SprintDetails({ s, state, me, choices, onSwitch, elsewhere, close }: { s: TabSprint; state: TabState; me: Me; choices: Destination[]; onSwitch?: (d: Destination) => void; elsewhere: TabSprint[]; close: () => void }) {
+function SprintDetails({ s, me, choices, onSwitch, elsewhere, close }: { s: TabSprint; me: Me; choices: Destination[]; onSwitch?: (d: Destination) => void; elsewhere: TabSprint[]; close: () => void }) {
   const r = s.retro_at ? describeRetro(s.retro_at, s.timezone) : null
-  const encrypted = s.encryption === 'e1'
   const workspace = me.workspaces.find((w) => w.id === s.workspace_id)?.name
   const others = choices.filter((x) => x.sprintId !== s.id)
   // Other sprints collecting in other workspaces, grouped by team, in the order the teams are listed.
   const teams = me.workspaces.map((w) => ({ w, list: elsewhere.filter((o) => o.workspace_id === w.id) })).filter((g) => g.list.length)
+  // The trigger already names the sprint and its phase; the details add what it can't fit.
   return (
     <div className="room-details">
-      {state === 'collecting' ? <p className="room-kicker">Your thought goes to</p> : null}
-      <p className="room-details-name">{s.name}</p>
-      {workspace ? <p className="room-details-sub">{workspace}</p> : null}
       <dl className="room-details-list">
-        <div>
-          <dt>{STATE_LABEL[state]}</dt>
-          <dd>
-            {state === 'collecting' || state === 'closed-now'
-              ? 'Nobody on your team — the facilitator included — can read your thoughts until collection closes. Then the sprint sees them in random order, without your name. Muni still records who wrote each one.'
-              : state === 'closed'
-                ? 'Thoughts are read-only now, and shared with the sprint without names.'
-                : state === 'live'
-                  ? 'The team is discussing what was collected.'
-                  : 'The retro is done.'}
-          </dd>
-        </div>
+        {workspace ? (
+          <div>
+            <dt>Team</dt>
+            <dd>{workspace}</dd>
+          </div>
+        ) : null}
+        {s.starts_on && s.ends_on ? (
+          <div>
+            <dt>Sprint</dt>
+            <dd>{dateRange(s.starts_on, s.ends_on)}</dd>
+          </div>
+        ) : null}
         <div>
           <dt>Retro</dt>
           <dd>
             {r ? (
               <>
-                {r.date}, {r.time} <span title={r.offset}>{r.zone}</span> · {r.relative}
+                <span className="room-details-strong">{r.date}, {r.time}</span> · {r.relative}
+                <span className="block">{r.zone}{r.offset ? ` (${r.offset})` : ''}</span>
                 {r.yours ? <span className="block">{r.yours}</span> : null}
               </>
             ) : (
-              'Not scheduled here yet.'
+              'Not scheduled yet'
             )}
           </dd>
         </div>
       </dl>
       <p className="room-details-links">
-        <Link to={`/sprints/${s.id}`}>Sprint guide</Link>
-        <Link to="/privacy#visibility">Who sees what</Link>
-        <Link to="/privacy#encryption">{encrypted ? 'What encryption covers' : 'About encryption'}</Link>
+        <Link to={`/sprints/${s.id}`} onClick={close}>{s.is_facilitator ? 'Sprint guide' : 'Open sprint'}</Link>
       </p>
       {others.length && onSwitch ? (
         <div className="room-details-more">
@@ -413,18 +409,11 @@ export function Writer({ closed, fieldId = 'thought-field' }: { /** Shown when t
   const { uid, p, set, submit, onKey, busy, error, notice, restored, typing, more, setMore, area, storage, dest, prompt, setPrompt } = useWriting()
   const ctxSummary = contextSummary(p)
   const fine = finePointer()
-  const privacyId = `${uid}-privacy`
-  const privacy = (
-    <>
-      Hidden from your team until collection closes, then shared without your name.
-      {dest?.encrypted ? ' Encrypted on this device before it’s sent.' : ''}
-    </>
-  )
   const nextPrompt = () => setPrompt((i) => ((i ?? promptFrom() - 1) + 1) % MEMORY_PROMPTS.length)
   // The button pressed goes away with it: focus moves to the field, where the writing happens.
   const toField = () => requestAnimationFrame(() => area.current?.focus({ preventScroll: true }))
   const action = (
-    <Button type="submit" variant="primary" busy={busy} disabled={busy || !p.body.trim() || !dest} className="room-save" aria-keyshortcuts="Meta+Enter Control+Enter" aria-describedby={privacyId}>
+    <Button type="submit" variant="primary" busy={busy} disabled={busy || !p.body.trim() || !dest} className="room-save" aria-keyshortcuts="Meta+Enter Control+Enter">
       {busy ? 'Adding…' : 'Add to sprint'}
     </Button>
   )
@@ -462,7 +451,6 @@ export function Writer({ closed, fieldId = 'thought-field' }: { /** Shown when t
           onChange={(e) => set({ body: e.target.value })}
           onKeyDown={onKey}
           placeholder="Something that happened, helped, or got in the way…"
-          aria-describedby={privacyId}
           aria-keyshortcuts="Meta+Enter Control+Enter"
           maxLength={2000}
           enterKeyHint="enter"
@@ -547,10 +535,7 @@ export function Writer({ closed, fieldId = 'thought-field' }: { /** Shown when t
               )}
             </span>
           </p>
-        ) : (
-          <p className="room-fine" aria-hidden>{privacy}</p>
-        )}
-        <span id={privacyId} className="sr-only">{privacy}</span>
+        ) : null}
       </div>
     </form>
   )
@@ -608,7 +593,6 @@ export function PreviewWriter({ heading, lede }: { heading: string; lede: string
           </span>
           <span className="room-save room-save--preview">Add to sprint</span>
         </div>
-        <p className="room-fine">Hidden from your team until collection closes, then shared without your name.</p>
       </div>
     </div>
   )

@@ -6,7 +6,7 @@
  */
 import { useMemo, useState } from 'react'
 import { Link } from 'react-router'
-import { ArrowRight, Check, Info, Lock, Plus } from 'lucide-react'
+import { ArrowRight, Check, Info, Plus } from 'lucide-react'
 import type { Experiment, SprintDetail, SprintSummary } from '@/api/types'
 import { useAuth } from '@/lib/auth'
 import { OUTCOME_LABEL } from '@/lib/categories'
@@ -211,9 +211,6 @@ function Appointment({ s }: { s: SprintSummary }) {
           {s.participant_count} {s.participant_count === 1 ? 'person' : 'people'}
           {s.facilitator_name ? <> · facilitated by {s.is_facilitator ? 'you' : s.facilitator_name}</> : null}
         </p>
-        {s.encryption === 'e1' ? (
-          <p className="aside-note aside-lock"><Lock className="size-3.5 shrink-0" aria-hidden /> <span>Thoughts are encrypted on each writer’s device. <Link to="/privacy#encryption" className="underline underline-offset-2">What that covers</Link></span></p>
-        ) : null}
       </section>
     </>
   )

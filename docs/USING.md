@@ -11,8 +11,8 @@ it again. “Add context” opens room for impact, what might help, and when in 
 happened. ⌘/Ctrl + Enter saves.
 
 Thoughts are hidden from teammates until the facilitator closes collection. Who can see what, and
-what the operator and service providers can access: *Privacy & data* in the account menu
-(act.munimuni.app/privacy).
+what the operator and service providers can access: *Privacy & data*, under Account & settings
+(act.munimuni.app/privacy). About Muni, in the account menu, shows the version and what's new.
 
 If more than one sprint is collecting for you, Muni asks where the thought should go and
 remembers your choice. It never picks one for you silently.

@@ -78,8 +78,8 @@ export function Outcomes() {
           )}
         </>
       }>
-        The changes the team agreed to, when to look back at them, and the recap. Exports never include who wrote what, when, or anyone’s votes.{encrypted ? ' This sprint’s files are made on your device; the downloaded files aren’t encrypted.' : ''}
-        <span className="mt-1 block text-sm"><EncryptionLine encryption={s.encryption} /></span>
+        The changes the team agreed to, when to look back at them, and the recap. Downloads leave out names, times and votes{encrypted ? ', and aren’t encrypted once saved' : ''}.
+        {!encrypted ? <span className="mt-1 block text-sm"><EncryptionLine encryption={s.encryption} /></span> : null}
       </PageTitle>
       <div className="grid gap-8 lg:grid-cols-[1fr_1fr]">
         <section>

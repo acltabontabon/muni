@@ -394,18 +394,18 @@ export function EncryptionSettings({ onForget }: { onForget?: () => void }) {
         <p className="text-ink-soft">Unlocking…</p>
       )}
       <ErrorText>{error}</ErrorText>
-      <p className="text-sm text-ink-soft">Signing in with a passkey that unlocks your writing opens it on any device. A passkey that only signs in gets you into your account, not into encrypted content. Muni’s servers only ever hold your key locked. <Link to="/privacy#encryption" className="underline underline-offset-2">How encryption works</Link></p>
       <UnlockDialog open={dialog === 'unlock'} onClose={() => setDialog(null)} />
       <NewRecoveryDialog open={dialog === 'recovery'} onClose={() => setDialog(null)} />
     </div>
   )
 }
 
-/** One honest line about a sprint's protection, with the detail a click away. */
+/**
+ * The one sprint-specific fact about protection worth showing where the sprint is: a sprint set up
+ * before on-device encryption, which Muni's servers can read. Encrypted sprints need no line; the
+ * explanation lives on the Privacy page.
+ */
 export function EncryptionLine({ encryption }: { encryption: 'e1' | null | undefined }) {
-  return encryption === 'e1' ? (
-    <span>Encrypted: thoughts, themes, notes and outcomes are sealed on participants’ devices; Muni’s servers store them unreadable. <Link to="/privacy#encryption" className="underline underline-offset-2">What’s covered</Link></span>
-  ) : (
-    <span>Set up before on-device encryption: connections and storage are encrypted, but Muni’s servers can read this sprint’s content. <Link to="/privacy#encryption" className="underline underline-offset-2">Details</Link></span>
-  )
+  if (encryption === 'e1') return null
+  return <span>Set up before on-device encryption, so Muni’s servers can read this sprint’s content. <Link to="/privacy#encryption" className="underline underline-offset-2">Privacy</Link></span>
 }

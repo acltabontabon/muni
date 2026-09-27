@@ -226,7 +226,7 @@ button.room-tab[data-state='open'] { background: color-mix(in oklab, var(--ink) 
 .room-sheet--state { font-size: 16px; line-height: 1.6; }
 
 /* Panels: beside their control; on a phone, a sheet from the bottom. */
-.room-pop { z-index: 50; width: min(23rem, calc(100vw - 24px)); max-height: min(72vh, var(--radix-popover-content-available-height, 72vh)); overflow: auto; padding: 0.4rem; border: 1px solid var(--line); border-radius: 14px; background: var(--card); color: var(--ink); box-shadow: var(--shadow-float); animation: rise 180ms var(--ease-out-soft) both; }
+.room-pop { z-index: 50; width: min(21rem, calc(100vw - 24px)); max-height: min(72vh, var(--radix-popover-content-available-height, 72vh)); overflow: auto; padding: 0.4rem; border: 1px solid var(--line); border-radius: 14px; background: var(--card); color: var(--ink); box-shadow: var(--shadow-float); animation: rise 180ms var(--ease-out-soft) both; }
 .room-veil { position: fixed; inset: 0; z-index: 50; background: rgb(12 10 8 / 0.34); animation: fade 160ms ease-out both; }
 .room-drawer { position: fixed; left: 0; right: 0; bottom: 0; z-index: 51; max-height: 86dvh; overflow: auto; padding: 0.4rem 0.75rem max(1rem, env(safe-area-inset-bottom)); border-radius: 20px 20px 0 0; background: var(--card); color: var(--ink); box-shadow: 0 -16px 40px rgb(0 0 0 / 0.22); animation: room-sheet-up 220ms var(--ease-out-soft) both; }
 @keyframes room-sheet-up { from { opacity: 0; transform: translateY(24px); } to { opacity: 1; transform: none; } }
@@ -248,12 +248,13 @@ button.room-tab[data-state='open'] { background: color-mix(in oklab, var(--ink) 
 
 .room-details { padding: 0.55rem 0.6rem 0.45rem; font-size: 14px; line-height: 1.5; }
 .room-kicker { font-size: 11.5px; font-weight: 600; letter-spacing: 0.09em; text-transform: uppercase; color: var(--ink-faint); }
-.room-details-name { margin-top: 0.2rem; font-size: 16px; font-weight: 600; line-height: 1.35; overflow-wrap: anywhere; }
 .room-details-sub { font-size: 13.5px; color: var(--ink-soft); }
-.room-details-list { display: grid; gap: 0.7rem; margin: 0.8rem 0 0; }
-.room-details-list dt { font-size: 13.5px; font-weight: 600; }
-.room-details-list dd { margin: 0.1rem 0 0; color: var(--ink-soft); }
-.room-details-links { display: flex; flex-wrap: wrap; gap: 0.25rem 1rem; margin-top: 0.85rem; }
+.room-details-list { display: grid; grid-template-columns: max-content 1fr; gap: 0.5rem 1.1rem; margin: 0; }
+.room-details-list > div { display: contents; }
+.room-details-list dt { font-size: 12px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; line-height: 1.75; color: var(--ink-faint); }
+.room-details-list dd { margin: 0; color: var(--ink-soft); overflow-wrap: anywhere; }
+.room-details-strong { color: var(--ink); font-weight: 500; }
+.room-details-links { display: flex; flex-wrap: wrap; gap: 0.25rem 1rem; margin-top: 0.9rem; padding-top: 0.75rem; border-top: 1px solid var(--line); }
 .room-details-links a { font-weight: 500; color: var(--accent-ink); text-decoration: underline; text-decoration-color: color-mix(in oklab, var(--accent) 40%, transparent); text-underline-offset: 3px; }
 .room-details-more { margin-top: 0.9rem; padding-top: 0.8rem; border-top: 1px solid var(--line); }
 .room-details-more ul { margin: 0.35rem -0.5rem; padding: 0; list-style: none; }

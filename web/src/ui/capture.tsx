@@ -9,11 +9,10 @@
  * they were started for (lib/drafts.ts).
  */
 import { createContext, Fragment, useCallback, useContext, useEffect, useId, useLayoutEffect, useMemo, useRef, useState, type FormEvent, type ReactNode } from 'react'
-import { Link } from 'react-router'
 import { clsx } from 'clsx'
 import * as Popover from '@radix-ui/react-popover'
 import * as RadioGroup from '@radix-ui/react-radio-group'
-import { Copy, CornerDownRight, Lightbulb, MoreHorizontal, Pencil, Plus, Shield, Trash2 } from 'lucide-react'
+import { Copy, CornerDownRight, Lightbulb, MoreHorizontal, Pencil, Plus, Trash2 } from 'lucide-react'
 import { ApiError, del, get, patch } from '@/api/client'
 import type { Category, MyEntry, Period } from '@/api/types'
 import { CATEGORIES, categoryMeta, MEMORY_PROMPTS, PERIODS } from '@/lib/categories'
@@ -62,35 +61,6 @@ export function Choices<T extends string>({ value, onChange, options, label, all
         </RadioGroup.Item>
       ))}
     </RadioGroup.Root>
-  )
-}
-
-/** What protects this thought, for this sprint — short, and accurate to how it's stored. */
-function PrivacyDisclosure({ encrypted }: { encrypted: boolean }) {
-  return (
-    <Popover.Root>
-      <Popover.Trigger asChild>
-        <button type="button" className="privacy-mark" aria-label={`Private until collection closes${encrypted ? ', encrypted on this device' : ''}. Privacy and protection details`}>
-          <Shield className="size-3.5" aria-hidden />
-          <span>Private until collection closes{encrypted ? ' · encrypted' : ''}</span>
-        </button>
-      </Popover.Trigger>
-      <Popover.Portal>
-        <Popover.Content side="bottom" align="end" sideOffset={8} collisionPadding={12} className="z-50 w-[min(24rem,calc(100vw-24px))] rounded-2xl border border-line bg-card p-4 text-sm leading-relaxed shadow-[var(--shadow-float)] anim-rise">
-          <p className="flex items-center gap-2 font-medium text-ink"><Shield className="size-4 text-accent-ink" aria-hidden /> {encrypted ? 'Encrypted sprint' : 'Set up before on-device encryption'}</p>
-          <p className="mt-2 text-ink-soft">Nobody on your team — the facilitator included — can read your thoughts until collection closes. Then the sprint sees them in random order, without your name. Muni itself still records who wrote each one.</p>
-          <p className="mt-2 text-ink-soft">
-            {encrypted
-              ? 'This sprint’s thoughts are encrypted on this device before they’re sent. Muni’s servers store them unreadable and don’t hold the key.'
-              : 'This sprint was set up before on-device encryption. Your thought is still protected on its way to Muni and on Muni’s storage, but Muni’s servers can read its content.'}
-          </p>
-          <p className="mt-3 flex flex-wrap gap-x-4 gap-y-1">
-            <Link to="/privacy#visibility" className="font-medium text-accent-ink underline-offset-2 hover:underline">Who sees what</Link>
-            <Link to="/privacy#encryption" className="font-medium text-accent-ink underline-offset-2 hover:underline">{encrypted ? 'What encryption covers' : 'About encryption'}</Link>
-          </p>
-        </Popover.Content>
-      </Popover.Portal>
-    </Popover.Root>
   )
 }
 
@@ -199,7 +169,7 @@ export function useComposer({ dest, choices, onChoose, onSaved }: { dest: Destin
         savedRef.current?.()
         const where = choices.length > 1 ? ` to ${dest.sprintName}` : ''
         if (result?.submitted.some((s) => s.id === item.id)) {
-          setNotice({ tone: 'ok', kind: 'submitted', sprintName: dest.sprintName, text: `Submitted${where}. It stays hidden from your team until collection closes.` })
+          setNotice({ tone: 'ok', kind: 'submitted', sprintName: dest.sprintName, text: `Added${where}. Yours to edit until collection closes.` })
           announceKept()
         } else if (result?.attention.includes(item.id)) setNotice({ tone: 'warn', kind: 'attention', sprintName: dest.sprintName, text: 'This thought wasn’t submitted. It’s kept with your thoughts, with what to do next.' })
         else if (result?.state === 'signed_out') setNotice({ tone: 'local', kind: 'waiting', sprintName: dest.sprintName, text: local.kind === 'device' ? 'Saved on this device. Sign in again to send it.' : 'Kept in this tab. Sign in again to send it.' })
@@ -339,13 +309,12 @@ function ComposerView({ choices, headingLevel = 1, fieldId, closed, s }: Compose
         onChange={(e) => set({ body: e.target.value })}
         onKeyDown={onKey}
         placeholder="Something that happened, helped, or got in the way…"
-        aria-describedby={`${uid}-privacy`}
         aria-keyshortcuts="Meta+Enter Control+Enter"
         maxLength={2000}
         enterKeyHint="enter"
       />
-      {/* Under the field: what's happening to these words (left), and who can see them (right). */}
-      <div className="mt-1.5 flex min-h-6 flex-wrap items-center justify-between gap-x-4 gap-y-1">
+      {/* Under the field: what's happening to these words. */}
+      <div className="mt-1.5 flex min-h-6 flex-wrap items-center gap-x-4 gap-y-1">
         <p className="flex items-center gap-2 text-xs text-ink-faint" aria-live="polite">
           {typing && dest ? (
             <>
@@ -354,11 +323,7 @@ function ComposerView({ choices, headingLevel = 1, fieldId, closed, s }: Compose
             </>
           ) : null}
         </p>
-        <PrivacyDisclosure encrypted={!!dest?.encrypted} />
       </div>
-      <span id={`${uid}-privacy`} className="sr-only">
-        Hidden from everyone, the facilitator too, until collection closes; then shared with the sprint without your name.{dest?.encrypted ? ' Encrypted before it leaves this device.' : ''}
-      </span>
 
       <div className="mt-1">
         <Choices value={p.category} onChange={(c) => set({ category: c as Category | null })} options={CATEGORIES} label="Category (optional)" allowNone />

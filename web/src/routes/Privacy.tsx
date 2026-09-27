@@ -1,14 +1,15 @@
 import { useEffect, type ReactNode } from 'react'
 import { Link, useLocation } from 'react-router'
-import { Wordmark } from '@/brand/Mark'
 import { useAuth } from '@/lib/auth'
 import { useDocumentTitle } from '@/ui'
 import { DeviceControls } from '@/ui/menus'
-import { AppShell } from '@/ui/shell'
+import { InfoShell } from '@/ui/shell'
 
 /**
- * Privacy & data: the one full explanation of what Muni collects, who can see it, who processes it,
- * what protects it and what doesn't. Public, so the sign-in screen and munimuni.app can link here.
+ * Privacy & data: the one place Muni explains who can see what you write, what teammates and
+ * facilitators can do, whether authorship is kept, what encryption protects and what Muni keeps.
+ * Everywhere else links here instead of repeating it. Public, so the sign-in screen, About and
+ * munimuni.app can link here too.
  *
  * Every statement is backed by code, configuration or a stated commitment: docs/privacy-claims.md
  * maps each one to its evidence. Change them together.
@@ -22,16 +23,13 @@ const CONTACT = 'me@acltabontabon.com'
 const UPDATED = '28 September 2026'
 
 const SECTIONS = [
-  ['collect', 'What Muni collects, and why'],
-  ['visibility', 'Who can see what you write'],
-  ['authorship', 'Can someone tell it was you?'],
-  ['operator', 'What the operator can access'],
-  ['providers', 'Service providers'],
-  ['encryption', 'Encryption, and its limits'],
-  ['device', 'What stays on your device'],
-  ['retention', 'How long things are kept'],
-  ['controls', 'What you can do'],
-  ['contact', 'Questions'],
+  ['visibility', 'Who sees your thoughts, and when'],
+  ['team', 'What teammates and facilitators can do'],
+  ['authorship', 'Is your name kept with what you write?'],
+  ['encryption', 'What encryption protects, and its limits'],
+  ['collect', 'What Muni collects and keeps'],
+  ['device', 'On this device'],
+  ['contact', 'Questions and requests'],
 ] as const
 
 export function Privacy() {
@@ -42,18 +40,10 @@ export function Privacy() {
   useEffect(() => {
     if (hash) document.getElementById(decodeURIComponent(hash.slice(1)))?.scrollIntoView()
   }, [hash])
-  const page = <Page signedIn={!!me} />
-  if (me) return <AppShell>{page}</AppShell>
   return (
-    <div className="min-h-dvh">
-      <header className="pt-safe border-b border-line/70">
-        <div className="mx-auto flex h-14 max-w-5xl items-center justify-between px-4">
-          <Link to="/" className="rounded-md px-1 text-ink" aria-label="Muni home"><Wordmark size={20} /></Link>
-          <Link to="/signin" className="rounded-full px-3 py-1.5 text-sm font-medium text-ink hover:bg-ink/5">Sign in</Link>
-        </div>
-      </header>
-      <main className="pb-safe px-4 pt-8">{page}</main>
-    </div>
+    <InfoShell>
+      <Page signedIn={!!me} />
+    </InfoShell>
   )
 }
 
@@ -61,19 +51,17 @@ function Page({ signedIn }: { signedIn: boolean }) {
   return (
     <article className="mx-auto max-w-2xl pb-16">
       <h1 className="font-display text-3xl leading-tight">Privacy &amp; data</h1>
-      <p className="mt-3 text-lg text-ink-soft">
-        What Muni keeps about you and what you write, who can see it, who else handles it, and what protects it — including where that protection stops.
-      </p>
+      <p className="mt-3 text-lg text-ink-soft">Who can see what you write, what Muni keeps, and where its protection stops.</p>
       <p className="mt-2 text-sm text-ink-soft">This describes Muni as run at act.munimuni.app. Last updated {UPDATED}.</p>
 
       <section aria-labelledby="short-title" className="mt-8 rounded-[var(--radius-card)] border border-line bg-card p-5 sm:p-6">
         <h2 id="short-title" className="font-display text-lg">In short</h2>
         <ul className="mt-3 space-y-2.5 text-[15.5px] leading-relaxed">
-          <Point>Until collection closes, nobody on your team can read your thoughts — not the facilitator, not workspace owners.</Point>
-          <Point>Afterwards, the people in that sprint see them in random order, without your name.</Point>
-          <Point>New sprints are encrypted on your team’s devices before anything reaches Muni’s servers, and the servers don’t hold the keys to read them. Sprints set up before encryption aren’t covered.</Point>
-          <Point>Muni still records who wrote each thought, when, and its category — encryption hides what you wrote, not that you wrote it. Your wording can still give you away.</Point>
-          <Point>Muni uses your account information and what you write to provide and protect the service. We don’t sell personal data, use your contributions for advertising, or use them to train AI models.</Point>
+          <Point>Until collection closes, only you can read your thoughts — not your team, not the facilitator, not workspace owners. Then everyone in the sprint sees them together, in random order, without names.</Point>
+          <Point>Facilitators run the retro: they close collection, group thoughts into themes and can download them. Nobody on the team can look up who wrote what.</Point>
+          <Point>Muni does keep a private record of who wrote each thought, so only you can edit yours. It’s never shown to your team, but your wording can still give you away.</Point>
+          <Point>New sprints are encrypted on your team’s devices, and Muni’s servers don’t hold the keys to read them. Names, dates and who wrote what aren’t encrypted.</Point>
+          <Point>Muni keeps what it needs to run and deletes a finished sprint’s thoughts after about 90 days by default. No analytics, no advertising, no AI, and nothing is sold.</Point>
         </ul>
       </section>
 
@@ -86,99 +74,91 @@ function Page({ signedIn }: { signedIn: boolean }) {
         </ol>
       </nav>
 
-      <Section id="collect">
-        <Item title="Your email address, only if you were invited at one">You sign in with a passkey — the only way in — so Muni doesn’t need an address, and an address never signs anyone in. If you accept an invitation that was emailed to you, that address is kept so later invitations and a sprint’s two reminders can reach you. It isn’t used for newsletters or marketing, and you can remove it in Account.</Item>
-        <Item title="Your display name">So teammates know who’s in a workspace, whose turn it is to speak in a retro, and who owns an experiment. It’s never shown with a thought or a vote.</Item>
-        <Item title="Your character">The character you chose and whether your pages wear its world. Only you see it: it’s never shown to your team or attached to anything you write, vote or export. This browser also remembers it, so your page doesn’t flash the wrong look while it loads; signing out forgets it.</Item>
-        <Item title="What you write">Thoughts — the text, plus any category, impact, “what might help” and “when in the sprint” you add — context you add during a retro, and your votes. Each is stored with a private note of which account made it, so that only you can edit or delete your thoughts and so vote limits work.</Item>
-        <Item title="What your team builds from it">Themes, discussion notes, experiments and who owns them, and recaps.</Item>
-        <Item title="Your passkeys">Its public key, a name you choose, whether it can sync, and when it was added and last used. Your fingerprint, face, PIN or screen lock never leave your device — Muni can’t receive them. A passkey only signs you in: it doesn’t unlock encrypted sprints.</Item>
-        <Item title="Account and workspace records">Your sign-ins (a token stored only as a one-way hash, how you signed in, a rough label such as “Safari on iPhone” so you can tell your sessions apart, and when it was created and last used), a history of sign-ins and changes to how you sign in (shown only to you), memberships and roles, requests to join a team made with a shared invite code (the people who approve see your name, your email address if you added one, and how new your account is), pending invitations (the invited address), and a log of administrative actions such as closing collection or changing settings. That log records who did it and to which item, never any text.</Item>
-        <Item title="Abuse protection">To limit repeated attempts (signing in, creating accounts), Muni keeps scrambled (hashed) forms of network addresses for 24 hours.</Item>
-        <P>Muni doesn’t store your IP address or device details with your account. Our hosting provider’s request logs do record them, briefly — see <a href="#providers" className="underline underline-offset-2">Service providers</a>.</P>
+      <Section id="visibility">
+        <Item title="While collection is open">Only you can see your thoughts. Teammates, the facilitator and workspace owners get no list, no count and no sign that you’ve written anything. You can edit or delete a thought until collection closes.</Item>
+        <Item title="When it closes">Only the sprint’s facilitator can close collection, and Muni asks them to confirm first. From then on nobody can edit or delete a thought, including you.</Item>
+        <Item title="After it closes">Everyone taking part in the sprint sees all the thoughts at once, in random order: the text and any category, impact, “what might help” and “when in the sprint” you added — without your name, the time you wrote them, or anything that links your thoughts to each other. That holds on screen, on the shared stage and in downloads. Workspace owners who aren’t in the sprint can’t read them.</Item>
+        <Item title="Reopening">If the facilitator reopens collection, what people have already seen stays visible to them.</Item>
       </Section>
 
-      <Section id="visibility">
-        <Item title="While collection is open">Only you can see your thoughts in Muni. Teammates, the facilitator and workspace owners get no list, no count and no sign that you’ve written anything. You can edit or delete a thought until collection closes.</Item>
-        <Item title="Closing collection">Only the sprint’s facilitator can close collection, and Muni asks them to confirm first. From then on nobody can edit or delete a thought, including you.</Item>
-        <Item title="After it closes">Everyone taking part in that sprint sees all the thoughts at once, in random order: the text and any category, impact, “what might help” and “when in the sprint” you added. They appear without your name, email, the time you wrote them, or anything that links your thoughts to each other — on screen, on the shared stage and in exports. Workspace owners who aren’t taking part in the sprint can’t read them.</Item>
-        <Item title="Downloads">The facilitator can download the thoughts (Markdown or CSV), and everyone in the sprint can download a summary. These files carry no names either, but once downloaded they’re outside Muni.</Item>
-        <Item title="Reopening">If the facilitator reopens collection, what people have already seen stays visible to them.</Item>
-        <Item title="Votes and added context">Votes are private: only totals are shown, after a voting round closes. Context you add during a retro appears under its topic without your name, once the facilitator releases it.</Item>
-        <Item title="Where your name does appear">In the workspace’s member list, the sprint’s list of participants and who is present at the retro, when you’re invited to speak, and on experiments you own. The facilitator also sees who has passed in the speaking round. None of these is linked to a thought.</Item>
+      <Section id="team">
+        <Item title="The facilitator">Opens and closes collection, groups thoughts into themes, runs the vote and the live retro, and can download the thoughts (Markdown or CSV). They see who has passed in the speaking round. They can’t read anyone’s thoughts before collection closes.</Item>
+        <Item title="Everyone in the sprint">Reads the thoughts once collection closes, votes, adds context during the retro, and can download a summary. Votes are private — only totals are shown, after a round closes — and added context appears under its topic without a name, once the facilitator releases it.</Item>
+        <Item title="Workspace owners">Manage members and settings. Owning a workspace doesn’t let them read a sprint they aren’t part of, or find out who wrote anything.</Item>
+        <Item title="Where your name does appear">In the workspace’s member list, a sprint’s participants and who is present at the retro, when you’re invited to speak, and on experiments you own. None of these is linked to a thought.</Item>
+        <Item title="Downloads">Carry no names, times or votes, but once saved they’re outside Muni — and not encrypted.</Item>
       </Section>
 
       <Section id="authorship">
-        <P>Nobody on your team has a way in Muni to look up who wrote a thought. There’s no button or report for it — not for facilitators, and not for workspace owners.</P>
-        <P>People can still work it out from the thought itself: a detail only you would know, the way you write, or a small team where everyone knows who works on what. Numbers can hint too — a lone vote, or a thought that only appears after collection was reopened. Write what you’d be comfortable having read aloud.</P>
-      </Section>
-
-      <Section id="operator">
-        <P>Muni is run by one developer, {OPERATOR}. The database records which account wrote each thought — that’s how only you can edit yours — so anyone with access to the database or its backups (the operator, or Cloudflare, which hosts it) can see email addresses and connect thoughts to accounts.</P>
-        <P>In an encrypted sprint they can’t read what the thoughts, themes, notes, experiments or recap say: the database only holds them encrypted, and the keys are on participants’ devices. In a sprint set up before encryption, they can technically read everything. See <a href="#encryption" className="underline underline-offset-2">Encryption, and its limits</a> for what that protection depends on.</P>
-        <P>Our rule is to access data only when it’s needed to keep Muni running and secure, to investigate abuse, or to act on a request from you — never to read thoughts out of curiosity or to find out who wrote something. That’s a commitment, not a technical barrier, and Muni keeps no separate record of when the operator looks at data.</P>
-        <P>Workspace owners manage members and settings. Owning a workspace doesn’t let them read a sprint they aren’t part of, or find out who wrote anything.</P>
-      </Section>
-
-      <Section id="providers">
-        <P>Muni relies on a few companies to run. Each receives what its job needs.</P>
-        <Item title="Cloudflare">Hosts the app, its database and the live retro connection, so it processes everything you send to Muni. Its request logs keep, for up to 7 days, when each request happened, the address requested (which contains only ids, never text or email addresses) and technical details such as your IP address and browser. What you type isn’t in them. Muni’s own logging records failures only: the page and a short error, never what you wrote or your email address.</Item>
-        <Item title="Resend">Delivers Muni’s emails. It receives your email address and the message: an invitation (the workspace’s name, the inviter’s name and a link) or a reminder (the sprint’s name and a link). Never a thought. Resend keeps delivery records under its own terms.</Item>
-        <Item title="GitHub and Google (munimuni.app only)">The website at munimuni.app — not the app — is hosted on GitHub Pages, reached through Cloudflare, and loads its fonts from Google Fonts, so those companies receive a visitor’s IP address and browser details. The app serves its own fonts.</Item>
-        <P>There are no analytics, advertising, session-recording, error-reporting or AI services, and no thought is sent to an AI provider. The app’s security settings don’t let it load code from, or send data to, any other website. We don’t sell personal data, and your email address isn’t added to any mailing list.</P>
+        <Item title="Kept, privately">Muni records which account wrote each thought, each vote and each piece of added context. That’s how only you can edit your thoughts and how vote limits work.</Item>
+        <Item title="Never shown to your team">There’s no way in Muni to look up who wrote a thought — no button or report for facilitators or workspace owners, and nothing in shared views, the stage or downloads.</Item>
+        <Item title="Who could connect them">Anyone with access to Muni’s database or its backups — the operator, or Cloudflare, which hosts it — can see which account wrote what. Encryption hides what you wrote, not that you wrote it.</Item>
+        <Item title="What can still give you away">A detail only you would know, the way you write, or a small team where everyone knows who works on what. Numbers can hint too — a lone vote, or a thought that only appears after collection was reopened. Write what you’d be comfortable having read aloud.</Item>
       </Section>
 
       <Section id="encryption">
-        <Item title="What’s encrypted">In sprints set up with encryption — the default for new sprints — thoughts (with their impact and “what might help”), context added during the retro, theme titles and summaries, discussion notes and takeaways, experiments and their outcomes, the recap, the opening question and reasons typed for resetting a vote. Each is encrypted in the browser before it’s sent, and decrypted only in the browsers of people who hold the sprint’s key. Muni’s servers store and pass along the encrypted form, and don’t have the keys to open it.</Item>
-        <Item title="What isn’t">Your email address and name; workspace and sprint names, sprint goals, dates and retro times; who is in a sprint and who facilitates; each thought’s category, “when in the sprint”, who wrote it and when; how thoughts are grouped; vote counts; experiment owners, review dates and outcome status; and activity such as “closed collection”. Muni needs these to run. Keep sensitive detail out of a sprint’s name and goal.</Item>
-        <Item title="Sprints from before encryption">Sprints set up before encryption stay unencrypted, and each says so. Encrypting old content later wouldn’t remove readable copies from backups or from files already downloaded.</Item>
-        <Item title="Who can decrypt, and when">While collection is open, the key that reveals everyone’s thoughts is held only on the facilitator’s devices; your own thoughts are also sealed to you, so you can read and edit them. Muni’s servers don’t give the facilitator anyone’s thoughts until collection closes — that part is a rule the servers enforce, not encryption. Closing collection is when the facilitator’s device shares the key with everyone in the sprint. People added later get it from a teammate’s device. If collection is reopened, new thoughts use a new key that, again, only the facilitator holds until it closes.</Item>
-        <Item title="Your key and your recovery key">Your key is created in your browser and stays there. Muni keeps a copy only locked with your recovery key, which Muni never sees. On a new device where no passkey unlocks it, you unlock it with your recovery key. If you lose every device and your recovery key, Muni can’t recover your key — you can start over with a new one, and teammates can share current sprints with you again, but what was only yours can’t be opened.</Item>
-        <Item title="Your key, and your passkey">Your encryption key is made in your browser the first time you need it, and it opens everything encrypted for you. Muni’s servers only ever hold it locked. Where your passkey and browser support it (the passkey’s “PRF” feature), signing in with that passkey also unlocks your key, on any device where you can use it — nothing to type. The browser also keeps it locked for you: after you sign out, it opens again only when you sign in again. A passkey added later can’t open a device that was set up before it. If no passkey or device can unlock it, a recovery key (which you can make in Account) can. “Forget this device” removes what this browser keeps; it doesn’t delete your passkeys, which stay in your password manager or on your device.</Item>
-        <Item title="What encryption can’t do">It relies on the app your browser loads from act.munimuni.app being the genuine one: whoever controls that code (the operator, or someone who breaks in) could change it to capture what you type or your keys, or hand your device someone else’s key. Devices won’t share a sprint’s key with a teammate whose key changed unexpectedly until someone confirms it (the facilitator is told), and your key’s fingerprint is shown in Account for comparing — but none of this can prevent a changed app. It doesn’t protect against a compromised device or browser extension, screenshots, or people in the sprint sharing what they read. Removing someone from a sprint stops their access to what’s added later; it can’t take back what they already read. Downloaded summaries aren’t encrypted.</Item>
-        <Item title="Also">Connections are encrypted (HTTPS), and Cloudflare encrypts stored data on its disks (AES-256) with keys it manages. Sign-in tokens are stored only as one-way hashes. This encryption hasn’t yet been independently audited.</Item>
+        <Item title="What’s encrypted">In sprints set up with encryption — the default for new sprints — thoughts (with their impact and “what might help”), context added during the retro, theme titles and summaries, discussion notes and takeaways, experiments and their outcomes, the recap, the opening question and reasons typed for resetting a vote. Each is encrypted in the browser before it’s sent and decrypted only in the browsers of people who hold the sprint’s key. Muni’s servers store the encrypted form and don’t have the keys to open it.</Item>
+        <Item title="What isn’t">Your email address and name; workspace and sprint names, sprint goals, dates and retro times; who is in a sprint and who facilitates; each thought’s category, “when in the sprint”, who wrote it and when; how thoughts are grouped; vote counts; experiment owners, review dates and outcome status; and activity such as “closed collection”. Muni needs these to run, so keep sensitive detail out of a sprint’s name and goal.</Item>
+        <Item title="Sprints from before encryption">Stay unencrypted, and each says so. Muni’s servers can read their content.</Item>
+        <Item title="Who can decrypt, and when">While collection is open, the key that reveals everyone’s thoughts is held only on the facilitator’s devices; your own thoughts are also sealed to you, so you can read and edit them. Muni’s servers don’t give the facilitator anyone’s thoughts before collection closes — a rule the servers enforce, not encryption. Closing collection is when the facilitator’s device shares the key with everyone in the sprint; people added later get it from a teammate’s device. Reopening starts a new key that, again, only the facilitator holds until it closes.</Item>
+        <Item title="Your key">Made in your browser the first time you need it. Muni’s servers only ever hold it locked: by a passkey that supports unlocking (so signing in with it opens your writing on any device), by a recovery key if you make one in Account, and for each of your devices, by half of what reopens it there — the other half never leaves that device. After you sign out, a device opens it again only when you sign in again. If no passkey, device or recovery key can open it, Muni can’t either: you can start over with a new key and teammates can share current sprints with you again, but what only you could open stays closed.</Item>
+        <Item title="What encryption can’t do">It relies on the app your browser loads from act.munimuni.app being the genuine one: whoever controls that code (the operator, or someone who breaks in) could change it to capture what you type or your keys. Devices won’t share a sprint’s key with a teammate whose key changed unexpectedly until someone confirms it, and your key’s fingerprint is shown in Account for comparing — but nothing here can stop a changed app. It doesn’t protect against a compromised device or browser extension, screenshots, or people in the sprint sharing what they read. Removing someone from a sprint stops their access to what’s added later, not what they already read.</Item>
+        <Item title="Also">Connections are encrypted (HTTPS), and Cloudflare encrypts stored data on its disks (AES-256) with keys it manages. Sign-in tokens are stored only as one-way hashes. Muni’s encryption hasn’t yet been independently audited; <a href="https://github.com/acltabontabon/muni/blob/main/docs/ENCRYPTION.md" className="underline underline-offset-2">its design is written down</a> so anyone can check it.</Item>
+      </Section>
+
+      <Section id="collect">
+        <Item title="What you write">Thoughts and their details, context you add during a retro, and your votes — each with the private note of who made it, above.</Item>
+        <Item title="What your team builds from it">Themes, discussion notes, experiments and who owns them, and recaps.</Item>
+        <Item title="Your name and character">Your display name, so teammates know who’s in a workspace and whose turn it is to speak; it’s never shown with a thought or a vote. The character you chose is seen only by you.</Item>
+        <Item title="Your email address, only if you were invited at one">You sign in with a passkey, so Muni doesn’t need an address. If you accept an emailed invitation, that address is kept so later invitations and a sprint’s two reminders can reach you — never newsletters or marketing. You can remove it in Account.</Item>
+        <Item title="Your passkeys">Each one’s public key, the name you give it, whether it can sync, and when it was added and last used. Your fingerprint, face, PIN or screen lock never leave your device.</Item>
+        <Item title="Account and workspace records">Your sign-ins (a one-way hash of the token, how you signed in, a rough label such as “Safari on iPhone”, and when), a history of changes to how you sign in (shown only to you), memberships and roles, requests to join a team (the people who approve see your name, any email address and how new your account is), pending invitations, and a log of administrative actions such as closing collection — who did it and to which item, never any text.</Item>
+        <Item title="Abuse protection">Scrambled (hashed) forms of network addresses, for 24 hours, to limit repeated sign-in and sign-up attempts. Muni doesn’t store your IP address or device details with your account.</Item>
+
+        <h3 id="retention" className="scroll-mt-20 pt-3 font-medium text-ink">How long it’s kept</h3>
+        <Item title="Finished sprints">About 90 days after a sprint is finished — the default; workspace owners can choose from 7 to 3,650 days — its thoughts, themes, votes, notes, added context and any unpublished recap are deleted. Agreed experiments and published recaps are kept longer, 730 days by default, so later retros can look back at them. The sprint’s name and dates remain.</Item>
+        <Item title="Unfinished sprints">A sprint that is never finished isn’t deleted automatically yet.</Item>
+        <Item title="A thought you delete">Is removed from Muni’s live database straight away; backups keep it for up to 30 days.</Item>
+        <Item title="Your account">Your name, and any email address you were invited at, are kept while your account exists. If an owner removes you from a workspace, what you wrote stays in its sprints, without your name.</Item>
+        <Item title="Housekeeping">Passkey challenges are deleted about a day after they expire. A sign-in lasts 30 days and its record is deleted a week after it ends. Security history is kept for a year; decided requests to join a team, 180 days. An email’s address and message leave Muni’s send queue once it’s sent. The log of administrative actions (no text) is kept.</Item>
+        <Item title="Backups, logs and copies">Deleted data can remain in Cloudflare’s database backups for up to 30 days, and in request logs for up to 7. Downloaded files, screenshots and copies on someone’s device can’t be recalled.</Item>
+
+        <h3 id="operator" className="scroll-mt-20 pt-3 font-medium text-ink">Who runs Muni</h3>
+        <P>Muni is run by one developer, {OPERATOR}. The rule is to access data only when it’s needed to keep Muni running and secure, to investigate abuse, or to act on a request from you — never to read thoughts out of curiosity or to find out who wrote something. That’s a commitment, not a technical barrier, and Muni keeps no separate record of when the operator looks at data. In an encrypted sprint, the operator can’t read what was written; in a sprint from before encryption, they technically can.</P>
+
+        <h3 id="providers" className="scroll-mt-20 pt-3 font-medium text-ink">Service providers</h3>
+        <Item title="Cloudflare">Hosts the app, its database and the live retro connection, so it processes everything you send to Muni. Its request logs keep, for up to 7 days, when each request happened, the address requested (only ids, never text or email addresses) and technical details such as your IP address and browser. Muni’s own logs record failures only: the page and a short error, never what you wrote or your email address.</Item>
+        <Item title="Resend">Delivers Muni’s emails: your address and an invitation (the workspace’s name, the inviter’s name and a link) or a reminder (the sprint’s name and a link). Never a thought. Resend keeps delivery records under its own terms.</Item>
+        <Item title="GitHub and Google (munimuni.app only)">The website at munimuni.app — not the app — is hosted on GitHub Pages, reached through Cloudflare, and loads its fonts from Google Fonts, so those companies receive a visitor’s IP address and browser details. The app serves its own fonts.</Item>
+        <P>There are no analytics, advertising, session-recording, error-reporting or AI services, and no thought is sent to an AI provider or used to train one. The app’s security settings don’t let it load code from, or send data to, any other website. Personal data isn’t sold, and your email address isn’t added to any mailing list.</P>
       </Section>
 
       <Section id="device">
         <Item title="Keep drafts on this device: off">The default. Your draft and any thoughts waiting to be sent exist only in the open tab, and closing it loses anything unsent — Muni tells you when that applies.</Item>
         <Item title="Keep drafts on this device: on">A choice per person, per browser. Your draft, thoughts waiting to be sent, the names and retro times of the sprints they’re for, and your name and workspaces (so Muni can open offline) are stored in this browser. Anyone who can use this browser profile could read them, so turn it on only on a personal device.</Item>
-        <Item title="Your encryption key">Stored in this browser once you set up or unlock encryption, so encrypted sprints open without asking every time. Anyone who can use this browser profile could use it; signing out removes it. What you write is kept readable on the device while it’s a draft or waiting to be sent, and encrypted when it’s sent.</Item>
-        <Item title="Either way">The browser keeps a few preferences, such as your theme and the last sprint you opened, and a copy of the app so it opens quickly and offline. Your sign-in is a secure cookie that the page itself can’t read. Muni never stores other people’s thoughts on your device.</Item>
-        <P>Signing out, or “Clear local data”, removes what this device keeps for your account, and warns you first if something hasn’t been sent. Neither deletes anything from Muni’s servers. If you lose access to a sprint while a device is offline, its copies stay there until it reconnects — Muni can’t erase a device remotely.</P>
-      </Section>
-
-      <Section id="retention">
-        <Item title="Finished sprints">About 90 days after a sprint is finished — the default; workspace owners can choose from 7 to 3,650 days — its thoughts, themes, votes, notes, added context and any unpublished recap are deleted. Agreed experiments and published recaps are kept longer, 730 days by default, so later retros can look back at them. The sprint’s name and dates remain.</Item>
-        <Item title="Unfinished sprints">A sprint that is never finished isn’t deleted automatically yet: its thoughts stay until it is.</Item>
-        <Item title="A thought you delete">While collection is open, deleting a thought removes it from Muni’s live database; backups keep it for up to 30 days, as below.</Item>
-        <Item title="Your account">Your name, and any email address you were invited at, are kept while your account exists. There isn’t a way to delete an account, or to leave a workspace yourself, in Muni yet — write to {CONTACT} and we’ll tell you what can be removed. If an owner removes you from a workspace, what you wrote stays in its sprints, without your name.</Item>
-        <Item title="Housekeeping">Passkey challenges are deleted about a day after they expire. A sign-in lasts 30 days and its record is deleted a week after it ends. Your security history is kept for a year; decided requests to join a team, 180 days. The hashed abuse-protection records last 24 hours. An email’s address and message are cleared from Muni’s send queue once it has been sent. The log of administrative actions (no text) is kept.</Item>
-        <Item title="Backups, logs and copies">Deleted data can remain in Cloudflare’s database backups for up to 30 days, and in request logs for up to 7 days. Resend keeps delivery records under its own terms. Files people have downloaded, screenshots, and copies on someone’s device can’t be recalled.</Item>
-      </Section>
-
-      <Section id="controls">
-        {signedIn ? (
-          <div className="rounded-[var(--radius-card)] border border-line bg-card p-5">
-            <h3 className="font-medium text-ink">On this device</h3>
-            <div className="mt-3"><DeviceControls /></div>
-          </div>
-        ) : (
-          <P><Link to="/signin?next=%2Fprivacy%23controls" className="underline underline-offset-2">Sign in</Link> to change what this device keeps. After signing in these controls also live in the account menu.</P>
-        )}
-        <Item title="Your thoughts">Edit or delete them while collection is open, under “My thoughts”.</Item>
-        <Item title="Reminders">Turn a sprint’s reminder emails off on that sprint’s page.</Item>
-        <Item title="Your name and other devices">{signedIn ? <><Link to="/account" className="underline underline-offset-2">Account</Link>: change your name, and sign out every other device.</> : 'Account (in the account menu): change your name, and sign out every other device.'}</Item>
-        <Item title="Workspace owners">Choose how long finished sprints are kept, on the workspace page, and remove members.</Item>
-        <Item title="Not available yet">Deleting your account, leaving a workspace yourself, and downloading everything you’ve written. Until then, write to {CONTACT}.</Item>
+        <Item title="Your encryption key">Kept here only locked, as above: it opens after you sign in, and signing out closes it in every tab. What you write is readable on the device while it’s a draft or waiting to be sent, and encrypted when it’s sent.</Item>
+        <Item title="Either way">The browser keeps a few preferences, such as your theme and the last sprint you opened, and a copy of the app so it opens quickly and offline. Your sign-in is a secure cookie the page itself can’t read. Muni never stores other people’s thoughts on your device.</Item>
+        <P>Signing out, or “Clear local data”, removes what this device keeps for your account and warns you first if something hasn’t been sent; neither deletes anything from Muni’s servers. “Forget this device”, in Account, also removes what lets this browser reopen your key. Muni can’t erase a device remotely.</P>
+        <div id="controls" className="scroll-mt-20">
+          {signedIn ? (
+            <div className="rounded-[var(--radius-card)] border border-line bg-card p-5">
+              <h3 className="font-medium text-ink">On this device</h3>
+              <div className="mt-3"><DeviceControls /></div>
+            </div>
+          ) : (
+            <P><Link to="/signin?next=%2Fprivacy%23controls" className="underline underline-offset-2">Sign in</Link> to change what this device keeps.</P>
+          )}
+        </div>
       </Section>
 
       <Section id="contact">
-        <P>Write to <a href={`mailto:${CONTACT}`} className="font-medium text-ink underline underline-offset-2">{CONTACT}</a> with questions about privacy or requests about your data. Muni is run by one person, so a reply may take a few days.</P>
-        <P>This page changes when the way Muni handles data changes; the date at the top says when it last did.</P>
+        <Item title="What you can do yourself">Edit or delete your thoughts while collection is open; turn a sprint’s reminder emails off in {signedIn ? <Link to="/account#notifications" className="underline underline-offset-2">Account</Link> : 'Account'}; change your name and sign out other devices there too. Workspace owners choose how long finished sprints are kept, and remove members.</Item>
+        <Item title="Not in the app yet">Deleting your account, leaving a workspace yourself, and downloading everything you’ve written. Until then, write to {CONTACT}.</Item>
+        <P>Write to <a href={`mailto:${CONTACT}`} className="font-medium text-ink underline underline-offset-2">{CONTACT}</a> with questions about privacy or requests about your data. Muni is run by one person, so a reply may take a few days. This page changes when the way Muni handles data changes; the date at the top says when it last did.</P>
       </Section>
 
       <p className="mt-12 border-t border-line pt-6 text-sm text-ink-soft">
-        Muni is an independently maintained project, built and operated by one developer. ·{' '}
+        <Link to="/about" className="underline underline-offset-4 hover:text-ink">About Muni</Link> ·{' '}
         <a href="/third-party-licenses.txt" className="underline underline-offset-4 hover:text-ink">Third-party licenses</a>
       </p>
     </article>

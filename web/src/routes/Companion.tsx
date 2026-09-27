@@ -55,7 +55,7 @@ export function Companion() {
       await post(`/api/sprints/${sprintId}/meeting/context`, { theme_id: themeId, body: context, idempotency_key: ctxKey })
       setContext('')
       setCtxKey(newKey())
-      toast('Sent. The facilitator releases new context in a batch — it’s shown without your name.')
+      toast('Sent. The facilitator shares new context in batches.')
       st.reload()
     } catch (e) {
       toast(e instanceof ApiError ? e.message : 'Couldn’t send — your text is still here', 'danger')
@@ -148,7 +148,7 @@ export function Companion() {
       ) : stage.phase === 'arrive' ? (
         <div className="space-y-3">
           {stage.opening_question ? <p className="font-display text-2xl">{stage.opening_question}</p> : null}
-          <p className="text-ink-soft">Mark yourself present above. The stage shows who’s here; it never shows who wrote what.</p>
+          <p className="text-ink-soft">Mark yourself present above so the facilitator knows you’re here.</p>
         </div>
       ) : stage.phase === 'remember' ? (
         <div className="space-y-2">
@@ -243,7 +243,7 @@ function ThemeReader({ t }: { t: ThemeView }) {
       <div className="font-display text-2xl leading-tight">{t.title}</div>
       {t.summary ? <p className="text-sm text-ink-soft">{t.summary}</p> : null}
       {t.question ? <p className="text-sm italic">{t.question}</p> : null}
-      <div className="text-xs text-ink-faint">{t.entry_count} entries — original observations, anonymous</div>
+      <div className="text-xs text-ink-faint">{t.entry_count} entries — original observations</div>
       {t.entries.map((e) => <EntryCard key={e.id} e={e} dense />)}
       {t.context.length ? (
         <div className="rounded-xl border border-dashed border-line p-3">

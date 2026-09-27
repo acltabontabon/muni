@@ -99,7 +99,7 @@ export function sprintGuide(s: GuideInput, opts: { online?: boolean; now?: numbe
       if (fac && s.participant_count <= 1) notes.push('Only you are in this sprint so far. Invite your team, or add workspace members in setup.')
       break
     case 'collecting':
-      body = part ? 'Add thoughts as things happen. They stay hidden from the team until collection closes.' : 'Participants are adding thoughts. They stay hidden until collection closes.'
+      body = part ? 'Add thoughts as things happen. You can edit them until collection closes.' : 'Participants are adding thoughts. They appear here when collection closes.'
       if (part) actions = [{ kind: 'write', label: 'Write a thought', tone: 'primary' }]
       facBody = 'When the sprint wraps up, close collection to start preparing the discussion.'
       facActions = [

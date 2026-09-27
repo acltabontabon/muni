@@ -81,16 +81,14 @@ try {
 
   // ── Keyboard: write, choose a category with the keyboard, save with ⌘/Ctrl+Enter.
   await page.locator('textarea[name="thought"]').fill('Synthetic: the deploy queue was quiet all week.')
-  // Visual order under the field: the privacy note (right), then the category choices.
-  await page.keyboard.press('Tab')
-  const first = await page.evaluate(() => document.activeElement?.className ?? '')
+  // Visual order under the field: straight to the category choices (no privacy control in between).
   await page.keyboard.press('Tab')
   const focused = await page.evaluate(() => document.activeElement?.getAttribute('role'))
-  check('Tab from the field reaches the privacy note, then the categories', first.includes('privacy-mark') && focused === 'radio', `${first} → ${focused}`)
+  check('Tab from the field reaches the categories', focused === 'radio', `${focused}`)
   await page.keyboard.press('ArrowRight')
   await page.locator('textarea[name="thought"]').focus()
   await page.keyboard.press(process.platform === 'darwin' ? 'Meta+Enter' : 'Control+Enter')
-  await page.waitForSelector('text=Submitted. It stays hidden', { timeout: 10000 }).catch(async (e) => {
+  await page.waitForSelector('text=Added. Yours to edit until collection closes.', { timeout: 10000 }).catch(async (e) => {
     console.log('DEBUG notice:', await page.locator('form p[role=status], form [role=alert]').allInnerTexts(), await page.locator('textarea[name="thought"]').inputValue())
     throw e
   })
@@ -134,11 +132,8 @@ try {
   await page.locator('button:has-text("Undo")').click()
   check('Delete can be undone', (await page.locator('.passage .passage-text', { hasText: 'deploy queue was quiet' }).count()) === 1)
 
-  // ── Privacy & protection: accurate for a legacy sprint.
-  await page.locator('button.privacy-mark').click()
-  const pop = await page.locator('[data-radix-popper-content-wrapper]').innerText()
-  check('Legacy sprint: explains no on-device encryption, without implying none at all', /before on-device encryption/.test(pop) && /on its way to Muni and on Muni’s storage/.test(pop) && /servers can read/.test(pop))
-  await page.keyboard.press('Escape')
+  // ── Privacy lives on its own page; the composer doesn't repeat it.
+  check('No privacy note or control beside the composer', (await page.locator('button.privacy-mark').count()) === 0 && !/hidden from|until collection closes;/i.test(await page.locator('form[aria-label^="Write a thought"]').innerText()))
 
   // ── Pending, then failed: saved offline, then collection closes before it's sent.
   await ctx.setOffline(true)
@@ -190,7 +185,7 @@ try {
   await page.waitForSelector('textarea[name="thought"]')
   await page.locator('textarea[name="thought"]').fill('Synthetic: reduced-motion save')
   await page.locator('button:has-text("Add to sprint")').click()
-  await page.waitForSelector('text=Submitted. It stays hidden')
+  await page.waitForSelector('text=Added. Yours to edit until collection closes.')
   const anim = await page.locator('.journal-rise').evaluate((el) => getComputedStyle(el).animationName).catch(() => '')
   check('Reduced motion: the light fades in place instead of travelling', anim === 'journal-glow', anim)
   await ctx.close()

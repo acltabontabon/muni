@@ -108,7 +108,7 @@ async function writeThought(page, sprint, text) {
   await page.waitForSelector('textarea[name="thought"]')
   await page.fill('textarea[name="thought"]', text)
   await page.click('button:has-text("Add to sprint")')
-  await page.waitForSelector('text=Submitted', { timeout: 15000 })
+  await page.waitForSelector('text=/^Added/', { timeout: 15000 })
 }
 const seesThought = async (page, sprint, text) => {
   await page.goto(`${BASE}/?sprint=${sprint}`)
