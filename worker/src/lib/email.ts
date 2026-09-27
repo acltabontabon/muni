@@ -55,10 +55,15 @@ export const templates = {
     subject: `${code} is your Muni sign-in code`,
     body: `Your Muni sign-in code is:\n\n    ${code}\n\nIt expires in 10 minutes and works once.\n\nIf you didn’t request this, you can ignore this email.\n`,
   }),
+  confirmCode: (to: string, code: string, purpose: 'add_email' | 'invite'): Mail => ({
+    to,
+    subject: `${code} is your Muni confirmation code`,
+    body: `Your Muni confirmation code is:\n\n    ${code}\n\n${purpose === 'invite' ? 'Enter it on the invitation page to confirm this address is yours and join the team.' : 'Enter it in Muni to add this address to your account for recovery, invitations and reminders.'} It expires in 10 minutes and works once.\n\nIf you didn’t ask for this, you can ignore this email — nothing changes without the code.\n`,
+  }),
   invitation: (to: string, workspace: string, inviter: string, link: string): Mail => ({
     to,
     subject: `${inviter} invited you to ${workspace} on Muni`,
-    body: `${inviter} invited you to join the “${workspace}” workspace on Muni.\n\nOpen this invitation and confirm this email address to join:\n\n    ${link}\n\nThis invitation is for ${to} only and expires in 14 days. Forwarding the link does not let someone else join.\n`,
+    body: `${inviter} invited you to join the “${workspace}” workspace on Muni.\n\nOpen this invitation to join. You’ll sign in or create an account with a passkey, and confirm this address with a code if your account doesn’t have it yet:\n\n    ${link}\n\nThis invitation is for ${to} only and expires in 14 days. Forwarding the link does not let someone else join.\n`,
   }),
   reminder: (to: string, sprint: string, kind: string, link: string): Mail => ({
     to,

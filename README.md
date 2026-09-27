@@ -78,7 +78,7 @@ configured.
 
 - Early software with a single maintainer; expect changes to the data model and API.
 - Cloudflare only (Workers, D1, Durable Objects).
-- Sign-in is passkeys (WebAuthn) or email one-time codes; email codes always remain available. No SSO or social login.
+- Sign-in is passkey-first (WebAuthn); an email address is optional (recovery, email invitations, reminders). Accounts from before passkeys can still sign in with an email code. No SSO or social login.
 - English only.
 - Tested mostly in Chromium; Safari/iOS and Firefox less thoroughly.
 - Encryption covers new sprints' content only, trusts the delivered frontend, and hasn't been

@@ -26,6 +26,8 @@ async function account(ctx, { keepLocal = true, name = 'Ana Reyes' } = {}) {
       const email = `e2e-${crypto.randomUUID().slice(0, 8)}@example.test`
       const h = { 'content-type': 'application/json' }
       const csrf = () => document.cookie.match(/muni_csrf=([^;]+)/)?.[1]
+      // Email codes sign in to existing accounts only: one as made before passkeys (dev-only endpoint).
+      await fetch('/api/dev/legacy-account', { method: 'POST', headers: h, body: JSON.stringify({ email }) })
       await fetch('/api/auth/request-code', { method: 'POST', headers: h, body: JSON.stringify({ email }) })
       const inbox = await fetch('/api/dev/inbox').then((r) => r.json())
       const code = inbox.find((m) => m.to === email).subject.split(' ')[0]

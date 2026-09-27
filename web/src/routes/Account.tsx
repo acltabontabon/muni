@@ -39,7 +39,7 @@ export function Account() {
   const reminding = (sprints ?? []).filter((s) => s.reminders_enabled && ['collecting', 'draft', 'preparing', 'ready'].includes(s.status))
   return (
     <AppShell>
-      <PageTitle title="Account">Signed in as <span className="text-ink [overflow-wrap:anywhere]">{me.email}</span>.</PageTitle>
+      <PageTitle title="Account">Signed in as <span className="text-ink [overflow-wrap:anywhere]">{me.email ?? me.display_name}</span>{me.email ? null : ' with a passkey'}.</PageTitle>
       <div className="max-w-4xl">
         <Block id="name" title="Your name" lead="Shown in your workspaces, when you’re invited to speak, and on experiments you own. Never with your thoughts or votes.">
           <form
@@ -65,7 +65,7 @@ export function Account() {
           <ErrorText>{nameError}</ErrorText>
         </Block>
 
-        <Block id="sign-in" title="Signing in" lead="Passkeys for quick, phishing-resistant sign-in; email codes as the fallback that always works.">
+        <Block id="sign-in" title="Signing in" lead="Passkeys are how you sign in. A recovery email is optional.">
           <SignInMethods />
         </Block>
 
@@ -73,7 +73,7 @@ export function Account() {
           <EncryptionSettings />
         </Block>
 
-        <Block id="notifications" title="Notifications" lead="Muni emails you only for sign-in codes, invitations and these reminders — never marketing.">
+        <Block id="notifications" title="Notifications" lead={me.email ? 'Muni emails you only for codes, invitations and these reminders — never marketing.' : 'Reminder emails need a recovery email on your account. Muni never sends marketing.'}>
           {sprints === null ? null : reminding.length === 0 ? (
             <p className="text-sm text-ink-soft">No sprint of yours has reminders turned on right now.</p>
           ) : (

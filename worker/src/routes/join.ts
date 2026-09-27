@@ -35,6 +35,8 @@ interface LinkRow {
   workspace_id: string
   sprint_id: string | null
   role: string
+  mode: 'approval' | 'direct'
+  redeemed_by: string | null
   created_by: string
   max_requests: number
   request_count: number
@@ -96,6 +98,7 @@ async function linkView(db: D1Database, l: LinkRow) {
     sprint_id: l.sprint_id,
     sprint_name: sp?.name ?? null,
     role: l.role,
+    mode: l.mode,
     created_by_name: who?.display_name ?? '',
     created_at: iso(l.created_at)!,
     expires_at: iso(l.expires_at)!,
@@ -109,12 +112,15 @@ async function linkView(db: D1Database, l: LinkRow) {
 join.post('/api/workspaces/:workspaceId/join-links', async (c) => {
   const cfg = config(c.env)
   const m = await requireMember(c, cfg, c.env.DB, c.req.param('workspaceId'))
-  const body = (await c.req.json().catch(() => ({}))) as { sprint_id?: unknown; expires_in_hours?: unknown; max_requests?: unknown; replace?: unknown }
+  const body = (await c.req.json().catch(() => ({}))) as { sprint_id?: unknown; expires_in_hours?: unknown; max_requests?: unknown; replace?: unknown; mode?: unknown }
   const sprintId = typeof body.sprint_id === 'string' && body.sprint_id ? body.sprint_id : null
-  const hours = Number(body.expires_in_hours ?? 168)
-  const cap = Number(body.max_requests ?? 30)
-  if (!(EXPIRY_CHOICES_H as readonly number[]).includes(hours)) throw bad('choose an expiry of 24 hours, 7 days or 30 days')
-  if (!(REQUEST_CAP_CHOICES as readonly number[]).includes(cap)) throw bad('choose a request limit of 10, 30 or 100')
+  // 'direct': a personal link for one person, used once, that joins without a separate approval —
+  // the manager approves by choosing whom to send it to. 'approval': a team QR anyone may scan.
+  const mode = body.mode === 'direct' ? 'direct' : 'approval'
+  const hours = Number(body.expires_in_hours ?? (mode === 'direct' ? 24 : 168))
+  const cap = mode === 'direct' ? 1 : Number(body.max_requests ?? 30)
+  if (!(EXPIRY_CHOICES_H as readonly number[]).includes(hours) || (mode === 'direct' && hours > 168)) throw bad(mode === 'direct' ? 'a personal link works for 24 hours or 7 days' : 'choose an expiry of 24 hours, 7 days or 30 days')
+  if (mode === 'approval' && !(REQUEST_CAP_CHOICES as readonly number[]).includes(cap)) throw bad('choose a request limit of 10, 30 or 100')
   if (sprintId) {
     const sp = await one<{ status: string }>(c.env.DB, 'SELECT status FROM sprints WHERE id = ? AND workspace_id = ?', sprintId, m.workspaceId)
     if (!sp) throw notFound('sprint not found')
@@ -124,7 +130,8 @@ join.post('/api/workspaces/:workspaceId/join-links', async (c) => {
     throw forbidden(sprintId ? 'only this sprint’s facilitator can invite people to it' : 'only owners and facilitators can invite')
   await limit(c.env.DB, `join-link:${m.workspaceId}`, 30, 24 * HOUR)
   const now = Date.now()
-  const active = await one<LinkRow>(c.env.DB, 'SELECT * FROM join_links WHERE workspace_id = ? AND sprint_id IS ? AND revoked_at IS NULL AND expires_at > ? ORDER BY created_at DESC LIMIT 1', m.workspaceId, sprintId, now)
+  // One team QR per scope; personal links are one per person, as many as needed.
+  const active = mode === 'direct' ? null : await one<LinkRow>(c.env.DB, "SELECT * FROM join_links WHERE workspace_id = ? AND sprint_id IS ? AND mode = 'approval' AND revoked_at IS NULL AND expires_at > ? ORDER BY created_at DESC LIMIT 1", m.workspaceId, sprintId, now)
   // Only a fingerprint of each link is kept, so an existing one can't be shown again: replacing it
   // is explicit, and turns the old one off (its pending requests stay for someone to decide).
   if (active && body.replace !== true) throw new AppError(409, 'link_exists', 'an invite link is already active here — replace it to show a new QR', { link: await linkView(c.env.DB, active) })
@@ -133,11 +140,11 @@ join.post('/api/workspaces/:workspaceId/join-links', async (c) => {
   const stmts: [string, ...unknown[]][] = []
   if (active) stmts.push(['UPDATE join_links SET revoked_at = ? WHERE id = ? AND revoked_at IS NULL', now, active.id])
   stmts.push([
-    'INSERT INTO join_links (id, workspace_id, sprint_id, token_hash, role, created_by, max_requests, expires_at, created_at) VALUES (?,?,?,?,?,?,?,?,?)',
-    id, m.workspaceId, sprintId, await sha256Hex(token), 'member', m.auth.account.id, cap, now + hours * HOUR, now,
+    'INSERT INTO join_links (id, workspace_id, sprint_id, token_hash, role, created_by, max_requests, expires_at, created_at, mode) VALUES (?,?,?,?,?,?,?,?,?,?)',
+    id, m.workspaceId, sprintId, await sha256Hex(token), 'member', m.auth.account.id, cap, now + hours * HOUR, now, mode,
   ])
   await batch(c.env.DB, stmts)
-  await audit(c.env.DB, m.workspaceId, sprintId, m.auth.account.id, 'join_link.created', { link_id: id, replaced: active?.id ?? null })
+  await audit(c.env.DB, m.workspaceId, sprintId, m.auth.account.id, 'join_link.created', { link_id: id, mode, replaced: active?.id ?? null })
   const link = (await one<LinkRow>(c.env.DB, 'SELECT * FROM join_links WHERE id = ?', id))!
   // The only time the token leaves the server. It goes in the fragment: never sent in requests.
   return c.json({ link: await linkView(c.env.DB, link), url: `${cfg.publicOrigin}/join#${token}` })
@@ -176,7 +183,7 @@ join.post('/api/join/preview', async (c) => {
   const session = await loadSession(c.env.DB, readCookie(c.req.raw, sessionCookie(cfg)))
   const link = await liveLink(c.env.DB, await tokenOf(c))
   if (!link) return c.json({ valid: false, signed_in: !!session })
-  const base = { valid: true, signed_in: !!session, includes_sprint: !!link.sprint_id }
+  const base = { valid: true, signed_in: !!session, includes_sprint: !!link.sprint_id, mode: link.mode }
   if (!session) return c.json(base)
   const aid = session.auth.account.id
   const ws = await one<{ name: string }>(c.env.DB, 'SELECT name FROM workspaces WHERE id = ?', link.workspace_id)
@@ -198,6 +205,7 @@ join.post('/api/join/request', async (c) => {
   if (!named?.ok) throw new AppError(409, 'name_required', 'choose the name your teammates will see first')
   if (await isMemberOf(c.env.DB, link.workspace_id, link.sprint_id, a.account.id)) return c.json({ state: 'member', workspace_id: link.workspace_id, sprint_id: link.sprint_id })
   const now = Date.now()
+  if (link.mode === 'direct') return c.json(await redeemDirect(c.env.DB, link, a.account.id, now))
   const existing = await one<{ id: string }>(c.env.DB, "SELECT id FROM join_requests WHERE workspace_id = ? AND account_id = ? AND status = 'pending' AND created_at > ?", link.workspace_id, a.account.id, now - REQUEST_TTL_MS)
   if (existing) return c.json({ state: 'pending', request_id: existing.id })
   // A stale open request (never decided) no longer blocks a new one.
@@ -224,6 +232,36 @@ join.post('/api/join/request', async (c) => {
   if (raced) return c.json({ state: 'pending', request_id: raced.id })
   throw new AppError(409, 'link_full', 'this invite code has reached its limit — ask for a new one')
 })
+
+/**
+ * A personal link joins whoever redeems it first — once. The one-use claim, the membership, the
+ * sprint seat and the record are one transaction keyed on this account being the redeemer, so two
+ * people (or tabs) racing for the same link can't both get in. The link's creator must still be
+ * allowed to invite into that scope when it's used; the role is always 'member'.
+ */
+async function redeemDirect(db: D1Database, link: LinkRow, accountId: string, now: number) {
+  const creatorRole = await one<{ role: string }>(db, 'SELECT role FROM memberships WHERE workspace_id = ? AND account_id = ? AND revoked_at IS NULL', link.workspace_id, link.created_by)
+  if (!creatorRole || !(await canManage(db, link.workspace_id, link.sprint_id, link.created_by, creatorRole.role)))
+    throw new AppError(410, 'link_invalid', 'this invite link no longer works — ask for a new one')
+  const redemption = uuid()
+  const won = 'EXISTS (SELECT 1 FROM join_links WHERE id = ? AND redemption_id = ?)'
+  const requestId = uuid()
+  await batch(db, [
+    ["UPDATE join_links SET redeemed_by = ?, redemption_id = ?, request_count = 1, revoked_at = ? WHERE id = ? AND mode = 'direct' AND redeemed_by IS NULL AND revoked_at IS NULL AND expires_at > ?", accountId, redemption, now, link.id, now],
+    [
+      `INSERT INTO memberships (workspace_id, account_id, role, created_at) SELECT ?, ?, 'member', ? WHERE ${won}
+       ON CONFLICT(workspace_id, account_id) DO UPDATE SET role = CASE WHEN memberships.revoked_at IS NULL THEN memberships.role ELSE 'member' END, revoked_at = NULL`,
+      link.workspace_id, accountId, now, link.id, redemption,
+    ],
+    [`INSERT OR IGNORE INTO sprint_participants (sprint_id, account_id, is_facilitator, created_at) SELECT id, ?, 0, ? FROM sprints WHERE id = ? AND status NOT IN ('completed','archived') AND ${won}`, accountId, now, link.sprint_id, link.id, redemption],
+    [`INSERT INTO join_requests (id, link_id, workspace_id, sprint_id, account_id, status, created_at, decided_at, decided_by) SELECT ?, ?, ?, ?, ?, 'approved', ?, ?, ? WHERE ${won}`, requestId, link.id, link.workspace_id, link.sprint_id, accountId, now, now, link.created_by, link.id, redemption],
+    [`INSERT INTO audit_events (workspace_id, sprint_id, actor_id, action, meta, created_at) SELECT ?, ?, ?, 'join_link.redeemed', ?, ? WHERE ${won}`, link.workspace_id, link.sprint_id, accountId, JSON.stringify({ link_id: link.id }), now, link.id, redemption],
+  ])
+  const after = await one<{ redeemed_by: string | null }>(db, 'SELECT redeemed_by FROM join_links WHERE id = ?', link.id)
+  // The same account in two tabs: one redemption won, and either way this person is now a member.
+  if (after?.redeemed_by !== accountId) throw new AppError(410, 'link_used', 'this personal invite link was already used — ask for a new one')
+  return { state: 'member', workspace_id: link.workspace_id, sprint_id: link.sprint_id }
+}
 
 /** The requester's own view of their request (bounded status checks from the waiting page). */
 join.get('/api/join-requests/:requestId', async (c) => {
@@ -264,18 +302,18 @@ join.post('/api/join-requests/:requestId/withdraw', async (c) => {
 
 /**
  * Open requests the caller may decide, with the context needed to recognise someone: the name
- * they chose *and* their verified email address (every account's address was confirmed with a
- * code), how new the account is, and whether they were in this workspace before. The requester is
- * told the approver sees their email address.
+ * they chose, their verified email address if the account has one, how new the account is, and
+ * whether they were in this workspace before. A name alone proves nothing; the approver is told so.
  */
 join.get('/api/workspaces/:workspaceId/join-requests', async (c) => {
   const m = await requireMember(c, config(c.env), c.env.DB, c.req.param('workspaceId'))
-  const rows = await all<RequestRow & { display_name: string; email: string; account_created_at: number; sprint_name: string | null; link_revoked: number | null; previously: number; invited: number }>(
+  const rows = await all<RequestRow & { display_name: string; email: string | null; account_created_at: number; sprint_name: string | null; link_revoked: number | null; previously: number; invited: number; passkeys: number }>(
     c.env.DB,
-    `SELECT r.*, a.display_name, a.email, a.created_at AS account_created_at, s.name AS sprint_name, l.revoked_at AS link_revoked,
+    `SELECT r.*, a.display_name, ae.email, a.created_at AS account_created_at, s.name AS sprint_name, l.revoked_at AS link_revoked,
             (SELECT count(*) FROM memberships ms WHERE ms.workspace_id = r.workspace_id AND ms.account_id = r.account_id AND ms.revoked_at IS NOT NULL) AS previously,
-            (SELECT count(*) FROM invitations i WHERE i.workspace_id = r.workspace_id AND i.email = a.email AND i.accepted_at IS NULL AND i.revoked_at IS NULL AND i.expires_at > ?) AS invited
-       FROM join_requests r JOIN accounts a ON a.id = r.account_id JOIN join_links l ON l.id = r.link_id LEFT JOIN sprints s ON s.id = r.sprint_id
+            (SELECT count(*) FROM invitations i WHERE i.workspace_id = r.workspace_id AND i.email = ae.email AND i.accepted_at IS NULL AND i.revoked_at IS NULL AND i.expires_at > ?) AS invited,
+            (SELECT count(*) FROM webauthn_credentials k WHERE k.account_id = r.account_id) AS passkeys
+       FROM join_requests r JOIN accounts a ON a.id = r.account_id LEFT JOIN account_emails ae ON ae.account_id = a.id JOIN join_links l ON l.id = r.link_id LEFT JOIN sprints s ON s.id = r.sprint_id
       WHERE r.workspace_id = ? AND r.status = 'pending' AND r.created_at > ? ORDER BY r.created_at LIMIT 100`,
     Date.now(), m.workspaceId, Date.now() - REQUEST_TTL_MS,
   )
@@ -285,7 +323,9 @@ join.get('/api/workspaces/:workspaceId/join-requests', async (c) => {
     out.push({
       id: r.id,
       display_name: r.display_name,
+      /** Verified if present; many accounts have none (passkey-only). */
       email: r.email,
+      has_passkey: r.passkeys > 0,
       account_created_at: iso(r.account_created_at),
       requested_at: iso(r.created_at),
       sprint_id: r.sprint_id,
@@ -306,12 +346,13 @@ async function decide(c: DecideCtx, verdict: 'approved' | 'declined') {
   if (!(await canManage(c.env.DB, m.workspaceId, req.sprint_id, m.auth.account.id, m.role))) throw forbidden('you can’t decide requests for this invite')
   if (req.account_id === m.auth.account.id) throw forbidden('someone else has to decide your own request')
   const now = Date.now()
-  // Only this batch's own decision (matched by decider and instant) adds anyone, in one transaction:
+  // Only this batch's own decision (matched by its random nonce) adds anyone, in one transaction:
   // of two managers or tabs acting at once, one decides and the other sees the result.
-  const mine = 'EXISTS (SELECT 1 FROM join_requests WHERE id = ? AND status = ? AND decided_by = ? AND decided_at = ?)'
-  const tag = [req.id, verdict, m.auth.account.id, now]
+  const nonce = uuid()
+  const mine = 'EXISTS (SELECT 1 FROM join_requests WHERE id = ? AND decision_nonce = ?)'
+  const tag = [req.id, nonce]
   const stmts: [string, ...unknown[]][] = [
-    ["UPDATE join_requests SET status = ?, decided_at = ?, decided_by = ? WHERE id = ? AND status = 'pending' AND created_at > ?", verdict, now, m.auth.account.id, req.id, now - REQUEST_TTL_MS],
+    ["UPDATE join_requests SET status = ?, decided_at = ?, decided_by = ?, decision_nonce = ? WHERE id = ? AND status = 'pending' AND created_at > ?", verdict, now, m.auth.account.id, nonce, req.id, now - REQUEST_TTL_MS],
   ]
   if (verdict === 'approved') {
     stmts.push(

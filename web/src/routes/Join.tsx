@@ -12,7 +12,7 @@ import { ApiError, get, post } from '@/api/client'
 import type { JoinPreview, MyJoinRequest } from '@/api/types'
 import { useAuth } from '@/lib/auth'
 import { Button, ErrorText, Spinner, useDocumentTitle } from '@/ui'
-import { AuthFlow, EntranceShell, JoinDoors, NameStep, PROGRESS, Step } from '@/ui/entrance'
+import { AuthFlow, EntranceShell, NameStep, PROGRESS, Step } from '@/ui/entrance'
 import { LeaveDialog } from '@/ui/menus'
 
 const destination = (r: { workspace_id?: string | null; sprint_id?: string | null }) => (r.sprint_id ? `/sprints/${r.sprint_id}` : r.workspace_id ? `/workspaces/${r.workspace_id}` : '/')
@@ -25,7 +25,6 @@ export function Join() {
   const nav = useNavigate()
   const [preview, setPreview] = useState<JoinPreview | null>(null)
   const [loadError, setLoadError] = useState('')
-  const [intent, setIntent] = useState<'signin' | 'create' | null>(null)
   const [progress, setProgress] = useState<number>(PROGRESS.email)
   const [requestId, setRequestId] = useState<string | null>(null)
   const load = useCallback(() => {
@@ -64,24 +63,16 @@ export function Join() {
         <Spinner />
       </div>
     )
-  else if (!me && !intent)
-    body = (
-      <JoinDoors
-        title="You’re invited to a team."
-        lead="Anyone with this code can ask to join, so someone on the team approves each request. First, who are you?"
-        onChoose={setIntent}
-      />
-    )
   else if (!me)
     body = (
       <AuthFlow
-        intent={intent ?? undefined}
         onProgress={setProgress}
-        intro={
-          intent === 'create'
-            ? { title: 'Create your account.', lead: 'Enter your email address. We’ll send a code to confirm it’s yours.' }
-            : { title: 'Welcome back.', lead: 'Sign in, then ask to join. Your request goes to the people who manage the team.' }
-        }
+        intro={{
+          title: 'You’re invited to a team.',
+          lead: preview.mode === 'direct'
+            ? 'This personal link adds you to the team once you’re signed in. Continue with your passkey, or create an account — no email needed.'
+            : 'Continue with your passkey, or create an account — no email needed. Anyone with this code can ask to join, so someone on the team approves each request.',
+        }}
         onDone={async () => {
           await refresh()
         }}
@@ -131,12 +122,18 @@ function RequestStep({ token, preview, onPending, onMember, onNeedsName }: { tok
     <Step
       describedBy="join-ask"
       title={<>Join {preview.workspace_name || 'this team'}?</>}
-      lead={<>You’ll ask as <strong className="font-medium text-[var(--e-ink)]">{me.display_name}</strong> (<span className="email-line">{me.email}</span>). Whoever approves sees your name and email address, so they can recognise you.</>}
+      lead={
+        preview.mode === 'direct' ? (
+          <>You’ll join as <strong className="font-medium text-[var(--e-ink)]">{me.display_name}</strong>. This personal link works once.</>
+        ) : (
+          <>You’ll ask as <strong className="font-medium text-[var(--e-ink)]">{me.display_name}</strong>{me.email ? <> (<span className="email-line">{me.email}</span>)</> : null}. Whoever approves sees your name{me.email ? ' and email address' : ''} and how new your account is — they may check with you that it’s really you.</>
+        )
+      }
     >
-      {preview.includes_sprint ? <p className="quiet mt-4">This code also adds you to one of the team’s sprints once you’re approved.</p> : null}
+      {preview.includes_sprint ? <p className="quiet mt-4">{preview.mode === 'direct' ? 'You’ll also join one of the team’s sprints.' : 'This code also adds you to one of the team’s sprints once you’re approved.'}</p> : null}
       <p className="quiet mt-2">Your thoughts and votes are shown to teammates without your name.</p>
       <ErrorText>{error}</ErrorText>
-      <Button variant="primary" size="lg" className="mt-6 w-full" busy={busy} onClick={ask} autoFocus>Request to join</Button>
+      <Button variant="primary" size="lg" className="mt-6 w-full" busy={busy} onClick={ask} autoFocus>{preview.mode === 'direct' ? 'Join the team' : 'Request to join'}</Button>
       <p className="quiet mt-4">
         Not you, or want another account? <button type="button" className="entrance-link" onClick={() => setLeaving(true)}>Switch account</button>
       </p>

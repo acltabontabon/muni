@@ -35,6 +35,8 @@ async function account(prefix, name) {
     if (!r.ok) throw new Error(`${method} ${path} ${r.status} ${t.slice(0, 200)}`)
     return t ? JSON.parse(t) : null
   }
+  // Email codes sign in to existing accounts only: make one as it was before passkeys (dev-only endpoint).
+  await req('POST', '/api/dev/legacy-account', { email })
   await req('POST', '/api/auth/request-code', { email })
   const inbox = await (await fetch(BASE + '/api/dev/inbox')).json()
   const code = inbox.find((m) => m.to === email && /sign-in code/.test(m.subject)).subject.split(' ')[0]

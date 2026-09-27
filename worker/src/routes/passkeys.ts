@@ -39,9 +39,11 @@ import {
   setSessionCookies,
 } from '../lib/auth'
 import { randomToken, sha256Hex, uuid } from '../lib/crypto'
-import { all, one, run } from '../lib/db'
+import { all, batch, one, run } from '../lib/db'
 import { AppError, bad, notFound } from '../lib/errors'
-import { clientClass, limit } from '../lib/ratelimit'
+import { clientClass, limit, underLimit } from '../lib/ratelimit'
+import { nonempty } from '../lib/util'
+import { newAccountStatement } from '../lib/accounts'
 import { buildMe } from './auth'
 
 export const passkeys = new Hono<HonoEnv>()
@@ -115,11 +117,12 @@ function challengeOf(clientDataJSON: string): string {
  * Spends a challenge exactly once. The conditional UPDATE is the lock: of any number of concurrent
  * or replayed attempts carrying the same challenge, one sees `changes = 1`; the rest are refused.
  */
-async function consumeChallenge(db: D1Database, challenge: string, ceremony: 'register' | 'authenticate' | 'reauth', bind: { bindingHash?: string; sessionId?: string; accountId?: string }): Promise<void> {
+type Ceremony = 'register' | 'authenticate' | 'reauth' | 'signup'
+async function consumeChallenge(db: D1Database, challenge: string, ceremony: Ceremony, bind: { bindingHash?: string; sessionId?: string; accountId?: string }): Promise<{ pending_handle: string | null; pending_name: string | null }> {
   const now = Date.now()
-  const row = await one<{ id: string; binding_hash: string | null; session_id: string | null; account_id: string | null; expires_at: number; consumed_at: number | null; ceremony: string }>(
+  const row = await one<{ id: string; binding_hash: string | null; session_id: string | null; account_id: string | null; expires_at: number; consumed_at: number | null; ceremony: string; pending_handle: string | null; pending_name: string | null }>(
     db,
-    'SELECT id, binding_hash, session_id, account_id, expires_at, consumed_at, ceremony FROM webauthn_challenges WHERE challenge = ?',
+    'SELECT id, binding_hash, session_id, account_id, expires_at, consumed_at, ceremony, pending_handle, pending_name FROM webauthn_challenges WHERE challenge = ?',
     challenge,
   )
   if (!row || row.ceremony !== ceremony) throw notVerified()
@@ -130,15 +133,24 @@ async function consumeChallenge(db: D1Database, challenge: string, ceremony: 're
   if (bind.accountId !== undefined && row.account_id !== bind.accountId) throw notVerified()
   const spent = await run(db, 'UPDATE webauthn_challenges SET consumed_at = ? WHERE id = ? AND consumed_at IS NULL AND expires_at > ?', now, row.id, now)
   if (!spent.meta.changes) throw failed('challenge_used', 'that passkey response was already used — try again')
+  return { pending_handle: row.pending_handle, pending_name: row.pending_name }
 }
 
-async function storeChallenge(db: D1Database, challenge: string, ceremony: 'register' | 'authenticate' | 'reauth', bind: { bindingHash?: string; sessionId?: string; accountId?: string }) {
+async function storeChallenge(db: D1Database, challenge: string, ceremony: Ceremony, bind: { bindingHash?: string; sessionId?: string; accountId?: string; pendingHandle?: string; pendingName?: string }) {
   const now = Date.now()
   await run(
     db,
-    'INSERT INTO webauthn_challenges (id, challenge, ceremony, account_id, session_id, binding_hash, expires_at, created_at) VALUES (?,?,?,?,?,?,?,?)',
-    uuid(), challenge, ceremony, bind.accountId ?? null, bind.sessionId ?? null, bind.bindingHash ?? null, now + CHALLENGE_TTL_MS, now,
+    'INSERT INTO webauthn_challenges (id, challenge, ceremony, account_id, session_id, binding_hash, pending_handle, pending_name, expires_at, created_at) VALUES (?,?,?,?,?,?,?,?,?,?)',
+    uuid(), challenge, ceremony, bind.accountId ?? null, bind.sessionId ?? null, bind.bindingHash ?? null, bind.pendingHandle ?? null, bind.pendingName ?? null, now + CHALLENGE_TTL_MS, now,
   )
+}
+
+/** One binding value per browser, reused while valid, so two open tabs don't invalidate each other. */
+function browserBinding(c: Context<HonoEnv>, cfg: Config): string {
+  const existing = readCookie(c.req.raw, bindingCookie(cfg))
+  const binding = existing && /^[A-Za-z0-9_-]{43}$/.test(existing) ? existing : randomToken(32)
+  c.header('set-cookie', cookie(bindingCookie(cfg), binding, cfg.cookieSecure, 10 * 60, true).replace('SameSite=Lax', 'SameSite=Strict'), { append: true })
+  return binding
 }
 
 const transportsOf = (json: string): AuthenticatorTransport[] => {
@@ -185,12 +197,9 @@ passkeys.post('/api/auth/passkey/login/options', async (c) => {
   const cfg = config(c.env)
   checkOrigin(c.req.raw, cfg)
   await limit(c.env.DB, `pk-opt:${await sha256Hex(clientClass(c.req.raw))}`, 120, 10 * 60_000)
-  // One binding value per browser, reused while valid, so two open tabs don't invalidate each other.
-  const existing = readCookie(c.req.raw, bindingCookie(cfg))
-  const binding = existing && /^[A-Za-z0-9_-]{43}$/.test(existing) ? existing : randomToken(32)
+  const binding = browserBinding(c, cfg)
   const options = await generateAuthenticationOptions({ rpID: cfg.webauthn.rpId, userVerification: 'required', timeout: CHALLENGE_TTL_MS })
   await storeChallenge(c.env.DB, options.challenge, 'authenticate', { bindingHash: await sha256Hex(binding) })
-  c.header('set-cookie', cookie(bindingCookie(cfg), binding, cfg.cookieSecure, 10 * 60, true).replace('SameSite=Lax', 'SameSite=Strict'), { append: true })
   return c.json(options)
 })
 
@@ -307,15 +316,18 @@ passkeys.post('/api/auth/passkey/register/options', async (c) => {
   await limit(c.env.DB, `pk-reg:${a.account.id}`, 20, 60 * 60_000)
   const creds = await all<CredentialRow>(c.env.DB, 'SELECT * FROM webauthn_credentials WHERE account_id = ?', a.account.id)
   if (creds.length >= MAX_PASSKEYS) throw failed('too_many_passkeys', `an account can have up to ${MAX_PASSKEYS} passkeys — remove one first`, 409)
-  const acct = (await one<{ email: string; display_name: string }>(c.env.DB, 'SELECT email, display_name FROM accounts WHERE id = ?', a.account.id))!
+  const acct = (await one<{ display_name: string }>(c.env.DB, 'SELECT display_name FROM accounts WHERE id = ?', a.account.id))!
+  // What the person's password manager shows to tell accounts apart: the address if the account
+  // has one, otherwise the name they chose. Never used to find the account.
+  const label = a.account.email ?? (acct.display_name || 'Muni account')
   const options = await generateRegistrationOptions({
     rpName: cfg.webauthn.rpName,
     rpID: cfg.webauthn.rpId,
     // The handle is opaque and random. `userName` is only what the person's own password manager
     // shows to tell accounts apart; it is not a handle and isn't used to find the account.
     userID: isoBase64URL.toBuffer(await userHandle(c.env.DB, a.account.id)),
-    userName: acct.email,
-    userDisplayName: acct.display_name || acct.email,
+    userName: label,
+    userDisplayName: acct.display_name || label,
     timeout: CHALLENGE_TTL_MS,
     // No attestation: nothing about the device or its maker is requested or kept.
     attestationType: 'none',
@@ -376,6 +388,91 @@ passkeys.post('/api/auth/passkey/register/verify', async (c) => {
   return c.json(view(row))
 })
 
+// ------------------------------------------------------------------ a new account
+
+/**
+ * Options to create a new account whose first sign-in method is this passkey. Nothing is created
+ * until the registration is verified. No email address is needed. Account creation is limited
+ * per network and per day, because there is no mailbox to slow abuse down.
+ */
+passkeys.post('/api/auth/passkey/signup/options', async (c) => {
+  const cfg = config(c.env)
+  checkOrigin(c.req.raw, cfg)
+  const body = await readJson(c)
+  const name = nonempty(body.display_name, 80, 'Name')
+  const net = await sha256Hex(clientClass(c.req.raw))
+  await limit(c.env.DB, `signup-opt:${net}`, 30, 10 * 60_000)
+  // Refuse before the device makes a passkey the server would then reject.
+  if (!(await underLimit(c.env.DB, `signup-net:${net}`, cfg.signupsPerNetworkDaily, 86_400_000))) throw new AppError(429, 'rate_limited', 'too many new accounts from this network today — try again tomorrow')
+  if (!(await underLimit(c.env.DB, 'signup-all', cfg.signupsDailyLimit, 86_400_000))) throw new AppError(503, 'quota', 'Muni can’t create more accounts today. Please try again tomorrow.')
+  const binding = browserBinding(c, cfg)
+  const handle = isoBase64URL.fromBuffer(crypto.getRandomValues(new Uint8Array(32)))
+  const options = await generateRegistrationOptions({
+    rpName: cfg.webauthn.rpName,
+    rpID: cfg.webauthn.rpId,
+    userID: isoBase64URL.toBuffer(handle),
+    userName: name,
+    userDisplayName: name,
+    timeout: CHALLENGE_TTL_MS,
+    attestationType: 'none',
+    authenticatorSelection: { residentKey: 'required', requireResidentKey: true, userVerification: 'required' },
+    supportedAlgorithmIDs: [-8, -7, -257],
+  })
+  await storeChallenge(c.env.DB, options.challenge, 'signup', { bindingHash: await sha256Hex(binding), pendingHandle: handle, pendingName: name })
+  return c.json(options)
+})
+
+passkeys.post('/api/auth/passkey/signup/verify', async (c) => {
+  const cfg = config(c.env)
+  checkOrigin(c.req.raw, cfg)
+  const body = await readJson(c)
+  const response = attestationShape(body.response)
+  const binding = readCookie(c.req.raw, bindingCookie(cfg))
+  if (!binding) throw failed('challenge_expired', 'that took a little too long — try again')
+  const pending = await consumeChallenge(c.env.DB, challengeOf(response.response.clientDataJSON), 'signup', { bindingHash: await sha256Hex(binding) })
+  if (!pending.pending_handle || !pending.pending_name) throw notVerified()
+  let result
+  try {
+    result = await verifyRegistrationResponse({
+      response,
+      expectedChallenge: challengeOf(response.response.clientDataJSON),
+      expectedOrigin: cfg.webauthn.origins,
+      expectedRPID: cfg.webauthn.rpId,
+      expectedType: 'webauthn.create',
+      requireUserPresence: true,
+      requireUserVerification: true,
+      supportedAlgorithmIDs: [-8, -7, -257],
+    })
+  } catch {
+    throw notVerified()
+  }
+  if (!result.verified) throw notVerified()
+  // Counted only for accounts actually created, so failed or cancelled attempts don't use it up.
+  const net = await sha256Hex(clientClass(c.req.raw))
+  await limit(c.env.DB, `signup-net:${net}`, cfg.signupsPerNetworkDaily, 86_400_000)
+  await limit(c.env.DB, 'signup-all', cfg.signupsDailyLimit, 86_400_000, () => new AppError(503, 'quota', 'Muni can’t create more accounts today. Please try again tomorrow.'))
+  const info = result.registrationInfo
+  if (await one(c.env.DB, 'SELECT 1 AS x FROM webauthn_credentials WHERE credential_id = ?', info.credential.id)) throw failed('passkey_taken', 'that passkey is already linked to an account — continue with it to sign in', 409)
+  const accountId = uuid()
+  const credRef = uuid()
+  const now = Date.now()
+  await batch(c.env.DB, [
+    newAccountStatement(accountId, pending.pending_name, pending.pending_handle),
+    [
+      'INSERT INTO webauthn_credentials (id, credential_id, account_id, public_key, counter, transports, backup_eligible, backed_up, name, created_at, last_used_at) VALUES (?,?,?,?,?,?,?,?,?,?,?)',
+      credRef, info.credential.id, accountId, isoBase64URL.fromBuffer(info.credential.publicKey), info.credential.counter,
+      JSON.stringify((info.credential.transports ?? []).slice(0, 8)), info.credentialDeviceType === 'multiDevice' ? 1 : 0, info.credentialBackedUp ? 1 : 0, cleanName(body.name), now, now,
+    ],
+  ])
+  const old = await loadSession(c.env.DB, readCookie(c.req.raw, sessionCookie(cfg)))
+  if (old) await revokeSession(c.env.DB, old.auth.sessionId)
+  const session = await createSession(c.env.DB, accountId, cfg.sessionTtlDays, { method: 'passkey', credentialRef: credRef, clientLabel: clientLabel(c.req.raw, body.installed === true) })
+  setSessionCookies(c, cfg, session)
+  c.header('set-cookie', cookie(bindingCookie(cfg), '', cfg.cookieSecure, 0, true), { append: true })
+  await securityEvent(c.env.DB, accountId, 'account.created', { passkey: credRef })
+  return c.json(await buildMe(c.env, accountId, { authMethod: 'passkey', authenticatedAt: now }, { created: true }))
+})
+
 // ------------------------------------------------------------------ managing passkeys
 
 passkeys.get('/api/auth/passkeys', async (c) => {
@@ -396,16 +493,26 @@ passkeys.patch('/api/auth/passkeys/:id', async (c) => {
 
 /**
  * Removing a passkey stops it signing in. It doesn't end sessions unless `revoke_sessions` asks
- * for that (other sessions started with this passkey; never the one making the request). Email
- * codes always remain, so removing even the last passkey never leaves an account without a way in.
+ * for that (other sessions started with this passkey; never the one making the request). The
+ * last passkey of an account without an email address can't be removed.
  */
 passkeys.delete('/api/auth/passkeys/:id', async (c) => {
   const a = await requireAuth(c, config(c.env), c.env.DB)
   requireRecentAuth(a)
   const body = await readJson(c)
   const id = c.req.param('id')
-  const r = await run(c.env.DB, 'DELETE FROM webauthn_credentials WHERE id = ? AND account_id = ?', id, a.account.id)
-  if (!r.meta.changes) throw notFound('passkey not found')
+  // Without an email address the last passkey is the only way in: it can't be removed.
+  const r = await run(
+    c.env.DB,
+    `DELETE FROM webauthn_credentials WHERE id = ? AND account_id = ?
+       AND (EXISTS (SELECT 1 FROM account_emails WHERE account_id = ?) OR (SELECT count(*) FROM webauthn_credentials WHERE account_id = ?) > 1)`,
+    id, a.account.id, a.account.id, a.account.id,
+  )
+  if (!r.meta.changes) {
+    if (await one(c.env.DB, 'SELECT 1 AS x FROM webauthn_credentials WHERE id = ? AND account_id = ?', id, a.account.id))
+      throw failed('last_method', 'this is your only way to sign in — add another passkey or a recovery email first', 409)
+    throw notFound('passkey not found')
+  }
   let ended = 0
   if (body.revoke_sessions === true) {
     const s = await run(c.env.DB, 'UPDATE sessions SET revoked_at = ? WHERE account_id = ? AND credential_ref = ? AND id <> ? AND revoked_at IS NULL', Date.now(), a.account.id, id, a.sessionId)

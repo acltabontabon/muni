@@ -8,7 +8,7 @@ import { describe, expect, it } from 'vitest'
 import { env } from 'cloudflare:test'
 import { b64u, newKeyPair, newRecoveryKey, wrapForRecovery } from '../../web/src/lib/e2ee/crypto'
 import { SoftAuthenticator } from './authenticator'
-import { addPasskeyTo, ageSession, del, get, inviteToken, passkeyLogin, passkeyVerify, patch, post, rawReq, setCookie, signin, skipCooldown, codeFor, tag, verify } from './harness'
+import { addPasskeyTo, ageSession, del, get, passkeyLogin, passkeyVerify, patch, post, rawReq, setCookie, signin, skipCooldown, codeFor, tag, verify } from './harness'
 
 const count = async (sql: string, ...args: unknown[]) => Number((await env.DB.prepare(sql).bind(...args).first<{ n: number }>())?.n ?? 0)
 
@@ -98,26 +98,17 @@ describe('adding a passkey', () => {
     expect(await count('SELECT count(*) AS n FROM webauthn_credentials WHERE account_id = ?', u.account_id)).toBe(0)
   })
 
-  it('works for a new, invited account after its email is verified', async () => {
+  it('an existing email-only account keeps its id, teams and data when it adds a passkey', async () => {
     const t = tag()
-    const owner = await signin(`pk-inv-owner-${t}@example.com`, 'Owner')
-    const ws = (await post('/api/workspaces', owner, { name: 'Team' })).body.id
-    const email = `pk-invitee-${t}@example.com`
-    await post(`/api/workspaces/${ws}/invitations`, owner, { email })
-    const token = await inviteToken(email)
-    await post('/api/auth/request-code', null, { email })
-    const v = await verify(email, await codeFor(email), 'Newcomer')
-    expect(v.body.created).toBe(true)
-    expect((await post('/api/invitations/accept', v.user!, { token })).status).toBe(200)
+    const email = `pk-legacy-${t}@example.com`
+    const u = await signin(email, 'Lee Legacy')
+    const ws = (await post('/api/workspaces', u, { name: 'Legacy team' })).body.id
     const auth = new SoftAuthenticator()
-    expect((await addPasskeyTo(v.user!, auth)).status).toBe(200)
+    expect((await addPasskeyTo(u, auth)).status).toBe(200)
     const back = await passkeyLogin(auth)
-    expect(back.status).toBe(200)
+    expect(back.body).toMatchObject({ account_id: u.account_id, email, passkeys: 1 })
     expect(back.body.workspaces.map((w: { id: string }) => w.id)).toContain(ws)
-    // Signing in again by email later doesn't claim the account is new.
-    await skipCooldown(email)
-    await post('/api/auth/request-code', null, { email })
-    expect((await verify(email, await codeFor(email))).body.created).toBe(false)
+    expect(await count('SELECT count(*) AS n FROM accounts WHERE id = ?', u.account_id)).toBe(1)
   })
 })
 

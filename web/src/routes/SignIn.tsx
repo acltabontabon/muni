@@ -6,8 +6,9 @@ import { useDocumentTitle } from '@/ui'
 import { AuthFlow, EntranceShell, PROGRESS } from '@/ui/entrance'
 
 /**
- * The entrance. Email, code, and — only for an account without one — a name; then straight on to
- * where the person was going (a validated path on this origin), or home, which opens their sprint.
+ * The entrance: continue with a passkey (or create an account, or — for accounts from before
+ * passkeys — sign in with email), then straight on to where the person was going (a validated
+ * path on this origin), or home. `?method=email` opens the email path directly (support links).
  */
 export function SignIn() {
   useDocumentTitle('Sign in')
@@ -23,6 +24,7 @@ export function SignIn() {
   return (
     <EntranceShell progress={progress}>
       <AuthFlow
+        startWith={params.get('method') === 'email' ? 'email' : undefined}
         onProgress={setProgress}
         onDone={async () => {
           await refresh()

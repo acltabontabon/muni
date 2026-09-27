@@ -21,7 +21,7 @@ const problem = (e: unknown, doing: string) => (e instanceof ApiError && e.statu
 
 /** Links shown in this page session only (memory, never storage): the server keeps just a fingerprint. */
 const shown = new Map<string, { url: string; link: JoinLinkInfo }>()
-const scopeKey = (workspaceId: string, sprintId: string | null) => `${workspaceId}:${sprintId ?? ''}`
+const scopeKey = (workspaceId: string, sprintId: string | null, mode: 'approval' | 'direct' = 'approval') => `${workspaceId}:${sprintId ?? ''}:${mode}`
 
 export function QrImage({ value, label }: { value: string; label: string }) {
   const { d, n } = useMemo(() => {
@@ -67,6 +67,7 @@ type Scope = { id: string | null; name: string }
 export function InviteQrDialog({ open, onClose, workspaceId, workspaceName, canWorkspace, sprints, onChanged }: { open: boolean; onClose: () => void; workspaceId: string; workspaceName: string; canWorkspace: boolean; sprints: Pick<SprintSummary, 'id' | 'name'>[]; onChanged: () => void }) {
   const scopes: Scope[] = useMemo(() => [...(canWorkspace ? [{ id: null, name: workspaceName }] : []), ...sprints.map((s) => ({ id: s.id, name: s.name }))], [canWorkspace, workspaceName, sprints])
   const [scope, setScope] = useState<string>('')
+  const [mode, setMode] = useState<'approval' | 'direct'>('approval')
   const [hours, setHours] = useState(168)
   const [cap, setCap] = useState(30)
   const [busy, setBusy] = useState(false)
@@ -78,15 +79,16 @@ export function InviteQrDialog({ open, onClose, workspaceId, workspaceName, canW
     if (!open) return
     setError('')
     setExisting(null)
-    setCurrent(shown.get(scopeKey(workspaceId, sprintId)) ?? null)
-  }, [open, workspaceId, sprintId])
+    // A personal link is for one person: never re-shown, a new one each time.
+    setCurrent(mode === 'approval' ? (shown.get(scopeKey(workspaceId, sprintId)) ?? null) : null)
+  }, [open, workspaceId, sprintId, mode])
 
   const create = async (replace: boolean) => {
     setBusy(true)
     setError('')
     try {
-      const r = await post<{ link: JoinLinkInfo; url: string }>(`/api/workspaces/${workspaceId}/join-links`, { sprint_id: sprintId ?? undefined, expires_in_hours: hours, max_requests: cap, replace })
-      shown.set(scopeKey(workspaceId, sprintId), r)
+      const r = await post<{ link: JoinLinkInfo; url: string }>(`/api/workspaces/${workspaceId}/join-links`, { sprint_id: sprintId ?? undefined, expires_in_hours: mode === 'direct' ? Math.min(hours, 168) : hours, max_requests: cap, replace, mode })
+      if (mode === 'approval') shown.set(scopeKey(workspaceId, sprintId), r)
       setCurrent(r)
       setExisting(null)
       onChanged()
@@ -115,21 +117,34 @@ export function InviteQrDialog({ open, onClose, workspaceId, workspaceName, canW
   const scopeName = scopes.find((s) => s.id === sprintId)?.name ?? workspaceName
 
   return (
-    <Dialog open={open} onOpenChange={(o) => !o && onClose()} title="Invite with a QR code" description="People scan it (or open the link) and ask to join. Nobody gets in until you, or another person who manages this, approves them.">
+    <Dialog open={open} onOpenChange={(o) => !o && onClose()} title="Invite with a link or QR" description="No email address needed. Either people scan a team QR and you approve each one, or you send one person a personal link that works once.">
       {current ? (
         <div className="grid gap-4">
           <div className="grid justify-items-center gap-3 rounded-2xl bg-ink/[0.04] p-4">
             <QrImage value={current.url} label={`Invite QR code for ${scopeName}`} />
-            <p className="text-center text-sm font-medium">Scan to join {scopeName}</p>
+            <p className="text-center text-sm font-medium">{current.link.mode === 'direct' ? `Personal invite to ${scopeName}` : `Scan to join ${scopeName}`}</p>
           </div>
           <div className="flex flex-wrap items-center gap-2">
             <CopyLink url={current.url} />
             <Button size="sm" variant="ghost" busy={busy} onClick={() => turnOff(current.link.id)}>Turn off this code</Button>
+            {current.link.mode === 'approval' ? (
+              <Button size="sm" variant="ghost" onClick={() => { setMode('direct'); setHours(24); setCurrent(null) }}>Personal link instead</Button>
+            ) : null}
           </div>
-          <p className="text-sm text-ink-soft">
-            Works until {date(current.link.expires_at)}, for up to {current.link.max_requests} requests. Joins as a member{current.link.sprint_id ? ' and participant in this sprint' : ''} — never as an owner. The link is an equal alternative to scanning: send it to anyone who can’t scan.
-          </p>
-          <JoinRequests workspaceId={workspaceId} sprintId={current.link.sprint_id} live onDecided={onChanged} />
+          {current.link.mode === 'direct' ? (
+            <p className="text-sm text-ink-soft">
+              Works once, until {date(current.link.expires_at)}. Whoever opens it first and signs in joins as a member{current.link.sprint_id ? ' and participant in this sprint' : ''} — so send it only to the person you mean, privately. It doesn’t sign anyone in; they use their own passkey.
+            </p>
+          ) : (
+            <p className="text-sm text-ink-soft">
+              Works until {date(current.link.expires_at)}, for up to {current.link.max_requests} requests. Joins as a member{current.link.sprint_id ? ' and participant in this sprint' : ''} — never as an owner. The link is an equal alternative to scanning: send it to anyone who can’t scan.
+            </p>
+          )}
+          {current.link.mode === 'direct' ? (
+            <Button size="sm" variant="ghost" className="justify-self-start" onClick={() => setCurrent(null)}>Make another personal link</Button>
+          ) : (
+            <JoinRequests workspaceId={workspaceId} sprintId={current.link.sprint_id} live onDecided={onChanged} />
+          )}
         </div>
       ) : existing ? (
         <div className="grid gap-3">
@@ -149,6 +164,15 @@ export function InviteQrDialog({ open, onClose, workspaceId, workspaceName, canW
             void create(false)
           }}
         >
+          <fieldset className="grid gap-2">
+            <legend className="mb-1.5 text-sm font-medium">Kind of invite</legend>
+            {([['approval', 'Team QR', 'Anyone with the code can ask to join; you approve each person. Good for showing on a screen.'], ['direct', 'Personal link', 'For one person you choose. Works once and joins them directly — send it privately.']] as const).map(([value, label, hint]) => (
+              <label key={value} className="flex cursor-pointer items-start gap-3 rounded-2xl border border-line px-3.5 py-2.5 text-sm has-[:checked]:border-[color-mix(in_oklab,var(--accent)_55%,var(--line))]">
+                <input type="radio" name="invite-mode" className="mt-1 accent-[var(--accent)]" checked={mode === value} onChange={() => { setMode(value); if (value === 'direct' && hours > 168) setHours(24) }} />
+                <span><span className="block font-medium">{label}</span><span className="block text-ink-soft">{hint}</span></span>
+              </label>
+            ))}
+          </fieldset>
           {scopes.length > 1 ? (
             <label className="grid gap-1.5 text-sm font-medium">
               Invite to
@@ -165,10 +189,10 @@ export function InviteQrDialog({ open, onClose, workspaceId, workspaceName, canW
               <select className="w-full rounded-xl border border-line bg-card px-3.5 py-2.5 font-normal" value={hours} onChange={(e) => setHours(Number(e.target.value))}>
                 <option value={24}>24 hours</option>
                 <option value={168}>7 days</option>
-                <option value={720}>30 days</option>
+                {mode === 'approval' ? <option value={720}>30 days</option> : null}
               </select>
             </label>
-            <label className="grid gap-1.5 text-sm font-medium">
+            <label className={`grid gap-1.5 text-sm font-medium ${mode === 'direct' ? 'invisible' : ''}`}>
               Up to
               <select className="w-full rounded-xl border border-line bg-card px-3.5 py-2.5 font-normal" value={cap} onChange={(e) => setCap(Number(e.target.value))}>
                 <option value={10}>10 requests</option>
@@ -178,12 +202,16 @@ export function InviteQrDialog({ open, onClose, workspaceId, workspaceName, canW
             </label>
           </div>
           <div className="rounded-2xl bg-ink/[0.04] px-4 py-3 text-sm text-ink-soft">
-            <p><strong className="font-medium text-ink">Who can join?</strong> Anyone who has the code — including from a screenshot — can <em>ask</em>. Each person joins only when approved, as a member. Approve people you recognise; you’ll see the name they chose and the email address they confirmed.</p>
+            {mode === 'approval' ? (
+              <p><strong className="font-medium text-ink">Who can join?</strong> Anyone who has the code — including from a screenshot — can <em>ask</em>. Each person joins only when approved, as a member. Approve people you recognise: names are chosen by whoever asks, and many accounts have no email address.</p>
+            ) : (
+              <p><strong className="font-medium text-ink">Who can join?</strong> Whoever opens the link first and signs in, once, as a member. Treat it like a key: send it only to the person you mean. You can turn it off from the People page until it’s used.</p>
+            )}
           </div>
           <ErrorText>{error}</ErrorText>
           <div className="flex justify-end gap-2">
             <Button type="button" variant="ghost" onClick={onClose}>Cancel</Button>
-            <Button type="submit" variant="primary" busy={busy}><QrCode className="size-4" /> Show invite QR</Button>
+            <Button type="submit" variant="primary" busy={busy}><QrCode className="size-4" /> {mode === 'direct' ? 'Make a personal link' : 'Show team QR'}</Button>
           </div>
         </form>
       )}
@@ -248,7 +276,7 @@ export function JoinRequests({ workspaceId, sprintId, live = false, onDecided }:
   return (
     <section aria-labelledby="join-requests">
       <h3 id="join-requests" className="font-display text-lg">Asking to join{rows.length ? ` (${rows.length})` : ''}</h3>
-      <p className="text-sm text-ink-soft">Approve only people you recognise. Names are chosen by whoever asks; the email address was confirmed with a code. If you’re unsure, ask them in person.</p>
+      <p className="text-sm text-ink-soft">Approve only people you recognise. Names are chosen by whoever asks; an email address, when there is one, was confirmed with a code. If you’re unsure, ask them in person.</p>
       {rows.length === 0 ? (
         <p className="mt-3 text-sm text-ink-soft">{live ? 'No requests yet. They’ll appear here as people scan.' : 'No one is waiting.'}</p>
       ) : (
@@ -257,7 +285,7 @@ export function JoinRequests({ workspaceId, sprintId, live = false, onDecided }:
             <li key={r.id} className="grid gap-2 p-4 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center">
               <span className="min-w-0">
                 <span className="block truncate font-medium">{r.display_name}</span>
-                <span className="block truncate text-ink-soft [overflow-wrap:anywhere]">{r.email}</span>
+                <span className="block truncate text-ink-soft [overflow-wrap:anywhere]">{r.email ?? (r.has_passkey ? 'No email on this account · signs in with a passkey' : 'No email on this account')}</span>
                 <span className="mt-1 block text-ink-soft">
                   Asked {ago(r.requested_at)} · account made {ago(r.account_created_at)}
                   {r.sprint_name ? ` · for ${r.sprint_name}` : ''}
@@ -292,13 +320,13 @@ export function ActiveCodes({ workspaceId, version, onChanged }: { workspaceId: 
   return (
     <section className="mt-10" aria-labelledby="codes">
       <h2 id="codes" className="font-display text-lg">Invite codes</h2>
-      <p className="text-sm text-ink-soft">Shared QR codes and links that are working now. Turning one off stops new requests; people who already asked stay in the list above.</p>
+      <p className="text-sm text-ink-soft">Team QR codes and personal links that work now. Turning one off stops it at once; people who already asked stay in the list above.</p>
       <ul className="mt-4 divide-y divide-line rounded-2xl bg-card text-sm shadow-[0_0_0_1px_var(--line)]">
         {links.map((l) => (
           <li key={l.id} className="flex items-center gap-3 p-4">
             <span className="min-w-0 flex-1">
-              <span className="block truncate font-medium">{l.sprint_name ? `${l.sprint_name} (sprint)` : 'Workspace'}</span>
-              <span className="block text-ink-soft">By {l.created_by_name} · until {date(l.expires_at)} · {l.request_count} of {l.max_requests} requests</span>
+              <span className="block truncate font-medium">{l.mode === 'direct' ? 'Personal link' : 'Team QR'} · {l.sprint_name ? `${l.sprint_name} (sprint)` : 'workspace'}</span>
+              <span className="block text-ink-soft">By {l.created_by_name} · until {date(l.expires_at)}{l.mode === 'direct' ? ' · unused' : ` · ${l.request_count} of ${l.max_requests} requests`}</span>
             </span>
             <Button
               size="sm"

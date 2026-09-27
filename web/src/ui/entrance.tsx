@@ -1,7 +1,6 @@
 /**
- * The entrance: one shell for signing in, verifying the code, choosing a name, and invitations.
- * One decision at a time. Signing in and signing up are the same flow: the server decides after
- * the code is verified, and asks for a name only when the account has none.
+ * The entrance: one shell for signing in with a passkey, creating an account, the "Used Muni
+ * before?" email path, choosing a name, and invitations. One decision at a time.
  */
 import { useEffect, useId, useRef, useState, type FormEvent, type ReactNode } from 'react'
 import { Link } from 'react-router'
@@ -10,9 +9,8 @@ import type { CodeSent, Me } from '@/api/types'
 import { Mark } from '@/brand/Mark'
 import { KeyRound } from 'lucide-react'
 import { Button, ErrorText } from '@/ui'
-import { useAuth } from '@/lib/auth'
-import { readPrefs, writePrefs } from '@/lib/prefs'
-import { addPasskey, cancelPasskey, isInstalled, describePasskeyError, hasPasskeyHint, hasPlatformAuthenticator, signInWithPasskey, suggestedPasskeyName, supportsAutofill, supportsPasskeys } from '@/lib/passkeys'
+import { addPasskey, describePasskeyError, hasPasskeyHint, isInstalled, signInWithPasskey, signUpWithPasskey, suggestedPasskeyName, supportsPasskeys } from '@/lib/passkeys'
+import { EmailSetup } from './email-setup'
 import { DuyanScene } from './scene'
 
 /** How far the evening has gone: email → code → name → in. Drives the sun and the kept lights. */
@@ -87,60 +85,59 @@ function useStepFocus(ref: React.RefObject<HTMLInputElement | null>, initial: bo
 }
 
 type Intro = { title: ReactNode; lead: ReactNode }
-type FlowStep = 'email' | 'code' | 'new-account' | 'name' | 'offer'
+type View = 'start' | 'create' | 'protect' | 'email' | 'code' | 'name' | 'offer'
+const VIEW_PROGRESS: Record<View, number> = { start: PROGRESS.email, email: PROGRESS.email, create: PROGRESS.code, code: PROGRESS.code, name: PROGRESS.name, protect: PROGRESS.name, offer: PROGRESS.name }
 
 /**
- * Sign in with a passkey or an email code → (name) → (an offer to add a passkey). `onDone`
- * receives the signed-in account once nothing else is needed. `intro` replaces the first step's
- * heading (the invitation page names the invited address).
+ * Passkey first. One primary action, "Continue with a passkey" — no email or username to type.
+ * New people create an account with a passkey (no email needed). People whose account predates
+ * passkeys use the quiet "Used Muni before?" email path, then add a passkey to that same account.
  *
- * `intent` makes joining explicit: 'signin' is "I already use Muni" — if the code then created a
- * new account, the person is told before going on, so nobody joins a team under a second identity
- * by accident. The server never reveals whether an account exists before the code is verified.
+ * Nothing starts a passkey prompt by itself: after signing out, the old account never signs
+ * straight back in, and the browser's own chooser lists every Muni passkey on the device.
+ * `intro` replaces the first heading (invitation pages). `startWith: 'email'` opens the email path.
  */
-export function AuthFlow({ onDone, intro, onProgress, intent }: { onDone: (me: Me) => void | Promise<void>; intro?: Intro; onProgress?: (p: number) => void; intent?: 'signin' | 'create' }) {
-  const [step, setStep] = useState<FlowStep>('email')
+export function AuthFlow({ onDone, intro, onProgress, startWith }: { onDone: (me: Me) => void | Promise<void>; intro?: Intro; onProgress?: (p: number) => void; startWith?: 'email' }) {
+  const [view, setView] = useState<View>(startWith === 'email' ? 'email' : 'start')
   const [email, setEmail] = useState('')
   const [sent, setSent] = useState<{ expires: number; resendAt: number; note: string | null }>({ expires: 10, resendAt: 0, note: null })
-  const [first, setFirst] = useState(true)
-  const [queue, setQueue] = useState<FlowStep[]>([])
   const [account, setAccount] = useState<Me | null>(null)
-  const [offerable, setOfferable] = useState(false)
-  useEffect(() => {
-    hasPlatformAuthenticator().then(setOfferable)
-  }, [])
-  const go = (s: FlowStep) => {
+  const [first, setFirst] = useState(true)
+  const go = (v: View) => {
     setFirst(false)
-    setStep(s)
-    onProgress?.(s === 'new-account' || s === 'offer' ? PROGRESS.name : PROGRESS[s])
+    setView(v)
+    onProgress?.(VIEW_PROGRESS[v])
   }
-  /** After any step that finishes with the account: the next one still needed, or done. */
-  const advance = async (me: Me, rest: FlowStep[]) => {
+  const finish = async (me: Me) => {
+    onProgress?.(PROGRESS.done)
+    await onDone(me)
+  }
+  // Whatever signed the person in, a missing name comes first; an email sign-in then offers a passkey.
+  const afterSignIn = async (me: Me, via: 'passkey' | 'email') => {
     setAccount(me)
-    const [next, ...later] = rest
-    if (!next) {
-      onProgress?.(PROGRESS.done)
-      await onDone(me)
-      return
-    }
-    setQueue(later)
-    go(next)
+    if (me.needs_name) return go('name')
+    if (via === 'email' && me.passkeys === 0 && supportsPasskeys()) return go('offer')
+    await finish(me)
   }
-  const verified = (me: Me, via: 'email' | 'passkey') => {
-    const dismissed = (readPrefs().passkeyOfferDismissedFor ?? []).includes(me.account_id)
-    const steps: FlowStep[] = []
-    if (intent === 'signin' && me.created) steps.push('new-account')
-    if (me.needs_name) steps.push('name')
-    if (via === 'email' && offerable && me.passkeys === 0 && !dismissed) steps.push('offer')
-    return advance(me, steps)
-  }
-  if (step === 'email')
+  if (view === 'start')
+    return <PasskeyStart intro={intro} onSignedIn={(me) => afterSignIn(me, 'passkey')} onCreate={() => go('create')} onEmail={() => go('email')} />
+  if (view === 'create')
+    return (
+      <CreateAccount
+        onBack={() => go('start')}
+        onCreated={(me) => {
+          setAccount(me)
+          go('protect')
+        }}
+      />
+    )
+  if (view === 'protect' && account) return <ProtectStep account={account} onDone={() => finish(account)} />
+  if (view === 'email')
     return (
       <EmailStep
         initial={first}
         email={email}
-        intro={intro}
-        onPasskey={(me) => verified(me, 'passkey')}
+        onBack={() => go('start')}
         onSent={(address, info, note) => {
           setEmail(address)
           setSent({ expires: info.expires_in_minutes, resendAt: Date.now() + info.resend_after_seconds * 1000, note })
@@ -148,84 +145,191 @@ export function AuthFlow({ onDone, intro, onProgress, intent }: { onDone: (me: M
         }}
       />
     )
-  if (step === 'code')
+  if (view === 'code')
     return (
       <CodeStep
         email={email}
         sent={sent}
         onResent={(info, note) => setSent({ expires: info.expires_in_minutes, resendAt: Date.now() + info.resend_after_seconds * 1000, note })}
         onChangeEmail={() => go('email')}
-        onVerified={(me) => verified(me, 'email')}
+        onNoAccount={() => go('create')}
+        onVerified={(me) => afterSignIn(me, 'email')}
       />
     )
-  if (step === 'new-account' && account) return <NewAccountStep email={account.email} onContinue={() => advance(account, queue)} onDifferent={() => { setQueue([]); setAccount(null); go('email') }} />
-  if (step === 'offer' && account) return <PasskeyOffer account={account} onDone={() => advance(account, queue)} />
-  return <NameStep onDone={(me) => advance(me, queue)} />
+  if (view === 'offer' && account) return <PasskeyOffer account={account} onDone={() => finish(account)} />
+  return (
+    <NameStep
+      onDone={async (me) => {
+        setAccount(me)
+        if (me.passkeys === 0 && supportsPasskeys()) go('offer')
+        else await finish(me)
+      }}
+    />
+  )
 }
 
-function EmailStep({ email: initialEmail, initial, intro, onSent, onPasskey }: { email: string; initial: boolean; intro?: Intro; onSent: (email: string, info: CodeSent, note: string | null) => void; onPasskey: (me: Me) => void | Promise<void> }) {
+function Note({ note }: { note: { text: string; error: boolean } | null }) {
+  if (!note) return null
+  return note.error ? <ErrorText>{note.text}</ErrorText> : <p role="status" className="quiet mt-3">{note.text}</p>
+}
+
+/** The one primary action, and quiet help for when it doesn't go as expected. */
+function PasskeyStart({ intro, onSignedIn, onCreate, onEmail }: { intro?: Intro; onSignedIn: (me: Me) => void | Promise<void>; onCreate: () => void; onEmail: () => void }) {
+  const id = useId()
+  const supported = supportsPasskeys()
+  const [busy, setBusy] = useState(false)
+  const [note, setNote] = useState<{ text: string; error: boolean } | null>(null)
+  const signIn = async () => {
+    if (busy) return
+    setBusy(true)
+    setNote(null)
+    try {
+      await onSignedIn(await signInWithPasskey())
+    } catch (e) {
+      const p = describePasskeyError(e)
+      setNote({ text: p.message, error: p.kind !== 'cancelled' })
+    } finally {
+      setBusy(false)
+    }
+  }
+  return (
+    <Step describedBy={`${id}-lead`} title={intro?.title ?? (hasPasskeyHint() ? 'Welcome back.' : 'A moment to reflect.')} lead={intro?.lead ?? 'Sign in with your passkey. There’s no email or password to remember.'}>
+      {supported ? (
+        <Button variant="primary" size="lg" className="mt-7 w-full" busy={busy} onClick={signIn} aria-describedby={`${id}-how`}>
+          <KeyRound className="size-4" aria-hidden /> Continue with a passkey
+        </Button>
+      ) : (
+        <p role="status" className="mt-7 rounded-2xl bg-[color-mix(in_oklab,var(--warn)_10%,var(--e-panel))] px-4 py-3 text-[15px]">
+          This browser can’t use passkeys. Open Muni in a current version of Safari, Chrome, Edge or Firefox — or on your phone.
+        </p>
+      )}
+      <Note note={note} />
+      <p id={`${id}-how`} className="quiet mt-4">Your device or password manager unlocks it with your fingerprint, face, PIN or screen lock. Muni never receives your biometric data.</p>
+      <details className="entrance-help mt-4">
+        <summary>Passkey on another device, or not working?</summary>
+        <ul>
+          <li><strong>On your phone?</strong> Choose “Continue with a passkey”, then the option to use a phone or tablet. Scan the QR code your browser shows, and unlock the passkey on your phone.</li>
+          <li><strong>Cancelled, or nothing happened?</strong> Nothing was shared. Try again whenever you’re ready.</li>
+          <li><strong>No passkey on this device?</strong> Use the device where you made it (or its QR option above). If you signed in with email codes before, use email below.</li>
+          <li><strong>Switching accounts?</strong> Your browser lists every Muni passkey on this device — choose the one you want.</li>
+        </ul>
+      </details>
+      <p className="mt-6 text-[15px]">
+        New to Muni? <button type="button" className="entrance-link" onClick={onCreate}>Create an account</button>
+      </p>
+      <p className="quiet mt-8 text-[13px]">
+        Used Muni before with email codes? <button type="button" className="entrance-link" onClick={onEmail}>Sign in with email</button>
+      </p>
+    </Step>
+  )
+}
+
+/** A new account: the name teammates will see, then a passkey. No email needed. */
+function CreateAccount({ onCreated, onBack }: { onCreated: (me: Me) => void; onBack: () => void }) {
+  const id = useId()
+  const [name, setName] = useState('')
+  const [busy, setBusy] = useState(false)
+  const [note, setNote] = useState<{ text: string; error: boolean } | null>(null)
+  const ref = useRef<HTMLInputElement>(null)
+  useStepFocus(ref, false)
+  const supported = supportsPasskeys()
+  const submit = async (e: FormEvent) => {
+    e.preventDefault()
+    if (busy) return
+    if (!name.trim()) {
+      setNote({ text: 'Enter the name your teammates know you by.', error: true })
+      ref.current?.focus()
+      return
+    }
+    setBusy(true)
+    setNote(null)
+    try {
+      onCreated(await signUpWithPasskey(name.trim()))
+    } catch (err) {
+      const p = describePasskeyError(err, 'create')
+      setNote({ text: p.message, error: p.kind !== 'cancelled' })
+    } finally {
+      setBusy(false)
+    }
+  }
+  return (
+    <Step describedBy={`${id}-lead`} title="Create your Muni account." lead="Choose the name your teammates will see, then save a passkey on this device or in your password manager. No email needed.">
+      <form onSubmit={submit} className="mt-7">
+        <label htmlFor={`${id}-name`} className="block text-sm font-medium">Your name</label>
+        <input ref={ref} id={`${id}-name`} className="field mt-1.5" name="name" autoComplete="name" maxLength={80} value={name} onChange={(e) => setName(e.target.value)} aria-describedby={`${id}-lead ${id}-seen`} required />
+        <p id={`${id}-seen`} className="quiet mt-2">Shown in your workspace and when it’s your turn to speak — never with your thoughts or votes.</p>
+        <Note note={note} />
+        <Button type="submit" variant="primary" size="lg" className="mt-5 w-full" busy={busy} disabled={!supported}>
+          <KeyRound className="size-4" aria-hidden /> Create a passkey
+        </Button>
+        <p className="quiet mt-4">
+          Already have a Muni account? A new one won’t include your teams — <button type="button" className="entrance-link" onClick={onBack}>continue with your passkey</button> instead.
+        </p>
+      </form>
+    </Step>
+  )
+}
+
+/** Right after creating an account: the passkey is the only way in, so offer a second one or an email. */
+function ProtectStep({ account, onDone }: { account: Me; onDone: () => void | Promise<void> }) {
+  const id = useId()
+  const [busy, setBusy] = useState(false)
+  const [note, setNote] = useState<{ text: string; error: boolean } | null>(null)
+  const [emailing, setEmailing] = useState(false)
+  const [protectedBy, setProtectedBy] = useState<string | null>(null)
+  const second = async () => {
+    setBusy(true)
+    setNote(null)
+    try {
+      await addPasskey(suggestedPasskeyName())
+      setProtectedBy('A second passkey was added.')
+    } catch (e) {
+      const p = describePasskeyError(e, 'add')
+      setNote({ text: p.kind === 'exists' ? 'This device already has your passkey. Use another device, a security key or a different password manager — for example, choose the phone option in the prompt.' : p.message, error: p.kind !== 'cancelled' })
+    } finally {
+      setBusy(false)
+    }
+  }
+  if (protectedBy)
+    return (
+      <Step describedBy={`${id}-lead`} title="You’re set." lead={`${protectedBy} You can manage passkeys and your recovery email in Account → Signing in.`}>
+        <Button variant="primary" size="lg" className="mt-7 w-full" onClick={() => onDone()} autoFocus>Continue</Button>
+      </Step>
+    )
+  return (
+    <Step describedBy={`${id}-lead`} title="Keep a way back in." lead={<>Welcome, {account.display_name}. Right now this passkey is the only way into your account. If you lose it, Muni can’t recover the account — there’s no email or password to fall back on.</>}>
+      {emailing ? (
+        <div className="mt-6">
+          <EmailSetup current={null} onChanged={(e) => e && setProtectedBy(`${e} was added for recovery.`)} onCancel={() => setEmailing(false)} />
+        </div>
+      ) : (
+        <div className="mt-7 grid gap-2">
+          <Button variant="primary" size="lg" className="w-full" busy={busy} onClick={second} autoFocus>
+            <KeyRound className="size-4" aria-hidden /> Add a second passkey
+          </Button>
+          <Button size="lg" className="w-full" onClick={() => setEmailing(true)}>Add a recovery email</Button>
+          <Button variant="ghost" size="lg" className="w-full" onClick={() => onDone()}>Not now</Button>
+        </div>
+      )}
+      <Note note={note} />
+      <p className="quiet mt-4">A second passkey can live on another device, a security key or another password manager. An email is optional: it can also receive team invitations and sprint reminders.</p>
+    </Step>
+  )
+}
+
+/** "Used Muni before?" — accounts made with email codes before passkeys. */
+function EmailStep({ email: initialEmail, initial, onSent, onBack }: { email: string; initial: boolean; onSent: (email: string, info: CodeSent, note: string | null) => void; onBack: () => void }) {
   const id = useId()
   const [email, setEmail] = useState(initialEmail)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
-  const [passkeyBusy, setPasskeyBusy] = useState(false)
-  const [passkeyNote, setPasskeyNote] = useState<{ text: string; error: boolean } | null>(null)
-  // Someone who used a passkey in this browser before sees it first; email stays one tap away.
-  const supported = supportsPasskeys()
-  const [showEmail, setShowEmail] = useState(() => !(supported && hasPasskeyHint()) || !!initialEmail)
-  const [round, setRound] = useState(0)
   const ref = useRef<HTMLInputElement>(null)
-  useStepFocus(ref, initial || !showEmail)
-  const done = useRef(onPasskey)
-  useEffect(() => {
-    done.current = onPasskey
-  }, [onPasskey])
-
-  // Progressive enhancement: saved passkeys also appear in the email field's autofill. The browser
-  // shows nothing if there are none; the explicit button and email always remain.
-  useEffect(() => {
-    if (!showEmail) return
-    let live = true
-    supportsAutofill().then((ok) => {
-      if (!ok || !live) return
-      signInWithPasskey({ conditional: true })
-        .then((me) => live && done.current(me))
-        .catch((e) => {
-          if (!live) return
-          const p = describePasskeyError(e)
-          if (p.kind === 'cancelled') return
-          setPasskeyNote({ text: p.message, error: p.kind !== 'expired' })
-          if (p.kind === 'expired' || p.kind === 'unknown') setRound((n) => n + 1)
-        })
-    })
-    return () => {
-      live = false
-      cancelPasskey()
-    }
-  }, [showEmail, round])
-
-  const usePasskey = async () => {
-    if (passkeyBusy) return
-    setPasskeyBusy(true)
-    setPasskeyNote(null)
-    setError('')
-    try {
-      await onPasskey(await signInWithPasskey())
-    } catch (e) {
-      const p = describePasskeyError(e)
-      setPasskeyNote({ text: p.message, error: p.kind !== 'cancelled' })
-      setRound((n) => n + 1) // the button cancelled any autofill request; offer it again
-    } finally {
-      setPasskeyBusy(false)
-    }
-  }
-
+  useStepFocus(ref, initial)
   const submit = async (e: FormEvent) => {
     e.preventDefault()
     if (busy) return
     const address = email.trim()
     setError('')
-    setPasskeyNote(null)
     setBusy(true)
     try {
       onSent(address, await post<CodeSent>('/api/auth/request-code', { email: address }), null)
@@ -242,26 +346,9 @@ function EmailStep({ email: initialEmail, initial, intro, onSent, onPasskey }: {
       setBusy(false)
     }
   }
-  const note = passkeyNote ? (
-    passkeyNote.error ? <ErrorText>{passkeyNote.text}</ErrorText> : <p role="status" className="quiet mt-3">{passkeyNote.text}</p>
-  ) : null
-
-  if (!showEmail)
-    return (
-      <Step describedBy={`${id}-lead`} title={intro?.title ?? 'Welcome back.'} lead={intro?.lead ?? 'Unlock with your passkey to continue.'}>
-        <Button variant="primary" size="lg" className="mt-7 w-full" busy={passkeyBusy} onClick={usePasskey} aria-describedby={`${id}-pk`}>
-          <KeyRound className="size-4" aria-hidden /> Continue with a passkey
-        </Button>
-        {note}
-        <p id={`${id}-pk`} className="quiet mt-4">Your device or password manager unlocks it — with your fingerprint, face, PIN or screen lock. Muni never receives your biometric data.</p>
-        <p className="quiet mt-4">
-          <button type="button" className="entrance-link" onClick={() => { cancelPasskey(); setPasskeyNote(null); setShowEmail(true) }}>Use email instead</button>
-        </p>
-      </Step>
-    )
   return (
-    <Step describedBy={`${id}-lead`} title={intro?.title ?? 'A moment to reflect.'} lead={intro?.lead ?? 'Enter your email to continue.'}>
-      <form onSubmit={submit} className="mt-7" noValidate={false}>
+    <Step describedBy={`${id}-lead`} title="Sign in with email." lead="For accounts made with an email code before Muni used passkeys. After signing in, add a passkey — then you won’t need codes again.">
+      <form onSubmit={submit} className="mt-7">
         <label htmlFor={`${id}-email`} className="block text-sm font-medium">Email</label>
         <input
           ref={ref}
@@ -269,7 +356,7 @@ function EmailStep({ email: initialEmail, initial, intro, onSent, onPasskey }: {
           className="field mt-1.5"
           type="email"
           name="email"
-          autoComplete="username webauthn"
+          autoComplete="username email"
           inputMode="email"
           autoCapitalize="none"
           spellCheck={false}
@@ -278,75 +365,22 @@ function EmailStep({ email: initialEmail, initial, intro, onSent, onPasskey }: {
           value={email}
           onChange={(e) => setEmail(e.target.value)}
           placeholder="you@company.com"
-          aria-describedby={`${id}-lead ${id}-how`}
+          aria-describedby={`${id}-lead`}
           aria-invalid={error ? true : undefined}
         />
         <ErrorText>{error}</ErrorText>
         <Button type="submit" variant="primary" size="lg" className="mt-5 w-full" busy={busy}>Send me a code</Button>
-        {supported ? (
-          <>
-            <div className="entrance-or" aria-hidden><span>or</span></div>
-            <Button type="button" size="lg" className="w-full" busy={passkeyBusy} onClick={usePasskey}>
-              <KeyRound className="size-4" aria-hidden /> Continue with a passkey
-            </Button>
-            {note}
-          </>
-        ) : null}
-        <p id={`${id}-how`} className="quiet mt-4">We’ll email you a six-digit code. There’s no password.{intro ? null : <> Joining a team? Open the link in your invitation email.</>}</p>
-        <p className="quiet mt-2">
-          Muni uses your email to sign you in, deliver team invitations and send sprint reminders — never for marketing, and it’s never shown with your thoughts.{' '}
-          <Link to="/privacy#collect" className="entrance-link">How privacy works</Link>
-        </p>
+        <p className="quiet mt-4"><button type="button" className="entrance-link" onClick={onBack}>Back to passkey sign-in</button></p>
       </form>
     </Step>
   )
 }
 
-/** Told only after the code proved the mailbox is theirs: this address had no account until now. */
-function NewAccountStep({ email, onContinue, onDifferent }: { email: string; onContinue: () => void; onDifferent: () => void }) {
-  const id = useId()
-  const { signOutLocal } = useAuth()
-  const [busy, setBusy] = useState(false)
-  return (
-    <Step
-      describedBy={`${id}-lead`}
-      title="This is a new Muni account."
-      lead={<>There wasn’t an account for <span className="email-line">{email}</span>, so one was just created. If you already use Muni with another address, use that one instead — your teams and thoughts stay together.</>}
-    >
-      <Button variant="primary" size="lg" className="mt-7 w-full" onClick={onContinue} autoFocus>Continue with this new account</Button>
-      <p className="quiet mt-4">
-        <button
-          type="button"
-          className="entrance-link"
-          disabled={busy}
-          onClick={async () => {
-            setBusy(true)
-            try {
-              await post('/api/auth/logout')
-            } catch {
-              /* a fresh, empty account: nothing to lose if this fails */
-            }
-            signOutLocal()
-            onDifferent()
-          }}
-        >
-          Use a different address
-        </button>
-      </p>
-    </Step>
-  )
-}
-
-/** After an email sign-in: add a passkey now, while the sign-in is fresh. Optional, once per account here. */
+/** After an email sign-in (an account from before passkeys): move it to passkeys, same account. */
 export function PasskeyOffer({ account, onDone }: { account: Me; onDone: () => void | Promise<void> }) {
   const id = useId()
   const [busy, setBusy] = useState(false)
   const [note, setNote] = useState<{ text: string; error: boolean } | null>(null)
-  const notNow = () => {
-    const cur = readPrefs().passkeyOfferDismissedFor ?? []
-    writePrefs({ passkeyOfferDismissedFor: [...cur.filter((a) => a !== account.account_id), account.account_id] })
-    return onDone()
-  }
   const add = async () => {
     if (busy) return
     setBusy(true)
@@ -365,15 +399,15 @@ export function PasskeyOffer({ account, onDone }: { account: Me; onDone: () => v
   return (
     <Step
       describedBy={`${id}-lead`}
-      title="Skip the code next time?"
-      lead="Add a passkey and return by unlocking this device — with your fingerprint, face, PIN or screen lock. Your device keeps that; Muni never receives your biometric data."
+      title="Add a passkey to your account."
+      lead={<>Muni now signs in with passkeys. Add one and you won’t need email codes again — your account, teams and thoughts stay exactly as they are, {account.display_name || 'as you'}.</>}
     >
       <Button variant="primary" size="lg" className="mt-7 w-full" busy={busy} onClick={add} autoFocus>
         <KeyRound className="size-4" aria-hidden /> Add a passkey
       </Button>
-      {note ? note.error ? <ErrorText>{note.text}</ErrorText> : <p role="status" className="quiet mt-3">{note.text}</p> : null}
-      <Button variant="ghost" size="lg" className="mt-2 w-full" onClick={notNow} disabled={busy}>Not now</Button>
-      <p className="quiet mt-4">A passkey may sync to your other devices through your password manager. Email codes keep working, and you can manage passkeys from your account.</p>
+      <Note note={note} />
+      <Button variant="ghost" size="lg" className="mt-2 w-full" onClick={() => onDone()} disabled={busy}>Not now</Button>
+      <p className="quiet mt-4">Your device or password manager keeps the passkey and unlocks it with your fingerprint, face, PIN or screen lock; Muni never receives your biometric data. Your email stays on the account for recovery until you remove it.</p>
     </Step>
   )
 }
@@ -385,13 +419,14 @@ const CODE_MESSAGES: Record<string, string> = {
   code_format: 'Enter the six digits from the email.',
 }
 
-function CodeStep({ email, sent, onResent, onChangeEmail, onVerified }: { email: string; sent: { expires: number; resendAt: number; note: string | null }; onResent: (info: CodeSent, note: string | null) => void; onChangeEmail: () => void; onVerified: (me: Me) => void | Promise<void> }) {
+function CodeStep({ email, sent, onResent, onChangeEmail, onVerified, onNoAccount }: { email: string; sent: { expires: number; resendAt: number; note: string | null }; onResent: (info: CodeSent, note: string | null) => void; onChangeEmail: () => void; onVerified: (me: Me) => void | Promise<void>; onNoAccount: () => void }) {
   const id = useId()
   const [code, setCode] = useState('')
   const [busy, setBusy] = useState(false)
   const [resending, setResending] = useState(false)
   const [error, setError] = useState('')
   const [focused, setFocused] = useState(false)
+  const [noAccount, setNoAccount] = useState(false)
   const [now, setNow] = useState(() => Date.now())
   const ref = useRef<HTMLInputElement>(null)
   const inFlight = useRef(false)
@@ -417,7 +452,11 @@ function CodeStep({ email, sent, onResent, onChangeEmail, onVerified }: { email:
     try {
       await onVerified(await post<Me>('/api/auth/verify', { email, code, installed: isInstalled() }))
     } catch (err) {
-      if (offline(err)) setError('You’re offline. Your code is still here — try again when you’re connected.')
+      if (err instanceof ApiError && err.code === 'no_account') {
+        // Said only now that the code proved this mailbox is theirs.
+        setNoAccount(true)
+        setError('There’s no Muni account with this address.')
+      } else if (offline(err)) setError('You’re offline. Your code is still here — try again when you’re connected.')
       else if (err instanceof ApiError && err.code === 'code_mismatch') {
         const left = Number(err.details.attempts_left ?? 0)
         setError(`That code doesn’t match. Check the newest email from Muni${left ? ` — ${left} ${left === 1 ? 'try' : 'tries'} left` : ''}.`)
@@ -507,6 +546,9 @@ function CodeStep({ email, sent, onResent, onChangeEmail, onVerified }: { email:
           ))}
         </div>
         <ErrorText>{error}</ErrorText>
+        {noAccount ? (
+          <p className="quiet mt-2">New to Muni? <button type="button" className="entrance-link" onClick={onNoAccount}>Create an account with a passkey</button> — no email needed.</p>
+        ) : null}
         {sent.note && !error ? <p role="status" className="quiet mt-2">{sent.note}</p> : null}
         <Button type="submit" variant="primary" size="lg" className="mt-5 w-full" busy={busy}>Continue</Button>
         <div className="quiet mt-4 flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
@@ -580,26 +622,4 @@ export function NameStep({ onDone, footer }: { onDone: (me: Me) => void | Promis
 function sentence(m: string) {
   const t = m.trim()
   return t ? t[0].toUpperCase() + t.slice(1) + (/[.!?]$/.test(t) ? '' : '.') : t
-}
-
-/**
- * An invitation's first question, before any email is typed: someone who already uses Muni signs
- * in (passkey or code) instead of accidentally starting a second account.
- */
-export function JoinDoors({ title, lead, onChoose }: { title: ReactNode; lead: ReactNode; onChoose: (intent: 'signin' | 'create') => void }) {
-  const id = useId()
-  return (
-    <Step describedBy={`${id}-lead`} title={title} lead={lead}>
-      <div className="entrance-choice" role="group" aria-label="How would you like to continue?">
-        <button type="button" onClick={() => onChoose('signin')} autoFocus>
-          <strong>I already use Muni</strong>
-          <span>Continue with a passkey or an email code, so you join as you.</span>
-        </button>
-        <button type="button" onClick={() => onChoose('create')}>
-          <strong>I’m new to Muni</strong>
-          <span>Create an account with your email address. We’ll send a code to confirm it’s yours.</span>
-        </button>
-      </div>
-    </Step>
-  )
 }

@@ -111,13 +111,14 @@ export async function cancelReminders(db: D1Database, sprintId: string) {
   await run(db, "UPDATE jobs SET status='cancelled', idempotency_key = idempotency_key || ':cancelled:' || id WHERE kind='reminder' AND status='queued' AND json_extract(payload, '$.sprint_id') = ?", sprintId)
 }
 
+/** Reminder emails go only to participants who added an address (passkey-only accounts get none). */
 async function reminders(env: AppEnv, sprintId: string, kind: string) {
   const s = await one<{ name: string; status: string; reminders_enabled: number }>(env.DB, 'SELECT name, status, reminders_enabled FROM sprints WHERE id = ?', sprintId)
   if (!s || s.status !== 'collecting' || !s.reminders_enabled) return
   const recipients = await all<{ email: string }>(
     env.DB,
-    `SELECT a.email FROM sprint_participants sp JOIN accounts a ON a.id = sp.account_id JOIN sprints s ON s.id = sp.sprint_id
-     JOIN memberships m ON m.workspace_id = s.workspace_id AND m.account_id = a.id AND m.revoked_at IS NULL WHERE sp.sprint_id = ? AND sp.reminders_opt_out = 0 LIMIT 100`,
+    `SELECT ae.email FROM sprint_participants sp JOIN account_emails ae ON ae.account_id = sp.account_id JOIN sprints s ON s.id = sp.sprint_id
+     JOIN memberships m ON m.workspace_id = s.workspace_id AND m.account_id = sp.account_id AND m.revoked_at IS NULL WHERE sp.sprint_id = ? AND sp.reminders_opt_out = 0 LIMIT 100`,
     sprintId,
   )
   const link = `${config(env).publicOrigin}/sprints/${sprintId}`

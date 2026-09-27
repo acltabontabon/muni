@@ -10,6 +10,7 @@ import { limit } from '../lib/ratelimit'
 import { nonempty, normalizeEmail } from '../lib/util'
 import { enqueue, runSoon } from '../jobs'
 import { revokeLive } from '../lib/live'
+import { EMAIL_OF_A } from '../lib/accounts'
 
 export const workspaces = new Hono<HonoEnv>()
 
@@ -44,7 +45,7 @@ workspaces.get('/api/workspaces/:workspaceId', async (c) => {
   const m = await requireMember(c, config(c.env), c.env.DB, c.req.param('workspaceId'))
   const workspace = await loadWorkspace(c.env, m.workspaceId, m.role)
   const isOwner = m.role === 'owner'
-  const rows = await all<{ id: string; display_name: string; email: string; role: string; created_at: number }>(c.env.DB, 'SELECT a.id, a.display_name, a.email, m.role, m.created_at FROM memberships m JOIN accounts a ON a.id = m.account_id WHERE m.workspace_id = ? AND m.revoked_at IS NULL ORDER BY m.created_at', m.workspaceId)
+  const rows = await all<{ id: string; display_name: string; email: string | null; role: string; created_at: number }>(c.env.DB, `SELECT a.id, a.display_name, ${EMAIL_OF_A} AS email, m.role, m.created_at FROM memberships m JOIN accounts a ON a.id = m.account_id WHERE m.workspace_id = ? AND m.revoked_at IS NULL ORDER BY m.created_at`, m.workspaceId)
   const can_invite = await canInvite(c.env.DB, m.workspaceId, m.auth.account.id, m.role)
   const pending = can_invite
     ? await all<{ id: string; email: string; sprint_id: string | null; expires_at: number; created_at: number }>(c.env.DB, 'SELECT id, email, sprint_id, expires_at, created_at FROM invitations WHERE workspace_id = ? AND accepted_at IS NULL AND revoked_at IS NULL AND expires_at > ? ORDER BY created_at DESC LIMIT 100', m.workspaceId, Date.now())
@@ -96,7 +97,7 @@ workspaces.post('/api/workspaces/:workspaceId/invitations', async (c) => {
     if (!fac) throw forbidden('only this sprint’s facilitator can add people to it')
     if (['completed', 'archived'].includes(sp.status)) throw conflict('this sprint is finished')
   }
-  const existing = await one<{ id: string }>(c.env.DB, 'SELECT a.id FROM accounts a JOIN memberships mm ON mm.account_id = a.id WHERE a.email = ? AND mm.workspace_id = ? AND mm.revoked_at IS NULL', email, m.workspaceId)
+  const existing = await one<{ id: string }>(c.env.DB, 'SELECT ae.account_id AS id FROM account_emails ae JOIN memberships mm ON mm.account_id = ae.account_id WHERE ae.email = ? AND mm.workspace_id = ? AND mm.revoked_at IS NULL', email, m.workspaceId)
   if (existing) {
     if (body.sprint_id) await run(c.env.DB, 'INSERT OR IGNORE INTO sprint_participants (sprint_id, account_id, is_facilitator, created_at) VALUES (?,?,0,?)', body.sprint_id, existing.id, Date.now())
     return c.json({ invitation_id: '00000000-0000-0000-0000-000000000000', email, already_member: true })

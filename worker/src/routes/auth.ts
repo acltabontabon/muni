@@ -1,20 +1,24 @@
 import { Hono } from 'hono'
 import type { HonoEnv } from '../env'
 import { config } from '../lib/config'
-import { CODE_TTL_MS, RECENT_AUTH_MS, clearSessionCookies, clientLabel, createSession, loadSession, readCookie, requireAuth, revokeSession, securityEvent, sessionCookie, setSessionCookies, checkOrigin, type Auth } from '../lib/auth'
-import { constantTimeEqual, randomCode, sha256Hex, uuid } from '../lib/crypto'
+import { RECENT_AUTH_MS, clearSessionCookies, clientLabel, createSession, loadSession, readCookie, requireAuth, revokeSession, securityEvent, sessionCookie, setSessionCookies, checkOrigin, type Auth } from '../lib/auth'
+import { sha256Hex } from '../lib/crypto'
 import { all, batch, one, run } from '../lib/db'
-import { AppError, bad, quota } from '../lib/errors'
-import { sendMail, templates } from '../lib/email'
+import { AppError, bad } from '../lib/errors'
 import { clientClass, limit } from '../lib/ratelimit'
 import { maskEmail, nonempty, normalizeEmail } from '../lib/util'
+import { accountByEmail, emailOf, setAccountEmail } from '../lib/accounts'
+import { issueCode, spendCode } from '../lib/codes'
+
+export { RESEND_COOLDOWN_MS } from '../lib/codes'
 
 export const auth = new Hono<HonoEnv>()
 
 /** `session` is the one asking (absent right after a sign-in, when the new session is fresh). */
 export async function buildMe(env: HonoEnv['Bindings'], accountId: string, session?: Pick<Auth, 'authMethod' | 'authenticatedAt'>, extra: { created?: boolean } = {}) {
   const cfg = config(env)
-  const acct = await one<{ email: string; display_name: string; name_set_at: number | null }>(env.DB, 'SELECT email, display_name, name_set_at FROM accounts WHERE id = ?', accountId)
+  const acct = await one<{ display_name: string; name_set_at: number | null }>(env.DB, 'SELECT display_name, name_set_at FROM accounts WHERE id = ?', accountId)
+  const email = await emailOf(env.DB, accountId)
   const rows = await all<{ id: string; name: string; role: string; is_demo: number }>(
     env.DB,
     'SELECT w.id, w.name, m.role, w.is_demo FROM memberships m JOIN workspaces w ON w.id = m.workspace_id WHERE m.account_id = ? AND m.revoked_at IS NULL ORDER BY w.created_at',
@@ -30,7 +34,8 @@ export async function buildMe(env: HonoEnv['Bindings'], accountId: string, sessi
   const authedAt = session?.authenticatedAt ?? Date.now()
   return {
     account_id: accountId,
-    email: acct?.email ?? '',
+    /** Optional and verified: recovery, email invitations, reminders. Never needed to sign in. */
+    email,
     display_name: acct?.display_name ?? '',
     /** No name chosen yet (a new account, or one whose name was once inferred): ask before anything else. */
     needs_name: !acct?.name_set_at || !acct.display_name.trim(),
@@ -47,46 +52,24 @@ export async function buildMe(env: HonoEnv['Bindings'], accountId: string, sessi
   }
 }
 
-const DAY_MS = 86_400_000
-/** A new code can be sent once this long after the last one for the same address. */
-export const RESEND_COOLDOWN_MS = 30_000
-const codeHash = (code: string, challengeId: string) => sha256Hex(`${code}:${challengeId}`)
-
-/** Request a one-time sign-in code by email. Never reveals whether an account exists. */
+/**
+ * Request a one-time code for signing in to an existing account by email ("Used Muni before?").
+ * Never reveals whether an account exists: the answer and the email are the same either way.
+ */
 auth.post('/api/auth/request-code', async (c) => {
   const cfg = config(c.env)
   checkOrigin(c.req.raw, cfg)
   const body = (await c.req.json().catch(() => ({}))) as { email?: string }
   const email = normalizeEmail(body.email ?? '')
   if (!email) throw bad('enter a valid email address')
-  // A short cooldown between codes for one address (the same for every address, account or not).
-  const last = await one<{ created_at: number }>(c.env.DB, 'SELECT created_at FROM verification_challenges WHERE email = ? ORDER BY created_at DESC LIMIT 1', email)
-  if (last && Date.now() - last.created_at < RESEND_COOLDOWN_MS) {
-    const wait = Math.ceil((last.created_at + RESEND_COOLDOWN_MS - Date.now()) / 1000)
-    throw new AppError(429, 'resend_cooldown', `a code was just sent — you can ask for another in ${wait} seconds`, { retry_after_seconds: wait })
-  }
-  // Buckets hold hashes, so the limiter table never stores an address or an IP in the clear.
-  const who = await sha256Hex(email)
-  const net = await sha256Hex(clientClass(c.req.raw))
-  await limit(c.env.DB, `code:${who}`, 5, 15 * 60_000)
-  await limit(c.env.DB, `code-ip:${net}`, 120, 10 * 60_000)
-  await limit(c.env.DB, `code-ip-day:${net}`, cfg.signinCodesPerNetworkDaily, DAY_MS)
-  await limit(c.env.DB, 'code-all', cfg.signinEmailsDailyLimit, DAY_MS, () =>
-    quota('Muni has sent all the sign-in emails it can for today. Please try again tomorrow; devices that are already signed in keep working.'),
-  )
-  const code = randomCode()
-  const id = uuid()
-  await run(c.env.DB, 'INSERT INTO verification_challenges (id, email, code_hash, expires_at, created_at) VALUES (?,?,?,?,?)', id, email, await codeHash(code, id), Date.now() + CODE_TTL_MS, Date.now())
-  // Sent inline so sign-in is immediate; provider errors are reported honestly.
-  await sendMail(cfg, c.env.DB, templates.signInCode(email, code))
-  // The same answer whether or not an account exists for this address.
-  return c.json({ sent: true, expires_in_minutes: CODE_TTL_MS / 60_000, resend_after_seconds: RESEND_COOLDOWN_MS / 1000 })
+  return c.json(await issueCode(c, cfg, email, 'signin'))
 })
 
 /**
- * Exchange a code for a session. Consumes the code; bounded attempts; rotates any presented session.
- * Sign-in and sign-up are one step: a verified address without an account gets one, with no name
- * (never inferred from the address). `needs_name` in the answer tells the client to ask for one.
+ * Exchange a code for a session on the account that has this address. Consumes the code; bounded
+ * attempts; rotates any presented session. It never creates an account: new accounts are made
+ * with a passkey. Only after the code proved control of the mailbox does the answer say that no
+ * account has this address.
  */
 auth.post('/api/auth/verify', async (c) => {
   const cfg = config(c.env)
@@ -94,40 +77,18 @@ auth.post('/api/auth/verify', async (c) => {
   const body = (await c.req.json().catch(() => ({}))) as { email?: string; code?: string; reauth?: boolean; installed?: boolean }
   const email = normalizeEmail(body.email ?? '')
   if (!email) throw bad('enter a valid email address')
-  await limit(c.env.DB, `verify:${await sha256Hex(email)}`, 10, 15 * 60_000)
   const old = await loadSession(c.env.DB, readCookie(c.req.raw, sessionCookie(cfg)))
   // Confirming it's you (step-up) must stay on the same account: checked before the code is spent.
   if (body.reauth === true && (!old || old.auth.account.email !== email)) throw new AppError(403, 'account_mismatch', 'use the email address of the account you’re signed in to')
-  const code = (body.code ?? '').replace(/\D/g, '')
-  if (code.length !== 6) throw new AppError(400, 'code_format', 'the code is six digits')
-  const ch = await one<{ id: string; code_hash: string; attempts: number; max_attempts: number; consumed_at: number | null; expires_at: number }>(
-    c.env.DB,
-    'SELECT id, code_hash, attempts, max_attempts, consumed_at, expires_at FROM verification_challenges WHERE email = ? ORDER BY created_at DESC LIMIT 1',
-    email,
-  )
-  if (!ch || ch.expires_at <= Date.now()) throw new AppError(400, 'code_expired', 'that code has expired — send a new one')
-  if (ch.consumed_at) throw new AppError(400, 'code_used', 'that code was already used — send a new one')
-  if (ch.attempts >= ch.max_attempts) throw new AppError(400, 'code_locked', 'too many wrong tries for this code — send a new one')
-  if (!constantTimeEqual(ch.code_hash, await codeHash(code, ch.id))) {
-    await run(c.env.DB, 'UPDATE verification_challenges SET attempts = attempts + 1 WHERE id = ?', ch.id)
-    const left = ch.max_attempts - ch.attempts - 1
-    if (left <= 0) throw new AppError(400, 'code_locked', 'that code doesn’t match, and it can’t be tried again — send a new one')
-    throw new AppError(400, 'code_mismatch', 'that code doesn’t match', { attempts_left: left })
-  }
-  // Consume exactly once: the conditional update wins for a single concurrent verifier.
-  const consumed = await run(c.env.DB, 'UPDATE verification_challenges SET consumed_at = ? WHERE id = ? AND consumed_at IS NULL', Date.now(), ch.id)
-  if (!consumed.meta.changes) throw new AppError(400, 'code_used', 'that code was already used — send a new one')
-  // One account per address, even if two verifications race. `created` tells the client (only
-  // after the code proved control of the mailbox) whether this is a new account, so someone who
-  // meant to sign in to an existing one with a different address notices before joining a team.
-  const inserted = await run(c.env.DB, "INSERT INTO accounts (id, email, display_name, created_at) VALUES (?,?,'',?) ON CONFLICT(email) DO NOTHING", uuid(), email, Date.now())
-  const account = (await one<{ id: string }>(c.env.DB, 'SELECT id FROM accounts WHERE email = ?', email))!
+  await spendCode(c.env.DB, email, body.code, 'signin')
+  const accountId = await accountByEmail(c.env.DB, email)
+  if (!accountId) throw new AppError(404, 'no_account', 'no Muni account has this address — create one with a passkey instead')
   // Rotation: whatever session was presented ends; the new one has a fresh token.
   if (old) await revokeSession(c.env.DB, old.auth.sessionId)
-  const session = await createSession(c.env.DB, account.id, cfg.sessionTtlDays, { method: 'email', clientLabel: clientLabel(c.req.raw, body.installed === true) })
+  const session = await createSession(c.env.DB, accountId, cfg.sessionTtlDays, { method: 'email', clientLabel: clientLabel(c.req.raw, body.installed === true) })
   setSessionCookies(c, cfg, session)
-  await securityEvent(c.env.DB, account.id, body.reauth === true ? 'reauth.email' : 'signin.email')
-  return c.json(await buildMe(c.env, account.id, undefined, { created: !!inserted.meta.changes }))
+  await securityEvent(c.env.DB, accountId, body.reauth === true ? 'reauth.email' : 'signin.email')
+  return c.json(await buildMe(c.env, accountId, undefined, { created: false }))
 })
 
 auth.get('/api/auth/me', async (c) => {
@@ -247,18 +208,47 @@ auth.post('/api/invitations/preview', async (c) => {
   await limit(c.env.DB, `invite-preview:${await sha256Hex(clientClass(c.req.raw))}`, 60, 10 * 60_000)
   const session = await loadSession(c.env.DB, readCookie(c.req.raw, sessionCookie(cfg)))
   const inv = await liveInvite(c.env.DB, await bodyToken(c))
-  if (!inv) return c.json({ valid: false, email_hint: null, workspace_name: null, matches_session: false, signed_in: !!session })
-  const matches = session?.auth.account.email === inv.email
-  return c.json({ valid: true, email_hint: maskEmail(inv.email), workspace_name: matches ? inv.workspace_name : null, matches_session: matches, signed_in: !!session })
+  if (!inv) return c.json({ valid: false, email_hint: null, workspace_name: null, matches_session: false, signed_in: !!session, can_confirm: false })
+  const mine = session?.auth.account.email ?? null
+  const matches = mine === inv.email
+  // A signed-in account without an address can confirm the invited one by code (and keep it).
+  return c.json({ valid: true, email_hint: maskEmail(inv.email), workspace_name: matches ? inv.workspace_name : null, matches_session: matches, signed_in: !!session, can_confirm: !!session && !matches && mine === null })
 })
 
-/** Accept with a session whose verified email matches. Single use under concurrency. */
-auth.post('/api/invitations/accept', async (c) => {
-  const a = await requireAuth(c, config(c.env), c.env.DB)
+/**
+ * Send a code to the invited address so a signed-in account without an address can prove it
+ * controls that mailbox. The link alone proves nothing (links get forwarded).
+ */
+auth.post('/api/invitations/confirm', async (c) => {
+  const cfg = config(c.env)
+  const a = await requireAuth(c, cfg, c.env.DB)
   const inv = await liveInvite(c.env.DB, await bodyToken(c))
   if (!inv) return c.json({ error: 'this invitation is no longer valid', code: 'not_found' }, 404)
+  if (a.account.email === inv.email) return c.json({ sent: false, matches: true })
+  if (a.account.email) throw new AppError(403, 'forbidden', `this invitation was sent to ${maskEmail(inv.email)} — sign in to the account with that address to accept it`)
+  return c.json(await issueCode(c, cfg, inv.email, 'invite', a.account.id))
+})
+
+/**
+ * Accept with a session whose verified address matches — or, for an account with no address, a
+ * code sent to the invited address (which is then kept as the account's verified address). If
+ * that address already belongs to another account, the person is sent there instead of ending up
+ * with two identities. Single use under concurrency.
+ */
+auth.post('/api/invitations/accept', async (c) => {
+  const a = await requireAuth(c, config(c.env), c.env.DB)
+  const body = (await c.req.json().catch(() => ({}))) as { token?: unknown; code?: unknown }
+  const inv = await liveInvite(c.env.DB, typeof body.token === 'string' ? body.token.trim() : '')
+  if (!inv) return c.json({ error: 'this invitation is no longer valid', code: 'not_found' }, 404)
   if (inv.email !== a.account.email) {
-    return c.json({ error: `this invitation was sent to ${maskEmail(inv.email)} — sign in with that address to accept it`, code: 'forbidden' }, 403)
+    if (a.account.email || body.code === undefined)
+      return c.json({ error: `this invitation was sent to ${maskEmail(inv.email)} — ${a.account.email ? 'sign in with the account that has that address' : 'confirm that address with a code'} to accept it`, code: a.account.email ? 'forbidden' : 'confirm_email' }, 403)
+    await spendCode(c.env.DB, inv.email, body.code, 'invite', a.account.id)
+    const owner = await accountByEmail(c.env.DB, inv.email)
+    if (owner && owner !== a.account.id)
+      return c.json({ error: 'that address belongs to another Muni account — sign in to it with “Used Muni before?”, then open this invitation again', code: 'email_other_account' }, 409)
+    if (!(await setAccountEmail(c.env.DB, a.account.id, inv.email))) return c.json({ error: 'that address belongs to another Muni account', code: 'email_other_account' }, 409)
+    await securityEvent(c.env.DB, a.account.id, 'email.added', { via: 'invitation' })
   }
   // Teammates see the name of whoever joins, so it's chosen before joining (never inferred).
   const named = await one<{ ok: number }>(c.env.DB, "SELECT (name_set_at IS NOT NULL AND trim(display_name) <> '') AS ok FROM accounts WHERE id = ?", a.account.id)

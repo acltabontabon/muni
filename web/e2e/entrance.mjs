@@ -1,5 +1,6 @@
 /**
- * End-to-end checks of the entrance (email → code → name → destination) and invitations, against
+ * End-to-end checks of the email path ("Used Muni before?": email → code → name → passkey offer →
+ * destination) and email invitations, against
  * a local `wrangler dev` with the console email provider. Synthetic addresses only.
  * Run from web/:  MUNI_URL=http://localhost:8787 node e2e/entrance.mjs
  */
@@ -15,8 +16,23 @@ const addr = (p) => `${p}-${crypto.randomUUID().slice(0, 8)}@example.test`
 const codeFor = (page, email) => page.evaluate(async (e) => (await fetch('/api/dev/inbox').then((r) => r.json())).filter((m) => m.to === e && /sign-in code/.test(m.subject))[0]?.subject.split(' ')[0], email)
 const inviteLink = (page, email) => page.evaluate(async (e) => (await fetch('/api/dev/inbox').then((r) => r.json())).find((m) => m.to === e && /invited/.test(m.subject))?.body.split('\n').map((l) => l.trim()).find((l) => l.includes('/invite')), email)
 
+/** An account as made before passkeys (email only, no name, no passkey), via the dev-only endpoint. */
+const legacy = (page, email) => page.evaluate((e) => fetch('/api/dev/legacy-account', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ email: e }) }), email)
+/** The quiet "Used Muni before?" link on the passkey-first entrance. */
+async function toEmail(page) {
+  const link = page.locator('button:has-text("Sign in with email")')
+  if (await link.count()) await link.click()
+  await page.waitForSelector('input[type=email]')
+}
+/** Email sign-ins for accounts without a passkey end with an offer to add one; these checks decline it. */
+async function skipOffer(page) {
+  await page.waitForSelector('text=Add a passkey to your account.', { timeout: 5000 }).then(() => page.click('button:has-text("Not now")')).catch(() => {})
+}
+
 /** Signs in through the UI; `name` is typed only if the name step appears. */
 async function signIn(page, email, name) {
+  await legacy(page, email)
+  await toEmail(page)
   await page.fill('input[type=email]', email)
   await page.click('button:has-text("Send me a code")')
   await page.waitForSelector('text=Check your inbox.')
@@ -27,6 +43,7 @@ async function signIn(page, email, name) {
     await page.fill('input[autocomplete="name"]', name)
     await page.click('button:has-text("Continue")')
   }
+  await skipOffer(page)
 }
 
 /** A named account created through the API, plus a workspace and a collecting sprint it facilitates. */
@@ -67,6 +84,8 @@ try {
     await page.goto(`${BASE}/signin?next=${encodeURIComponent('/account')}`)
     check('No name field before verification', (await page.locator('input[autocomplete="name"]').count()) === 0)
     const email = addr('new')
+    await legacy(page, email)
+    await toEmail(page)
     await page.fill('input[type=email]', email)
     await page.click('button:has-text("Send me a code")')
     await page.waitForSelector('text=Check your inbox.')
@@ -98,10 +117,13 @@ try {
     await code.press('Enter').catch(() => {})
     await page.waitForSelector('text=What should we call you?')
     check('One verification request for a double Enter', verifies === 1, `requests=${verifies}`)
-    check('New account is asked for a name (empty, not taken from the address)', (await page.locator('input[autocomplete="name"]').inputValue()) === '')
+    check('An account without a chosen name is asked for one (empty, not taken from the address)', (await page.locator('input[autocomplete="name"]').inputValue()) === '')
     check('Focus moves to the name input', await page.locator('input[autocomplete="name"]').evaluate((el) => el === document.activeElement))
     await page.fill('input[autocomplete="name"]', 'Nadia New')
     await page.click('button:has-text("Continue")')
+    await page.waitForSelector('text=Add a passkey to your account.')
+    check('An account from before passkeys is offered a passkey after the email sign-in', true)
+    await page.click('button:has-text("Not now")')
     await page.waitForURL('**/account')
     check('After the name, continues to the intended destination', new URL(page.url()).pathname === '/account')
     const stored = await page.evaluate(() => JSON.stringify(localStorage) + JSON.stringify(sessionStorage))
@@ -139,6 +161,8 @@ try {
     const page = await ctx.newPage()
     await page.goto(`${BASE}/signin`)
     const email = addr('resume')
+    await legacy(page, email)
+    await toEmail(page)
     await page.fill('input[type=email]', email)
     await page.click('button:has-text("Send me a code")')
     await page.waitForSelector('text=Check your inbox.')
@@ -168,11 +192,9 @@ try {
     await page.waitForSelector('text=You’re invited.')
     const hash = new URL(page.url()).hash
     check('Invitation page names the invited address (masked)', (await page.locator('text=This invitation is for').innerText()).includes('•••'))
-    // Joining asks first whether this person already uses Muni (so nobody starts a second account by accident).
-    await page.click('button:has-text("I’m new to Muni")')
     await signIn(page, email, 'Ivy Invitee')
     await page.waitForSelector('text=Join Synthetic team?')
-    check('Invitation kept through email, code and name', new URL(page.url()).hash === hash && new URL(page.url()).pathname === '/invite')
+    check('Invitation kept through the email path, code and name', new URL(page.url()).hash === hash && new URL(page.url()).pathname === '/invite')
     await page.click('button:has-text("Join the workspace")')
     await page.waitForURL(`**/sprints/${o.sprint}`)
     check('Joining opens the sprint it was for', new URL(page.url()).pathname === `/sprints/${o.sprint}`)
@@ -203,6 +225,8 @@ try {
     await page.goto(`${BASE}/signin`)
     check('Reduced motion: no step animation', (await page.locator('.entrance-step').evaluate((el) => getComputedStyle(el).animationName)) === 'none')
     const email = addr('offline')
+    await legacy(page, email)
+    await toEmail(page)
     await page.fill('input[type=email]', email)
     await ctx.setOffline(true)
     await page.click('button:has-text("Send me a code")')
@@ -213,7 +237,7 @@ try {
     await page.waitForSelector('text=Check your inbox.')
     check('Retry works once back online', true)
     await page.click('button:has-text("Change email")')
-    await page.waitForSelector('text=A moment to reflect.')
+    await page.waitForSelector('text=Sign in with email.')
     check('Change email keeps the address and focuses it', (await page.locator('input[type=email]').inputValue()) === email && (await page.locator('input[type=email]').evaluate((el) => el === document.activeElement)))
     await page.click('button:has-text("Send me a code")')
     await page.waitForSelector('text=Check your inbox.')

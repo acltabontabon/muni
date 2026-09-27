@@ -394,7 +394,7 @@ function Welcome() {
       </JournalScene>
       <div className="mt-4 max-w-2xl">
         <PendingJoins />
-        <p className="mt-6 max-w-prose text-lg text-ink-soft">If you were invited to a team, open the link in your invitation email or scan the team’s invite QR — it brings you straight to your sprint.</p>
+        <p className="mt-6 max-w-prose text-lg text-ink-soft">If you were invited to a team, open your invite link or scan the team’s QR code — it brings you straight to your sprint.</p>
         <p className="mt-6 text-sm text-ink-soft">
           Starting a team yourself? <button className="font-medium text-ink underline underline-offset-4 hover:decoration-accent" onClick={() => setCreating(true)}>Create a workspace</button>
         </p>

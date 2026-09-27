@@ -26,7 +26,8 @@ export type AuthMethod = 'email' | 'passkey'
 
 export interface Account {
   id: string
-  email: string
+  /** The optional verified address (account_emails), or null for a passkey-only account. */
+  email: string | null
   display_name: string
 }
 export interface Auth {
@@ -148,7 +149,7 @@ interface SessionRow {
   authenticated_at: number | null
   created_at: number
   aid: string
-  email: string
+  email: string | null
   display_name: string
 }
 
@@ -156,8 +157,8 @@ export async function loadSession(db: D1Database, rawToken: string | null): Prom
   if (!rawToken || rawToken.length > 128) return null
   const row = await one<SessionRow>(
     db,
-    `SELECT s.id, s.csrf_token, s.expires_at, s.last_seen_at, s.auth_method, s.authenticated_at, s.created_at, a.id AS aid, a.email, a.display_name
-     FROM sessions s JOIN accounts a ON a.id = s.account_id WHERE s.token_hash = ? AND s.revoked_at IS NULL`,
+    `SELECT s.id, s.csrf_token, s.expires_at, s.last_seen_at, s.auth_method, s.authenticated_at, s.created_at, a.id AS aid, ae.email, a.display_name
+     FROM sessions s JOIN accounts a ON a.id = s.account_id LEFT JOIN account_emails ae ON ae.account_id = a.id WHERE s.token_hash = ? AND s.revoked_at IS NULL`,
     await sha256Hex(rawToken),
   )
   if (!row || row.expires_at < Date.now()) return null
@@ -213,7 +214,7 @@ export async function requireAuth(c: Context, cfg: Config, db: D1Database): Prom
  */
 export function requireRecentAuth(a: Auth) {
   if (Date.now() - a.authenticatedAt > RECENT_AUTH_MS)
-    throw new AppError(403, 'reauth_required', 'confirm it’s you first — sign in again with a passkey or an email code', { recent_auth_minutes: RECENT_AUTH_MS / 60_000 })
+    throw new AppError(403, 'reauth_required', 'confirm it’s you first — sign in again with a passkey (or an email code, if your account has an address)', { recent_auth_minutes: RECENT_AUTH_MS / 60_000 })
 }
 
 export async function membershipRole(db: D1Database, workspaceId: string, accountId: string): Promise<Role | null> {

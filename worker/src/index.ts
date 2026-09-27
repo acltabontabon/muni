@@ -21,6 +21,7 @@ import { demo } from './routes/demo'
 import { keys } from './routes/keys'
 import { passkeys } from './routes/passkeys'
 import { join } from './routes/join'
+import { email } from './routes/email'
 import { scheduled } from './jobs'
 
 export { MeetingRoom } from './room'
@@ -81,6 +82,7 @@ app.route('/', demo)
 app.route('/', keys)
 app.route('/', passkeys)
 app.route('/', join)
+app.route('/', email)
 
 app.notFound((c) => c.json({ error: 'not found', code: 'not_found' }, 404))
 app.onError((err, c) => {

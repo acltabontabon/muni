@@ -6,7 +6,7 @@
 import { describe, expect, it } from 'vitest'
 import { env } from 'cloudflare:test'
 import { b64u, newKeyPair, newRecoveryKey, newSprintSecret, sprintKeys, wrapForRecovery, wrapSprintSecret } from '../../web/src/lib/e2ee/crypto'
-import { codeFor, del, get, inviteToken, post, put, rawReq, signin, sprint, tag, team, verify } from './harness'
+import { codeFor, del, get, inviteToken, post, put, rawReq, signin, sprint, tag, team, verify, legacyAccount } from './harness'
 
 const tokenOf = (url: string) => url.split('#')[1]
 const count = async (sql: string, ...args: unknown[]) => Number((await env.DB.prepare(sql).bind(...args).first<{ n: number }>())?.n ?? 0)
@@ -47,10 +47,10 @@ describe('invite links', () => {
   it('show nothing about the team before sign-in, and only its name after', async () => {
     const { token } = await setup()
     const anon = await post('/api/join/preview', null, { token })
-    expect(anon.body).toEqual({ valid: true, signed_in: false, includes_sprint: false })
+    expect(anon.body).toEqual({ valid: true, signed_in: false, includes_sprint: false, mode: 'approval' })
     const someone = await signin(`join-prev-${tag()}@example.com`, 'Someone')
     const seen = await post('/api/join/preview', someone, { token })
-    expect(Object.keys(seen.body).sort()).toEqual(['includes_sprint', 'signed_in', 'state', 'valid', 'workspace_name'])
+    expect(Object.keys(seen.body).sort()).toEqual(['includes_sprint', 'mode', 'signed_in', 'state', 'valid', 'workspace_name'])
     expect(seen.body.state).toBe('none')
     expect((await post('/api/join/preview', null, { token: 'x'.repeat(43) })).body.valid).toBe(false)
   })
@@ -61,6 +61,7 @@ describe('asking to join', () => {
     const { owner, ws, token } = await setup()
     expect((await post('/api/join/request', null, { token })).status).toBe(401)
     const email = `join-unnamed-${tag()}@example.com`
+    await legacyAccount(email)
     await post('/api/auth/request-code', null, { email })
     const unnamed = (await verify(email, await codeFor(email), null)).user!
     expect((await post('/api/join/request', unnamed, { token })).body.code).toBe('name_required')

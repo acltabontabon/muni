@@ -44,6 +44,7 @@ function ReauthDialog({ open, onDone }: { open: boolean; onDone: (ok: boolean) =
   const [error, setError] = useState('')
   const [note, setNote] = useState('')
   const canPasskey = !!me && me.passkeys > 0 && supportsPasskeys()
+  const canEmail = !!me?.email
   const reset = () => {
     setMode('choose')
     setCode('')
@@ -68,7 +69,7 @@ function ReauthDialog({ open, onDone }: { open: boolean; onDone: (ok: boolean) =
     }
   }
   const sendCode = async () => {
-    if (!me) return
+    if (!me?.email) return
     setBusy(true)
     setError('')
     try {
@@ -87,7 +88,7 @@ function ReauthDialog({ open, onDone }: { open: boolean; onDone: (ok: boolean) =
   }
   const verify = async (e: FormEvent) => {
     e.preventDefault()
-    if (!me || busy) return
+    if (!me?.email || busy) return
     setBusy(true)
     setError('')
     try {
@@ -113,9 +114,12 @@ function ReauthDialog({ open, onDone }: { open: boolean; onDone: (ok: boolean) =
               <KeyRound className="size-4" aria-hidden /> Use a passkey
             </Button>
           ) : null}
-          <Button variant={canPasskey ? 'secondary' : 'primary'} busy={busy && !canPasskey} onClick={sendCode} autoFocus={!canPasskey}>
-            Email me a code
-          </Button>
+          {canEmail ? (
+            <Button variant={canPasskey ? 'secondary' : 'primary'} busy={busy && !canPasskey} onClick={sendCode} autoFocus={!canPasskey}>
+              Email me a code
+            </Button>
+          ) : null}
+          {!canPasskey && !canEmail ? <p className="text-sm text-ink-soft">This browser can’t use passkeys. Confirm on a device that can.</p> : null}
         </div>
       ) : (
         <form onSubmit={verify} className="grid gap-2">

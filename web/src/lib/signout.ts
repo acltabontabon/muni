@@ -45,4 +45,4 @@ export function onSignOutElsewhere(fn: () => void): () => void {
 }
 
 /** Sign-in endpoints whose success replaces any session this device had. */
-export const SIGN_IN_PATHS = new Set(['/api/auth/verify', '/api/auth/passkey/login/verify'])
+export const SIGN_IN_PATHS = new Set(['/api/auth/verify', '/api/auth/passkey/login/verify', '/api/auth/passkey/signup/verify'])

@@ -297,7 +297,7 @@ export function WorkspacePeople() {
       aside={
         ws.can_invite ? (
           <span className="flex gap-2">
-            <Button size="sm" onClick={() => setQr(true)}><QrCode className="size-4" /> Show invite QR</Button>
+            <Button size="sm" onClick={() => setQr(true)}><QrCode className="size-4" /> Invite link or QR</Button>
             <Button size="sm" variant="primary" onClick={() => setInviting(true)}><UserPlus className="size-4" /> Invite by email</Button>
           </span>
         ) : null
@@ -389,7 +389,7 @@ export function InviteDialog({ open, onClose, workspaceId, sprints, onInvited, d
     }
   }, [open, defaultSprint])
   return (
-    <Dialog open={open} onOpenChange={(o) => !o && onClose()} title="Invite a teammate" description="They get an email with a link. Joining needs that exact address confirmed, so a forwarded link doesn’t let someone else in.">
+    <Dialog open={open} onOpenChange={(o) => !o && onClose()} title="Invite by email" description="For teammates who use email. They get a link, and joining needs that exact address confirmed with a code, so a forwarded link doesn’t let someone else in. No email? Use an invite link or QR instead.">
       <form
         className="space-y-4"
         onSubmit={async (e) => {

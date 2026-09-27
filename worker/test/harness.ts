@@ -64,13 +64,26 @@ export async function verify(email: string, code: string, name: string | null = 
   return { ...r, user }
 }
 
+/**
+ * Signs in by email code. Accounts are no longer made by email codes, so an address without an
+ * account first gets one the way they existed before passkeys (email, no passkey) — the
+ * "Used Muni before?" population. Passkey-only accounts: see `passkeySignup`.
+ */
 export async function signin(email: string, name: string | null = 'Someone'): Promise<User> {
+  await legacyAccount(email)
   await skipCooldown(email)
   const r = await post('/api/auth/request-code', null, { email })
   if (r.status !== 200) throw new Error(`request-code ${r.status} ${JSON.stringify(r.body)}`)
   const v = await verify(email, await codeFor(email.toLowerCase()), name)
   if (!v.user) throw new Error(`verify failed ${v.status} ${JSON.stringify(v.body)}`)
   return v.user
+}
+
+/** An account as made before passkeys: this address, no passkey, no name yet. */
+export async function legacyAccount(email: string): Promise<string> {
+  const r = await req<{ account_id: string }>('POST', '/api/dev/legacy-account', null, { email })
+  if (r.status !== 200) throw new Error(`legacy-account ${r.status}`)
+  return r.body.account_id
 }
 
 /** Runs queued jobs (emails, AI) until none are due. */
@@ -236,4 +249,15 @@ export async function addPasskeyTo(user: User, auth: { register: (o: any, over?:
 export async function ageSession(user: User, minutes = 60) {
   const { sha256Hex } = await import('../src/lib/crypto')
   await env.DB.prepare('UPDATE sessions SET authenticated_at = authenticated_at - ? WHERE token_hash = ?').bind(minutes * 60_000, await sha256Hex(user.session)).run()
+}
+
+/** A new, passkey-only account (no email address), signed in. */
+export async function passkeySignup(auth: { register: (o: any, over?: any) => Promise<any> }, name = 'Passkey Person', opts: { over?: Record<string, unknown>; tamper?: (r: any) => void } = {}): Promise<Res<any> & { user?: User; response?: any }> {
+  const o = await rawReq('POST', '/api/auth/passkey/signup/options', { json: { display_name: name } })
+  if (o.status !== 200) return o
+  const binding = setCookie(o, 'muni_wa')!
+  const response = await auth.register(o.body, opts.over)
+  opts.tamper?.(response)
+  const r = await rawReq('POST', '/api/auth/passkey/signup/verify', { cookie: `muni_wa=${binding}`, json: { response, name: 'First passkey' } })
+  return { ...r, response, user: r.status === 200 ? { email: '', session: setCookie(r, 'muni_session')!, csrf: setCookie(r, 'muni_csrf')!, account_id: r.body.account_id } : undefined }
 }

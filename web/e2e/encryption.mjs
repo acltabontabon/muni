@@ -24,7 +24,9 @@ async function api(page, method, path, body) {
 }
 async function signIn(ctx, email, name) {
   const page = await ctx.newPage()
-  await page.goto(`${BASE}/signin`)
+  // The "Used Muni before?" path, for an account as made before passkeys (dev-only endpoint).
+  await page.goto(`${BASE}/signin?method=email`)
+  await page.evaluate((e) => fetch('/api/dev/legacy-account', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ email: e }) }), email)
   await page.fill('input[type=email]', email)
   await page.click('button:has-text("Send me a code")')
   await page.waitForSelector('text=Check your inbox.')
@@ -34,6 +36,8 @@ async function signIn(ctx, email, name) {
   await page.waitForSelector('text=What should we call you?')
   await page.fill('input[autocomplete="name"]', name)
   await page.click('button:has-text("Continue")')
+  await page.waitForSelector('text=Add a passkey to your account.')
+  await page.click('button:has-text("Not now")')
   await page.waitForURL((u) => !u.pathname.startsWith('/signin'))
   return page
 }
@@ -117,7 +121,7 @@ try {
   await maya.waitForTimeout(31_000) // the sign-in code resend cooldown for her address
   const newDevice = await browser.newContext()
   const maya2 = await newDevice.newPage()
-  await maya2.goto(`${BASE}/signin`)
+  await maya2.goto(`${BASE}/signin?method=email`)
   await maya2.fill('input[type=email]', addr('maya'))
   await maya2.click('button:has-text("Send me a code")')
   await maya2.waitForSelector('text=Check your inbox.')
@@ -125,6 +129,8 @@ try {
   const code = await maya2.evaluate(async (e) => (await fetch('/api/dev/inbox').then((r) => r.json())).filter((m) => m.to === e && /sign-in code/.test(m.subject))[0]?.subject.split(' ')[0], addr('maya'))
   await maya2.fill('input[autocomplete="one-time-code"]', code)
   await maya2.click('button:has-text("Continue")')
+  await maya2.waitForSelector('text=Add a passkey to your account.')
+  await maya2.click('button:has-text("Not now")')
   await maya2.waitForURL((u) => !u.pathname.startsWith('/signin'))
   await maya2.goto(`${BASE}/sprints/${sprintId}`)
   await maya2.waitForSelector('text=This device doesn’t have the required key.', { timeout: 10000 })

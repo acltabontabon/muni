@@ -39,14 +39,16 @@ const post = <T,>(path: string, json: unknown) => api<T>(path, { method: 'POST',
 /** Why a ceremony didn't finish, in words for people. Cancelling is ordinary, never an alarm. */
 export type PasskeyProblem = { kind: 'cancelled' | 'unsupported' | 'exists' | 'expired' | 'unknown' | 'offline' | 'reauth' | 'failed'; message: string }
 
-export function describePasskeyError(e: unknown, during: 'signin' | 'add' | 'confirm' = 'signin'): PasskeyProblem {
+export function describePasskeyError(e: unknown, during: 'signin' | 'add' | 'confirm' | 'create' = 'signin'): PasskeyProblem {
   if (e instanceof ApiError) {
     if (e.status === 0) return { kind: 'offline', message: 'You’re offline. Passkeys need a connection to Muni — try again when you’re back online.' }
-    if (e.code === 'passkey_unknown') return { kind: 'unknown', message: 'This passkey isn’t linked to your Muni account any more — it may have been removed. Use email instead, then add a new passkey if you like.' }
+    if (e.code === 'passkey_unknown') return { kind: 'unknown', message: 'That passkey isn’t linked to a Muni account any more — it may have been removed. Try another passkey, or use a recovery email if your account has one.' }
+    if (e.code === 'passkey_taken') return { kind: 'exists', message: 'That passkey already belongs to a Muni account. Go back and continue with it to sign in.' }
+    if (e.code === 'quota') return { kind: 'failed', message: sentence(e.message) }
     if (e.code === 'challenge_expired' || e.code === 'challenge_used') return { kind: 'expired', message: 'That took a little long. Try again.' }
     if (e.code === 'passkey_exists') return { kind: 'exists', message: 'That passkey is already on your account.' }
     if (e.code === 'reauth_required') return { kind: 'reauth', message: 'Confirm it’s you first, then try again.' }
-    if (e.code === 'rate_limited') return { kind: 'failed', message: 'Too many attempts. Wait a little and try again.' }
+    if (e.code === 'rate_limited') return { kind: 'failed', message: during === 'create' ? 'Too many new accounts from this network today. Try again tomorrow.' : 'Too many attempts. Wait a little and try again.' }
     return { kind: 'failed', message: during === 'signin' ? 'That passkey couldn’t be verified. Try again, or use email instead.' : `${sentence(e.message)}` }
   }
   if (e instanceof WebAuthnError) {
@@ -64,8 +66,10 @@ export function describePasskeyError(e: unknown, during: 'signin' | 'add' | 'con
       kind: 'cancelled',
       message:
         during === 'signin'
-          ? 'No passkey was used. If you haven’t added one for Muni on this device yet, use email — you can add a passkey afterwards.'
-          : during === 'add'
+          ? 'No passkey was used. If it’s on your phone, try again and choose the option to use a phone or tablet. New to Muni? Create an account below.'
+          : during === 'create'
+            ? 'No passkey was saved, so no account was created. Try again whenever you’re ready.'
+            : during === 'add'
             ? 'No passkey was added. You can try again whenever you like.'
             : 'Not confirmed. Try again, or use an email code.',
     }
@@ -100,6 +104,18 @@ export async function signInWithPasskey(opts: { conditional?: boolean } = {}): P
     if (e instanceof ApiError && e.code === 'passkey_unknown') void forgetUnknown(response.id)
     throw e
   }
+}
+
+/**
+ * Create a new account whose first sign-in method is a passkey (no email). Only an explicit
+ * choice calls this; the entrance asks existing users to continue with their passkey instead.
+ */
+export async function signUpWithPasskey(displayName: string): Promise<Me> {
+  const optionsJSON = await post<PublicKeyCredentialCreationOptionsJSON>('/api/auth/passkey/signup/options', { display_name: displayName })
+  const response = await startRegistration({ optionsJSON })
+  const me = await post<Me>('/api/auth/passkey/signup/verify', { response, name: suggestedPasskeyName(), installed: isInstalled() })
+  rememberPasskeyHint(true)
+  return me
 }
 
 /** Stop any passkey request this page started (leaving the page, or switching to the button). */

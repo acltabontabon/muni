@@ -13,6 +13,7 @@ import { useAuth } from '@/lib/auth'
 import { addPasskey, describePasskeyError, suggestedPasskeyName, supportsPasskeys } from '@/lib/passkeys'
 import { Button, Dialog, ErrorText, Input, Label, useToast } from '@/ui'
 import { useReauth } from '@/ui/reauth'
+import { EmailSetup } from '@/ui/email-setup'
 
 const when = (iso: string) => new Date(iso).toLocaleString(undefined, { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })
 const day = (iso: string) => new Date(iso).toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' })
@@ -68,7 +69,7 @@ export function SignInMethods() {
     <div className="grid gap-5">
       <div>
         <h3 className="text-sm font-medium">Passkeys</h3>
-        <p className="mt-1 text-sm text-ink-soft">Sign in by unlocking your device or password manager — fingerprint, face, PIN or screen lock. That stays on your device; Muni never receives your biometric data. A passkey may sync to your other devices through your password manager, so one passkey isn’t necessarily one device.</p>
+        <p className="mt-1 text-sm text-ink-soft">How you sign in: unlock your device or password manager — fingerprint, face, PIN or screen lock. That stays on your device; Muni never receives your biometric data. A passkey may sync to your other devices through your password manager, so one passkey isn’t necessarily one device.</p>
         <div className="mt-3">
           {keys === null ? null : keys.length === 0 ? (
             <p className="rounded-2xl bg-card px-4 py-3 text-sm text-ink-soft shadow-[0_0_0_1px_var(--line)]">No passkeys yet.</p>
@@ -114,17 +115,17 @@ export function SignInMethods() {
         <ErrorText>{error}</ErrorText>
       </div>
 
-      <div>
-        <h3 className="text-sm font-medium">Email codes</h3>
-        <p className="mt-1 flex items-start gap-2 text-sm text-ink-soft">
-          <Mail className="mt-0.5 size-4 shrink-0" aria-hidden />
-          <span>A six-digit code to <span className="text-ink [overflow-wrap:anywhere]">{me.email}</span> always works, as a fallback and for recovery. It can’t be turned off, so you can never lock yourself out by removing passkeys.</span>
+      {keys !== null && keys.length < 2 && !me.email ? (
+        <p role="status" className="rounded-2xl bg-[color-mix(in_oklab,var(--warn)_12%,var(--card))] px-4 py-3 text-sm">
+          <strong className="font-medium">{keys.length === 0 ? 'No way to sign in is set up.' : 'One passkey, no recovery email.'}</strong> If you lose {keys.length === 0 ? 'access' : 'this passkey'}, you lose the account — Muni can’t restore it. Add a second passkey (on another device, a security key or another password manager), or a recovery email.
         </p>
-      </div>
+      ) : null}
+
+      <RecoveryEmail passkeys={keys?.length ?? 0} run={reauth.run} onChanged={async () => { await refresh() }} />
 
       <div className="rounded-2xl bg-ink/[0.04] px-4 py-3 text-sm text-ink-soft">
-        <p><strong className="font-medium text-ink">How safe is this?</strong> Passkeys can’t be phished or reused on another site. But anyone who can read your email can still sign in with a code, so your email account’s security matters as much as Muni’s. Lost every passkey? Sign in with a code and add a new one.</p>
-        <p className="mt-2">Signing in never unlocks encrypted sprints: on a new device you’ll still need your recovery key (see Encryption above). Muni has no way to recover content for you.</p>
+        <p><strong className="font-medium text-ink">If you lose every passkey.</strong> {me.email ? <>Sign in with a code to {me.email} (“Used Muni before?” on the sign-in page) and add a new passkey. Anyone who can read that inbox could do the same, so keep your email account secure.</> : <>With no recovery email, Muni has nothing it can use to tell it’s you, so it can’t restore the account — there is no support reset. Your team can invite a new account; thoughts you already shared stay in their sprints, without your name.</>}</p>
+        <p className="mt-2">Signing in never unlocks encrypted sprints: on a new device you’ll still need your recovery key (see Encryption below). Muni has no way to recover content for you.</p>
       </div>
 
       <RenameDialog passkey={renaming} onClose={() => setRenaming(null)} onSaved={load} />
@@ -182,7 +183,7 @@ function RemoveDialog({ passkey, onClose, onRemoved, run }: { passkey: PasskeyIn
     setError('')
   }, [passkey])
   return (
-    <Dialog open={!!passkey} onOpenChange={(o) => !o && onClose()} title={`Remove “${passkey?.name ?? ''}”?`} description="It won’t sign in to Muni any more. Your password manager may still list it — you can delete it there too. Email codes keep working.">
+    <Dialog open={!!passkey} onOpenChange={(o) => !o && onClose()} title={`Remove “${passkey?.name ?? ''}”?`} description="It won’t sign in to Muni any more. Your password manager may still list it — you can delete it there too.">
       <label className="flex cursor-pointer items-start gap-3 text-[15px]">
         <input type="checkbox" className="mt-1 size-4 accent-[var(--accent)]" checked={endSessions} onChange={(e) => setEndSessions(e.target.checked)} />
         <span>Also sign out other sessions that signed in with this passkey<span className="block text-sm text-ink-soft">Removing a passkey doesn’t end sessions by itself. This one stays signed in.</span></span>
@@ -204,7 +205,7 @@ function RemoveDialog({ passkey, onClose, onRemoved, run }: { passkey: PasskeyIn
                 await onRemoved(r.sessions_ended)
               }
             } catch (e) {
-              setError(failure(e, 'remove it'))
+              setError(e instanceof ApiError && e.code === 'last_method' ? 'This is your only way to sign in. Add another passkey or a recovery email first.' : failure(e, 'remove it'))
             } finally {
               setBusy(false)
             }
@@ -309,6 +310,10 @@ const EVENT_TEXT: Record<string, string> = {
   'sessions.revoked_others': 'Signed out everywhere else',
   'keys.replaced': 'Encryption keys replaced',
   'keys.recovery_replaced': 'New recovery key made',
+  'account.created': 'Account created with a passkey',
+  'email.added': 'Recovery email added',
+  'email.changed': 'Recovery email changed',
+  'email.removed': 'Recovery email removed',
 }
 
 export function SecurityActivity() {
@@ -326,5 +331,84 @@ export function SecurityActivity() {
         </li>
       ))}
     </ul>
+  )
+}
+
+/**
+ * The optional recovery email. Adding one enables code sign-in if every passkey is lost, email
+ * invitations to that address, and sprint reminders. It is never needed to sign in.
+ */
+function RecoveryEmail({ passkeys, run, onChanged }: { passkeys: number; run: ReturnType<typeof useReauth>['run']; onChanged: () => Promise<void> }) {
+  const { me } = useAuth()
+  const toast = useToast()
+  const [editing, setEditing] = useState(false)
+  const [removing, setRemoving] = useState(false)
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState('')
+  if (!me) return null
+  return (
+    <div>
+      <h3 className="text-sm font-medium">Recovery email <span className="font-normal text-ink-faint">· optional</span></h3>
+      <p className="mt-1 flex items-start gap-2 text-sm text-ink-soft">
+        <Mail className="mt-0.5 size-4 shrink-0" aria-hidden />
+        <span>
+          {me.email ? <>Verified: <span className="text-ink [overflow-wrap:anywhere]">{me.email}</span>. </> : 'None. '}
+          An address lets you sign in with a code if you lose every passkey, receive team invitations sent to it, and get sprint reminders. You never need it to sign in, and it’s never shown with your thoughts.
+        </span>
+      </p>
+      {editing ? (
+        <div className="mt-3 max-w-md">
+          <EmailSetup
+            current={me.email}
+            run={run}
+            onCancel={() => setEditing(false)}
+            onChanged={async (e) => {
+              setEditing(false)
+              await onChanged()
+              toast(e ? `${e} added` : 'Email updated')
+            }}
+          />
+        </div>
+      ) : (
+        <div className="mt-3 flex flex-wrap gap-2">
+          <Button size="sm" onClick={() => setEditing(true)}>{me.email ? 'Change email' : 'Add a recovery email'}</Button>
+          {me.email ? <Button size="sm" variant="ghost" onClick={() => setRemoving(true)} disabled={passkeys === 0} title={passkeys === 0 ? 'Add a passkey first' : undefined}>Remove</Button> : null}
+        </div>
+      )}
+      {me.email && passkeys === 0 ? <p className="mt-2 text-sm text-ink-soft">Add a passkey before removing your email — otherwise there’d be no way to sign in.</p> : null}
+      <Dialog open={removing} onOpenChange={(o) => !o && setRemoving(false)} title="Remove your recovery email?" description={`${me.email ?? ''} will no longer sign you in, receive invitations addressed to it, or get reminders.`}>
+        {passkeys < 2 ? (
+          <p className="rounded-2xl bg-[color-mix(in_oklab,var(--warn)_12%,var(--card))] px-3.5 py-2.5 text-sm">
+            <strong className="font-medium">You have one passkey.</strong> Without an email, losing it means losing the account — Muni can’t restore it. Consider adding a second passkey first.
+          </p>
+        ) : null}
+        <ErrorText>{error}</ErrorText>
+        <div className="mt-6 flex justify-end gap-2">
+          <Button variant="ghost" onClick={() => setRemoving(false)}>Keep it</Button>
+          <Button
+            variant="danger"
+            busy={busy}
+            onClick={async () => {
+              setBusy(true)
+              setError('')
+              try {
+                const r = await run(() => del('/api/me/email'))
+                if (r !== undefined) {
+                  setRemoving(false)
+                  await onChanged()
+                  toast('Recovery email removed')
+                }
+              } catch (e) {
+                setError(e instanceof ApiError && e.code === 'last_method' ? 'Add a passkey first.' : failure(e, 'remove it'))
+              } finally {
+                setBusy(false)
+              }
+            }}
+          >
+            {passkeys < 2 ? 'Remove anyway' : 'Remove email'}
+          </Button>
+        </div>
+      </Dialog>
+    </div>
   )
 }

@@ -17,6 +17,11 @@ export async function limit(db: D1Database, bucket: string, max: number, windowM
   await run(db, 'INSERT INTO rate_events (bucket, at) VALUES (?, ?)', bucket, Date.now())
 }
 
+/** Whether one more event fits, without recording it (to refuse before starting something costly). */
+export async function underLimit(db: D1Database, bucket: string, max: number, windowMs: number): Promise<boolean> {
+  return (await count(db, 'SELECT count(*) AS n FROM rate_events WHERE bucket = ? AND at > ?', bucket, Date.now() - windowMs)) < max
+}
+
 export function clientClass(req: Request): string {
   const cf = req.headers.get('cf-connecting-ip')
   if (cf) return cf

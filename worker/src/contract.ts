@@ -21,7 +21,8 @@ export interface WorkspaceSummary {
 }
 export interface Me {
   account_id: string
-  email: string
+  /** The optional verified address; null for an account that signs in only with passkeys. */
+  email: string | null
   display_name: string
   /** The person hasn't chosen a display name yet: ask for one before anything else. */
   needs_name: boolean
@@ -67,6 +68,8 @@ export interface JoinPreview {
   valid: boolean
   signed_in: boolean
   includes_sprint?: boolean
+  /** 'direct': a personal, single-use link that joins at once. 'approval': a team QR. */
+  mode?: 'approval' | 'direct'
   workspace_name?: string
   state?: 'member' | 'pending' | 'none' | 'full'
   request_id?: string
@@ -78,6 +81,7 @@ export interface JoinLinkInfo {
   sprint_id: string | null
   sprint_name: string | null
   role: string
+  mode: 'approval' | 'direct'
   created_by_name: string
   created_at: string
   expires_at: string
@@ -87,7 +91,8 @@ export interface JoinLinkInfo {
 export interface JoinRequestInfo {
   id: string
   display_name: string
-  email: string
+  email: string | null
+  has_passkey: boolean
   account_created_at: string
   requested_at: string
   sprint_id: string | null
@@ -116,6 +121,8 @@ export interface InvitationPreview {
   workspace_name: string | null
   matches_session: boolean
   signed_in: boolean
+  /** Signed in with an account that has no address: it may confirm the invited one by code. */
+  can_confirm: boolean
 }
 export interface Workspace {
   id: string

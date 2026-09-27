@@ -24,6 +24,9 @@ export interface Config {
   aiGlobalDailyLimit: number
   signinEmailsDailyLimit: number
   signinCodesPerNetworkDaily: number
+  /** New passkey accounts per network and in total per day (there is no mailbox to slow abuse). */
+  signupsPerNetworkDaily: number
+  signupsDailyLimit: number
   /** WebAuthn relying party: an explicit RP ID and the exact origins allowed to use it. */
   webauthn: { rpId: string; rpName: string; origins: string[] }
 }
@@ -47,6 +50,8 @@ export interface ConfigVars {
   AI_GLOBAL_DAILY_LIMIT?: string
   SIGNIN_EMAILS_DAILY_LIMIT?: string
   SIGNIN_CODES_PER_NETWORK_DAILY?: string
+  SIGNUPS_PER_NETWORK_DAILY?: string
+  SIGNUPS_DAILY_LIMIT?: string
   WEBAUTHN_RP_ID?: string
   /** Extra exact origins (comma-separated) allowed for passkeys; development only, e.g. the Vite server. */
   WEBAUTHN_EXTRA_ORIGINS?: string
@@ -100,6 +105,8 @@ export function config(vars: ConfigVars): Config {
     // this keeps the rest for invitations and reminders when someone floods the sign-in form.
     signinEmailsDailyLimit: num(vars.SIGNIN_EMAILS_DAILY_LIMIT, 60),
     signinCodesPerNetworkDaily: num(vars.SIGNIN_CODES_PER_NETWORK_DAILY, 30),
+    signupsPerNetworkDaily: num(vars.SIGNUPS_PER_NETWORK_DAILY, 10),
+    signupsDailyLimit: num(vars.SIGNUPS_DAILY_LIMIT, 200),
     webauthn,
   }
   cached = { key, config: c }

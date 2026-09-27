@@ -1,10 +1,11 @@
 import { describe, expect, it } from 'vitest'
 import { env } from 'cloudflare:test'
-import { codeFor, del, get, inviteToken, post, signin, skipCooldown, sprint, tag, team, verify } from './harness'
+import { codeFor, del, get, inviteToken, legacyAccount, post, signin, skipCooldown, sprint, tag, team, verify } from './harness'
 
 describe('sign-in', () => {
   it('rejects wrong codes, bounds attempts, refuses replay', async () => {
     const email = `bounded-${tag()}@example.com`
+    await legacyAccount(email)
     await post('/api/auth/request-code', null, { email })
     for (let i = 0; i < 5; i++) expect((await verify(email, '000000')).status).toBe(400)
     const code = await codeFor(email)

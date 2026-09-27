@@ -121,15 +121,14 @@ to one person. Exports and AI requests are copies retention can't retract.
 
 ## Authentication and authorization
 
-- **Sign-in** is one flow for new and returning people: email → six-digit code (10 minutes,
-  5 attempts, single use, hashed at rest) → a display name only if the account has none. The code
-  request answers identically whether or not an account exists. Limits: per address (30 s
-  cooldown, 5 per 15 minutes), per network, and a daily total that protects the email quota.
-- **Passkeys** (WebAuthn via `@simplewebauthn/server`) are an alternative to the code for accounts
-  that added one while signed in; email codes always remain. RP ID = the app's own host, exact
-  origins from configuration, user verification required, single-use challenges consumed
-  atomically before verification. Adding or removing one needs a sign-in within 10 minutes.
-  Details, security model and rollout: [PASSKEYS.md](PASSKEYS.md).
+- **Sign-in is passkey-first** (WebAuthn via `@simplewebauthn/server`): one "Continue with a
+  passkey" action, accounts created with a passkey and no email, RP ID = the app's own host,
+  exact origins from configuration, user verification required, single-use challenges consumed
+  atomically before verification. An email address is an optional, verified setting
+  (`account_emails`): code sign-in for recovery and for accounts from before passkeys, email
+  invitations, reminders. Codes (10 minutes, 5 attempts, single use, hashed, purpose- and
+  account-bound) never create accounts; request answers are identical whether or not an account
+  exists. Sensitive changes need a sign-in within 10 minutes. Details: [PASSKEYS.md](PASSKEYS.md).
 - **Sessions** are a random token in an HttpOnly, Secure, SameSite=Lax cookie (`__Host-` prefixed
   over HTTPS), stored as its SHA-256, with a 30-day expiry and server-side revocation. Mutations
   need the per-session CSRF token in a header plus an allowed `Origin`; the live socket needs an
@@ -137,8 +136,9 @@ to one person. Exports and AI requests are copies retention can't retract.
 - **Invitations** are single-use, expire after 14 days, and bind to the invited address. The token
   travels in the link's fragment and in request bodies, never in a URL the server sees.
 - **Invite QR codes / shared links** let a signed-in person *ask* to join; an owner or the sprint's
-  facilitator approves each request. They grant only the `member` role, expire, can be turned off,
-  and cap how many requests they accept. Only token hashes are stored.
+  facilitator approves each request. **Personal links** work once and join their first signed-in
+  user directly. Both grant only the `member` role, expire and can be turned off; only token
+  hashes are stored. Accounts without an address confirm an emailed invitation's address by code.
 - **Every request is authorized from D1**: an active membership for workspace routes; for sprint
   routes, membership plus participation (owners can see a sprint's settings, not its content).
   Nothing the client sends (user id, role, workspace) is trusted. Revoking a membership or a

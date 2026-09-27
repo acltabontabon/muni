@@ -145,7 +145,7 @@ export function NewWorkspaceDialog({ open, onClose, onCreated }: { open: boolean
 // ------------------------------------------------------------------ account
 
 export function AccountMenu() {
-  const { me } = useAuth()
+  const { me, offline } = useAuth()
   const local = useLocal()
   const pwa = usePwa()
   const [open, setOpen] = useState(false)
@@ -169,7 +169,7 @@ export function AccountMenu() {
           <Popover.Content align="end" sideOffset={6} className={clsx(panel, 'w-[min(22rem,calc(100vw-24px))]')}>
             <div className="px-3 pb-2 pt-2.5">
               <div className="truncate font-medium">{me.display_name}</div>
-              {me.email ? <div className="truncate text-sm text-ink-soft">{me.email}</div> : <div className="text-sm text-ink-soft">Offline — showing what this device kept</div>}
+              {offline ? <div className="text-sm text-ink-soft">Offline — showing what this device kept</div> : me.email ? <div className="truncate text-sm text-ink-soft">{me.email}</div> : <div className="text-sm text-ink-soft">Signs in with a passkey</div>}
             </div>
             <div className="my-1 h-px bg-line" />
             <Link to="/account" className={item} onClick={() => setOpen(false)}>
