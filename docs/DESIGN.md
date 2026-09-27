@@ -167,9 +167,17 @@ it, then quiet underlined links for the stage's optional work (*Group into theme
 pause, archive). Changes that reveal, reopen, start or stop say exactly what they do before they
 happen. Participants never see the column; what they do next is the page itself.
 
+**In a character's room** the bar is part of the room: each composition sets it where its sprint
+label used to be and draws it in its own manner (the room table below), in the room's type. The
+words, their order and what each control does never change; the bar lays itself out for the space
+it's given (container queries), so it reads down a margin or a rail and across a band. There is no
+second sprint label in the room. On a phone the rooms drop their boxes — the table, the sheet, the
+window, the frame and the ledge become the page — and keep their character in type, rules and one
+motif.
+
 **Below the bar** the page is what this person does now: the writer while collecting (Muni's
-journal, or their character's room — its sprint label keeps only *Writing for* and the way to move
-words to another collecting sprint), their thoughts read-only once closed, *Join the retro* while
+journal, or their character's room; with another sprint collecting, *Also collecting* moves the
+words there), their thoughts read-only once closed, *Join the retro* while
 it's live, and the outcomes and recap once it's done. On a phone, while writing, the bar folds to
 two lines — the name with the facilitator's button, then the state and the planned retro —
 and *Details* unfolds the rest, so the field and *Add to sprint* stay in the first screen.
@@ -195,14 +203,14 @@ comic scenes (the master plan, the 40-minute stir, the missed stop, the last gam
 
 | room | composition | sprint | collection | motif (still) | type |
 | --- | --- | --- | --- | --- | --- |
-| **Kape** — The Morning Thinker · *a quiet café table* | the writing surface is the table, dominant; a narrower column beside it, a soft rule between | on the table's top edge | an editorial list, hairline dividers, a dotted rule as the only receipt | a ceramic contour at the table's far corner | Young Serif |
-| **Guhit** — The Creative · *an artist's working folio* | asymmetric: a slim margin, a broad chalk sheet with one layer under it | the margin, under a rule | a two-column folio in the sheet's columns, its label in the margin | one vermilion ink stroke under the question, two registration marks; the day's line in Caveat | Bricolage Grotesque |
-| **Biyahe** — The Commuter · *a moment by the window* | one broad window: a band along the top, a narrow pane of the view, the writing on the wide pane | the band | by day on a fine rule aligned with the view, each thought keeping its time | mist, a thin horizon, the city's first lights, a small dusk sun (a moon at night) | Source Sans 3 |
-| **Bola** — The Neighborhood Athlete · *the court after everyone leaves* | strong horizontals: a weighted rule, the sprint and question on the left, the composer on the right | in the opening block | an even two-to-three-column grid under weighted rules | a cropped corner of the court (the key, the three-point arc) in clay | Archivo, wide |
-| **Pahina** — The Reader · *a private reading room* | a book's measure, centred | a chapter line between fine rules | a small anthology: serif entries, short centred rules, dates in the margin | a ribbon bookmark; the collection's label as a bookplate | Newsreader (the field too) |
-| **Himig** — The Music Lover · *a listening room in print* | liner notes: a credits rail, the writing offset beside it | the rail | a steady list with a column of small credits (category, time) | half a record at the rail's edge, a brass rule | Unbounded, DM Mono |
-| **Porma** — The Dressed-Up Dreamer · *a small sense of occasion* | precise and symmetric: a centred caption, one surface in fine double hairlines | the caption | filed as correspondence, two columns | a faint warp-and-weft strip along the frame's top edge (abstract; no motif with a meaning) | Bodoni Moda |
-| **Sibol** — The Plant Keeper · *a sheltered balcony* | an airy writing column; the collection further along, on a limestone ledge set lower | above the question | a calm list on the ledge | one calamansi sprig in line at the outer edge; still light through leaves | Alegreya |
+| **Kape** — The Morning Thinker · *a quiet café table* | the writing surface is the table, dominant; a narrower column beside it, a soft rule between | a table card above the table, on its two columns; the stops a short menu between dotted rules, a coffee bean each | an editorial list, hairline dividers, a dotted rule as the only receipt | a ceramic contour at the table's far corner | Young Serif |
+| **Guhit** — The Creative · *an artist's working folio* | asymmetric: a slim margin, a broad chalk sheet with one layer under it | a folio label in the margin: the state noted in vermilion Caveat, the stops an index numbered 01–03, the current one ringed | a two-column folio in the sheet's columns, its label in the margin | one vermilion ink stroke under the question, two registration marks; the day's line in Caveat | Bricolage Grotesque |
+| **Biyahe** — The Commuter · *a moment by the window* | one broad window: a band along the top, a narrow pane of the view, the writing on the wide pane | the window's band: the stops as stations on a line, the train at the bright one | by day on a fine rule aligned with the view, each thought keeping its time | mist, a thin horizon, the city's first lights, a small dusk sun (a moon at night) | Source Sans 3 |
+| **Bola** — The Neighborhood Athlete · *the court after everyone leaves* | strong horizontals: a weighted rule, the sprint and question on the left, the composer on the right | a scoreboard over the court: the name wide and heavy, three period panels, the one being played in court green | an even two-to-three-column grid under weighted rules | a cropped corner of the court (the key, the three-point arc) in clay | Archivo, wide |
+| **Pahina** — The Reader · *a private reading room* | a book's measure, centred | a chapter opener: the title in italic, then *Contents* — I, II, III with dotted leaders — and the next step centred | a small anthology: serif entries, short centred rules, dates in the margin | a ribbon bookmark; the collection's label as a bookplate | Newsreader (the field too) |
+| **Himig** — The Music Lover · *a listening room in print* | liner notes: a credits rail, the writing offset beside it | the credits rail: facts in mono, the stops a track list (A1, A2, B1), the playing one marked in brass | a steady list with a column of small credits (category, time) | half a record at the rail's edge, a brass rule | Unbounded, DM Mono |
+| **Porma** — The Dressed-Up Dreamer · *a small sense of occasion* | precise and symmetric: a centred caption, one surface in fine double hairlines | a programme above the frame: a double hairline under the title, three parts between rules, a diamond over the current one | filed as correspondence, two columns | a faint warp-and-weft strip along the frame's top edge (abstract; no motif with a meaning) | Bodoni Moda |
+| **Sibol** — The Plant Keeper · *a sheltered balcony* | an airy writing column; the collection further along, on a limestone ledge set lower | a limestone plaque: the stops as growth — a seed to come, a sprout for now, leaves for what's grown | a calm list on the ledge | one calamansi sprig in line at the outer edge; still light through leaves | Alegreya |
 
 **Rules.** Navigation, words, shortcuts, filters, paging and status colours are identical in every
 room, and so is behaviour: drafts, the send queue, encryption, what “submitted” means, editing and

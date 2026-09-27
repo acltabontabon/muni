@@ -73,11 +73,12 @@ describe.each(AVATAR_IDS)('the %s world', (id) => {
 describe('the worlds’ composition rules', () => {
   const scoped = [...css.matchAll(/@scope \(\[data-world='(\w+)'\]\) to \(\[data-world\]:not\(\[data-world='(\w+)'\]\)\) \{([\s\S]*?)\n\}/g)]
   it('are written for each world, in @scope, stopping at any other world (a preview inside the page)', () => {
-    expect(scoped.map((m) => m[1]).sort()).toEqual([...AVATAR_IDS].sort())
+    // A world may have more than one block (its room, then its sprint bar, then its phone layout).
+    expect([...new Set(scoped.map((m) => m[1]))].sort()).toEqual([...AVATAR_IDS].sort())
     for (const m of scoped) expect(m[2]).toBe(m[1])
   })
   it('style only Muni’s own classes, never Tailwind utilities', () => {
-    const own = /^(room|passage|passages|mine|w|app|cat|period|mark|dark|kape|guhit|biyahe|bola|pahina|himig|porma|sibol)(-|$)/
+    const own = /^(room|passage|passages|mine|w|app|cat|period|mark|dark|sbar|sprint|kape|guhit|biyahe|bola|pahina|himig|porma|sibol)(-|$)/
     for (const [, id, , body] of scoped) {
       const selectors = body.replace(/\{[^{}]*\}/g, '{}').split('{}').map((s: string) => s.replace(/@(media|container|supports)[^{]*\{/g, '').trim()).filter(Boolean)
       for (const sel of selectors) for (const cls of sel.match(/\.[\w-]+/g) ?? []) expect(cls.slice(1), `${id}: ${sel}`).toMatch(own)

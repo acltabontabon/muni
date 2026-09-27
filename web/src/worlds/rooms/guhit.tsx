@@ -25,11 +25,12 @@ function Stroke() {
   )
 }
 
-function GuhitPage({ context, writing, collection, extras, notices }: RoomSlots) {
+function GuhitPage({ bar, context, writing, collection, extras, notices }: RoomSlots) {
   return (
     <div className="guhit-room">
+      {/* The margin holds the folio's label: the sprint, and its sheets in order. */}
       <div className="guhit-margin">
-        {context}
+        {bar ?? context}
       </div>
       <div className="guhit-work">
         {notices}

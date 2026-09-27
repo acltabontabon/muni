@@ -15,13 +15,14 @@ function Ribbon() {
   )
 }
 
-function PahinaPage({ context, writing, collection, extras, notices }: RoomSlots) {
+function PahinaPage({ bar, context, writing, collection, extras, notices }: RoomSlots) {
   return (
     <div className="pahina-room">
       <div className="pahina-page">
         <Ribbon />
         {notices}
-        <div className="pahina-chapter">{context}</div>
+        {/* A chapter opener: the sprint's title, and its contents. */}
+        <div className="pahina-chapter">{bar ?? context}</div>
         {writing}
       </div>
       <div className="pahina-anthology">

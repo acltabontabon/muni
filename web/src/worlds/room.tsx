@@ -49,7 +49,12 @@ export function useNarrow() {
 
 /** What a character's page is given to arrange. */
 export type RoomSlots = {
-  /** The sprint label (null when this room keeps it in the writer's head). */
+  /**
+   * The sprint bar (ui/sprint-bar.tsx) on a sprint's own page: its name, where it is, and the
+   * facilitator's next step. Each room sets it in its own place and draws it in its own manner.
+   */
+  bar?: ReactNode
+  /** The sprint label (null when this room keeps it in the writer's head, or when there's a bar). */
   context: ReactNode
   /** The writer, or the sheet for another sprint state. */
   writing: ReactNode
@@ -157,7 +162,6 @@ export function SprintTab({
   choices = [],
   onSwitch,
   elsewhere = [],
-  meta = true,
 }: {
   s: TabSprint | null
   state: TabState
@@ -167,8 +171,6 @@ export function SprintTab({
   choices?: Destination[]
   onSwitch?: (d: Destination) => void
   elsewhere?: TabSprint[]
-  /** The state and the next date. Off under the sprint bar, which already says both. */
-  meta?: boolean
 }) {
   const [open, setOpen] = useState(false)
   const uid = useId()
@@ -183,7 +185,6 @@ export function SprintTab({
         {s?.name ?? title}
         {s ? <ChevronDown className="room-tab-chev" aria-hidden /> : null}
       </span>
-      {meta ? (
       <span className="room-tab-meta">
         <span className="room-tab-state" data-state={state}>
           <span className="room-tab-dot" aria-hidden />
@@ -196,7 +197,6 @@ export function SprintTab({
           </>
         ) : null}
       </span>
-      ) : null}
     </>
   )
   if (!s) return <div className="room-tab" data-static>{body}</div>

@@ -104,7 +104,7 @@ export function releaseNotes(tag) {
   const stable = version.replace(/-.*$/, '')
   const sep = ' &nbsp;·&nbsp; '
   return [
-    `<p align="center"><a href="${asset('muni-demo.mp4')}"><img src="${asset('muni-demo.gif')}" alt="Muni in 27 seconds: a thought written during the sprint, the team’s thoughts revealed without names, the live retro, and the experiments agreed." width="760"></a></p>`,
+    `<p align="center"><a href="${asset('muni-demo.mp4')}"><img src="${asset('muni-demo.gif')}" alt="Muni in 42 seconds: thoughts written on a laptop and a phone, the same page in four characters’ rooms, the facilitator closing collection, everyone’s thoughts revealed without names, the live retro, and the experiments agreed." width="760"></a></p>`,
     '',
     '<h3 align="center">Keep the thought. Bring it to the conversation.</h3>',
     `<p align="center">${tagline}</p>`,
@@ -118,7 +118,7 @@ export function releaseNotes(tag) {
     '',
     previous ? `**Full changelog:** [v${previous}...${tag}](${gh}/compare/v${previous}...${tag})` : `**First release.** Everything since the beginning: [${tag}](${gh}/commits/${tag}).`,
     '',
-    `<sub>The demo is real Muni with a made-up team. Full quality: [muni-demo.mp4](${asset('muni-demo.mp4')}).</sub>`,
+    `<sub>Every app frame in the demo is real Muni with a made-up team; the titles and framing are added. Full quality: [muni-demo.mp4](${asset('muni-demo.mp4')}).</sub>`,
     '',
   ].join('\n')
 }

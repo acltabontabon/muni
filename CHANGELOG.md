@@ -16,6 +16,15 @@ those as highlights. The app's About → What's new and each GitHub release are 
 
 ## [Unreleased]
 
+### Changed
+
+- **Your character's room, with the sprint in it.** The sprint's name, where it is and the
+  facilitator's next step are now part of each room, drawn in its own manner: a café's table card,
+  a folio's index, a line of stations, a scoreboard, a book's contents, a track list, a programme,
+  a plaque on the balcony. The room no longer names the sprint twice.
+- **Calmer on phones.** On a small screen the rooms drop their boxes and put the writing straight
+  on the page, and the sprint's stages read down as a list where they'd otherwise be squeezed.
+
 ## [1.0.0-rc.2] - 2026-09-28
 
 ### Changed

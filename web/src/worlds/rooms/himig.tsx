@@ -20,11 +20,12 @@ function Grooves() {
   )
 }
 
-function HimigPage({ context, writing, collection, extras, notices }: RoomSlots) {
+function HimigPage({ bar, context, writing, collection, extras, notices }: RoomSlots) {
   return (
     <div className="himig-room">
+      {/* The liner notes' credits: the sprint, and its stages as a track list. */}
       <div className="himig-rail">
-        {context}
+        {bar ?? context}
         <Grooves />
       </div>
       <div className="himig-main">

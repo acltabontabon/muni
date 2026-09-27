@@ -729,9 +729,10 @@ body {
    (a dot and a phrase, never colour alone), one sentence on what that means, and three stops on
    one fine rule. The facilitator's next change sits in the margin column beside it — a hairline,
    not a tinted box — with what it will do written under it. Routine things stay underlined text. */
-.sbar { position: relative; margin-bottom: 1.25rem; }
+/* The bar answers the room it's given (a page's width, a room's margin or band), not the window. */
+.sbar { position: relative; container: sbar / inline-size; margin-bottom: 1.25rem; }
 .sbar-top { display: grid; gap: 1.25rem 3rem; }
-@media (min-width: 900px) { .sbar-top { grid-template-columns: minmax(0, 1fr) 17.5rem; align-items: start; } }
+@container sbar (min-width: 52rem) { .sbar-top { grid-template-columns: minmax(0, 1fr) 17.5rem; align-items: start; } }
 .sbar-kicker { font-size: 13px; color: var(--ink-faint); }
 .sbar-kicker a { border-radius: 3px; }
 .sbar-kicker a:hover { color: var(--ink); text-decoration: underline; text-underline-offset: 3px; }
@@ -753,10 +754,10 @@ p.sbar-name { font-size: clamp(1.25rem, 1.05rem + 0.8vw, 1.6rem); }
 .sbar-notes li { display: flex; gap: 0.55rem; font-size: 14px; line-height: 1.5; color: var(--ink-soft); }
 .sbar-notes svg { margin-top: 0.15rem; color: var(--warn); }
 .sbar-control { min-width: 0; padding-top: 1rem; border-top: 1px solid var(--line); }
-@media (min-width: 900px) { .sbar-control { padding: 0.2rem 0 0 1.75rem; border-top: 0; border-left: 1px solid var(--line); } }
+@container sbar (min-width: 52rem) { .sbar-control { padding: 0.2rem 0 0 1.75rem; border-top: 0; border-left: 1px solid var(--line); } }
 .sbar-role { font-size: 12px; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; color: var(--ink-faint); }
 .sbar-button { width: 100%; margin-top: 0.65rem; }
-@media (min-width: 640px) and (max-width: 899px) { .sbar-button { width: auto; } }
+@container sbar (min-width: 36rem) and (max-width: 51.99rem) { .sbar-button { width: auto; } }
 .sbar-consequence { margin-top: 0.55rem; font-size: 13.5px; line-height: 1.45; color: var(--ink-soft); text-wrap: pretty; }
 .sbar-quiet { display: flex; flex-wrap: wrap; align-items: center; gap: 0 1.2rem; margin-top: 0.35rem; }
 .sbar-link { display: inline-flex; align-items: center; gap: 0.35rem; min-height: 2.75rem; font-size: 14.5px; color: var(--ink); text-decoration: underline; text-decoration-color: var(--line-strong); text-underline-offset: 4px; border-radius: 3px; }
@@ -780,6 +781,14 @@ p.sbar-name { font-size: clamp(1.25rem, 1.05rem + 0.8vw, 1.6rem); }
 .sbar-progress [data-state='next'] .sbar-stop { font-weight: 500; }
 .sbar-detail { font-size: 13px; line-height: 1.35; color: var(--ink-soft); font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
 .sbar-progress [data-state='next'] .sbar-detail { color: var(--ink-faint); }
+/* A narrow place (a room's margin or rail): the stops read down, one under another. */
+@container sbar (max-width: 21rem) {
+  .sbar-progress { grid-template-columns: minmax(0, 1fr); gap: 0.85rem; }
+  .sbar-progress li { grid-template-columns: 14px minmax(0, 1fr); grid-template-rows: auto auto; column-gap: 0.7rem; row-gap: 0.1rem; padding-right: 0; }
+  .sbar-progress li::before { top: 16px; bottom: -0.95rem; left: 6.5px; right: auto; width: 1px; height: auto; }
+  .sbar-progress li:last-child::before { display: none; }
+  .sbar-mark { grid-row: 1 / span 2; margin-top: 2px; }
+}
 @media (max-width: 639px) {
   .sbar-status { font-size: 14px; }
   .sbar-line { font-size: 1rem; }
@@ -794,7 +803,7 @@ p.sbar-name { font-size: clamp(1.25rem, 1.05rem + 0.8vw, 1.6rem); }
   .sbar[data-compact] .sbar-when { display: inline; }
   .sbar[data-compact] .sbar-toggle { display: inline-flex; align-items: center; min-height: 2.75rem; margin: -0.8rem 0; color: var(--ink); text-decoration: underline; text-decoration-color: var(--line-strong); text-underline-offset: 4px; }
   .sbar[data-compact]:not([data-open]) :is(.sbar-kicker, .sbar-line, .sbar-notes, .sbar-role, .sbar-consequence, .sbar-quiet, .sbar-access, .sbar-progress, .sbar-facts) { display: none; }
-  .sbar[data-compact]:not([data-open]) .sbar-top { grid-template-columns: minmax(0, 1fr) auto; align-items: start; gap: 0.75rem; }
+  .sbar[data-compact]:not([data-open]) .sbar-top { grid-template-columns: minmax(0, 1fr) auto; align-items: start; gap: 0.75rem; text-align: left; }
   .sbar[data-compact]:not([data-open]) .sbar-control { padding-top: 0; border-top: 0; }
   .sbar[data-compact]:not([data-open]) .sbar-button { width: auto; min-height: 2.75rem; margin-top: 0; padding: 0.4rem 1rem; font-size: 14px; }
   .sbar[data-compact]:not([data-open]) .sbar-name { display: -webkit-box; overflow: hidden; -webkit-box-orient: vertical; -webkit-line-clamp: 2; font-size: 1.3rem; }

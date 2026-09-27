@@ -18,9 +18,11 @@ function Arc() {
   )
 }
 
-function BolaPage({ writing, collection, extras, notices }: RoomSlots) {
+function BolaPage({ bar, writing, collection, extras, notices }: RoomSlots) {
   return (
     <div className="bola-room">
+      {/* The scoreboard over the court: the sprint, its three periods, and who calls the next one. */}
+      {bar}
       {notices}
       <div className="bola-opening">
         <Arc />

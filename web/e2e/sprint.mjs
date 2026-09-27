@@ -104,7 +104,8 @@ try {
   // ── Contribute.
   await P.page.fill('textarea[name="thought"]', 'Synthetic: the retry banner confused two customers')
   await P.page.getByRole('button', { name: 'Add to sprint' }).click()
-  await P.page.locator('.passage .passage-text', { hasText: 'retry banner' }).waitFor()
+  // Wait for the server to have it (a queued thought also shows in the list, before it's sent).
+  await P.page.locator('.passage[data-state="submitted"] .passage-text', { hasText: 'retry banner' }).waitFor()
   check('A thought saves from the sprint page and appears in "yours"', true)
   await mara.req('POST', `/api/sprints/${sprint.id}/entries`, { body: 'Synthetic: on-call handover was smooth', category: null, idempotency_key: crypto.randomUUID() })
   await shot(P.page, '02-collecting-participant')
@@ -140,7 +141,7 @@ try {
   check('A double press closes once, with no error', (await F.page.locator('[role=status], [role=alert]').filter({ hasText: /changed while you were working|can’t move/ }).count()) === 0)
   check('Closing doesn’t jump to another page', F.page.url() === S(sprint.id))
   const fbar = await bar(F.page).innerText()
-  check('Closed (facilitator): count, optional themes, start the retro, reopen in the menu', /2 thoughts are in/.test(fbar) && (await F.page.getByRole('button', { name: 'Start the retro…' }).count()) === 1 && (await F.page.getByRole('link', { name: 'Group into themes (optional)' }).count()) === 1)
+  check('Closed (facilitator): count, optional themes, start the retro, reopen in the menu', /2 thoughts are in/.test(fbar) && (await F.page.getByRole('button', { name: 'Start the retro…' }).count()) === 1 && (await F.page.getByRole('link', { name: 'Group into themes (optional)' }).count()) === 1, fbar.replace(/\s+/g, ' ').slice(0, 160))
   await P.page.locator('text=Collection closed while you were writing').waitFor({ timeout: 8000 })
   check('Participant mid-sentence: the words stay, and it says nothing was sent', (await P.page.inputValue('textarea[name="thought"]')) === 'Half a thought about the fraud rules that I haven’t sent')
   check('…and adding is off', await P.page.getByRole('button', { name: 'Add to sprint' }).isDisabled())

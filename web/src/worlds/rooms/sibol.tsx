@@ -19,13 +19,14 @@ function Sprig() {
   )
 }
 
-function SibolPage({ context, writing, collection, extras, notices }: RoomSlots) {
+function SibolPage({ bar, context, writing, collection, extras, notices }: RoomSlots) {
   return (
     <div className="sibol-room">
       <Sprig />
       <div className="sibol-main">
         {notices}
-        <div className="sibol-label">{context}</div>
+        {/* A limestone plaque by the door: the sprint, and how far it has grown. */}
+        <div className="sibol-label">{bar ?? context}</div>
         {writing}
       </div>
       <div className="sibol-side">

@@ -21,11 +21,12 @@ function Weave() {
   )
 }
 
-function PormaPage({ context, writing, collection, extras, notices }: RoomSlots) {
+function PormaPage({ bar, context, writing, collection, extras, notices }: RoomSlots) {
   return (
     <div className="porma-room">
       {notices}
-      <div className="porma-caption">{context}</div>
+      {/* The occasion's programme, set above the frame. */}
+      <div className="porma-caption">{bar ?? context}</div>
       <div className="porma-frame">
         <Weave />
         {writing}

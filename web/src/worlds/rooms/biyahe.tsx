@@ -24,12 +24,13 @@ function Horizon() {
   )
 }
 
-function BiyahePage({ context, writing, collection, extras, notices }: RoomSlots) {
+function BiyahePage({ bar, context, writing, collection, extras, notices }: RoomSlots) {
   return (
     <div className="biyahe-room">
       {notices}
       <div className="biyahe-window">
-        <div className="biyahe-band">{context}</div>
+        {/* The band along the window's top: the sprint as a line of stops, seen passing. */}
+        <div className="biyahe-band">{bar ?? context}</div>
         <div className="biyahe-panes">
           <div className="biyahe-view" aria-hidden>
             <Horizon />

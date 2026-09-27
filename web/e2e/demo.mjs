@@ -1,13 +1,12 @@
 /**
- * The release demo: a short, calm walkthrough of the real app, captured frame by frame.
- *
- * Everything on screen is this build of Muni running locally, driven through its own UI — a
- * fictional team (Harbor) signs up with passkeys, writes into an encrypted sprint, and holds a
- * retro. Only the cursor, the captions and the closing card are added. The script films its
- * segments as frames (Chromium's screencast, with each frame's real timestamp) and writes an
- * ffconcat list per segment; docs/demo/export.sh turns them into the MP4 and GIF.
+ * The release demo, part 1: the footage. Every shot is this build of Muni running locally, driven
+ * through its own UI — a fictional team (Harbor) signs up with passkeys, writes into an encrypted
+ * sprint on laptops and a phone, and holds a retro. Only a drawn cursor (and a tap mark on the
+ * phone) is added here. Each shot is kept as sharp 2× frames with their real timestamps (an
+ * ffconcat list and a meta.json per shot); part 2, e2e/demo-reel.mjs, sets them in the reel.
  *
  *   cd web && DEMO_OUT=<dir>/capture MUNI_URL=http://localhost:8870 node e2e/demo.mjs
+ *   cd web && DEMO_OUT=<dir>/capture node e2e/demo-reel.mjs
  *   docs/demo/export.sh <dir>/capture
  *
  * Needs a fresh local `wrangler dev` serving a production build (docs/demo/README.md has the
@@ -19,7 +18,6 @@ import { writeFile } from 'node:fs/promises'
 
 const BASE = process.env.MUNI_URL ?? 'http://localhost:8870'
 const OUT = process.env.DEMO_OUT ?? new URL('../e2e-artifacts/demo/', import.meta.url).pathname
-const FONTS = new URL('../node_modules/@fontsource-variable/', import.meta.url).href
 rmSync(`${OUT}/frames`, { recursive: true, force: true })
 mkdirSync(`${OUT}/frames`, { recursive: true })
 const tag = crypto.randomUUID().slice(0, 6)
@@ -33,12 +31,15 @@ const THOUGHTS = {
   maya: [['Staging was down most of Wednesday, and nobody was sure who should bring it back.', 'improve'], ['On-call was quiet, but the handover notes were thin.', 'improve']],
   jonas: [['Three PRs waited more than two days for a first review.', 'improve'], ['We found the expired certificate by accident, two hours into the outage.', null]],
   priya: [['The on-call runbook still pointed at the old staging cluster.', 'stop'], ['We estimated the search work before anyone had seen the designs.', null]],
-  tomas: [['I didn’t know who to ask for a review on the billing code.', 'improve'], ['Writing the release notes as we went saved us an evening.', 'keep']],
+  tomas: [['I didn’t know who to ask for a review on the billing code.', 'improve']],
   aiko: [['Reviews bunch up on Thursday afternoon, right before the cut.', 'improve'], ['Pairing with Sam on the migration made it far less scary.', 'proud']],
   sam: [['Small PRs were reviewed within the hour; big ones stalled.', null], ['Planning ran forty minutes over — half the tickets weren’t ready.', 'improve']],
 }
-/** Written by Priya on camera. */
+/** Written on camera: Priya on her laptop, Tomás on his phone. */
 const ON_CAMERA = 'Pairing on the release checklist caught two gaps before Friday.'
+const ON_PHONE = 'Writing the release notes as we went saved us an evening.'
+/** The rooms shown in the reel's montage (characters are private; Priya's, on her own screen). */
+const ROOMS = ['kape', 'biyahe', 'himig', 'sibol']
 const THEMES = [
   { title: 'Who owns staging?', question: 'What would have made Wednesday’s outage shorter?', entries: ['Staging was down most', 'We found the expired certificate', 'The on-call runbook still', 'On-call was quiet'] },
   { title: 'Reviews that wait', question: 'What would get a first review to happen the same day?', entries: ['Three PRs waited', 'Reviews bunch up', 'Small PRs were reviewed', 'I didn’t know who to ask'] },
@@ -61,27 +62,16 @@ Takeaway: staging needs a named owner every sprint, the way on-call has one.
 We’ll try:
 - a named staging owner in every on-call handover (Jonas)
 - 20 minutes after standup for first reviews (Aiko)`
-const CAPTIONS = {
-  write: 'Write it down while it’s fresh.',
-  reveal: 'When collection closes, everyone’s thoughts arrive together — without names.',
-  discuss: 'Talk it through, one topic at a time.',
-  outcomes: 'Agree what to try — it comes back next sprint.',
-}
 
-// ---------- the overlay: a tidy cursor and a caption band, drawn in the page ----------
+// ---------- the overlay: a tidy cursor, and a soft mark where a finger taps ----------
 function overlay() {
   if (window.__demo) return
   const css = `
     #demo-cursor { position: fixed; left: 0; top: 0; z-index: 2147483647; pointer-events: none; width: 22px; height: 22px; opacity: 0; transition: opacity 260ms ease; will-change: transform; filter: drop-shadow(0 1px 1.5px rgba(29,27,24,.28)); }
     #demo-cursor.on { opacity: 1; }
     .demo-ripple { position: fixed; z-index: 2147483646; pointer-events: none; width: 34px; height: 34px; margin: -17px 0 0 -17px; border-radius: 50%; border: 2px solid rgba(164,69,42,.55); animation: demo-ripple 520ms cubic-bezier(.2,.7,.3,1) forwards; }
-    @keyframes demo-ripple { from { transform: scale(.35); opacity: .9 } to { transform: scale(1.25); opacity: 0 } }
-    #demo-caption { position: fixed; left: 50%; bottom: calc(100vw * 34 / 1280); z-index: 2147483645; pointer-events: none; transform: translate(-50%, 6px); opacity: 0; transition: opacity 420ms ease, transform 420ms ease;
-      max-width: 88vw; white-space: nowrap; padding: calc(100vw * 11 / 1280) calc(100vw * 24 / 1280); border-radius: 999px;
-      background: rgba(244,239,230,.93); color: #1d1b18; box-shadow: 0 0 0 1px rgba(29,27,24,.08), 0 10px 30px -12px rgba(29,27,24,.35); backdrop-filter: blur(8px);
-      font: 500 calc(100vw * 22 / 1280)/1.25 'Geist Variable', ui-sans-serif, system-ui, sans-serif; letter-spacing: -0.012em; }
-    #demo-caption.on { opacity: 1; transform: translate(-50%, 0); }
-    #demo-caption.instant { transition: none; }`
+    .demo-ripple.touch { width: 46px; height: 46px; margin: -23px 0 0 -23px; border: 0; background: rgba(29,27,24,.16); }
+    @keyframes demo-ripple { from { transform: scale(.35); opacity: .9 } to { transform: scale(1.25); opacity: 0 } }`
   const mount = () => {
     const style = document.createElement('style')
     style.textContent = css
@@ -89,26 +79,19 @@ function overlay() {
     const cur = document.createElement('div')
     cur.id = 'demo-cursor'
     cur.innerHTML = '<svg viewBox="0 0 22 22" width="22" height="22"><path d="M4 2.5 L4 18 L8.2 14.2 L11 20.2 L13.6 19 L10.9 13.1 L16.6 13.1 Z" fill="#1d1b18" stroke="#fbf8f2" stroke-width="1.5" stroke-linejoin="round"/></svg>'
-    const cap = document.createElement('div')
-    cap.id = 'demo-caption'
-    document.body.append(cur, cap)
-    document.addEventListener('mousemove', (e) => { cur.style.transform = `translate(${e.clientX - 4}px, ${e.clientY - 2.5}px)` }, true)
-    document.addEventListener('mousedown', (e) => {
+    document.body.append(cur)
+    const ripple = (x, y, touch) => {
       const r = document.createElement('div')
-      r.className = 'demo-ripple'
-      r.style.left = `${e.clientX}px`
-      r.style.top = `${e.clientY}px`
+      r.className = touch ? 'demo-ripple touch' : 'demo-ripple'
+      r.style.left = `${x}px`
+      r.style.top = `${y}px`
       document.body.append(r)
       setTimeout(() => r.remove(), 600)
-    }, true)
-    window.__demo = {
-      cursor(on) { cur.classList.toggle('on', on) },
-      caption(text, instant) {
-        cap.classList.toggle('instant', !!instant)
-        if (text) cap.textContent = text
-        cap.classList.toggle('on', !!text)
-      },
     }
+    document.addEventListener('mousemove', (e) => { cur.style.transform = `translate(${e.clientX - 4}px, ${e.clientY - 2.5}px)` }, true)
+    document.addEventListener('mousedown', (e) => ripple(e.clientX, e.clientY, false), true)
+    document.addEventListener('touchstart', (e) => ripple(e.touches[0].clientX, e.touches[0].clientY, true), true)
+    window.__demo = { cursor(on) { cur.classList.toggle('on', on) } }
   }
   if (document.body) mount()
   else document.addEventListener('DOMContentLoaded', mount)
@@ -164,7 +147,19 @@ async function film(page, name, fn) {
   }
   list += `file '${last}'\n`
   writeFileSync(`${dir}/list.ffconcat`, list)
+  writeFileSync(`${dir}/meta.json`, JSON.stringify({ width: vp.width, height: vp.height, seconds: total }))
   log(`filmed ${name}: ${total.toFixed(2)} s, ${frames.length} frames (${(frames.length / (end - start)).toFixed(1)}/s)`)
+}
+
+/** One sharp 2× frame of what's on screen, for a shot that holds still. */
+async function still(page, name) {
+  const dir = `${OUT}/frames/${name}`
+  mkdirSync(dir, { recursive: true })
+  const vp = page.viewportSize()
+  writeFileSync(`${dir}/00000.jpg`, await page.screenshot({ type: 'jpeg', quality: 92, scale: 'device' }))
+  writeFileSync(`${dir}/list.ffconcat`, "ffconcat version 1.0\nfile '00000.jpg'\nduration 1.0000\nfile '00000.jpg'\n")
+  writeFileSync(`${dir}/meta.json`, JSON.stringify({ width: vp.width, height: vp.height, seconds: 1, still: true }))
+  log(`still ${name}`)
 }
 
 /** The cursor glides with gentle easing; real mouse events move it (hover states are real). */
@@ -201,7 +196,6 @@ function cursorOf(page) {
     },
   }
 }
-const caption = (page, text, instant = false) => page.evaluate(([t, i]) => window.__demo.caption(t, i), [text, instant])
 
 // ---------- the app, through its UI ----------
 async function api(page, method, path, body) {
@@ -225,14 +219,14 @@ async function authenticator(page) {
 }
 // The new headless mode (channel 'chromium'): its screenshots at 2× are fast enough to film with.
 const browser = await chromium.launch({ channel: 'chromium' })
-const newCtx = async () => {
-  const ctx = await browser.newContext({ viewport: { width: 1280, height: 800 }, deviceScaleFactor: 2, colorScheme: 'light', reducedMotion: 'no-preference', locale: 'en-US', timezoneId: 'Europe/Amsterdam' })
+const newCtx = async (phone = false) => {
+  const ctx = await browser.newContext({ viewport: phone ? { width: 390, height: 844 } : { width: 1280, height: 800 }, deviceScaleFactor: 2, isMobile: phone, hasTouch: phone, colorScheme: 'light', reducedMotion: 'no-preference', locale: 'en-US', timezoneId: 'Europe/Amsterdam' })
   await ctx.addInitScript(overlay)
   return ctx
 }
 /** A new account through the real entrance: name, passkey, no character yet. */
-async function signUp(name) {
-  const page = await (await newCtx()).newPage()
+async function signUp(name, phone = false) {
+  const page = await (await newCtx(phone)).newPage()
   await authenticator(page)
   await page.goto(`${BASE}/signin`)
   await page.click('button:has-text("Create an account")')
@@ -243,10 +237,15 @@ async function signUp(name) {
   await page.waitForURL((u) => !u.pathname.startsWith('/signin'))
   await page.locator('button:has-text("Decide later")').click({ timeout: 5000 }).catch(() => {})
   // Keys are made without asking; wait until this device holds them (once more after a reload if slow).
-  const unlocked = () => page.waitForSelector('text=Your encrypted writing is unlocked on this device.', { timeout: 20000 })
+  const unlocked = (ms = 20000) => page.waitForSelector('text=Your encrypted writing is unlocked on this device.', { timeout: ms })
   await page.goto(`${BASE}/account#encryption`)
+  // Now and then a new account's device asks to be unlocked with the passkey first: do what a person would.
+  const unlock = page.locator('button:has-text("Unlock with passkey")')
+  await Promise.race([unlocked(), unlock.waitFor({ timeout: 20000 })]).catch(() => {})
+  if (await unlock.isVisible().catch(() => false)) await unlock.click()
   await unlocked().catch(async () => {
     await page.reload()
+    if (await unlock.isVisible({ timeout: 3000 }).catch(() => false)) await unlock.click()
     await unlocked()
   })
   return page
@@ -276,50 +275,21 @@ async function group(page) {
     await card.locator('button:has-text("Save theme")').waitFor({ state: 'detached' })
   }
 }
-/** A still closing card: the mark, the name, where to find it. */
-function endCard() {
-  const html = `<!doctype html><meta charset="utf-8"><style>
-    @font-face { font-family: Geist; src: url('${FONTS}geist/files/geist-latin-wght-normal.woff2') format('woff2'); font-weight: 100 900; }
-    @font-face { font-family: Fraunces; src: url('${FONTS}fraunces/files/fraunces-latin-wght-normal.woff2') format('woff2'); font-weight: 100 900; }
-    @font-face { font-family: Fraunces; font-style: italic; src: url('${FONTS}fraunces/files/fraunces-latin-wght-italic.woff2') format('woff2'); font-weight: 100 900; }
-    html, body { margin: 0; height: 100%; }
-    body { background: radial-gradient(120% 90% at 50% 8%, #f8f3ea 0%, #f4efe6 55%, #eee6d8 100%); color: #1d1b18; display: grid; place-items: center; font-family: Geist, sans-serif; }
-    .card { display: flex; flex-direction: column; align-items: center; text-align: center; transform: translateY(-10px); }
-    .lockup { display: flex; align-items: center; gap: 18px; }
-    .word { font-family: Fraunces, serif; font-size: 92px; line-height: 1; letter-spacing: -0.02em; font-weight: 500; }
-    .def { margin-top: 26px; font-family: Fraunces, serif; font-size: 23px; color: #5b554c; }
-    .def i { color: #1d1b18; }
-    .rule { width: 56px; height: 1px; background: rgba(29,27,24,.22); margin: 34px 0 30px; }
-    .url { font-size: 27px; font-weight: 500; letter-spacing: -0.01em; color: #a4452a; }
-  </style>
-  <div class="card">
-    <div class="lockup">
-      <svg width="118" height="118" viewBox="0 0 64 64" aria-label="Muni"><g fill="none" stroke="#1d1b18" stroke-width="7" stroke-linecap="round"><path d="M10 40V28a8 8 0 0 1 16 0v12"/><path d="M26 40V28a8 8 0 0 1 16 0v12"/></g><circle cx="52" cy="40" r="4.5" fill="#a4452a"/><g fill="none" stroke="#1d1b18" stroke-width="5" stroke-linecap="round" opacity="0.2" transform="translate(0 92) scale(1 -1)"><path d="M10 40V33a8 8 0 0 1 16 0v7"/><path d="M26 40V33a8 8 0 0 1 16 0v7"/></g></svg>
-      <span class="word">muni</span>
-    </div>
-    <div class="def"><i>muni-muni</i> · to reflect; to turn a thought over.</div>
-    <div class="rule"></div>
-    <div class="url">act.munimuni.app</div>
-  </div>`
-  writeFileSync(`${OUT}/end-card.html`, html)
-  return `file://${OUT}/end-card.html`
-}
-
 // ---------- the demo ----------
 let failed = false
 try {
-  // Harbor: six people, each with their own passkey and browser.
+  // Harbor: six people, each with their own passkey and browser (Tomás on his phone).
   const p = {}
   p.maya = await signUp(PEOPLE.maya)
   const ws = must(await api(p.maya, 'POST', '/api/workspaces', { name: 'Harbor' }), 'workspace')
   for (const k of Object.keys(PEOPLE).filter((k) => k !== 'maya')) must(await api(p.maya, 'POST', `/api/workspaces/${ws.id}/invitations`, { email: email(k) }), 'invite')
   for (const k of Object.keys(PEOPLE).filter((k) => k !== 'maya')) {
-    p[k] = await signUp(PEOPLE[k])
+    p[k] = await signUp(PEOPLE[k], k === 'tomas')
     const link = await p[k].evaluate(async (e) => (await fetch('/api/dev/inbox').then((r) => r.json())).find((m) => m.to === e && /invited/.test(m.subject))?.body.split('\n').map((l) => l.trim()).find((l) => l.includes('/invite')), email(k))
     must(await api(p[k], 'POST', '/api/invitations/accept', { token: link.split('#')[1] }), 'accept')
   }
   log('team ready')
-  // Maya opens Sprint 14 (encrypted by default) and everyone writes.
+  // Maya sets up Sprint 14 (encrypted by default) and opens collection; everyone writes.
   await p.maya.goto(`${BASE}/workspaces/${ws.id}/sprints/new`)
   await p.maya.fill('#f-name', 'Sprint 14')
   if (!(await p.maya.isChecked('#f-encrypt'))) throw new Error('expected an encrypted sprint')
@@ -329,68 +299,111 @@ try {
   for (const [k, list] of Object.entries(THOUGHTS)) for (const [t, c] of list) await write(p[k], sprintId, t, c)
   log('thoughts written')
 
-  // 1 · The entrance, signed out.
+  // 01 · The entrance, signed out.
   const visitor = await (await newCtx()).newPage()
   await visitor.goto(`${BASE}/signin`)
   await visitor.waitForSelector('text=Welcome back.')
   await visitor.evaluate(() => document.fonts.ready)
   await sleep(1200)
-  await film(visitor, '01-entrance', () => sleep(2600))
+  await film(visitor, '01-entrance', () => sleep(3800))
   await visitor.context().close()
 
-  // 2 · Priya writes a thought.
+  // 02 · Priya writes a thought on her sprint's page ("/" opens it).
   const priya = p.priya
-  await priya.goto(`${BASE}/?sprint=${sprintId}`)
+  await priya.goto(`${BASE}/`)
+  await priya.waitForURL(`**/sprints/${sprintId}`)
   await priya.waitForSelector('.passage[data-state=submitted]')
   await priya.evaluate(() => document.fonts.ready)
+  // The writer, from its heading down (the sprint's bar is above it; the facilitator's shot shows it).
+  await priya.evaluate(() => window.scrollTo(0, document.querySelector('.journal-scene').getBoundingClientRect().top + window.scrollY - 40))
   await sleep(1500)
   const pc = cursorOf(priya)
   const field = priya.locator('textarea[name="thought"]')
   const add = priya.locator('button:has-text("Add to sprint")')
-  await pc.show(640, 700)
+  await pc.show(700, 760)
   await film(priya, '02-write', async () => {
-    await caption(priya, CAPTIONS.write)
-    await sleep(450)
-    await pc.to(field, 750, 0.66, 0.72) // away from where the words appear
+    await sleep(500)
+    await pc.to(field, 750, 0.7, 0.72) // away from where the words appear
     await sleep(80)
     await pc.click()
     await sleep(250)
-    await priya.keyboard.type(ON_CAMERA, { delay: 40 })
+    await priya.keyboard.type(ON_CAMERA, { delay: 42 })
     await sleep(350)
     await pc.to(add, 700)
     await sleep(120)
     await pc.click()
     await priya.waitForSelector(`.passage[data-state=submitted]:has-text("${ON_CAMERA.slice(0, 30)}")`, { timeout: 15000 })
-    await pc.glide(1060, 640, 650)
-    await sleep(500)
-    await caption(priya, null)
-    await sleep(450)
+    await pc.glide(1060, 700, 650)
+    await sleep(1100)
   })
   await pc.hide()
   log('written on camera')
 
-  // Maya closes collection: the reveal happens on her device.
+  // 03 · Tomás, on his phone: the same page, the same writer.
+  const tomas = p.tomas
+  await tomas.goto(`${BASE}/`)
+  await tomas.waitForURL(`**/sprints/${sprintId}`)
+  await tomas.waitForSelector('.passage[data-state=submitted]')
+  await tomas.evaluate(() => document.fonts.ready)
+  await tomas.evaluate(() => window.scrollTo(0, 0))
+  await sleep(1200)
+  await film(tomas, '03-phone', async () => {
+    await sleep(400)
+    await tomas.locator('textarea[name="thought"]').tap()
+    await sleep(300)
+    await tomas.keyboard.type(ON_PHONE, { delay: 38 })
+    await sleep(300)
+    await tomas.getByRole('radio', { name: 'Keep', exact: true }).tap()
+    await sleep(350)
+    await tomas.locator('button:has-text("Add to sprint")').tap()
+    await tomas.waitForSelector(`.passage[data-state=submitted]:has-text("${ON_PHONE.slice(0, 30)}")`, { timeout: 15000 })
+    await sleep(1200)
+  })
+  log('written on a phone')
+
+  // 04 · The same page in four of the characters' rooms (Priya's own choice, on her own screen).
+  for (const [i, room] of ROOMS.entries()) {
+    must(await api(priya, 'PATCH', '/api/auth/me', { avatar_id: room, avatar_theme: true }), 'character')
+    await priya.goto(`${BASE}/sprints/${sprintId}`)
+    await priya.waitForSelector(`.room[data-room="${room}"] .passage`)
+    await priya.evaluate(() => document.fonts.ready)
+    await priya.evaluate(() => window.scrollTo(0, 0))
+    await sleep(1400)
+    await still(priya, `04-room-${i}-${room}`)
+  }
+  must(await api(priya, 'PATCH', '/api/auth/me', { avatar_id: null }), 'character off')
+
+  // 05 · Maya closes collection early, from the sprint's page: what it does, then the closed state.
   const maya = p.maya
   await maya.goto(`${BASE}/sprints/${sprintId}`)
-  await maya.click('button:has-text("Close collection…")')
-  await maya.click('[role=dialog] button:text-is("Close collection")')
-  await maya.waitForSelector('.sbar-state:has-text("Collection closed")')
+  await maya.waitForSelector('button:has-text("Close collection…")')
+  await maya.evaluate(() => document.fonts.ready)
+  await maya.evaluate(() => window.scrollTo(0, 0)) // the browser restores where she last was on this page
+  await sleep(1500)
+  const mc = cursorOf(maya)
+  await mc.show(760, 420)
+  await film(maya, '05-close', async () => {
+    await sleep(500)
+    await mc.to(maya.locator('button:has-text("Close collection…")'), 900)
+    await sleep(350)
+    await mc.click()
+    await maya.locator('[role=dialog]').waitFor()
+    await sleep(2600)
+    await mc.to(maya.locator('[role=dialog] button:text-is("Close collection")'), 700)
+    await sleep(200)
+    await mc.click()
+    await maya.waitForSelector('.sbar-state:has-text("Collection closed")')
+    await sleep(700)
+    await mc.to(maya.locator('button:has-text("Start the retro…")'), 900)
+    await sleep(1500)
+  })
+  await mc.hide()
+  log('closed on camera')
+
+  // Maya groups the thoughts into themes (optional, and worth it here), then starts the retro. The room votes.
   await maya.click('a:has-text("Group into themes")')
   await maya.waitForURL(/prepare$/)
   await maya.waitForSelector('text=Three PRs waited', { timeout: 15000 })
-  await maya.reload()
-  await maya.waitForSelector('text=Three PRs waited', { timeout: 15000 })
-  await maya.evaluate(() => document.fonts.ready)
-  await sleep(1200)
-
-  // 3a · Prepare: everyone's thoughts, together and without names.
-  await film(maya, '03-prepare', async () => {
-    await caption(maya, CAPTIONS.reveal)
-    await sleep(2300)
-  })
-
-  // Maya gathers them into themes, then starts the retro. The room votes.
-  await maya.evaluate(() => { window.scrollTo(0, 0); window.__demo.caption(null, true) })
   await group(maya)
   log('grouped')
   await maya.click('button:has-text("Start the retro…")')
@@ -412,22 +425,19 @@ try {
   await maya.evaluate(() => document.fonts.ready)
   await sleep(1500)
 
-  // 3b · The room sees them for the first time: folded, then opened — in themes, with the votes.
-  const mc = cursorOf(maya)
-  await mc.show(620, 560)
-  await caption(maya, CAPTIONS.reveal, true)
-  await film(maya, '04-reveal', async () => {
-    await sleep(500)
-    await mc.to(open, 800, 0.4, 0.55)
+  // 06 · The room sees them for the first time: folded, then opened — in themes, with the votes.
+  const sc = cursorOf(maya)
+  await sc.show(620, 560)
+  await film(maya, '06-reveal', async () => {
+    await sleep(600)
+    await sc.to(open, 800, 0.4, 0.55)
     await sleep(150)
-    await mc.click()
+    await sc.click()
     await sleep(500)
-    await mc.glide(800, 470, 700)
-    await sleep(1400)
-    await caption(maya, null)
-    await sleep(450)
+    await sc.glide(800, 470, 700)
+    await sleep(2200)
   })
-  await mc.hide()
+  await sc.hide()
 
   // To the first topic, with a takeaway and an invitation to speak; then present it.
   await maya.click('button:has-text("Top three → agenda")')
@@ -447,14 +457,11 @@ try {
   await maya.mouse.move(1100, 690)
   await sleep(2000)
 
-  // 4 · Discuss, one topic at a time.
-  await film(maya, '05-discuss', async () => {
-    await caption(maya, CAPTIONS.discuss)
-    await sleep(1900)
+  // 07 · Discuss, one topic at a time.
+  await film(maya, '07-discuss', async () => {
+    await sleep(2100)
     await maya.keyboard.press('n') // the next voice is invited
-    await sleep(2700)
-    await caption(maya, null)
-    await sleep(450)
+    await sleep(3000)
   })
   log('discussed')
 
@@ -481,26 +488,17 @@ try {
   await maya.click('button:has-text("Publish")')
   await maya.waitForSelector('text=published')
 
-  // 5 · Priya's outcomes: what the team will try next.
+  // 08 · Priya comes back to the sprint: it's done, and its page is what the team will try next.
   await priya.goto(`${BASE}/sprints/${sprintId}`)
   await priya.waitForSelector(`text=${EXPERIMENTS[1].change}`)
   await priya.evaluate(() => document.fonts.ready)
+  await priya.evaluate(() => window.scrollTo(0, 0))
   await sleep(1500)
-  await film(priya, '06-outcomes', async () => {
-    await caption(priya, CAPTIONS.outcomes)
-    await sleep(1300)
-    await priya.evaluate(() => window.scrollTo({ top: 290, behavior: 'smooth' }))
-    await sleep(2400)
-    await caption(priya, null)
-    await sleep(450)
+  await film(priya, '08-outcomes', async () => {
+    await sleep(1400)
+    await priya.evaluate(() => window.scrollTo({ top: 360, behavior: 'smooth' }))
+    await sleep(3000)
   })
-
-  // 6 · The closing card.
-  const card = await (await newCtx()).newPage()
-  await card.goto(endCard())
-  await card.evaluate(() => document.fonts.ready)
-  await sleep(600)
-  await film(card, '07-end', () => sleep(2600))
   log('done')
 } catch (e) {
   failed = true

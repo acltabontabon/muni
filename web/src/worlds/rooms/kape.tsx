@@ -19,9 +19,11 @@ function Ceramic() {
   )
 }
 
-function KapePage({ writing, collection, extras, notices }: RoomSlots) {
+function KapePage({ bar, writing, collection, extras, notices }: RoomSlots) {
   return (
     <div className="kape-room">
+      {/* The sprint as the card that stands on a café table: what's on, and what comes next. */}
+      {bar}
       <div className="kape-main">
         {notices}
         <div className="kape-table">

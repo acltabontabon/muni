@@ -92,26 +92,26 @@ for (const W of WORLDS) try {
   const s = await ana.req('POST', `/api/workspaces/${ws.id}/sprints`, { name, timezone: 'Asia/Manila', starts_on: d(-3), ends_on: d(4), retro_date: d(5), retro_time: '15:00', participant_ids: [ana.id], facilitator_id: ana.id, reminders_enabled: false })
   await ana.req('POST', `/api/sprints/${s.id}/transition`, { to: 'collecting' })
 
-  // ── The page, in reading order: where it goes, the question, the field, one action, the collection.
+  // ── The page, in reading order: the sprint (its bar, set in the room), the question, the field, one action, the collection.
   {
     const { ctx, page, errors } = await open(ana, ws.id)
     await page.locator('.room-empty').waitFor()
     check(`${W}: its own composition, and no other room's`, (await page.locator(ROOT[W]).count()) === 1 && (await page.locator(ALL.filter((x) => x !== W).map((x) => ROOT[x]).join(',')).count()) === 0 && (await page.locator('.room').getAttribute('data-room')) === W)
     const order = await page.evaluate(() => {
       const box = (sel) => document.querySelector(sel)?.getBoundingClientRect() ?? null
-      return ['.room-tab', '.room-heading', 'textarea[name="thought"]', '.room-save', '.mine'].map((q) => box(q))
+      return ['.room-bar .sbar-name', '.room-heading', 'textarea[name="thought"]', '.room-save', '.mine'].map((q) => box(q))
     })
-    // On a wide screen a room may put the label in a margin or the collection beside the writing;
+    // On a wide screen a room may put the sprint in a margin or the collection beside the writing;
     // what never changes is the heading → field → action sequence, and the label before the field.
     const [tab, heading, f, save] = order
     // Before means above, or (Bola's opening, Guhit's margin) in the column to its left.
     const before = (a, b) => a.top < b.top || a.right <= b.left
-    check('Reading order: label, heading, field, action', !!(tab && heading && f && save) && before(tab, f) && before(heading, f) && f.bottom <= save.top + 1, order.map((b) => (b ? `${Math.round(b.left)},${Math.round(b.top)}` : 'missing')).join(' → '))
-    const dom = await page.evaluate(() => ['.room-tab', '.room-heading', 'textarea[name="thought"]', '.room-save', '.mine'].map((q) => document.querySelector(q)).reduce((ok, el, i, l) => ok && !!el && (i === 0 || !!(l[i - 1].compareDocumentPosition(el) & Node.DOCUMENT_POSITION_FOLLOWING)), true))
+    check('Reading order: the sprint, heading, field, action', !!(tab && heading && f && save) && before(tab, f) && before(heading, f) && f.bottom <= save.top + 1, order.map((b) => (b ? `${Math.round(b.left)},${Math.round(b.top)}` : 'missing')).join(' → '))
+    const dom = await page.evaluate(() => ['.room-bar .sbar-name', '.room-heading', 'textarea[name="thought"]', '.room-save', '.mine'].map((q) => document.querySelector(q)).reduce((ok, el, i, l) => ok && !!el && (i === 0 || !!(l[i - 1].compareDocumentPosition(el) & Node.DOCUMENT_POSITION_FOLLOWING)), true))
     check('…and the same order for a screen reader', dom)
-    check('The label names the sprint', (await page.locator('.room-tab-name').innerText()).trim() === name)
-    check('…says literally where it goes', (await page.locator('.room-tab-kicker').innerText()).toLowerCase() === 'writing for')
-    check('…while the state and the planned retro sit once, in the sprint bar above', (await page.locator('.sbar-state').innerText()).includes('Collecting') && /Planned/.test(await page.locator('.sbar-progress').innerText()) && (await page.locator('.room-tab-meta').count()) === 0)
+    check('The sprint bar is part of the room, and names the sprint', (await page.locator('.room .room-bar .sbar').count()) === 1 && (await page.locator('.sbar-name').innerText()).trim() === name && (await page.locator('main h1').count()) === 1)
+    check('…with its state and the planned retro, said once (no second sprint label)', /collecting/i.test(await page.locator('.sbar-state').innerText()) && /Planned/i.test(await page.locator('.sbar-progress').innerText()) && (await page.locator('.room-tab').count()) === 0)
+    check('…drawn in the room’s own type', await page.evaluate(() => getComputedStyle(document.querySelector('.sbar-name')).fontFamily === getComputedStyle(document.querySelector('.room-heading')).fontFamily))
     check('The heading labels the field', (await page.locator('label[for="thought-field"]').innerText()) === HEADING[W])
     check('No category row until asked', (await page.locator('.room-cat').count()) === 0 && (await page.locator('.cat-choice').count()) === 0)
     check('No Prompt button, no keycaps on screen', (await page.locator('button', { hasText: /^Prompt$/ }).count()) === 0 && (await page.locator('kbd:visible').count()) === 0)
@@ -130,8 +130,8 @@ for (const W of WORLDS) try {
     check('Still when idle: no animation, no drawing loop', still.running === 0 && still.frames <= 2, `${still.running} running, ${still.frames} frames in 2 s`)
     if (SHOTS) await page.screenshot({ path: `${SHOTS}/${W}-empty.png` })
 
-    // Keyboard: label → field → starting point → Category → Context → action, in that order.
-    await page.locator('.room-tab').focus()
+    // Keyboard: the sprint's controls → field → starting point → Category → Context → action, in that order.
+    await page.locator('.room-bar .sbar-more').focus()
     const stops = []
     for (let i = 0; i < 5; i++) {
       await page.keyboard.press('Tab')
@@ -142,16 +142,11 @@ for (const W of WORLDS) try {
     const ring = await page.locator('.room-opt').first().evaluate((el) => { el.focus(); return getComputedStyle(el).outlineStyle })
     check('Keyboard focus is visible on the controls', ring !== 'none', ring)
 
-    // Details, on request.
-    await page.locator('.room-tab').click()
-    const details = page.locator('.room-pop')
-    await details.waitFor()
-    const text = await details.innerText()
-    check('Details: the team, the sprint’s dates, the retro with its timezone — no privacy essay, no second way to the page it’s on', /Team/i.test(text) && /Sprint/i.test(text) && /15:00/.test(text) && /Manila time \(GMT\+8\)/.test(text) && !/Sprint guide|Open sprint/.test(text) && !/Who sees what|encryption|without your name/i.test(text))
-    await page.keyboard.press('Escape')
-    await details.waitFor({ state: 'detached' })
-    const onTab = await page.waitForFunction(() => document.activeElement?.classList.contains('room-tab'), null, { timeout: 2000 }).then(() => true).catch(() => false)
-    check('Escape closes details and returns to the label', onTab)
+    // Details, on request: folded at the foot of the page.
+    await page.locator('.sprint-about summary').click()
+    const text = await page.locator('.sprint-about').innerText()
+    check('Details: who’s in, the retro as planned with its timezone — no privacy essay', /Who’s in/i.test(text) && /15:00/.test(text) && /Manila time/.test(text) && !/Who sees what|without your name/i.test(text))
+    await page.locator('.sprint-about summary').click()
 
     // Category: one, optional, changeable, clearable — by keyboard.
     await field(page).fill('Standups ran long again.')
@@ -301,7 +296,7 @@ for (const W of WORLDS) try {
     await ctx.close()
   }
 
-  // ── Two sprints collecting: the label moves the draft, and the thought lands where it says.
+  // ── Two sprints collecting: “Also collecting” moves the draft, and the thought lands where it says.
   {
     const s2 = await ana.req('POST', `/api/workspaces/${ws.id}/sprints`, { name: 'Design crit', timezone: 'Asia/Manila', starts_on: d(-2), ends_on: d(4), retro_date: d(5), retro_time: '10:00', participant_ids: [ana.id], facilitator_id: ana.id, reminders_enabled: false })
     await ana.req('POST', `/api/sprints/${s2.id}/transition`, { to: 'collecting' })
@@ -309,9 +304,8 @@ for (const W of WORLDS) try {
     if ((await page.locator('.room-sheet--state').count()) && (await page.locator('button', { hasText: 'Design crit' }).count())) await page.locator('button', { hasText: name.slice(0, 20) }).first().click()
     await field(page).waitFor()
     await field(page).fill('This belongs to the design crit.')
-    await page.locator('.room-tab').click()
-    await page.locator('.room-pop .room-row', { hasText: 'Design crit' }).click()
-    await page.waitForFunction(() => document.querySelector('.room-tab-name')?.textContent.includes('Design crit'))
+    await page.locator('.room-notices button', { hasText: 'Design crit' }).click()
+    await page.waitForFunction(() => document.querySelector('.sbar-name')?.textContent.includes('Design crit'))
     const moved = await page.waitForFunction(() => document.querySelector('textarea[name="thought"]')?.value === 'This belongs to the design crit.', null, { timeout: 5000 }).then(() => true).catch(() => false)
     check('Choosing another sprint moves the draft with it', moved)
     await page.locator('.room-save').click()
@@ -351,7 +345,7 @@ for (const W of WORLDS) try {
   {
     await ana.req('POST', `/api/sprints/${s.id}/transition`, { to: 'preparing', confirm: true })
     const { ctx, page } = await open(ana, ws.id, { ready: '.room-sheet--state' })
-    check('Closed: the sprint bar says so', (await page.locator('.sbar-state').innerText()).includes('Collection closed'))
+    check('Closed: the sprint bar says so', /collection closed/i.test(await page.locator('.sbar-state').innerText()))
     check('Closed: no composer', (await field(page).count()) === 0)
     await page.locator('.passage').first().waitFor()
     check('Closed: thoughts are read-only', (await page.locator('.passage .passage-menu').count()) === 0)

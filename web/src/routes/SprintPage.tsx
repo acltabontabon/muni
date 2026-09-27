@@ -39,7 +39,7 @@ import { AppShell } from '@/ui/shell'
 import { SprintBar, useSprintControl, type BarSprint } from '@/ui/sprint-bar'
 import { RetroWhen } from '@/ui/when'
 import { CharacterNote } from '@/worlds/Character'
-import { RoomEmpty, SprintTab, StateWriter, Writer, type TabSprint } from '@/worlds/room'
+import { RoomEmpty, StateWriter, Writer } from '@/worlds/room'
 import { Room } from '@/worlds/rooms'
 import { useWorld } from '@/worlds/world'
 import { Commitments } from './Home'
@@ -158,7 +158,6 @@ export function SprintPage() {
     const others = (capture.data?.collecting ?? []).filter((x) => x.workspace_id === wsId && x.id !== sprintId)
     return others.length && s ? [toDest(s), ...others.map(toDest)] : []
   }, [capture.data, wsId, sprintId, s])
-  const elsewhere = (capture.data?.collecting ?? []).filter((x) => x.workspace_id !== wsId)
   const moveChoices = (capture.data?.collecting ?? []).map(toDest)
 
   useDocumentTitle(s?.name ?? cached?.sprint.name ?? 'Sprint')
@@ -207,7 +206,6 @@ export function SprintPage() {
     ? { ...s, participant_count: s.participants.length }
     : null
   const plan = s ? sprintPlan({ ...s, participant_count: s.participants.length, experiment_count: agreed }, { online: !offline }) : null
-  const tab: TabSprint = s ?? { id: sprintId, name, workspace_id: workspaceId, timezone: cached!.sprint.timezone }
   const moveTo = (d: Destination) => {
     writePrefs({ lastSprint: d.sprintId })
     nav(`/sprints/${d.sprintId}`)
@@ -271,8 +269,9 @@ export function SprintPage() {
             world={world}
             mode="write"
             empty={empty}
-            notices={notices}
-            context={<SprintTab s={tab} state={collecting ? 'collecting' : 'closed-now'} me={me} choices={choices} elsewhere={elsewhere} meta={false} />}
+            bar={header}
+            notices={<>{notices}<MoveDraft choices={choices} current={sprintId} /></>}
+            context={null}
             writing={<Writer closed={closedNote} level={2} />}
             collection={thoughts(<RoomEmpty />)}
             extras={extras}
@@ -301,7 +300,8 @@ export function SprintPage() {
     )
   } else if (phase === 'done' && s) {
     body = (
-      <div className="sprint-done">
+      <div className={world ? 'room sprint-done' : 'sprint-done'} data-room={world ?? undefined} data-mode={world ? 'done' : undefined}>
+        {world ? header : null}
         {notices}
         <OutcomesView s={s} onCount={setAgreed} refresh={refresh} />
         {participant ? (
@@ -356,7 +356,8 @@ export function SprintPage() {
         mode="state"
         empty={!!list && collected === 0}
         notices={notices}
-        context={<SprintTab s={tab} state={phase === 'live' ? 'live' : phase === 'closed' ? 'closed' : phase === 'collecting' ? 'collecting' : 'draft'} me={me} meta={false} />}
+        bar={header}
+        context={null}
         writing={<StateWriter title={title} level={2}>{sheet}</StateWriter>}
         collection={list}
         extras={extras}
@@ -376,9 +377,10 @@ export function SprintPage() {
     )
   }
 
+  // In a character's room the bar is part of the room's own composition; in Muni's journal it heads the page.
   return (
     <AppShell wide>
-      {header}
+      {world ? null : header}
       {body}
       {s ? <About s={s} /> : null}
       {s ? <InviteDialog open={inviting} onClose={() => setInviting(false)} workspaceId={s.workspace_id} sprints={s.is_facilitator ? [{ id: s.id, name: s.name }] : []} defaultSprint={s.is_facilitator ? s.id : undefined} onInvited={load} /> : null}

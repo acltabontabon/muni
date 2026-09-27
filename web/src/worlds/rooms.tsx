@@ -20,13 +20,13 @@ import { SIBOL } from './rooms/sibol'
 
 export const ROOMS: Record<AvatarId, RoomDef> = { kape: KAPE, guhit: GUHIT, biyahe: BIYAHE, bola: BOLA, pahina: PAHINA, himig: HIMIG, porma: PORMA, sibol: SIBOL }
 
-export function Room({ world, context, writing, collection, extras, notices, empty, mode }: { world: AvatarId; context: ReactNode; writing: ReactNode; collection: ReactNode; extras?: ReactNode; notices?: ReactNode; empty?: boolean; mode: 'write' | 'state' }) {
+export function Room({ world, bar, context, writing, collection, extras, notices, empty, mode }: { world: AvatarId; bar?: ReactNode; context: ReactNode; writing: ReactNode; collection: ReactNode; extras?: ReactNode; notices?: ReactNode; empty?: boolean; mode: 'write' | 'state' }) {
   const def = ROOMS[world]
   const Page = def.Page
   return (
     <RoomProviders def={def} headContext={def.contextInHead ? context : null}>
-      <div key={world} className="room" data-room={world} data-mode={mode} data-empty={empty || undefined}>
-        <Page context={def.contextInHead ? null : context} writing={writing} collection={collection} extras={extras} notices={notices ? <div className="room-notices">{notices}</div> : null} empty={empty} mode={mode} />
+      <div key={world} className="room" data-room={world} data-mode={mode} data-empty={empty || undefined} data-bar={bar ? '' : undefined}>
+        <Page bar={bar ? <div className="room-bar">{bar}</div> : null} context={def.contextInHead ? null : context} writing={writing} collection={collection} extras={extras} notices={notices ? <div className="room-notices">{notices}</div> : null} empty={empty} mode={mode} />
       </div>
     </RoomProviders>
   )
