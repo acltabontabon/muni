@@ -197,6 +197,19 @@ function cursorOf(page) {
   }
 }
 
+/** Scrolls the element's scroller (the page, or the sticky loose column), gently, until it's clear of the tray at the foot of the screen. */
+async function reveal(page, locator) {
+  const b = await locator.boundingBox()
+  const room = page.viewportSize().height - 150
+  if (b.y >= 90 && b.y + b.height <= room) return
+  await locator.evaluate((el, dy) => {
+    let s = el.parentElement
+    while (s && !(s.scrollHeight > s.clientHeight && /auto|scroll/.test(getComputedStyle(s).overflowY))) s = s.parentElement
+    ;(s ?? window).scrollBy({ top: dy, behavior: 'smooth' })
+  }, b.y + b.height / 2 - room / 2)
+  await sleep(750)
+}
+
 // ---------- the app, through its UI ----------
 async function api(page, method, path, body) {
   return page.evaluate(async ([m, p, b]) => {
@@ -255,16 +268,16 @@ async function write(page, sprintId, text, category) {
   await page.waitForSelector(`.passage[data-state=submitted]:has-text("${text.slice(0, 30)}")`, { timeout: 15000 })
 }
 /** The facilitator gathers thoughts into themes on the Themes page (titles are sealed in the browser). */
-async function group(page) {
+async function group(page, skip = 0) {
   const titled = (title) => page.waitForFunction((t) => [...document.querySelectorAll('textarea[aria-label="Theme title"]')].some((f) => f.value === t), title, { timeout: 15000 })
-  for (const t of THEMES) {
+  for (const t of THEMES.slice(skip)) {
     for (const e of t.entries) await page.locator('.sort-loose .sort-thought-inner', { hasText: e }).click()
     await page.locator('.sort-tray button:has-text("New theme")').click()
     await page.fill('.sort-tray input[aria-label="New theme title"]', t.title)
     await page.click('.sort-tray button:has-text("Create")')
     await titled(t.title)
   }
-  for (const t of THEMES) {
+  for (const t of THEMES.slice(skip)) {
     const chapter = page.locator('.sort-chapter').filter({ has: page.locator(`textarea[aria-label="Theme title"]`) }).nth(THEMES.indexOf(t))
     const q = chapter.locator('textarea[aria-label="Opening question"]')
     await q.fill(t.question)
@@ -398,11 +411,48 @@ try {
   await mc.hide()
   log('closed on camera')
 
-  // Maya groups the thoughts into themes (optional, and worth it here), then starts the retro. The room votes.
+  // 06 · Maya gathers thoughts into themes (optional, and worth it here): the first on camera.
   await maya.click('a:has-text("Group into themes")')
   await maya.waitForURL(/prepare$/)
-  await maya.waitForSelector('text=Three PRs waited', { timeout: 15000 })
-  await group(maya)
+  await maya.waitForSelector('.sort-loose .sort-thought-inner:has-text("Three PRs waited")', { timeout: 15000 })
+  await maya.evaluate(() => document.fonts.ready)
+  // Down to the table: the loose thoughts and the (still empty) themes.
+  await maya.evaluate(() => window.scrollTo(0, document.querySelector('.sort').getBoundingClientRect().top + window.scrollY - 90))
+  await sleep(1200)
+  const tc = cursorOf(maya)
+  await tc.show(900, 560)
+  await film(maya, '06-themes', async () => {
+    await sleep(500)
+    for (const e of THEMES[0].entries) {
+      const thought = maya.locator('.sort-loose .sort-thought-inner', { hasText: e })
+      await reveal(maya, thought)
+      await tc.to(thought, 520, 0.62, 0.5)
+      await sleep(90)
+      await tc.click()
+      await sleep(260)
+    }
+    await sleep(350)
+    await tc.to(maya.locator('.sort-tray button:has-text("New theme")'), 650)
+    await sleep(120)
+    await tc.click()
+    await sleep(250)
+    await maya.keyboard.type(THEMES[0].title, { delay: 55 })
+    await sleep(300)
+    await tc.to(maya.locator('.sort-tray button:has-text("Create")'), 500)
+    await sleep(100)
+    await tc.click()
+    await maya.waitForFunction((t) => [...document.querySelectorAll('textarea[aria-label="Theme title"]')].some((f) => f.value === t), THEMES[0].title, { timeout: 15000 })
+    await maya.evaluate(() => document.querySelector('.sort-loose')?.scrollTo({ top: 0, behavior: 'smooth' }))
+    await sleep(700)
+    await tc.glide(1100, 470, 600)
+    await sleep(1500)
+  })
+  await tc.hide()
+  await group(maya, 1)
+  const first = maya.locator('.sort-chapter').first().locator('textarea[aria-label="Opening question"]')
+  await first.fill(THEMES[0].question)
+  await first.press('Enter')
+  await maya.locator('.sort-chapter').first().locator('.sort-saved').waitFor({ timeout: 10000 })
   log('grouped')
   await maya.click('button:has-text("Start the retro…")')
   await maya.click('[role=dialog] button:text-is("Start the retro")')
@@ -423,10 +473,10 @@ try {
   await maya.evaluate(() => document.fonts.ready)
   await sleep(1500)
 
-  // 06 · The room sees them for the first time: folded, then opened — in themes, with the votes.
+  // 07 · The room sees them for the first time: folded, then opened — in themes, with the votes.
   const sc = cursorOf(maya)
   await sc.show(620, 560)
-  await film(maya, '06-reveal', async () => {
+  await film(maya, '07-reveal', async () => {
     await sleep(600)
     await sc.to(open, 800, 0.4, 0.55)
     await sleep(150)
@@ -455,8 +505,8 @@ try {
   await maya.mouse.move(1100, 690)
   await sleep(2000)
 
-  // 07 · Discuss, one topic at a time.
-  await film(maya, '07-discuss', async () => {
+  // 08 · Discuss, one topic at a time.
+  await film(maya, '08-discuss', async () => {
     await sleep(2100)
     await maya.keyboard.press('n') // the next voice is invited
     await sleep(3000)
@@ -486,13 +536,13 @@ try {
   await maya.click('button:has-text("Publish")')
   await maya.waitForSelector('text=published')
 
-  // 08 · Priya comes back to the sprint: it's done, and its page is what the team will try next.
+  // 09 · Priya comes back to the sprint: it's done, and its page is what the team will try next.
   await priya.goto(`${BASE}/sprints/${sprintId}`)
   await priya.waitForSelector(`text=${EXPERIMENTS[1].change}`)
   await priya.evaluate(() => document.fonts.ready)
   await priya.evaluate(() => window.scrollTo(0, 0))
   await sleep(1500)
-  await film(priya, '08-outcomes', async () => {
+  await film(priya, '09-outcomes', async () => {
     await sleep(1400)
     await priya.evaluate(() => window.scrollTo({ top: 360, behavior: 'smooth' }))
     await sleep(3000)

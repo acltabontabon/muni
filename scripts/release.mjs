@@ -104,7 +104,7 @@ export function releaseNotes(tag) {
   const stable = version.replace(/-.*$/, '')
   const sep = ' &nbsp;·&nbsp; '
   return [
-    `<p align="center"><a href="${asset('muni-demo.mp4')}"><img src="${asset('muni-demo.gif')}" alt="Muni in 42 seconds: thoughts written on a laptop and a phone, the same page in four characters’ rooms, the facilitator closing collection, everyone’s thoughts revealed without names, the live retro, and the experiments agreed." width="760"></a></p>`,
+    `<p align="center"><a href="${asset('muni-demo.mp4')}"><img src="${asset('muni-demo.gif')}" alt="Muni in 52 seconds: thoughts written on a laptop and a phone, the same page in four characters’ rooms, the facilitator closing collection and gathering thoughts into themes, everyone’s thoughts revealed without names, the live retro, and the experiments agreed." width="720"></a></p>`,
     '',
     '<h3 align="center">Keep the thought. Bring it to the conversation.</h3>',
     `<p align="center">${tagline}</p>`,
