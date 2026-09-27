@@ -20,6 +20,10 @@ of every bundled package to `third-party-licenses.txt` (see `web/scripts/third-p
 | tslib | 0BSD | Microsoft Corporation |
 | @simplewebauthn/browser — passkey ceremonies in the browser | MIT | Matthew Miller |
 | qrcode-generator — draws the invite QR code in the page | MIT | Kazuhiko Arase |
+| Transformers.js (`@huggingface/transformers`) with `@huggingface/tokenizers`, `@huggingface/jinja` — voice recognition, loaded only when someone dictates | Apache-2.0 (jinja: MIT) | Hugging Face, Inc. |
+| ONNX Runtime Web (`onnxruntime-web`, `onnxruntime-common`, incl. its WebAssembly build) — runs the speech model | MIT | Microsoft Corporation |
+| their dependencies: protobufjs and `@protobufjs/*`, flatbuffers, long, guid-typescript, platform | BSD-3-Clause; Apache-2.0; Apache-2.0; ISC; MIT | their respective authors |
+| Whisper small (speech model weights, ONNX conversion `onnx-community/whisper-small`, pinned revision) — served from Muni's origin to people who use voice ([VOICE.md](VOICE.md)) | MIT | OpenAI |
 
 The exact list (63 packages at the time of writing) comes from the production dependency tree at
 build time.
@@ -40,6 +44,10 @@ build time.
 - The marketing site (`site/`) loads Geist, Geist Mono and Fraunces from Google Fonts.
 - Development tools (TypeScript, Vite, Tailwind CSS, Vitest, Wrangler, Playwright, ESLint and their
   dependencies) are used to build and test; they are not part of the shipped app.
+- Transformers.js's Node.js backends (`onnxruntime-node`, `sharp`) are installed with it but never
+  bundled into the web app.
+- The voice evaluation ([VOICE.md](VOICE.md)) used FLEURS clips (Google, CC BY 4.0); none are in the
+  repository or the app.
 
 ## Project-original assets
 

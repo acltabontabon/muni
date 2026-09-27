@@ -33,7 +33,8 @@ cron */15 ──▶ Worker: due jobs (email, reminders, AI drafts) and a daily r
 | `worker/migrations/` | additive SQL migrations |
 | `web/` | React 19 + Vite + Tailwind 4 client, an installable PWA |
 | `web/src/lib/local/` | the device store and send queue for offline capture |
-| `web/src/sw.ts` | service worker: app shell only, never `/api` |
+| `web/src/lib/voice/` | on-device voice capture: recorder, speech worker (Whisper via Transformers.js), state model |
+| `web/src/sw.ts` | service worker: app shell (plus world fonts and the voice runtime once used), never `/api` |
 
 **Division of state.** D1 is authoritative for everything durable (accounts, sessions,
 workspaces, sprints, entries, themes, votes, notes, experiments, jobs). The room object is
@@ -154,6 +155,18 @@ queue are stored per account — in IndexedDB only for a person who turned on "K
 device", otherwise in memory for the tab. The service worker caches the app shell only; no API
 response, session token or other person's entry is stored on the device. Sign-out ends the session
 on the server first, names unsent work, then removes that account's local records.
+
+## Voice capture (web)
+
+Dictation is transcription on the device ([VOICE.md](VOICE.md)): an AudioWorklet captures the
+microphone into memory, a module Web Worker runs Whisper small through Transformers.js and ONNX
+Runtime's WebAssembly build, and the words are inserted into the composer's draft like typing.
+Nothing about it touches the server: the model and runtime are static files on Muni's own origin
+(`/voice/…`, `/assets/ort-wasm…`, split under the 25 MiB asset limit and verified by SHA-256 in
+the browser), fetched only after the person agrees, and cached by the worker (model) and service
+worker (runtime). The page is cross-origin isolated (COOP/COEP in `_headers`) so the runtime can
+use threads. Every result is tied to the account, sprint, local-data generation and recording it
+came from, and dropped if any has changed (`lib/voice/session.ts`).
 
 ## Retention
 

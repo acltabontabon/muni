@@ -14,12 +14,18 @@ export interface DraftSink {
   clearDraft(sprintId: string): Promise<void>
 }
 
+export type FlushOutcome = 'saved' | 'failed' | 'skipped' | null
+
 export interface DraftKeeper {
   readonly sprintId: string | null
   /** The text changed. Saved after `delay` ms (or cleared, when empty). */
   update(p: Payload): void
-  /** Save anything pending now. */
-  flush(): Promise<void>
+  /**
+   * Save anything pending now. Says what happened, so the page can report it truthfully:
+   * 'saved' (written), 'failed' (storage refused it), 'skipped' (nowhere to keep it: no sprint
+   * yet, or local data was cleared), or null (nothing was pending).
+   */
+  flush(): Promise<FlushOutcome>
   /** Forget anything pending (the thought was just saved and its draft removed). */
   discard(): void
   /** The writer chose another destination for this text: it goes there, and leaves here. */
@@ -40,20 +46,22 @@ export function draftKeeper(sink: DraftSink, sprintId: string | null, opts: { de
     if (timer) clearTimeout(timer)
     timer = null
   }
-  const write = async (p: Payload) => {
-    if (!sprintId || stale()) return
+  const write = async (p: Payload): Promise<FlushOutcome> => {
+    if (!sprintId || stale()) return 'skipped'
     try {
       if (hasText(p)) await sink.saveDraft(sprintId, p)
       else await sink.clearDraft(sprintId)
+      return 'saved'
     } catch {
       /* the text is still on screen; storage errors surface when saving the thought */
+      return 'failed'
     }
   }
-  const flush = async () => {
+  const flush = async (): Promise<FlushOutcome> => {
     stop()
     const p = pending
     pending = null
-    if (p) await write(p)
+    return p ? write(p) : null
   }
   return {
     sprintId,

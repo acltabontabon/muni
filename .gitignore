@@ -5,6 +5,8 @@ dist/
 web/test-results/
 web/playwright-report/
 web/e2e-artifacts/
+# The speech model, fetched and verified by web/scripts/voice-assets.mjs (about 250 MB).
+web/public/voice/
 *.log
 worker/.wrangler/
 worker/worker-configuration.d.ts

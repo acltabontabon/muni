@@ -39,9 +39,14 @@ is gitignored — it describes your account, not the project. Optional overrides
 ```bash
 pnpm exec wrangler secret put RESEND_API_KEY --config wrangler.production.jsonc   # or BREVO_API_KEY
 pnpm migrate:remote                                                              # additive migrations
-cd ../web && npm ci && npm run build && cd ../worker
+cd ../web && npm ci && node scripts/voice-assets.mjs && npm run build && cd ../worker
 pnpm run deploy
 ```
+
+`scripts/voice-assets.mjs` puts the speech model (252 MB, pinned and checksummed; see
+[VOICE.md](VOICE.md)) into `web/public/voice/` so it's served from your own origin. It downloads
+from Hugging Face only when the files are missing, and is safe to run every time. Without it, the
+app works but voice can't download its model.
 
 The Worker attaches itself to `MUNI_DOMAIN` as a custom domain. Open `https://<your domain>`, sign
 in with your email, and create a workspace. Until the email secret is set, sign-in answers
@@ -53,7 +58,7 @@ text (no names or emails) is then sent to that provider.
 
 ## Updating
 
-Pull, rebuild the web app, then `pnpm migrate:remote && pnpm run deploy`. Migrations are additive
+Pull, rebuild the web app (`node scripts/voice-assets.mjs && npm run build`), then `pnpm migrate:remote && pnpm run deploy`. Migrations are additive
 (new tables and columns, no drops), so the previous Worker keeps working against a newer schema.
 `pnpm exec wrangler rollback --config wrangler.production.jsonc` restores the previous Worker
 version; migrations are not reversed.

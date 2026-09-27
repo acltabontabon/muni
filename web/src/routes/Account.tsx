@@ -10,6 +10,7 @@ import { AppShell, PageTitle } from '@/ui/shell'
 import { EncryptionSettings } from '@/ui/keys'
 import { SecurityActivity, Sessions, SignInMethods } from '@/ui/security'
 import { CharacterSettings } from '@/worlds/Character'
+import { VoiceDeviceSetting } from '@/ui/voice'
 
 
 function Block({ id, title, lead, children }: { id: string; title: string; lead?: ReactNode; children: ReactNode }) {
@@ -120,6 +121,10 @@ export function Account() {
 
         <Block id="device" title="This device" lead="What Muni keeps in this browser for your account.">
           <DeviceControls />
+        </Block>
+
+        <Block id="voice" title="Voice" lead="Speak instead of typing: your speech is turned into text on this device and never uploaded. English, Tagalog and Taglish.">
+          <VoiceDeviceSetting />
         </Block>
 
         <Block id="sessions" title="Signed-in sessions" lead="Every browser or installed app signed in to your account. Same account, same votes.">

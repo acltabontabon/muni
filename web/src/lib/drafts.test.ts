@@ -94,3 +94,25 @@ describe('draft keeper', () => {
     expect(s.drafts.size).toBe(0)
   })
 })
+
+describe('draft keeper: what a save actually did', () => {
+  it('reports saved, failed, skipped, or nothing pending', async () => {
+    const s = sink()
+    const k = draftKeeper(s, 'A')
+    expect(await k.flush()).toBeNull()
+    k.update(text('words'))
+    expect(await k.flush()).toBe('saved')
+    const broken = draftKeeper({ saveDraft: async () => { throw new Error('quota') }, clearDraft: async () => {} }, 'A')
+    broken.update(text('words'))
+    expect(await broken.flush()).toBe('failed')
+    const nowhere = draftKeeper(s, null)
+    nowhere.update(text('words'))
+    expect(await nowhere.flush()).toBe('skipped')
+    let gen = 0
+    const cleared = draftKeeper(s, 'B', { generation: () => gen })
+    gen++
+    cleared.update(text('after sign-out'))
+    expect(await cleared.flush()).toBe('skipped')
+    expect(s.drafts.has('B')).toBe(false)
+  })
+})
