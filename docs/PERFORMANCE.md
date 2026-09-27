@@ -110,9 +110,9 @@ page. Measured with handle-free waits, nothing is left behind.
 Opening People (and switching between Sprints, People and Settings) was slow and awkward. Measured
 before changing anything, with a realistically seeded workspace (13 people, 16 sprints, invitations,
 invite codes, two people asking to join), the same machine, phone emulation at 4× slowdown, and a
-copy of the Worker that delays each D1 call by a fixed amount and counts them. The delay was set from
-production: from the Singapore edge, a request that reads D1 once costs ~5–10 ms more than one that
-doesn't (8 ms used); 35 ms stands for an edge further from the database. The harness itself lives
+copy of the Worker that delays each D1 call by a fixed amount and counts them. Two delays bracket
+production: from the Singapore edge, `GET /api/auth/me` with an unknown session cookie (one D1 read)
+takes a median 18 ms longer than with no cookie (no read), so 8 ms and 35 ms per call were used. The harness itself lives
 outside the repo; `e2e/workspace.mjs` keeps the behaviour it checked.
 
 **Causes, in order of weight:**
