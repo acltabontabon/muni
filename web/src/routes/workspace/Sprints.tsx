@@ -1,16 +1,16 @@
 /**
- * Sprints: the current sprint is the open chapter — its name, where it is, and the next useful
- * step, set directly on the page. Beside it, quieter: when the retro is, the sprint's dates and
- * people, and experiments due for another look. Below: other sprints in progress, then earlier
- * ones as an aligned ledger.
+ * Sprints: a place to find a sprint and open it. The current one is set large — its name, where it
+ * is, and the way in — and everything you do with it happens on its own page. Beside it, quieter:
+ * when the retro is planned, the sprint's dates and people, and experiments due for another look.
+ * Below: other sprints in progress, then earlier ones as an aligned ledger.
  */
 import { useMemo, useState } from 'react'
 import { Link } from 'react-router'
-import { ArrowRight, Check, Info, Plus } from 'lucide-react'
-import type { Experiment, SprintDetail, SprintSummary } from '@/api/types'
+import { ArrowRight, Plus } from 'lucide-react'
+import type { Experiment, SprintSummary } from '@/api/types'
 import { useAuth } from '@/lib/auth'
 import { OUTCOME_LABEL } from '@/lib/categories'
-import { STATUS_PHRASE, STEPS, sprintGuide, type Step } from '@/lib/lifecycle'
+import { PHASE_OF, STATUS_PHRASE } from '@/lib/lifecycle'
 import { useResource } from '@/lib/resource'
 import { dateRange, describeRetro, shortDate } from '@/lib/schedule'
 import { useDocumentTitle } from '@/ui'
@@ -31,9 +31,6 @@ export function WorkspaceSprints() {
   const list = sprints.data
   const active = useMemo(() => (list ?? []).filter((s) => ORDER.includes(s.status)).sort((a, b) => ORDER.indexOf(a.status) - ORDER.indexOf(b.status)), [list])
   const lead = active.find((s) => s.is_participant) ?? active[0] ?? null
-  // The full record adds only the notes worth knowing (e.g. no thoughts were added); the chapter
-  // itself reads from the list.
-  const detail = useResource<SprintDetail>(lead ? `/api/sprints/${lead.id}` : null)
 
   const newSprint = !offline ? (
     <Link to={`/workspaces/${ws.id}/sprints/new`} className="ws-btn ws-btn--secondary">
@@ -74,7 +71,7 @@ export function WorkspaceSprints() {
       <SectionActions>{newSprint}</SectionActions>
       <div className="ws-sprints">
         {lead ? (
-          <Chapter s={lead} detail={detail.data?.id === lead.id ? detail.data : undefined} online={!offline} />
+          <Chapter s={lead} />
         ) : (
           <section className="chapter" aria-labelledby="chapter-title">
             <p className="ws-eyebrow">Between sprints</p>
@@ -113,81 +110,27 @@ export function WorkspaceSprints() {
   )
 }
 
-/** The open chapter: name, where it is, the next step — and the facilitator's own, kept apart. */
-function Chapter({ s, detail, online }: { s: SprintSummary; detail?: SprintDetail; online: boolean }) {
-  // Counts only come with the full record; until then no note is drawn from them (-1 is "unknown").
-  const g = sprintGuide({ ...s, entry_count: detail?.entry_count ?? null, theme_count: detail?.theme_count ?? -1, reopened_count: detail?.reopened_count ?? 0 }, { online })
-  const primary = g.actions[0]
-  const facNext = g.facilitator?.actions[0]
-  const guide = `/sprints/${s.id}`
+/** The open chapter: the sprint's name, where it is, and the way in. Nothing to do here but open it. */
+function Chapter({ s }: { s: SprintSummary }) {
+  const href = `/sprints/${s.id}`
   return (
     <section className="chapter" aria-labelledby="chapter-title">
       <p className="ws-eyebrow">{s.status === 'draft' ? 'Next sprint' : 'Current sprint'}</p>
       <h2 id="chapter-title" className="chapter-title">
-        <Link to={guide}>{s.name}</Link>
+        <Link to={href}>{s.name}</Link>
       </h2>
       {s.goal ? <p className="chapter-goal">{s.goal}</p> : null}
-      <Lifecycle step={g.step} />
-      <div className="chapter-now">
-        <h3 className="chapter-phase">{g.title}</h3>
-        <p className="chapter-body">{g.body}</p>
-        {g.notes.length ? (
-          <ul className="chapter-notes">
-            {g.notes.map((n) => (
-              <li key={n}><Info className="size-4 shrink-0" aria-hidden /> {n}</li>
-            ))}
-          </ul>
-        ) : null}
-        <div className="chapter-actions">
-          {primary?.kind === 'write' ? <Link to={`/?sprint=${s.id}`} className="ws-btn ws-btn--primary">Write a thought <ArrowRight className="size-4" aria-hidden /></Link> : null}
-          {primary?.kind === 'link' ? <Link to={primary.href} className={`ws-btn ${facNext ? 'ws-btn--secondary' : 'ws-btn--primary'}`}>{primary.label}</Link> : null}
-          {!primary && !g.facilitator ? <Link to={guide} className="ws-btn ws-btn--secondary">Open the sprint guide</Link> : null}
-          {primary || g.facilitator ? <Link to={guide} className="ws-link">Sprint guide</Link> : null}
-        </div>
-      </div>
-      {g.facilitator ? (
-        <div className="chapter-fac" role="group" aria-labelledby="fac-title">
-          <p id="fac-title" className="ws-eyebrow">Facilitator · only you see this</p>
-          <p className="chapter-fac-body">{g.facilitator.body}</p>
-          {facNext ? (
-            <Link to={facNext.kind === 'link' ? facNext.href : guide} className={`ws-btn ${primary ? 'ws-btn--secondary' : 'ws-btn--primary'} mt-4`}>
-              {facNext.kind === 'link' ? facNext.label : `Next: ${facNext.label.replace('…', '')}`} <ArrowRight className="size-4" aria-hidden />
-            </Link>
-          ) : null}
-        </div>
-      ) : null}
-    </section>
-  )
-}
-
-/**
- * Set up → Collect → Prepare → Retro → Outcomes, as a line through the chapter. Done steps are
- * ticked, the current one is filled and says "Now", the rest are open rings: shape and words, not
- * colour alone. Not links: the steps describe; the actions below act. On a phone the line
- * becomes a short bar with one sentence, rather than five labels in tiny type.
- */
-export function Lifecycle({ step }: { step: Step }) {
-  const at = STEPS.findIndex((s) => s.id === step)
-  const next = STEPS[at + 1]
-  return (
-    <div className="life">
-      <ol className="life-steps" aria-label="Where the sprint is">
-        {STEPS.map((s, i) => {
-          const state = i < at ? 'done' : i === at ? 'now' : 'next'
-          return (
-            <li key={s.id} data-state={state} aria-current={state === 'now' ? 'step' : undefined}>
-              <span className="life-mark" aria-hidden>{state === 'done' ? <Check className="size-2.5" strokeWidth={3.5} /> : null}</span>
-              <span className="life-label">{s.label}</span>
-              <span className="life-state">{state === 'done' ? <span className="sr-only">done</span> : state === 'now' ? 'Now' : null}</span>
-            </li>
-          )
-        })}
-      </ol>
-      <p className="life-compact" aria-hidden>
-        <span>Step {at + 1} of {STEPS.length}</span> <strong>{STEPS[at].label}</strong>
-        {next ? <span className="life-then">Next: {next.label}</span> : null}
+      <p className="chapter-state" data-phase={PHASE_OF[s.status] ?? 'draft'}>
+        <span className="sbar-dot" aria-hidden />
+        <span>{stateOf(s)}</span>
+        {s.is_facilitator ? <span className="chapter-role">You’re facilitating</span> : null}
       </p>
-    </div>
+      <div className="chapter-actions">
+        <Link to={href} className="ws-btn ws-btn--primary">
+          Open sprint <ArrowRight className="size-4" aria-hidden />
+        </Link>
+      </div>
+    </section>
   )
 }
 
@@ -197,7 +140,7 @@ function Appointment({ s }: { s: SprintSummary }) {
   return (
     <>
       <section className="aside-block" aria-labelledby="retro-when">
-        <h2 id="retro-when" className="ws-eyebrow">Retro</h2>
+        <h2 id="retro-when" className="ws-eyebrow">Retro, planned</h2>
         <p className="aside-date">{r.date}</p>
         <p className="aside-line">
           <span className="tabular-nums">{r.time}</span> <span title={r.offset}>{r.zone}</span> · {s.retro_duration_min} min
@@ -234,12 +177,12 @@ function Ledger({ id, title, rows, note }: { id: string; title: string; rows: Sp
   )
 }
 
-function SprintRows({ rows, meta, href }: { rows: SprintSummary[]; meta?: (s: SprintSummary) => string; href?: (s: SprintSummary) => string }) {
+function SprintRows({ rows, meta }: { rows: SprintSummary[]; meta?: (s: SprintSummary) => string }) {
   return (
     <ul className="ledger">
       {rows.map((s) => (
         <li key={s.id}>
-          <Link to={href ? href(s) : `/sprints/${s.id}`} className="ledger-row">
+          <Link to={`/sprints/${s.id}`} className="ledger-row">
             <span className="ledger-name">{s.name}</span>
             <span className="ledger-meta">
               <span className="ledger-dates">{dateRange(s.starts_on, s.ends_on)}</span>
@@ -267,8 +210,7 @@ function Archive({ past, exps }: { past: SprintSummary[]; exps: Experiment[] }) 
       <div className="min-w-0">
         <SprintRows
           rows={past.slice(0, shown)}
-          href={(s) => `/sprints/${s.id}/outcomes`}
-          meta={(s) => {
+                    meta={(s) => {
             const n = tried(s.id)
             return `${s.status === 'archived' ? 'Archived' : 'Complete'}${n ? ` · ${n} ${n === 1 ? 'experiment' : 'experiments'}` : ''}`
           }}

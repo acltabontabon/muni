@@ -121,9 +121,8 @@ try {
     // ── Lifecycle and actions.
     await tab(page, 'Sprints').click()
     await page.getByText('Collecting thoughts').waitFor()
-    check('the current phase is marked as the current step', (await page.locator('.life-steps [aria-current="step"]').innerText()).includes('Collect'))
-    check('the phase’s action is to write a thought', (await page.getByRole('link', { name: 'Write a thought', exact: true }).getAttribute('href')) === `/?sprint=${cur.id}`)
-    check('the facilitator’s next step is kept apart', await page.getByText('Facilitator · only you see this').isVisible() && (await page.getByRole('link', { name: /Next: Close collection/ }).getAttribute('href')) === `/sprints/${cur.id}`)
+    check('the list says where the current sprint is, and opens it', (await page.locator('.chapter-state').innerText()).includes('Collecting thoughts') && (await page.getByRole('link', { name: 'Open sprint' }).getAttribute('href')) === `/sprints/${cur.id}`)
+    check('no stepper, guide or facilitator box on the list: those live on the sprint', (await page.locator('.life, .chapter-fac, .sbar-control').count()) === 0 && (await page.getByText('Sprint guide').count()) === 0)
 
     // ── Keyboard: sections are links in order, with a visible focus.
     await tab(page, 'People').focus()
@@ -268,7 +267,8 @@ try {
     }
     await page.goto(W(one.id))
     await page.getByText('Collecting thoughts').waitFor()
-    check('phone: the lifecycle is a sentence, not five tiny labels', await page.locator('.life-compact').isVisible() && (await page.locator('.life-compact').innerText()).includes('Step 2 of 5'))
+    const way = await page.getByRole('link', { name: 'Open sprint' }).boundingBox()
+    check('phone: the current sprint’s state in a line, and a way in that’s easy to press', await page.locator('.chapter-state').isVisible() && way.height >= 44, `${way.height}px`)
     const menu = await page.locator('.ws-tab').first().boundingBox()
     check('phone: sections have comfortable touch targets', menu.height >= 44, `${menu.height}px`)
     await ctx.close()

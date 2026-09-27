@@ -10,8 +10,8 @@ import { SessionBanner, SyncChip, UpdateNotice } from '@/ui/status'
 import { CharacterDialog } from '@/worlds/Character'
 
 /**
- * One header everywhere: Muni, the workspace you're in, the two places you go (writing, and the
- * workspace's sprints), a quiet sync state when there is one, and you. Administration lives in
+ * One header everywhere: Muni, the workspace you're in, the way to write (a shortcut to the sprint
+ * that's collecting) and the workspace's sprints, a quiet sync state when there is one, and you. Administration lives in
  * the workspace's People and Settings pages and the two menus, not on the page you work on.
  */
 export function AppShell({ children, wide, workspace }: { children: ReactNode; wide?: boolean; workspace?: Me['workspaces'][number] | null }) {
@@ -24,7 +24,7 @@ export function AppShell({ children, wide, workspace }: { children: ReactNode; w
     <div className="app-bg flex min-h-dvh flex-col">
       <header className="pt-safe sticky top-0 z-30 border-b border-line/60 bg-paper/80 backdrop-blur-md">
         <div className={clsx('mx-auto flex h-14 items-center gap-1 px-3 sm:gap-2 sm:px-4', wide ? 'max-w-7xl' : 'max-w-5xl')}>
-          <Link to="/" className="shrink-0 rounded-md px-1 text-ink" aria-label="Muni — write a thought">
+          <Link to="/" className="shrink-0 rounded-md px-1 text-ink" aria-label="Muni: your current sprint">
             <span className="hidden sm:inline-flex"><Wordmark size={20} /></span>
             <span className="sm:hidden"><Mark size={26} /></span>
           </Link>
@@ -34,7 +34,8 @@ export function AppShell({ children, wide, workspace }: { children: ReactNode; w
               <WorkspaceSwitcher current={current} />
               {current ? (
                 <nav aria-label="Main" className="ml-2 hidden items-center gap-1 md:flex">
-                  <Link to="/" className={nav} aria-current={pathname === '/' || pathname === '/capture' ? 'page' : undefined}>Write</Link>
+                  {/* A shortcut to the sprint that's collecting, with the field in reach: the same page as opening the sprint. */}
+                  <Link to="/" state={{ write: true }} className={nav}>Write</Link>
                   <Link to={`/workspaces/${current.id}`} className={nav} aria-current={pathname.startsWith(`/workspaces/${current.id}`) || pathname.startsWith('/sprints/') ? 'page' : undefined}>Sprints</Link>
                 </nav>
               ) : null}

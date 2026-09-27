@@ -111,7 +111,7 @@ for (const W of WORLDS) try {
     check('…and the same order for a screen reader', dom)
     check('The label names the sprint', (await page.locator('.room-tab-name').innerText()).trim() === name)
     check('…says literally where it goes', (await page.locator('.room-tab-kicker').innerText()).toLowerCase() === 'writing for')
-    check('…with its state and the next date, concisely', /Collecting\s*·\s*retro /.test(await page.locator('.room-tab-meta').innerText()))
+    check('…while the state and the planned retro sit once, in the sprint bar above', (await page.locator('.sbar-state').innerText()).includes('Collecting') && /Planned/.test(await page.locator('.sbar-progress').innerText()) && (await page.locator('.room-tab-meta').count()) === 0)
     check('The heading labels the field', (await page.locator('label[for="thought-field"]').innerText()) === HEADING[W])
     check('No category row until asked', (await page.locator('.room-cat').count()) === 0 && (await page.locator('.cat-choice').count()) === 0)
     check('No Prompt button, no keycaps on screen', (await page.locator('button', { hasText: /^Prompt$/ }).count()) === 0 && (await page.locator('kbd:visible').count()) === 0)
@@ -147,7 +147,7 @@ for (const W of WORLDS) try {
     const details = page.locator('.room-pop')
     await details.waitFor()
     const text = await details.innerText()
-    check('Details: the team, the sprint’s dates, the retro with its timezone, the way to the sprint — no privacy essay', /Team/i.test(text) && /Sprint/i.test(text) && /15:00/.test(text) && /Manila time \(GMT\+8\)/.test(text) && /Open sprint|Sprint guide/.test(text) && !/Who sees what|encryption|without your name/i.test(text))
+    check('Details: the team, the sprint’s dates, the retro with its timezone — no privacy essay, no second way to the page it’s on', /Team/i.test(text) && /Sprint/i.test(text) && /15:00/.test(text) && /Manila time \(GMT\+8\)/.test(text) && !/Sprint guide|Open sprint/.test(text) && !/Who sees what|encryption|without your name/i.test(text))
     await page.keyboard.press('Escape')
     await details.waitFor({ state: 'detached' })
     const onTab = await page.waitForFunction(() => document.activeElement?.classList.contains('room-tab'), null, { timeout: 2000 }).then(() => true).catch(() => false)
@@ -347,11 +347,11 @@ for (const W of WORLDS) try {
     await ctx.close()
   }
 
-  // ── Collection closed: the same room, read-only, and the label says so.
+  // ── Collection closed: the same room, read-only, and the sprint bar says so.
   {
     await ana.req('POST', `/api/sprints/${s.id}/transition`, { to: 'preparing', confirm: true })
     const { ctx, page } = await open(ana, ws.id, { ready: '.room-sheet--state' })
-    check('Closed: the label says so', (await page.locator('.room-tab-state').innerText()).includes('Collection closed'))
+    check('Closed: the sprint bar says so', (await page.locator('.sbar-state').innerText()).includes('Collection closed'))
     check('Closed: no composer', (await field(page).count()) === 0)
     await page.locator('.passage').first().waitFor()
     check('Closed: thoughts are read-only', (await page.locator('.passage .passage-menu').count()) === 0)

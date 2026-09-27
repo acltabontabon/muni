@@ -16,7 +16,24 @@ those as highlights. The app's About → What's new and each GitHub release are 
 
 ## [Unreleased]
 
+### Changed
+
+- **One page for each sprint.** Writing, the closed state, the retro and the outcomes all happen on
+  the sprint's own page, for everyone in it. *Write* opens the sprint that's collecting for you; the
+  workspace's list is for finding a sprint and opening it. Old outcomes links still work.
+- **Where things are, at a glance.** The top of every sprint says where it is and what's next —
+  thoughts, then the retro (with its planned date, which never changes anything by itself), then
+  the outcomes — instead of five steps.
+- **Facilitators: the next step, in one place.** Open collection, close it whenever you're ready
+  (no need to wait for the retro date), then start the retro — themes are optional, and there's no
+  separate “mark ready” step. Each change says what it will do for everyone before it happens.
+  Collection can be reopened until the retro starts.
+
 ### Fixed
+
+- Pressing a button twice (or closing collection from two tabs) no longer tries to change a sprint
+  twice.
+- Reopening collection brings back reminder emails that were still to come.
 
 - A recap filled in from the retro no longer adds a full stop after a theme title or success signal
   that already ends with one, a question mark or an exclamation mark (“Who owns staging?” stays as

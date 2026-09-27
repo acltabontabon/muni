@@ -254,8 +254,6 @@ button.room-tab[data-state='open'] { background: color-mix(in oklab, var(--ink) 
 .room-details-list dt { font-size: 12px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; line-height: 1.75; color: var(--ink-faint); }
 .room-details-list dd { margin: 0; color: var(--ink-soft); overflow-wrap: anywhere; }
 .room-details-strong { color: var(--ink); font-weight: 500; }
-.room-details-links { display: flex; flex-wrap: wrap; gap: 0.25rem 1rem; margin-top: 0.9rem; padding-top: 0.75rem; border-top: 1px solid var(--line); }
-.room-details-links a { font-weight: 500; color: var(--accent-ink); text-decoration: underline; text-decoration-color: color-mix(in oklab, var(--accent) 40%, transparent); text-underline-offset: 3px; }
 .room-details-more { margin-top: 0.9rem; padding-top: 0.8rem; border-top: 1px solid var(--line); }
 .room-details-more ul { margin: 0.35rem -0.5rem; padding: 0; list-style: none; }
 .room-row { display: block; width: 100%; min-height: 2.5rem; padding: 0.5rem; border-radius: 8px; text-align: left; font-weight: 500; overflow-wrap: anywhere; }

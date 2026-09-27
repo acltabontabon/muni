@@ -103,11 +103,9 @@ export function Stage() {
       <Centered>
         <Mark size={40} className="text-ink" />
         <h1 className="font-display mt-4 text-2xl">{sprint.name}</h1>
-        <p className="mt-2 text-ink-soft">{sprint.status === 'completed' ? 'This retro is done.' : 'The retro hasn’t started yet.'}</p>
+        <p className="mt-2 text-ink-soft">{['completed', 'archived'].includes(sprint.status) ? 'This retro is done.' : fac ? 'The retro hasn’t started yet. Start it from the sprint’s page.' : 'The retro hasn’t started yet.'}</p>
         <div className="mt-6 flex gap-2">
-          {sprint.status === 'completed' ? <Button onClick={() => nav(`/sprints/${sprintId}/outcomes`)}>See the outcomes</Button> : null}
-          {fac && sprint.status === 'ready' ? <Button variant="primary" onClick={async () => { await post(`/api/sprints/${sprintId}/transition`, { to: 'live' }); st.reload() }}>Start the retro</Button> : null}
-          <Button variant="ghost" onClick={() => nav(`/sprints/${sprintId}`)}>Back</Button>
+          <Button variant={fac || ['completed', 'archived'].includes(sprint.status) ? 'primary' : 'ghost'} onClick={() => nav(`/sprints/${sprintId}`)}>{['completed', 'archived'].includes(sprint.status) ? 'See the outcomes' : 'Back to the sprint'}</Button>
         </div>
       </Centered>
     )
@@ -125,7 +123,7 @@ export function Stage() {
         {stage.phase === 'discover' ? <Discover themes={themes} ungrouped={ungrouped} total={grouping?.total_entries ?? 0} revealed={revealed || !fac} onReveal={setRevealed} controls={controls} presenting={presenting} votes={votes} sprintId={sprintId} onVotesChanged={() => { st.loadVotes(); st.loadThemes() }} command={command} onRead={setReader} onRename={async (id, title) => { await patch(`/api/sprints/${sprintId}/themes/${id}`, { title }); st.loadThemes() }} /> : null}
         {stage.phase === 'discuss' ? <Discuss stage={stage} themes={themes} ungrouped={ungrouped} controls={controls} presenting={presenting} command={command} sprintId={sprintId} onSnapshot={(s) => st.setStage(s)} /> : null}
         {stage.phase === 'decide' ? <Decide stage={stage} themes={themes} experiments={experiments} controls={controls} sprintId={sprintId} participants={sprint.participants} onChange={st.loadExperiments} /> : null}
-        {stage.phase === 'leave' ? <Leave stage={stage} experiments={experiments} themes={themes} controls={controls} onComplete={async () => { try { await post(`/api/sprints/${sprintId}/transition`, { to: 'completed' }); nav(`/sprints/${sprintId}/outcomes`) } catch (e) { toast(e instanceof ApiError ? e.message : 'Couldn’t complete', 'danger') } }} /> : null}
+        {stage.phase === 'leave' ? <Leave stage={stage} experiments={experiments} themes={themes} controls={controls} onComplete={async () => { try { await post(`/api/sprints/${sprintId}/transition`, { to: 'completed' }); nav(`/sprints/${sprintId}`) } catch (e) { toast(e instanceof ApiError ? e.message : 'Couldn’t complete', 'danger') } }} /> : null}
       </main>
       <div className="fixed bottom-3 right-3 z-30 flex items-center gap-2 text-xs">
         {fac ? (

@@ -9,11 +9,11 @@ import { WorkspaceSprints } from './routes/workspace/Sprints'
 import { WorkspacePeople } from './routes/workspace/People'
 import { WorkspaceSettings } from './routes/workspace/Settings'
 import { SprintSetup } from './routes/SprintSetup'
-import { SprintHome } from './routes/SprintHome'
+import { SprintPage } from './routes/SprintPage'
 import { Prepare } from './routes/Prepare'
 import { Stage } from './routes/Stage'
 import { Companion } from './routes/Companion'
-import { Outcomes } from './routes/Outcomes'
+import { OutcomesRedirect } from './routes/Outcomes'
 import { Account } from './routes/Account'
 import { Privacy } from './routes/Privacy'
 import { About, WhatsNew } from './routes/About'
@@ -91,7 +91,7 @@ export function App() {
       <Route path="/about" element={<About />} />
       <Route path="/about/whats-new" element={<WhatsNew />} />
       <Route path="/" element={<Protected><Home /></Protected>} />
-      {/* The old bookmarkable capture link opens the same home (a ?sprint= deep link is kept). */}
+      {/* The old bookmarkable capture link: the same shortcut to your sprint (a ?sprint= deep link is kept). */}
       <Route path="/capture" element={<Protected><Home /></Protected>} />
       <Route path="/account" element={<Protected><Account /></Protected>} />
       {/* One opening for the workspace's sections: it stays in place while only the section changes. */}
@@ -101,12 +101,14 @@ export function App() {
         <Route path="settings" element={<WorkspaceSettings />} />
       </Route>
       <Route path="/workspaces/:workspaceId/sprints/new" element={<Protected><SprintSetup /></Protected>} />
-      <Route path="/sprints/:sprintId" element={<Protected><SprintHome /></Protected>} />
+      {/* A sprint's one home: writing, the closed state, the retro and the outcomes. */}
+      <Route path="/sprints/:sprintId" element={<Protected><SprintPage /></Protected>} />
       <Route path="/sprints/:sprintId/setup" element={<Protected><SprintSetup /></Protected>} />
       <Route path="/sprints/:sprintId/prepare" element={<Protected><Prepare /></Protected>} />
       <Route path="/sprints/:sprintId/stage" element={<Protected><Stage /></Protected>} />
       <Route path="/sprints/:sprintId/room" element={<Protected><Companion /></Protected>} />
-      <Route path="/sprints/:sprintId/outcomes" element={<Protected><Outcomes /></Protected>} />
+      {/* Outcomes are a finished sprint's page now; old links still land there. */}
+      <Route path="/sprints/:sprintId/outcomes" element={<Protected><OutcomesRedirect /></Protected>} />
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
     </ResourceProvider>

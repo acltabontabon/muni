@@ -76,7 +76,7 @@ try {
   check('Empty collection: the character shows its thought bubble', (await page.locator('.journal-scene .journal-bubble').count()) === 1)
   check('No cropped illustration tile or bubble cards', (await page.locator('.postcard, .bubble, .bubbles').count()) === 0)
   check('No “Not encrypted” badge on the capture page', (await page.locator('text=Not encrypted').count()) === 0)
-  check('Participants get no sprint-guide shortcut', (await page.locator('.journal-scene a:has-text("Sprint guide")').count()) === 0)
+  check('Participants see no facilitator controls on their sprint', (await page.locator('.sbar-control').count()) === 0 && (await page.locator('text=Sprint guide').count()) === 0)
   await shot(page, 'empty-1440-light')
 
   // ── Keyboard: write, choose a category with the keyboard, save with ⌘/Ctrl+Enter.
@@ -158,7 +158,7 @@ try {
   ;({ ctx, page } = await pageFor(fay, { ws: ws.id }))
   await page.goto(`${BASE}/`)
   await page.waitForSelector('.passage')
-  check('Facilitator: a compact route to the sprint guide', (await page.locator('.journal-scene a:has-text("Sprint guide")').count()) === 1)
+  check('Facilitator: the next change sits in the sprint bar, on the same page as writing', (await page.getByRole('button', { name: 'Close collection…' }).count()) === 1 && (await page.locator('textarea[name="thought"]').count()) === 1)
   check('Large collection: paged, with compact category filters', (await page.locator('text=Show 8 more').count()) === 1 && (await page.locator('[aria-label="Show one category"] [role=radio]').count()) >= 5)
   await ctx.close()
 

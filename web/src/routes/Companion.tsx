@@ -34,10 +34,9 @@ export function Companion() {
   if (!stage)
     return (
       <Shell title={sprint.name}>
-        <p className="text-ink-soft">{sprint.status === 'completed' ? 'This retro is done.' : 'The retro hasn’t started. This page wakes up when the facilitator starts it.'}</p>
+        <p className="text-ink-soft">{['completed', 'archived'].includes(sprint.status) ? 'This retro is done.' : 'The retro hasn’t started. This page wakes up when the facilitator starts it.'}</p>
         <div className="mt-4 flex gap-2">
-          {sprint.status === 'completed' ? <Button onClick={() => nav(`/sprints/${sprintId}/outcomes`)}>See the outcomes</Button> : null}
-          <Button variant="ghost" onClick={() => nav(`/sprints/${sprintId}`)}>Back to the sprint</Button>
+          <Button variant={['completed', 'archived'].includes(sprint.status) ? 'primary' : 'ghost'} onClick={() => nav(`/sprints/${sprintId}`)}>{['completed', 'archived'].includes(sprint.status) ? 'See the outcomes' : 'Back to the sprint'}</Button>
         </div>
       </Shell>
     )
@@ -230,7 +229,7 @@ export function Companion() {
           {experiments.filter((e) => e.status !== 'proposed').map((e) => (
             <div key={e.id} className="card p-3"><p>{e.change_to_try}</p><div className="text-xs text-ink-soft">{e.owner_name} · {e.review_on}</div></div>
           ))}
-          <Link to={`/sprints/${sprintId}/outcomes`} className="block text-sm text-accent underline">Outcomes and exports</Link>
+          <Link to={`/sprints/${sprintId}`} className="block text-sm text-accent underline">Outcomes and recap</Link>
         </div>
       )}
     </Shell>

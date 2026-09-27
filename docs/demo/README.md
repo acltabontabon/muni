@@ -19,7 +19,7 @@ new files.
 | 3 | Collection closes: 13 thoughts, no names, on the facilitator’s Prepare page (~2.3 s)… | `/sprints/:id/prepare` | When collection closes, everyone’s thoughts arrive together — without names. |
 |   | …then on the shared screen: folded, then opened into four themes with their votes (~4.7 s) | `/sprints/:id/stage` (Discover) | (same caption) |
 | 4 | Discussing “Who owns staging?”: its question, a takeaway, the thoughts, an invitation to speak that moves to the next person (~5.1 s) | `/sprints/:id/stage?mode=present` (Discuss) | Talk it through, one topic at a time. |
-| 5 | What we’ll try next: two accepted experiments with owners, and the recap, from a participant’s view (~4.4 s) | `/sprints/:id/outcomes` | Agree what to try — it comes back next sprint. |
+| 5 | What we’ll try next: two accepted experiments with owners, and the recap, from a participant’s view (~4.4 s) | `/sprints/:id` (done) | Agree what to try — it comes back next sprint. |
 | 6 | Closing card: the mark, *muni-muni*, act.munimuni.app (~2.6 s) | a local HTML card | none |
 
 Scenes are joined with 0.4 s crossfades. The whole setup behind them happens off camera, through

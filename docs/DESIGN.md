@@ -108,15 +108,13 @@ sprint*, *Invite*. On a phone the name takes the full measure and the shore rest
 Below the rule nothing is boxed. Content sits on the page with rules and a margin column: each
 section's title and a line of why on the left (12.5rem), its rows or controls on the right.
 
-- **Sprints.** The current sprint is the chapter: its name set large (a link to its guide), the goal
-  in Fraunces italic, the lifecycle as a line through the page (a tick for done, a filled ring and
-  *Now* for the current step, open rings ahead — shape and words, not colour alone; not links), then
-  the phase in words and its one primary action. The facilitator's next step sits apart under a
-  rubric margin line, *only you see this*. Beside it, quieter, behind a hairline: the retro as an
-  appointment (date large, time and zone, how soon, your own time), the sprint's dates and people,
-  whether it's encrypted, and experiments due for another look. Other sprints follow as a ledger —
-  title, dates and state on shared columns — eight at a time. On a phone the lifecycle becomes a
-  short bar and one sentence (*Step 2 of 5 Collect · Next: Prepare*).
+- **Sprints.** A place to find a sprint and open it, not a second copy of it. The current sprint is
+  the chapter: its name set large, the goal in Fraunces italic, where it is in one line (the sprint
+  bar's dot and phrase, and *You’re facilitating* when you are), and one way in: *Open sprint*.
+  Beside it, quieter, behind a hairline: the retro as planned (date large, time and zone, how soon,
+  your own time), the sprint's dates and people, and experiments due for another look. Other
+  sprints follow as a ledger — title, dates and state on shared columns — eight at a time; every
+  row opens the sprint's own page.
 - **People.** A directory: owners and members as two groups on one fine-ruled list, each person a
   monogram (two initials in Fraunces italic; yours in rubric), a name that wraps rather than
   truncates, an address only where an owner may see it, and the manage menu (⋯) in one column.
@@ -147,13 +145,43 @@ Category accents are restrained and always paired with an icon and a label:
 | Stop | hand | `#963a2c` | `#d98876` |
 | Try | flask | `#664c71` | `#b8a0c4` |
 
+## A sprint's page
+
+One page per sprint (`/sprints/:id`), for every stage and everyone in it. "Write", the logo and the
+old `/capture` link are shortcuts to it for the sprint that's collecting; the old `/outcomes` link
+lands on it too.
+
+**The sprint bar** is the same place at the top of every page of a sprint (its page and its
+themes). The name set like a chapter; where it is — a dot and a phrase (hollow *Not open yet*,
+filled *Collecting thoughts*, half *Collection closed*, ringed *Retro in progress*, ink *Retro
+done*); one sentence on what that means for you; and three stops on one fine rule — *Thoughts*,
+*Retro*, *Outcomes* — each with a line (*Open now*, *Planned Sat 3 Oct, 15:00*, *Held Mon 28 Sep*).
+The stops describe; they never navigate, so looking can't change anything. The retro's date is
+always *planned* until the facilitator starts it; a passed date changes nothing by itself.
+
+**The facilitator's control** sits in the bar's margin column behind a hairline — not a tinted box
+— under *You’re facilitating*: one ink button for the next change (*Open collection*, *Close
+collection…*, *Start the retro…*, or *Open the stage* while live), what it will do written under
+it, then quiet underlined links for the stage's optional work (*Group into themes (optional)*,
+*Present on this screen*) and *More* for routine and rare things (invite, edit details, reopen,
+pause, archive). Changes that reveal, reopen, start or stop say exactly what they do before they
+happen. Participants never see the column; what they do next is the page itself.
+
+**Below the bar** the page is what this person does now: the writer while collecting (Muni's
+journal, or their character's room — its sprint label keeps only *Writing for* and the way to move
+words to another collecting sprint), their thoughts read-only once closed, *Join the retro* while
+it's live, and the outcomes and recap once it's done. On a phone, while writing, the bar folds to
+two lines — the name with the facilitator's button, then the state and the planned retro —
+and *Details* unfolds the rest, so the field and *Add to sprint* stay in the first screen.
+
 ## Characters and worlds
 
 *Choose a character. Step into their world. Make room for your own thoughts.*
 
 Eight original characters — nicknames, not diagnoses — each with a room of its own for the
-person's **own** pages: the writing page and their collection (Home, in every state) and Account.
-Shared team pages (workspace, sprint guide, prepare, stage, companion, outcomes) always keep
+person's **own** pages: where they write and their collection (a sprint's page, as it looks on
+their own screen, in every state) and Account. Pages worked on together or shown to the room
+(workspace, themes, setup, stage, companion) always keep
 Muni's shared presentation; the stage is projected and anonymous thoughts stay visually neutral.
 A character is private to its owner: it is returned only by `/api/auth/me` and never appears in
 anything a teammate sees (tested in `worker/test/avatars.test.ts`).

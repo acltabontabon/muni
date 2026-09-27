@@ -1,310 +1,179 @@
+/**
+ * Opening Muni ("/", the header's "Write", the old /capture link): a shortcut to the sprint that
+ * matters to you now in the workspace you're in. It opens that sprint's own page, where writing,
+ * the retro and the outcomes all live, so there is one place per sprint and never a second
+ * composer. Only when there's nothing to open, or more than one sprint is collecting and you
+ * haven't said which, does this page show anything itself.
+ *
+ * Which sprint: one collecting for you (or the one you chose last, of several), then a live
+ * retro, then one whose collection has closed, then one not open yet. Muni never picks one of
+ * several collecting sprints silently.
+ */
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
-import { Link, useNavigate, useSearchParams } from 'react-router'
-import { ArrowRight, ChevronRight, Compass, Radio } from 'lucide-react'
+import { Link, Navigate, useLocation, useNavigate, useSearchParams } from 'react-router'
+import { ArrowRight, ChevronRight } from 'lucide-react'
 import { get } from '@/api/client'
 import type { CaptureTarget, Experiment, Me, SprintSummary, Workspace } from '@/api/types'
 import { useAuth } from '@/lib/auth'
 import { OUTCOME_LABEL } from '@/lib/categories'
 import { pickDestination } from '@/lib/destination'
-import { isComposerDirty } from '@/lib/dirty'
-import { useLocal, type Destination } from '@/lib/local/LocalProvider'
+import { useLocal } from '@/lib/local/LocalProvider'
 import type { ContextSprint } from '@/lib/local/store'
 import { readPrefs, writePrefs } from '@/lib/prefs'
 import { shortDate } from '@/lib/schedule'
 import { chooseWorkspace, useCurrentWorkspace } from '@/lib/workspace'
-import { Button, Spinner, useDocumentTitle } from '@/ui'
-import { Composer, LocalThoughtList, MyThoughts, WritingHost } from '@/ui/capture'
+import { Spinner, useDocumentTitle } from '@/ui'
+import { LocalThoughtList } from '@/ui/capture'
 import { JournalScene } from '@/ui/journal'
 import { NewWorkspaceDialog } from '@/ui/menus'
 import { AppShell } from '@/ui/shell'
+import { RetroWhen } from '@/ui/when'
 import { useWorld } from '@/worlds/world'
 import { Room } from '@/worlds/rooms'
-import { RoomEmpty, SprintTab, StateWriter, Writer, type TabState } from '@/worlds/room'
+import { SprintTab, StateWriter } from '@/worlds/room'
 import { CharacterNote } from '@/worlds/Character'
-import { RetroWhen } from '@/ui/when'
-import { DeviceKeyNotice } from '@/ui/keys'
 
-type Sprintish = Pick<SprintSummary, 'id' | 'workspace_id' | 'name' | 'status' | 'retro_local' | 'timezone'> & Partial<SprintSummary>
-type Loaded = { capture: CaptureTarget | null; sprints: SprintSummary[] | null; experiments: Experiment[] | null; cached: { sprint: ContextSprint; workspaceName: string | null; fetchedAt: number }[]; offline: boolean }
+type Sprintish = Pick<SprintSummary, 'id' | 'workspace_id' | 'name' | 'status' | 'timezone'> & Partial<SprintSummary>
+type Loaded = { capture: CaptureTarget | null; cached: { sprint: ContextSprint; workspaceName: string | null; fetchedAt: number }[]; offline: boolean }
 
-const toDest = (s: Sprintish): Destination => ({ workspaceId: s.workspace_id, sprintId: s.id, sprintName: s.name, encrypted: s.encryption === 'e1' })
-
-/**
- * The participant's home: where you are (workspace, sprint, its status and retro time), one place
- * to write, and your thoughts. It adapts to where the sprint is — collecting, closed, live, done —
- * without ever navigating away from text you're still writing.
- */
 export function Home() {
   useDocumentTitle('')
   const { me, offline: authOffline } = useAuth()
-  const { world } = useWorld()
   const local = useLocal()
+  const location = useLocation()
   const [params] = useSearchParams()
   const [data, setData] = useState<Loaded | null>(null)
-  const [chosen, setChosen] = useState<string | null>(params.get('sprint') ?? readPrefs().lastSprint ?? null)
+  const [sprints, setSprints] = useState<{ ws: string; list: SprintSummary[] | null } | null>(null)
+  const [experiments, setExperiments] = useState<Experiment[] | null>(null)
+  // "Write" asks for the field; anything else just opens the sprint.
+  const write = !!(location.state as { write?: boolean } | null)?.write
 
-  // The local store's object changes with every queue update; reading it through a ref keeps
-  // these loaders stable, so a sync never re-fetches the page or re-subscribes its listeners.
   const localRef = useRef(local)
   useEffect(() => {
     localRef.current = local
   }, [local])
   const load = useCallback(async () => {
-    const cached = await localRef.current.cachedContexts()
+    const cached = await localRef.current.cachedContexts().catch(() => [])
     try {
       const capture = await get<CaptureTarget>('/api/me/capture-target')
-      setData((d) => ({ capture, sprints: d?.sprints ?? null, experiments: d?.experiments ?? null, cached, offline: false }))
+      setData({ capture, cached, offline: false })
     } catch {
-      setData((d) => ({ capture: d?.capture ?? null, sprints: d?.sprints ?? null, experiments: d?.experiments ?? null, cached, offline: true }))
+      setData({ capture: null, cached, offline: true })
     }
   }, [])
   useEffect(() => {
     load()
-    const onVisible = () => document.visibilityState === 'visible' && load()
-    window.addEventListener('online', load)
-    document.addEventListener('visibilitychange', onVisible)
-    return () => {
-      window.removeEventListener('online', load)
-      document.removeEventListener('visibilitychange', onVisible)
-    }
   }, [load])
 
-  // A deep link to a sprint (/capture?sprint=…) opens its workspace.
-  const deepSprint = params.get('sprint')
-  const allSprints: Sprintish[] = useMemo(() => [...(data?.capture?.collecting ?? []), ...(data?.capture?.upcoming ?? [])], [data])
-  const hint = allSprints.find((s) => s.id === deepSprint)?.workspace_id ?? data?.capture?.collecting[0]?.workspace_id ?? null
-  useEffect(() => {
-    const target = allSprints.find((s) => s.id === deepSprint)
-    if (target) chooseWorkspace(target.workspace_id)
-  }, [allSprints, deepSprint])
+  const collectingAll: Sprintish[] = useMemo(() => data?.capture?.collecting ?? [], [data])
+  const hint = collectingAll[0]?.workspace_id ?? null
   const ws = useCurrentWorkspace(me, hint)
-
-  // Workspace-scoped extras: past sprints and commitments. Keyed by the workspace's id: the
-  // workspace object is rebuilt whenever the account is re-read.
   const wsId = ws?.id ?? null
-  const dataOffline = !!data?.offline
+  const offline = authOffline || !!data?.offline
+
+  // Only when nothing in the workspace is open: its sprints (a draft, the last retro) and commitments.
+  const upcomingHere = (data?.capture?.upcoming ?? []).filter((s) => s.workspace_id === wsId)
+  const collectingHere: Sprintish[] = useMemo(() => {
+    if (!wsId) return []
+    if (data?.capture) return data.capture.collecting.filter((s) => s.workspace_id === wsId)
+    return (data?.cached ?? []).filter((c) => c.sprint.workspace_id === wsId && c.sprint.status === 'collecting').map((c) => ({ ...c.sprint }))
+  }, [data, wsId])
+  const needList = !!data && !offline && !!wsId && collectingHere.length === 0 && upcomingHere.length === 0
   useEffect(() => {
-    if (!wsId || dataOffline) return
+    if (!needList || !wsId) return
     let live = true
-    Promise.all([get<SprintSummary[]>(`/api/workspaces/${wsId}/sprints`).catch(() => null), get<Experiment[]>(`/api/workspaces/${wsId}/experiments`).catch(() => null)]).then(([sprints, experiments]) => {
-      if (live) setData((d) => (d ? { ...d, sprints, experiments } : d))
+    Promise.all([get<SprintSummary[]>(`/api/workspaces/${wsId}/sprints`).catch(() => null), get<Experiment[]>(`/api/workspaces/${wsId}/experiments`).catch(() => null)]).then(([list, exps]) => {
+      if (!live) return
+      setSprints({ ws: wsId, list })
+      setExperiments(exps)
     })
     return () => {
       live = false
     }
-  }, [wsId, dataOffline])
+  }, [needList, wsId])
 
-  const offline = authOffline || !!data?.offline
-  // Where can a thought go in this workspace? From the server, or (offline) from what this device kept.
-  const collectingHere: Sprintish[] = useMemo(() => {
-    if (!ws) return []
-    if (data?.capture) return data.capture.collecting.filter((s) => s.workspace_id === ws.id)
-    return (data?.cached ?? []).filter((c) => c.sprint.workspace_id === ws.id && c.sprint.status === 'collecting').map((c) => ({ ...c.sprint }))
-  }, [data, ws])
-  const upcomingHere = (data?.capture?.upcoming ?? []).filter((s) => s.workspace_id === ws?.id)
-  const live = upcomingHere.find((s) => s.status === 'live')
-  const closed = upcomingHere.find((s) => s.status === 'preparing' || s.status === 'ready')
-  const recentDone = (data?.sprints ?? []).filter((s) => s.status === 'completed' && s.is_participant)[0]
-  const elsewhere = (data?.capture?.collecting ?? []).filter((s) => s.workspace_id !== ws?.id)
-
-  // Keep a little context for offline use (only on a device that keeps drafts).
-  useEffect(() => {
-    if (!data?.capture || offline) return
-    for (const s of data.capture.collecting) {
-      localRef.current.cacheContext({ id: s.id, workspace_id: s.workspace_id, name: s.name, status: s.status, retro_local: s.retro_local, timezone: s.timezone }, me?.workspaces.find((w) => w.id === s.workspace_id)?.name ?? null)
-    }
-  }, [data?.capture, offline, me])
-
-  const dest = pickDestination(collectingHere, chosen)
-  const [sticky, setSticky] = useState<Sprintish | null>(null)
-  useEffect(() => {
-    if (dest) setSticky(dest)
-  }, [dest])
-  // If collection closed while someone was mid-sentence, keep the composer (and their text) up.
-  const composerFor = dest ?? (sticky && isComposerDirty() && sticky.workspace_id === ws?.id ? sticky : null)
-  const choose = (d: Destination) => {
-    setChosen(d.sprintId)
-    writePrefs({ lastSprint: d.sprintId, lastWorkspace: d.workspaceId })
-  }
-  const choices = collectingHere.map(toDest)
-  const moveChoices = (data?.capture?.collecting ?? []).map(toDest)
-  // The sprint whose list is on screen already shows its own unsent thoughts; the rest go below.
-  const shownSprintId = composerFor?.id ?? (collectingHere.length > 1 ? null : live?.id ?? closed?.id ?? null)
-  const unsentElsewhere = local.items.filter((i) => i.sprintId !== shownSprintId)
-
-  const [collected, setCollected] = useState<number | null>(null)
+  // An old deep link (/capture?sprint=…) goes straight to that sprint.
+  const deep = params.get('sprint')
+  if (deep) return <Navigate to={`/sprints/${deep}`} replace state={{ write: true }} />
   if (!me) return null
   if (me.workspaces.length === 0) return <Welcome />
-  if (!data)
-    return (
-      <AppShell workspace={ws}>
-        <div className="grid place-items-center py-24 text-ink-soft"><Spinner /></div>
-      </AppShell>
-    )
+  if (!data) return <Waiting ws={ws} />
 
-  const myCommitments = (data.experiments ?? []).filter((e) => e.owner_account_id === me.account_id && (e.status === 'proposed' || e.status === 'accepted'))
-  const offlineNote = offline ? (
-    <p className="mb-5 flex items-start gap-2 rounded-xl bg-ink/5 px-3.5 py-2.5 text-sm text-ink-soft" role="status">
-      <span className="dot dot--queued mt-1.5" aria-hidden />
-      <span>
-        You’re offline. {composerFor ? `Thoughts you save wait on this device${local.kind === 'memory' ? ' (in this tab)' : ''} and are sent when Muni reconnects.` : 'Muni will catch up when you reconnect.'}
-        {data.cached.length && !data.capture ? <span className="text-ink-faint"> Sprint details from {new Date(Math.max(...data.cached.map((c) => c.fetchedAt))).toLocaleString(undefined, { weekday: 'short', hour: '2-digit', minute: '2-digit' })}.</span> : null}
-      </span>
-    </p>
-  ) : null
+  const dest = pickDestination(collectingHere, readPrefs().lastSprint)
+  const live = upcomingHere.find((s) => s.status === 'live')
+  const closed = upcomingHere.find((s) => s.status === 'preparing' || s.status === 'ready')
+  const list = sprints?.ws === wsId ? sprints.list : null
+  const draft = list?.find((s) => s.status === 'draft' && s.is_participant)
+  const target = dest ?? (collectingHere.length > 1 ? null : (live ?? closed ?? draft ?? null))
+  if (target) return <Navigate to={`/sprints/${target.id}`} replace state={write ? { write: true } : undefined} />
+  if (needList && !sprints) return <Waiting ws={ws} />
+
+  // ── Nothing to open by itself: say what there is.
+  const lastDone = (list ?? []).find((s) => (s.status === 'completed' || s.status === 'archived') && s.is_participant)
+  const commitments = (experiments ?? []).filter((e) => e.owner_account_id === me.account_id && (e.status === 'proposed' || e.status === 'accepted'))
+  const several = collectingHere.length > 1
+  const title = several ? <>Where should your thought <em>go</em>?</> : <>Nothing to write for <em>yet</em></>
+  const body = several ? (
+    <ChooseSprint sprints={collectingHere} />
+  ) : (
+    <div>
+      <p className="max-w-prose text-ink-soft">
+        {offline ? 'You’re offline, and this device hasn’t kept a sprint to write for. Muni will catch up when you reconnect.' : `When a sprint in ${ws?.name ?? 'this workspace'} opens for thoughts, you’ll write in it here.`}
+      </p>
+      {!offline && ws ? (
+        <p className="mt-5 flex flex-wrap items-center gap-x-5 gap-y-2 text-sm">
+          {lastDone ? (
+            <Link to={`/sprints/${lastDone.id}`} className="inline-flex items-center gap-1 font-medium text-ink underline decoration-line-strong underline-offset-4 hover:decoration-accent">
+              What {lastDone.name} agreed to try <ArrowRight className="size-4" aria-hidden />
+            </Link>
+          ) : null}
+          <Link to={`/workspaces/${ws.id}`} className="text-ink-soft underline underline-offset-4 hover:text-ink">All sprints</Link>
+          <Link to={`/workspaces/${ws.id}/sprints/new`} className="text-ink-soft underline underline-offset-4 hover:text-ink">Set up a sprint</Link>
+        </p>
+      ) : null}
+    </div>
+  )
   const extras = (
     <>
       <div className="mark-indent"><PendingJoins /></div>
-      {unsentElsewhere.length ? (
+      {local.items.length ? (
         <section className="mt-14 mark-indent" aria-labelledby="unsent">
-          <h2 id="unsent" className="font-display text-lg">Not sent yet <span className="ml-1 font-normal text-ink-faint">{unsentElsewhere.length}</span></h2>
-          <p className="mb-2 text-sm text-ink-soft">Kept on this device for other sprints.</p>
-          <div className="mark-outdent"><LocalThoughtList items={unsentElsewhere} moveChoices={moveChoices} showDestination /></div>
+          <h2 id="unsent" className="font-display text-lg">Not sent yet <span className="ml-1 font-normal text-ink-faint">{local.items.length}</span></h2>
+          <p className="mb-2 text-sm text-ink-soft">Kept on this device.</p>
+          <div className="mark-outdent"><LocalThoughtList items={local.items} moveChoices={collectingAll.map((s) => ({ workspaceId: s.workspace_id, sprintId: s.id, sprintName: s.name, encrypted: s.encryption === 'e1' }))} showDestination /></div>
         </section>
       ) : null}
-      {myCommitments.length ? <Commitments items={myCommitments} me={me} /> : null}
+      {commitments.length ? <Commitments items={commitments} me={me} /> : null}
     </>
   )
+  return <Quiet ws={ws} me={me} title={title} body={body} extras={extras} tab={several ? 'Choose a sprint' : (ws?.name ?? 'This workspace')} state={several ? 'choose' : 'none'} bubble={!several} />
+}
 
-  // ── Collecting. The writing lives in one host above the page, so changing character (or turning
-  // the character theme off) redraws the page around the words without touching them.
-  if (composerFor) {
-    const empty = collected === 0
-    const closedNote = !dest ? <>This sprint stopped collecting. Your text is still here — copy it{choices.length ? ', or choose another sprint' : ''}.</> : undefined
-    const notices = (
-      <>
-        <CharacterNote />
-        {offlineNote}
-        {live ? <LiveBanner s={live} /> : null}
-        {composerFor.encryption === 'e1' ? <div className="mb-4"><DeviceKeyNotice need="write" /></div> : null}
-      </>
-    )
-    const thoughts = (roomEmpty?: ReactNode) => <MyThoughts sprintId={composerFor.id} editable={!!dest && !offline} moveChoices={moveChoices} online={!offline} onCount={setCollected} empty={roomEmpty} />
-    return (
-      <AppShell workspace={ws} wide>
-        <WritingHost key={`${composerFor.id}:${local.cleared}`} dest={dest ? toDest(dest) : null} choices={choices} onChoose={choose}>
-          {world ? (
-            <Room
-              world={world}
-              mode="write"
-              empty={empty}
-              notices={notices}
-              context={<SprintTab s={composerFor} state={dest ? 'collecting' : 'closed-now'} me={me} choices={choices} elsewhere={elsewhere} />}
-              writing={<Writer closed={closedNote} />}
-              collection={thoughts(<RoomEmpty />)}
-              extras={extras}
-            />
-          ) : (
-            <>
-              <JournalScene bubble={empty} respond>
-                <Context s={composerFor} status={dest ? 'collecting' : 'closed-now'} elsewhere={elsewhere} me={me} several={collectingHere.length > 1} chosen={!!dest} />
-                <h1 className="journal-title mt-3">
-                  <label htmlFor="thought-field">What’s worth <em>remembering</em>?</label>
-                </h1>
-              </JournalScene>
-              <div className="journal-body" data-empty={empty || undefined}>
-                <div className="home-compose min-w-0 self-start">
-                  {notices}
-                  <Composer fieldId="thought-field" dest={dest ? toDest(dest) : null} choices={choices} onChoose={choose} closed={closedNote} />
-                </div>
-                <div className="home-collection min-w-0 pt-1">
-                  {thoughts()}
-                  {extras}
-                </div>
-              </div>
-            </>
-          )}
-        </WritingHost>
-      </AppShell>
-    )
-  }
+function Waiting({ ws }: { ws: Me['workspaces'][number] | null }) {
+  return (
+    <AppShell workspace={ws} wide>
+      <div className="grid place-items-center py-24 text-ink-soft"><Spinner /></div>
+    </AppShell>
+  )
+}
 
-  // ── Everything else: the same scene with the state as its heading, then one readable column.
-  const sprintLink = (s: Sprintish) => <Link to={`/sprints/${s.id}`} className="font-medium text-ink [overflow-wrap:anywhere] hover:underline">{s.name}</Link>
-  // Each state: what it's about (the room's sprint label), a kicker and heading, what to do, and the thoughts.
-  let kicker: ReactNode
-  let title: ReactNode
-  let body: ReactNode
-  let mine: ReactNode = null
-  let about: { s: Sprintish | null; state: TabState; label?: string }
-  let lights = 0
-  let bubble = false
-  if (collectingHere.length > 1) {
-    about = { s: null, state: 'choose', label: 'Choose a sprint' }
-    kicker = <>{collectingHere.length} sprints are collecting</>
-    title = <>Where should your thought <em>go</em>?</>
-    body = <ChooseDestination sprints={collectingHere} onChoose={(s) => choose(toDest(s))} />
-  } else if (live) {
-    about = { s: live, state: 'live' }
-    kicker = <>{sprintLink(live)} · retro live</>
-    title = <>The retro is <em>happening</em> now</>
-    body = <State body="Collection is closed. Follow the conversation and take part from this device." action={<Link to={`/sprints/${live.id}/room`}><Button variant="primary">Join the retro <ArrowRight className="size-4" /></Button></Link>} />
-    mine = <MyThoughts sprintId={live.id} editable={false} moveChoices={moveChoices} online={!offline} onCount={setCollected} empty={world ? <RoomEmpty /> : undefined} />
-  } else if (closed) {
-    about = { s: closed, state: 'closed' }
-    kicker = <>{sprintLink(closed)} · <RetroWhen s={closed as { retro_at: string; timezone: string }} icon={false} /></>
-    title = <>Collection is <em>closed</em></>
-    body = <State body={closed.status === 'ready' ? 'Thoughts are read-only now. The retro starts when the facilitator begins it.' : 'Thoughts are read-only now while the facilitator prepares the discussion.'} action={<Link to={`/sprints/${closed.id}`} className="inline-flex items-center gap-1 text-sm font-medium text-accent-ink hover:underline">Sprint guide <ArrowRight className="size-4" /></Link>} />
-    mine = <MyThoughts sprintId={closed.id} editable={false} moveChoices={moveChoices} online={!offline} onCount={setCollected} empty={world ? <RoomEmpty /> : undefined} />
-  } else if (recentDone) {
-    about = { s: recentDone, state: 'done' }
-    kicker = <>{sprintLink(recentDone)} · retro complete</>
-    title = <>What we’re <em>taking with us</em></>
-    lights = 4
-    body = (
-      <State body="The last retro is done. Here’s what the team agreed to try." action={<Link to={`/sprints/${recentDone.id}/outcomes`}><Button>Outcomes and recap</Button></Link>}>
-        <ExperimentList items={(data.experiments ?? []).filter((e) => e.sprint_id === recentDone.id && e.status !== 'proposed')} me={me} empty="No experiments were agreed in this retro — sometimes the conversation is the outcome." />
-      </State>
-    )
-  } else {
-    about = { s: null, state: 'none', label: ws?.name ?? 'This workspace' }
-    kicker = <>{ws?.name}</>
-    title = <>Nothing to write for <em>yet</em></>
-    bubble = true
-    body = (
-      <div>
-        <p className="max-w-prose text-ink-soft">When a sprint in {ws?.name ?? 'this workspace'} opens for thoughts, you’ll write them here.</p>
-        {!offline && ws ? (
-          <p className="mt-4 text-sm">
-            <Link to={`/workspaces/${ws.id}/sprints/new`} className="text-ink-soft underline underline-offset-4 hover:text-ink">Set up a sprint</Link>
-          </p>
-        ) : null}
-      </div>
-    )
-  }
+/** A page with no sprint of its own: the journal's scene (or the person's room) with one heading. */
+function Quiet({ ws, me, title, body, extras, tab, state, bubble }: { ws: Me['workspaces'][number] | null; me: Me; title: ReactNode; body: ReactNode; extras?: ReactNode; tab: string; state: 'choose' | 'none'; bubble?: boolean }) {
+  const { world } = useWorld()
   if (world)
     return (
       <AppShell workspace={ws} wide>
-        <Room
-          world={world}
-          mode="state"
-          empty={!!mine && collected === 0}
-          notices={
-            <>
-              <CharacterNote />
-              {offlineNote}
-            </>
-          }
-          context={<SprintTab s={about.s} state={about.state} title={about.label} me={me} />}
-          writing={<StateWriter title={title}>{body}</StateWriter>}
-          collection={mine}
-          extras={extras}
-        />
+        <Room world={world} mode="state" notices={<CharacterNote />} context={<SprintTab s={null} state={state} title={tab} me={me} />} writing={<StateWriter title={title}>{body}</StateWriter>} collection={null} extras={extras} />
       </AppShell>
     )
-  const head = (
-    <JournalScene lights={lights} bubble={bubble}>
-      <p className="text-sm text-ink-soft">{kicker}</p>
-      <h1 className="journal-title mt-2">{title}</h1>
-    </JournalScene>
-  )
-  if (mine) body = <>{body}<div className="mt-12">{mine}</div></>
   return (
     <AppShell workspace={ws} wide>
-      {head}
+      <JournalScene bubble={bubble}>
+        <p className="text-sm text-ink-soft">{tab}</p>
+        <h1 className="journal-title mt-2">{title}</h1>
+      </JournalScene>
       <div className="mt-4 max-w-3xl">
         <CharacterNote />
-        {offlineNote}
         {body}
         {extras}
       </div>
@@ -312,80 +181,22 @@ export function Home() {
   )
 }
 
-/** Where you are, in two quiet lines: the sprint, then its status and the retro time. */
-function Context({ s, status, elsewhere, me, several, chosen }: { s: Sprintish; status: 'collecting' | 'closed-now'; elsewhere: SprintSummary[]; me: Me; several: boolean; chosen: boolean }) {
-  return (
-    <div className="flex flex-col gap-0.5 text-sm text-ink-soft">
-      <p className="min-w-0">
-        {several && !chosen ? <span className="text-ink">Choose a sprint to write for</span> : <Link to={`/sprints/${s.id}`} className="font-medium text-ink [overflow-wrap:anywhere] hover:underline">{s.name}</Link>}
-      </p>
-      <p className="min-w-0 [&>*]:align-baseline">
-        {status === 'collecting' ? (
-          <span className="text-status-ink"><span className="dot dot--submitted mr-1.5" style={{ width: 7, height: 7 }} aria-hidden />Collecting</span>
-        ) : (
-          <span className="font-medium text-warn"><span className="dot dot--attention mr-1.5" style={{ width: 7, height: 7 }} aria-hidden />Collection just closed</span>
-        )}
-        {s.retro_at && !(several && !chosen) ? (
-          <>
-            <span aria-hidden className="mx-1.5 text-ink-faint">·</span>
-            <RetroWhen s={{ retro_at: s.retro_at, timezone: s.timezone }} icon={false} prefix="retro" className="!inline" />
-          </>
-        ) : null}
-        {s.is_facilitator ? (
-          <>
-            <span aria-hidden className="mx-1.5 text-ink-faint">·</span>
-            <Link to={`/sprints/${s.id}`} className="inline-flex items-center gap-1 whitespace-nowrap font-medium text-accent-ink hover:underline">
-              <Compass className="size-3.5" aria-hidden /> Sprint guide
-            </Link>
-          </>
-        ) : null}
-      </p>
-      {elsewhere.length ? (
-        <p className="mt-1">
-          Also collecting:{' '}
-          {elsewhere.map((o, i) => (
-            <span key={o.id}>
-              {i ? ', ' : ''}
-              <button className="font-medium text-ink underline decoration-line-strong underline-offset-2 hover:decoration-accent" onClick={() => { chooseWorkspace(o.workspace_id); writePrefs({ lastSprint: o.id }) }}>
-                {o.name}
-              </button>{' '}
-              <span className="text-ink-faint">in {me.workspaces.find((w) => w.id === o.workspace_id)?.name}</span>
-            </span>
-          ))}
-        </p>
-      ) : null}
-    </div>
-  )
-}
-
-function LiveBanner({ s }: { s: Sprintish }) {
-  return (
-    <Link to={`/sprints/${s.id}/room`} className="mb-5 flex items-center gap-3 rounded-xl bg-accent-soft/70 px-4 py-3 text-sm hover:bg-accent-soft">
-      <Radio className="size-4 shrink-0 text-accent-ink" aria-hidden />
-      <span className="min-w-0 flex-1"><span className="font-medium [overflow-wrap:anywhere]">The {s.name} retro is live.</span> Join from this device.</span>
-      <ArrowRight className="size-4 shrink-0 text-accent-ink" aria-hidden />
-    </Link>
-  )
-}
-
-function State({ body, action, children }: { body: ReactNode; action?: ReactNode; children?: ReactNode }) {
+/** Several sprints collecting: choose one; Muni remembers it on this device. */
+function ChooseSprint({ sprints }: { sprints: Sprintish[] }) {
+  const nav = useNavigate()
   return (
     <div>
-      <p className="max-w-prose text-ink-soft">{body}</p>
-      {action ? <div className="mt-5">{action}</div> : null}
-      {children}
-    </div>
-  )
-}
-
-function ChooseDestination({ sprints, onChoose }: { sprints: Sprintish[]; onChoose: (s: Sprintish) => void }) {
-  return (
-    <div>
-      <p className="text-ink-soft">Pick the sprint it belongs to. Muni remembers your choice on this device.</p>
+      <p className="text-ink-soft">{sprints.length} sprints are collecting. Pick the one this thought belongs to; Muni remembers your choice on this device.</p>
       <ul className="passages mt-4">
         {sprints.map((s) => (
           <li key={s.id} className="border-t border-line first:border-0">
-            <button className="flex w-full items-center gap-3 py-4 text-left hover:text-accent-ink" onClick={() => onChoose(s)}>
+            <button
+              className="flex min-h-11 w-full items-center gap-3 py-4 text-left hover:text-accent-ink"
+              onClick={() => {
+                writePrefs({ lastSprint: s.id })
+                nav(`/sprints/${s.id}`, { state: { write: true } })
+              }}
+            >
               <span className="dot dot--submitted" aria-hidden />
               <span className="min-w-0 flex-1">
                 <span className="block font-medium [overflow-wrap:anywhere]">{s.name}</span>
@@ -400,8 +211,7 @@ function ChooseDestination({ sprints, onChoose }: { sprints: Sprintish[]; onChoo
   )
 }
 
-function ExperimentList({ items, me, empty }: { items: Experiment[]; me: Me; empty?: string }) {
-  if (!items.length) return empty ? <p className="mt-6 text-sm text-ink-soft">{empty}</p> : null
+function ExperimentList({ items, me }: { items: Experiment[]; me: Me }) {
   return (
     <ul className="mt-5">
       {items.map((e) => (
@@ -409,7 +219,7 @@ function ExperimentList({ items, me, empty }: { items: Experiment[]; me: Me; emp
           <p className="max-w-[34rem] leading-relaxed [overflow-wrap:anywhere]">{e.change_to_try}</p>
           <p className="mt-1 text-sm text-ink-soft">
             {e.status === 'proposed' && e.owner_account_id === me.account_id ? (
-              <span className="font-medium text-accent-ink">You’ve been asked to own this — accept it in the outcomes · </span>
+              <span className="font-medium text-accent-ink">You’ve been asked to own this. Accept it in the sprint’s outcomes · </span>
             ) : (
               <>
                 {e.status !== 'accepted' ? `${OUTCOME_LABEL[e.status]} · ` : ''}
@@ -424,7 +234,8 @@ function ExperimentList({ items, me, empty }: { items: Experiment[]; me: Me; emp
   )
 }
 
-function Commitments({ items, me }: { items: Experiment[]; me: Me }) {
+/** Experiments this person owns, until the team revisits them. */
+export function Commitments({ items, me }: { items: Experiment[]; me: Me }) {
   return (
     <section className="mt-14 mark-indent" aria-labelledby="commitments">
       <h2 id="commitments" className="font-display text-lg">Your commitments</h2>
@@ -461,7 +272,7 @@ function Welcome() {
   const body = (
     <>
       <PendingJoins />
-      <p className="mt-2 max-w-prose text-lg text-ink-soft">If you were invited to a team, open your invite link or scan the team’s QR code — it brings you straight to your sprint.</p>
+      <p className="mt-2 max-w-prose text-lg text-ink-soft">If you were invited to a team, open your invite link or scan the team’s QR code. It brings you straight to your sprint.</p>
       <p className="mt-6 text-sm text-ink-soft">
         Starting a team yourself? <button className="font-medium text-ink underline underline-offset-4 hover:decoration-accent" onClick={() => setCreating(true)}>Create a workspace</button>
       </p>

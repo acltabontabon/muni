@@ -13,7 +13,6 @@
  * every room.
  */
 import { createContext, useContext, useEffect, useId, useRef, useState, type ComponentType, type ReactNode } from 'react'
-import { Link } from 'react-router'
 import { clsx } from 'clsx'
 import * as Popover from '@radix-ui/react-popover'
 import * as RDialog from '@radix-ui/react-dialog'
@@ -132,8 +131,9 @@ export function Panel({ trigger, title, open, onOpenChange, children, align = 's
 // ─────────────────────────────────────────────────────────────── the sprint label
 
 export type TabSprint = { id: string; name: string; workspace_id: string; timezone: string; retro_at?: string; starts_on?: string; ends_on?: string; is_facilitator?: boolean; encryption?: 'e1' | null }
-export type TabState = 'collecting' | 'closed-now' | 'closed' | 'live' | 'done' | 'none' | 'choose'
+export type TabState = 'draft' | 'collecting' | 'closed-now' | 'closed' | 'live' | 'done' | 'none' | 'choose'
 export const STATE_LABEL: Record<TabState, string> = {
+  draft: 'Not open yet',
   collecting: 'Collecting',
   'closed-now': 'Collection just closed',
   closed: 'Collection closed',
@@ -157,6 +157,7 @@ export function SprintTab({
   choices = [],
   onSwitch,
   elsewhere = [],
+  meta = true,
 }: {
   s: TabSprint | null
   state: TabState
@@ -166,6 +167,8 @@ export function SprintTab({
   choices?: Destination[]
   onSwitch?: (d: Destination) => void
   elsewhere?: TabSprint[]
+  /** The state and the next date. Off under the sprint bar, which already says both. */
+  meta?: boolean
 }) {
   const [open, setOpen] = useState(false)
   const uid = useId()
@@ -180,6 +183,7 @@ export function SprintTab({
         {s?.name ?? title}
         {s ? <ChevronDown className="room-tab-chev" aria-hidden /> : null}
       </span>
+      {meta ? (
       <span className="room-tab-meta">
         <span className="room-tab-state" data-state={state}>
           <span className="room-tab-dot" aria-hidden />
@@ -192,6 +196,7 @@ export function SprintTab({
           </>
         ) : null}
       </span>
+      ) : null}
     </>
   )
   if (!s) return <div className="room-tab" data-static>{body}</div>
@@ -249,9 +254,6 @@ function SprintDetails({ s, me, choices, onSwitch, elsewhere, close }: { s: TabS
           </dd>
         </div>
       </dl>
-      <p className="room-details-links">
-        <Link to={`/sprints/${s.id}`} onClick={close}>{s.is_facilitator ? 'Sprint guide' : 'Open sprint'}</Link>
-      </p>
       {others.length && onSwitch ? (
         <div className="room-details-more">
           <p className="room-kicker">Write for another sprint{workspace ? ` in ${workspace}` : ''}</p>
@@ -404,7 +406,8 @@ function Head({ children, lede }: { children: ReactNode; lede?: ReactNode }) {
  * details behind two named controls, and one action that says what it does. The state comes from
  * the WritingHost above the page.
  */
-export function Writer({ closed, fieldId = 'thought-field' }: { /** Shown when the sprint stopped collecting while text was still here. */ closed?: ReactNode; fieldId?: string }) {
+export function Writer({ closed, fieldId = 'thought-field', level = 1 }: { /** Shown when the sprint stopped collecting while text was still here. */ closed?: ReactNode; fieldId?: string; /** 2 under a page title (the sprint's name). */ level?: 1 | 2 }) {
+  const H = level === 2 ? 'h2' : 'h1'
   const { voice } = useWorld()
   const { uid, p, set, submit, onKey, busy, error, notice, restored, typing, more, setMore, area, storage, dest, prompt, setPrompt } = useWriting()
   const ctxSummary = contextSummary(p)
@@ -420,9 +423,9 @@ export function Writer({ closed, fieldId = 'thought-field' }: { /** Shown when t
   return (
     <form onSubmit={submit} aria-label={dest ? `Write a thought for ${dest.sprintName}` : 'Write a thought'} className="room-writer">
       <Head lede={voice ? invitationFor(voice) : null}>
-        <h1 className="room-heading">
+        <H className="room-heading">
           <label htmlFor={fieldId}>{voice?.world.heading ?? FALLBACK_HEADING}</label>
-        </h1>
+        </H>
       </Head>
       <div className="room-sheet">
         {closed ? <div className="room-closed">{closed}</div> : null}
@@ -545,11 +548,12 @@ export function Writer({ closed, fieldId = 'thought-field' }: { /** Shown when t
  * The same head and surface with something other than writing on it (collection closed, the retro
  * live, nothing collecting): the state as its heading.
  */
-export function StateWriter({ title, children }: { title: ReactNode; children?: ReactNode }) {
+export function StateWriter({ title, children, level = 1 }: { title: ReactNode; children?: ReactNode; level?: 1 | 2 }) {
+  const H = level === 2 ? 'h2' : 'h1'
   return (
     <div className="room-writer room-writer--state">
       <Head>
-        <h1 className="room-heading">{title}</h1>
+        <H className="room-heading">{title}</H>
       </Head>
       <div className="room-sheet room-sheet--state">{children}</div>
     </div>

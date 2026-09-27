@@ -1,56 +1,55 @@
-import { useCallback, useEffect, useState } from 'react'
-import { Link, useParams } from 'react-router'
+import { useCallback, useEffect, useRef, useState } from 'react'
+import { Navigate, useParams } from 'react-router'
 import { Download } from 'lucide-react'
 import { ApiError, get, patch, post, put } from '@/api/client'
 import type { Experiment, Recap, SprintDetail } from '@/api/types'
 import { OUTCOME_LABEL } from '@/lib/categories'
-import { useLive } from '@/lib/live'
 import { useKeysEpoch } from '@/lib/e2ee/E2eeProvider'
-import { Badge, Button, EmptyState, Help, SectionTitle, Select, Spinner, Textarea, useDocumentTitle, useToast } from '@/ui'
-import { AppShell, PageTitle } from '@/ui/shell'
+import { Badge, Button, Help, SectionTitle, Select, Spinner, Textarea, useToast } from '@/ui'
 import { ExperimentEditor } from '@/ui/experiments'
 import { Postcard } from '@/ui/art'
 import { shortDate } from '@/lib/schedule'
 import type { GroupingView } from '@/api/types'
 import { download, fileName, rawMarkdown, recapDraft, summaryCsv, summaryMarkdown } from '@/lib/e2ee/local-export'
-import { EncryptionLine } from '@/ui/keys'
 
-export function Outcomes() {
+/** The old address of a sprint's outcomes: a finished sprint's page is its outcomes now. */
+export function OutcomesRedirect() {
   const { sprintId = '' } = useParams()
+  return <Navigate to={`/sprints/${sprintId}`} replace />
+}
+
+/**
+ * What a finished sprint is: the changes the team agreed to try, when to look back at them, and
+ * the recap. Shown as the body of the sprint's own page once the retro is done.
+ */
+export function OutcomesView({ s, onCount, refresh = 0 }: { s: SprintDetail; onCount?: (n: number) => void; /** Bumped by the page when the sprint says something changed. */ refresh?: number }) {
+  const sprintId = s.id
   const toast = useToast()
-  const [s, setS] = useState<SprintDetail | null>(null)
   const [exps, setExps] = useState<Experiment[]>([])
   const [recap, setRecap] = useState<Recap | null>(null)
   const [draft, setDraft] = useState('')
   const [error, setError] = useState('')
-  useDocumentTitle(s ? `${s.name} · outcomes` : 'Outcomes')
+  const countRef = useRef(onCount)
+  countRef.current = onCount
   const load = useCallback(async () => {
     try {
-      const [d, e, r] = await Promise.all([get<SprintDetail>(`/api/sprints/${sprintId}`), get<Experiment[]>(`/api/sprints/${sprintId}/experiments`), get<Recap>(`/api/sprints/${sprintId}/recap`)])
-      setS(d)
+      const [e, r] = await Promise.all([get<Experiment[]>(`/api/sprints/${sprintId}/experiments`), get<Recap>(`/api/sprints/${sprintId}/recap`)])
       setExps(e)
       setRecap(r)
       setDraft((prev) => prev || r.body)
+      countRef.current?.(e.filter((x) => x.status !== 'proposed').length)
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : 'Couldn’t load')
+      setError(err instanceof ApiError ? err.message : 'Couldn’t load the outcomes')
     }
   }, [sprintId])
   const keysEpoch = useKeysEpoch()
   useEffect(() => {
     load()
-  }, [load, keysEpoch])
-  useLive(sprintId, () => load())
-  if (error)
+  }, [load, keysEpoch, refresh])
+  if (error) return <p className="text-ink-soft" role="alert">{error}</p>
+  if (!recap)
     return (
-      <AppShell>
-        <EmptyState title="Can’t open this">{error}</EmptyState>
-      </AppShell>
-    )
-  if (!s || !recap)
-    return (
-      <AppShell>
-        <div className="grid place-items-center py-20"><Spinner /></div>
-      </AppShell>
+      <div className="grid place-items-center py-16"><Spinner /></div>
     )
   const fac = s.is_facilitator
   const encrypted = s.encryption === 'e1'
@@ -59,10 +58,16 @@ export function Outcomes() {
   const btn = 'inline-flex h-9 items-center gap-2 rounded-full border border-line bg-card px-3.5 text-sm'
   const meId = s.participants.find((p) => p.is_you)?.account_id
   return (
-    <AppShell>
-      {['completed', 'archived'].includes(s.status) ? <Postcard framing="wide" lights={4} className="mb-8 aspect-[3.2/1] w-full sm:aspect-[4.2/1]" /> : null}
-      <PageTitle eyebrow={<Link to={`/sprints/${sprintId}`} className="hover:underline">{s.name}</Link>} title={<>What we’ll <em>try next</em></>} actions={
-        <>
+    <div className="outcomes">
+      <Postcard framing="wide" lights={4} className="mb-8 aspect-[3.2/1] w-full sm:aspect-[7/1]" />
+      <div className="mb-7 flex flex-wrap items-end justify-between gap-4">
+        <div className="min-w-0">
+          <h2 className="font-display text-2xl leading-tight sm:text-[28px]">What we’ll <em>try next</em></h2>
+          <p className="mt-2 max-w-prose text-ink-soft">
+            The changes the team agreed to, when to look back at them, and the recap. Downloads leave out names, times and votes{encrypted ? ', and aren’t encrypted once saved' : ''}.
+          </p>
+        </div>
+        <div className="flex flex-wrap gap-2">
           {encrypted ? (
             <>
               <button className={btn} onClick={async () => download(fileName(s, 'summary', 'md'), summaryMarkdown(s, await themes(), exps, recap.exists ? recap.body : null))}><Download className="size-4" /> Summary (.md)</button>
@@ -76,15 +81,12 @@ export function Outcomes() {
               {fac ? <a className={`${btn} border-dashed text-ink-soft`} href={`/api/sprints/${sprintId}/export.md?scope=raw`} download>Raw notes (.md)</a> : null}
             </>
           )}
-        </>
-      }>
-        The changes the team agreed to, when to look back at them, and the recap. Downloads leave out names, times and votes{encrypted ? ', and aren’t encrypted once saved' : ''}.
-        {!encrypted ? <span className="mt-1 block text-sm"><EncryptionLine encryption={s.encryption} /></span> : null}
-      </PageTitle>
+        </div>
+      </div>
       <div className="grid gap-8 lg:grid-cols-[1fr_1fr]">
         <section>
           <SectionTitle aside={`${exps.filter((e) => e.status !== 'proposed').length} accepted`}>Experiments</SectionTitle>
-          {exps.length === 0 ? <p className="text-ink-soft">No experiments were recorded for this sprint.</p> : null}
+          {exps.length === 0 ? <p className="text-ink-soft">No experiments were agreed in this retro. Sometimes the conversation is the outcome.</p> : null}
           <ul className="space-y-3">
             {exps.map((e) => (
               <li key={e.id} className="rounded-2xl bg-card p-4 shadow-[0_0_0_1px_var(--line)]">
@@ -108,20 +110,20 @@ export function Outcomes() {
               </li>
             ))}
           </ul>
-          {fac && ['live', 'completed', 'ready'].includes(s.status) ? (
+          {fac && s.status === 'completed' ? (
             <div className="mt-4">
               <ExperimentEditor sprintId={sprintId} participants={s.participants} themes={[]} existingCount={exps.length} onSaved={load} />
             </div>
           ) : null}
         </section>
         <section>
-          <SectionTitle aside={recap.published_at ? `published ${new Date(recap.published_at).toLocaleDateString()}` : fac ? 'draft — not yet published' : ''}>Recap</SectionTitle>
+          <SectionTitle aside={recap.published_at ? `published ${new Date(recap.published_at).toLocaleDateString()}` : fac ? 'draft, not yet published' : ''}>Recap</SectionTitle>
           {fac ? (
             <div className="card p-4">
               <Textarea rows={18} value={draft} onChange={(e) => setDraft(e.target.value)} className="font-mono text-sm" aria-label="Recap (Markdown)" />
-              <Help>Fill it in from what the retro recorded — topics discussed, takeaways and agreed experiments — then write the rest yourself; everything here is editable. Publishing makes it visible to participants. Nothing is emailed automatically.</Help>
+              <Help>Fill it in from what the retro recorded (topics discussed, takeaways and agreed experiments), then write the rest yourself; everything here is editable. Publishing makes it visible to participants. Nothing is emailed automatically.</Help>
               <div className="mt-3 flex flex-wrap gap-2">
-                <Button size="sm" onClick={async () => { if (encrypted) { setDraft(recapDraft(s, await themes(), exps)); toast('Filled in from the retro record — save to keep it'); return } const r = await put<Recap>(`/api/sprints/${sprintId}/recap`, {}); setRecap(r); setDraft(r.body); toast('Filled in again from the retro record') }}>{encrypted ? 'Fill in from the record' : 'Refill from the record'}</Button>
+                <Button size="sm" onClick={async () => { if (encrypted) { setDraft(recapDraft(s, await themes(), exps)); toast('Filled in from the retro record. Save to keep it.'); return } const r = await put<Recap>(`/api/sprints/${sprintId}/recap`, {}); setRecap(r); setDraft(r.body); toast('Filled in again from the retro record') }}>{encrypted ? 'Fill in from the record' : 'Refill from the record'}</Button>
                 <Button size="sm" onClick={async () => { const r = await put<Recap>(`/api/sprints/${sprintId}/recap`, { body: draft }); setRecap(r); toast('Saved') }}>Save</Button>
                 <Button size="sm" variant="primary" onClick={async () => { const r = await put<Recap>(`/api/sprints/${sprintId}/recap`, { body: draft, publish: true }); setRecap(r); toast('Recap published to participants') }}>Publish</Button>
               </div>
@@ -133,7 +135,7 @@ export function Outcomes() {
           )}
         </section>
       </div>
-    </AppShell>
+    </div>
   )
 }
 

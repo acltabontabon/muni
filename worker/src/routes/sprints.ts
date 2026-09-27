@@ -16,14 +16,21 @@ export const sprints = new Hono<HonoEnv>()
 
 export const STATUSES = ['draft', 'collecting', 'preparing', 'ready', 'live', 'completed', 'archived']
 
-export function allowedTransitions(status: string, isFacilitator: boolean): string[] {
+/**
+ * What the facilitator may do next. People see four stages — collecting, closed, the retro, done —
+ * so a closed sprint (preparing, or the older "ready") starts the retro directly, and collection can
+ * be reopened until the retro has started once: after that, the conversation has used what was
+ * revealed, and reopening would pretend otherwise. preparing ⇄ ready stay for older clients.
+ */
+export function allowedTransitions(status: string, isFacilitator: boolean, sessionStarted = false): string[] {
   if (!isFacilitator) return []
+  const reopen = sessionStarted ? [] : ['collecting']
   return (
     {
       draft: ['collecting'],
       collecting: ['preparing'],
-      preparing: ['ready', 'collecting'],
-      ready: ['live', 'preparing'],
+      preparing: ['live', ...reopen, 'ready'],
+      ready: ['live', ...reopen, 'preparing'],
       live: ['completed', 'ready'],
       completed: ['archived'],
     }[status] ?? []
@@ -98,7 +105,7 @@ function summary(r: SummaryRow) {
     reminders_enabled: bool(r.reminders_enabled),
     my_reminders_opt_out: !!mine && bool(mine.reminders_opt_out),
     encryption: isEncrypted(r) ? ENCRYPTION : null,
-    allowed_transitions: allowedTransitions(r.status, !!mine && bool(mine.is_facilitator)),
+    allowed_transitions: allowedTransitions(r.status, !!mine && bool(mine.is_facilitator), !!r.session_started_at),
   }
 }
 
@@ -132,7 +139,7 @@ export async function detail(env: HonoEnv['Bindings'], ctx: SprintCtx) {
     content_purged_at: iso(r.content_purged_at),
     has_session: !!r.session_started_at,
     session_cancelled: bool(r.session_cancelled),
-    allowed_transitions: allowedTransitions(r.status, ctx.isFacilitator),
+    allowed_transitions: allowedTransitions(r.status, ctx.isFacilitator, !!r.session_started_at),
     role: ctx.role,
     workspace_name: ws?.name ?? '',
     previous_sprint_id: prev?.id ?? null,
@@ -358,9 +365,13 @@ sprints.post('/api/sprints/:sprintId/transition', async (c) => {
   if (!STATUSES.includes(to)) throw bad('unknown status')
   const db = c.env.DB
   const sid = ctx.sprint.id
-  const row = (await one<{ status: string; reminders_enabled: number; workspace_id: string }>(db, 'SELECT status, reminders_enabled, workspace_id FROM sprints WHERE id = ?', sid))!
+  const row = (await one<{ status: string; reminders_enabled: number; workspace_id: string; session_started_at: number | null }>(db, 'SELECT status, reminders_enabled, workspace_id, session_started_at FROM sprints WHERE id = ?', sid))!
   const from = row.status
-  if (!allowedTransitions(from, true).includes(to)) throw conflict(`can’t move from ${from} to ${to}`)
+  // Already there (a second click, another tab, a retry after a lost response): nothing to do, and
+  // nothing is done twice.
+  if (from === to) return c.json(await detail(c.env, ctx))
+  if (to === 'collecting' && (from === 'preparing' || from === 'ready') && row.session_started_at) throw conflict('the retro has already started, so collection can’t be reopened')
+  if (!allowedTransitions(from, true, !!row.session_started_at).includes(to)) throw conflict(`can’t move from ${from} to ${to}`)
   const now = Date.now()
   const encrypted = isEncrypted(ctx.sprint)
   // Every transition is a conditional UPDATE on the previous status: two concurrent transitions can't both win.
@@ -368,7 +379,9 @@ sprints.post('/api/sprints/:sprintId/transition', async (c) => {
     const r = await run(db, sql, ...args)
     if (!r.meta.changes) throw conflict('the sprint changed while you were working — reload and try again')
   }
-  switch (`${from}>${to}`) {
+  // A closed sprint is one stage to people, whichever of its two stored states it's in.
+  const step = from === 'ready' && (to === 'collecting' || to === 'live') ? `preparing>${to}` : `${from}>${to}`
+  switch (step) {
     case 'draft>collecting': {
       if (!(await count(db, 'SELECT count(*) AS n FROM sprint_participants WHERE sprint_id = ?', sid))) throw conflict('add at least one participant before opening collection')
       await guard("UPDATE sprints SET status='collecting', collection_opened_at=COALESCE(collection_opened_at, ?), updated_at=? WHERE id=? AND status='draft'", now, now, sid)
@@ -412,13 +425,15 @@ sprints.post('/api/sprints/:sprintId/transition', async (c) => {
       }
       const res = await batch(db, [
         ["UPDATE vote_rounds SET status='cancelled', cancel_reason='collection reopened', closed_at=? WHERE sprint_id=? AND status='open'", now, sid],
-        ["UPDATE sprints SET status='collecting', reopened_count=reopened_count+1, grouping_revision=grouping_revision+1, updated_at=? WHERE id=? AND status='preparing'", now, sid],
+        ["UPDATE sprints SET status='collecting', reopened_count=reopened_count+1, grouping_revision=grouping_revision+1, updated_at=? WHERE id=? AND status=? AND session_started_at IS NULL", now, sid, from],
         ...next,
       ])
       if (!res[1].meta.changes) {
         if (encrypted) await run(db, "DELETE FROM sprint_keys WHERE sprint_id = ? AND version = (SELECT MAX(version) FROM sprint_keys WHERE sprint_id = ?) AND (SELECT status FROM sprints WHERE id = ?) <> 'collecting'", sid, sid, sid)
         throw conflict('the sprint changed while you were working — reload and try again')
       }
+      // Reminders follow collection: closing cancelled them, reopening brings back any still ahead.
+      if (bool(row.reminders_enabled)) await scheduleReminders(db, sid)
       break
     }
     case 'preparing>ready':
@@ -427,8 +442,8 @@ sprints.post('/api/sprints/:sprintId/transition', async (c) => {
     case 'ready>preparing':
       await guard("UPDATE sprints SET status='preparing', updated_at=? WHERE id=? AND status='ready'", now, sid)
       break
-    case 'ready>live': {
-      await guard("UPDATE sprints SET status='live', session_started_at=?, session_ended_at=NULL, session_cancelled=0, updated_at=? WHERE id=? AND status='ready'", now, now, sid)
+    case 'preparing>live': {
+      await guard("UPDATE sprints SET status='live', session_started_at=?, session_ended_at=NULL, session_cancelled=0, updated_at=? WHERE id=? AND status=?", now, now, sid, from)
       // A fresh room session; a stale one from an earlier cancelled run is replaced.
       await roomCall(room(c.env, sid), '/cancel')
       await ensureRoom(c.env, ctx)

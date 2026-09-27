@@ -17,6 +17,12 @@ import { resolveAvatar, type AvatarId, type Character } from './characters'
 /** Pages that belong to the person alone. Everything else is Muni's shared presentation. */
 export const PERSONAL_PATHS = ['/', '/capture', '/account']
 export const isPersonalPath = (p: string) => PERSONAL_PATHS.includes(p)
+/**
+ * Where a person's world dresses the page: their own pages, and a sprint's page — where they write
+ * — as it looks on their own screen. Never what's shown to the room (the stage, the companion) or
+ * worked on together (themes, setup).
+ */
+export const isDressedPath = (p: string) => isPersonalPath(p) || /^\/sprints\/[^/]+\/?$/.test(p)
 
 type Avatar = Me['avatar']
 type WorldCtx = {
@@ -69,7 +75,7 @@ export function WorldProvider({ children }: { children: ReactNode }) {
 
   const avatar: Avatar = useMemo(() => ({ id: null, theme: true, intro: 'done' as const, ...me?.avatar, ...over }), [me?.avatar, over])
   const character = resolveAvatar(avatar.id)
-  const personal = isPersonalPath(pathname)
+  const personal = isDressedPath(pathname)
   const world = personal && character && avatar.theme ? character.id : null
 
   // Dress the page before it paints. While the account is still loading, keep what boot.js applied.

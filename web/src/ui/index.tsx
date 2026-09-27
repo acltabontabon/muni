@@ -19,7 +19,8 @@ export function Button({ variant = 'secondary', size = 'md', className, busy, ch
     quiet: 'bg-transparent text-ink-soft hover:text-ink underline-offset-4 hover:underline px-2 disabled:opacity-50',
   }
   return (
-    <button className={clsx(base, sizes[size], variants[variant], className)} aria-busy={busy || undefined} disabled={busy || rest.disabled} {...rest}>
+    // While busy it stays disabled whatever `disabled` says: a second press never sends twice.
+    <button {...rest} className={clsx(base, sizes[size], variants[variant], className)} aria-busy={busy || undefined} disabled={busy || rest.disabled}>
       {busy ? <Spinner /> : null}
       {children}
     </button>

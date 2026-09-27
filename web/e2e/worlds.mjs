@@ -152,10 +152,14 @@ try {
       await page.goto(`${BASE}/account`)
       await page.waitForSelector('#character-t')
       check('Account wears the world', (await world(page)) === 'bola')
-      for (const path of [`/workspaces/${ws.id}`, `/sprints/${full.id}`, `/privacy`]) {
+      // A sprint's page is where you write: it wears your world, on your screen only.
+      await page.goto(`${BASE}/sprints/${full.id}`)
+      await page.waitForSelector('textarea[name="thought"]')
+      check('Your sprint’s page wears it (it’s where you write)', (await world(page)) === 'bola')
+      for (const path of [`/workspaces/${ws.id}`, `/sprints/${full.id}/prepare`, `/sprints/${full.id}/stage`, `/privacy`]) {
         await page.goto(`${BASE}${path}`)
         await page.waitForLoadState('networkidle')
-        check(`No world on ${path.split('/')[1]}`, (await world(page)) === null)
+        check(`No world on ${path.split('/').slice(1).join('/').replace(/[0-9a-f-]{36}/, ':id')}`, (await world(page)) === null)
       }
       check('Shared pages show initials, not the portrait', (await page.locator('[data-account-trigger] [data-portrait]').count()) === 0)
       await page.goto(`${BASE}/`)

@@ -597,45 +597,13 @@ body {
 .chapter-title a:hover { text-decoration-color: var(--line-strong); }
 .chapter-title em { font-family: var(--font-wordmark); font-style: italic; font-weight: 400; letter-spacing: -0.01em; color: var(--accent-ink); padding-right: 0.04em; }
 .chapter-goal { margin-top: 0.7rem; max-width: 38rem; font-family: var(--font-wordmark); font-style: italic; font-size: 1.15rem; line-height: 1.45; color: var(--ink-soft); overflow-wrap: anywhere; }
-.chapter-now { margin-top: 1.75rem; padding-top: 1.6rem; border-top: 1px solid var(--line); }
-.chapter-phase { font-family: var(--font-display); font-weight: 600; font-size: 1.3rem; line-height: 1.25; letter-spacing: -0.02em; }
 .chapter-body { margin-top: 0.4rem; max-width: 36rem; font-size: 1.0625rem; line-height: 1.55; color: var(--ink-soft); text-wrap: pretty; }
-.chapter-notes { margin-top: 0.9rem; display: grid; gap: 0.5rem; max-width: 36rem; }
-.chapter-notes li { display: flex; gap: 0.55rem; font-size: 14px; line-height: 1.5; color: var(--ink-soft); }
-.chapter-notes svg { margin-top: 0.15rem; color: var(--warn); }
 .chapter-actions { margin-top: 1.4rem; display: flex; flex-wrap: wrap; align-items: center; gap: 0.75rem 1.4rem; }
-.chapter-fac { margin-top: 2.1rem; padding: 0.15rem 0 0.15rem 1.25rem; border-left: 2px solid color-mix(in oklab, var(--accent) 50%, var(--line)); }
-.chapter-fac-body { margin-top: 0.4rem; max-width: 34rem; font-size: 15px; line-height: 1.55; }
 
-/* The lifecycle: a line through the chapter. */
-.life { margin-top: 1.9rem; }
-.life-steps { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); margin: 0; padding: 0; list-style: none; }
-.life-steps li { position: relative; display: grid; grid-template-rows: 14px auto auto; gap: 0.5rem; padding-right: 0.5rem; font-size: 14px; line-height: 1.25; color: var(--ink-faint); }
-.life-steps li::before { content: ''; position: absolute; top: 6.5px; left: 14px; right: 0; height: 1px; background: var(--line-strong); }
-.life-steps li:last-child::before { display: none; }
-.life-steps li[data-state='done']::before { background: var(--ink-soft); }
-.life-mark { position: relative; z-index: 1; display: grid; place-items: center; width: 14px; height: 14px; border-radius: 999px; background: var(--paper); box-shadow: inset 0 0 0 1.5px var(--line-strong); }
-.life-steps [data-state='done'] { color: var(--ink-soft); }
-.life-steps [data-state='done'] .life-mark { background: var(--ink-soft); color: var(--paper); box-shadow: none; }
-.life-steps [data-state='now'] { color: var(--ink); font-weight: 650; }
-.life-steps [data-state='now'] .life-mark { box-shadow: inset 0 0 0 1.5px var(--accent); }
-.life-steps [data-state='now'] .life-mark::after { content: ''; width: 6px; height: 6px; border-radius: 999px; background: var(--accent); }
-.life-state { min-height: 1em; font-size: 11px; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; color: var(--accent-ink); }
-.life-compact { display: none; }
-@media (max-width: 639px) {
-  /* Not five labels in tiny type: a short bar and one sentence. */
-  .life { margin-top: 1.5rem; }
-  .life-steps { gap: 4px; align-items: end; }
-  .life-steps li { display: block; height: 3px; padding: 0; border-radius: 2px; background: var(--line-strong); }
-  .life-steps li::before { display: none; }
-  .life-steps li[data-state='done'] { background: var(--ink-soft); }
-  .life-steps li[data-state='now'] { height: 6px; background: var(--accent); }
-  .life-mark, .life-label, .life-state { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
-  .life-compact { display: flex; flex-wrap: wrap; align-items: baseline; gap: 0.2rem 0.5rem; margin-top: 0.7rem; font-size: 14.5px; color: var(--ink-soft); }
-  .life-compact strong { color: var(--ink); font-weight: 650; }
-  .life-then { color: var(--ink-faint); }
-  .life-then::before { content: '· '; }
-}
+/* Where the current sprint is, in one line: the same dot as the sprint's own bar. */
+.chapter-state { display: flex; flex-wrap: wrap; align-items: center; gap: 0.25rem 0.6rem; margin-top: 1.3rem; font-size: 15.5px; font-weight: 600; }
+.chapter-role { font-weight: 400; color: var(--ink-soft); }
+.chapter-role::before { content: '· '; color: var(--ink-faint); }
 
 .chapter-aside { display: grid; align-content: start; gap: 1.6rem; min-width: 0; }
 .aside-block + .aside-block { padding-top: 1.5rem; border-top: 1px solid var(--line); }
@@ -756,22 +724,91 @@ body {
 .ws-empty { padding: 0.75rem 0; color: var(--ink-soft); }
 .ws-missing { max-width: 36rem; padding: 3.5rem 0; }
 
-/* ── Lifecycle guidance ───────────────────────────────────────────────────────────────────── */
-.steps { display: flex; gap: 6px; align-items: center; }
-.steps li { display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--ink-faint); white-space: nowrap; }
-.steps li + li::before { content: ''; width: 14px; height: 1px; background: var(--line-strong); }
-.steps li[data-done] { color: var(--ink-soft); }
-.steps li[aria-current] { color: var(--accent-ink); font-weight: 600; }
-.steps .pip { width: 8px; height: 8px; border-radius: 999px; box-shadow: inset 0 0 0 1.5px currentColor; }
-.steps li[data-done] .pip, .steps li[aria-current] .pip { background: currentColor; }
-/* The facilitator's area: plainly marked, apart from writing a thought. */
-.fac-area {
-  border-radius: 20px;
-  background: color-mix(in oklab, var(--accent) 5%, var(--card-2));
-  box-shadow: inset 0 0 0 1px color-mix(in oklab, var(--accent) 16%, var(--line));
+/* ── A sprint's bar ────────────────────────────────────────────────────────────────────────
+   The same place at the top of every page of a sprint: its name set like a chapter, where it is
+   (a dot and a phrase, never colour alone), one sentence on what that means, and three stops on
+   one fine rule. The facilitator's next change sits in the margin column beside it — a hairline,
+   not a tinted box — with what it will do written under it. Routine things stay underlined text. */
+.sbar { position: relative; margin-bottom: 1.25rem; }
+.sbar-top { display: grid; gap: 1.25rem 3rem; }
+@media (min-width: 900px) { .sbar-top { grid-template-columns: minmax(0, 1fr) 17.5rem; align-items: start; } }
+.sbar-kicker { font-size: 13px; color: var(--ink-faint); }
+.sbar-kicker a { border-radius: 3px; }
+.sbar-kicker a:hover { color: var(--ink); text-decoration: underline; text-underline-offset: 3px; }
+.sbar-name { margin-top: 0.2rem; font-family: var(--font-display); font-weight: 600; font-size: clamp(1.65rem, 1.2rem + 1.7vw, 2.4rem); line-height: 1.06; letter-spacing: -0.035em; text-wrap: balance; overflow-wrap: anywhere; }
+p.sbar-name { font-size: clamp(1.25rem, 1.05rem + 0.8vw, 1.6rem); }
+.sbar-name a { border-radius: 3px; text-decoration: underline; text-decoration-color: var(--line-strong); text-decoration-thickness: 1.5px; text-underline-offset: 5px; }
+.sbar-name a:hover { text-decoration-color: var(--accent); }
+.sbar-status { display: flex; flex-wrap: wrap; align-items: baseline; gap: 0.2rem 0.9rem; margin-top: 0.6rem; font-size: 14.5px; color: var(--ink-soft); }
+.sbar-state { display: inline-flex; align-items: center; gap: 0.5rem; font-weight: 600; color: var(--ink); }
+/* The dot says the phase by shape as well as colour: hollow before, filled while open, ringed live, ink when done. */
+.sbar-dot { flex: none; width: 9px; height: 9px; border-radius: 999px; box-shadow: inset 0 0 0 1.5px var(--ink-faint); }
+[data-phase='collecting'] .sbar-dot { background: var(--status); box-shadow: none; }
+[data-phase='closed'] .sbar-dot { box-shadow: inset 0 0 0 1.5px var(--ink-soft); background: linear-gradient(90deg, var(--ink-soft) 50%, transparent 50%); }
+[data-phase='live'] .sbar-dot { background: var(--accent); box-shadow: 0 0 0 3px color-mix(in oklab, var(--accent) 22%, transparent); }
+[data-phase='done'] .sbar-dot { background: var(--ink-soft); box-shadow: none; }
+.sbar-facts { font-variant-numeric: tabular-nums; }
+.sbar-line { margin-top: 0.55rem; max-width: 40rem; font-size: 1.0625rem; line-height: 1.55; color: var(--ink-soft); text-wrap: pretty; }
+.sbar-notes { display: grid; gap: 0.45rem; max-width: 40rem; margin: 0.8rem 0 0; padding: 0; list-style: none; }
+.sbar-notes li { display: flex; gap: 0.55rem; font-size: 14px; line-height: 1.5; color: var(--ink-soft); }
+.sbar-notes svg { margin-top: 0.15rem; color: var(--warn); }
+.sbar-control { min-width: 0; padding-top: 1rem; border-top: 1px solid var(--line); }
+@media (min-width: 900px) { .sbar-control { padding: 0.2rem 0 0 1.75rem; border-top: 0; border-left: 1px solid var(--line); } }
+.sbar-role { font-size: 12px; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; color: var(--ink-faint); }
+.sbar-button { width: 100%; margin-top: 0.65rem; }
+@media (min-width: 640px) and (max-width: 899px) { .sbar-button { width: auto; } }
+.sbar-consequence { margin-top: 0.55rem; font-size: 13.5px; line-height: 1.45; color: var(--ink-soft); text-wrap: pretty; }
+.sbar-quiet { display: flex; flex-wrap: wrap; align-items: center; gap: 0 1.2rem; margin-top: 0.35rem; }
+.sbar-link { display: inline-flex; align-items: center; gap: 0.35rem; min-height: 2.75rem; font-size: 14.5px; color: var(--ink); text-decoration: underline; text-decoration-color: var(--line-strong); text-underline-offset: 4px; border-radius: 3px; }
+.sbar-link:hover { text-decoration-color: var(--accent); }
+.sbar-link:disabled { color: var(--ink-faint); text-decoration: none; }
+.sbar-more { text-decoration: none; color: var(--ink-soft); }
+.sbar-more:hover, .sbar-more[data-state='open'] { color: var(--ink); }
+.sbar-access { display: grid; gap: 0.5rem; margin-top: 0.75rem; font-size: 13.5px; line-height: 1.5; color: var(--ink-soft); }
+/* Three stops on one rule. They describe; they never navigate. */
+.sbar-progress { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); margin: 1.6rem 0 0; padding: 0; list-style: none; }
+.sbar-progress li { position: relative; display: grid; grid-template-rows: 14px auto auto; gap: 0.35rem; padding-right: 0.75rem; color: var(--ink-faint); }
+.sbar-progress li::before { content: ''; position: absolute; top: 6.5px; left: 14px; right: 0; height: 1px; background: var(--line-strong); }
+.sbar-progress li:last-child::before { right: auto; width: 2.5rem; background: linear-gradient(90deg, var(--line-strong), transparent); }
+.sbar-progress li[data-state='done']::before { background: var(--ink-soft); }
+.sbar-mark { position: relative; z-index: 1; display: grid; place-items: center; width: 14px; height: 14px; border-radius: 999px; background: var(--paper); box-shadow: inset 0 0 0 1.5px var(--line-strong); }
+.sbar-progress [data-state='done'] .sbar-mark { background: var(--ink-soft); color: var(--paper); box-shadow: none; }
+.sbar-progress [data-state='now'] .sbar-mark { box-shadow: inset 0 0 0 1.5px var(--accent); }
+.sbar-progress [data-state='now'] .sbar-mark::after { content: ''; width: 6px; height: 6px; border-radius: 999px; background: var(--accent); }
+.sbar-stop { font-size: 14px; font-weight: 600; line-height: 1.2; color: var(--ink-soft); }
+.sbar-progress [data-state='now'] .sbar-stop { color: var(--ink); }
+.sbar-progress [data-state='next'] .sbar-stop { font-weight: 500; }
+.sbar-detail { font-size: 13px; line-height: 1.35; color: var(--ink-soft); font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
+.sbar-progress [data-state='next'] .sbar-detail { color: var(--ink-faint); }
+@media (max-width: 639px) {
+  .sbar-status { font-size: 14px; }
+  .sbar-line { font-size: 1rem; }
+  .sbar-progress { margin-top: 1.3rem; }
+  .sbar-stop { font-size: 13px; }
+  .sbar-detail { font-size: 12px; }
 }
-.dark .fac-area { background: color-mix(in oklab, var(--accent) 7%, var(--card)); }
+/* Writing on a phone: two lines, until "Details" unfolds the rest. */
+.sbar-when, .sbar-toggle { display: none; }
+@media (max-width: 639px) {
+  .sbar[data-compact] { margin-bottom: 0.75rem; }
+  .sbar[data-compact] .sbar-when { display: inline; }
+  .sbar[data-compact] .sbar-toggle { display: inline-flex; align-items: center; min-height: 2.75rem; margin: -0.8rem 0; color: var(--ink); text-decoration: underline; text-decoration-color: var(--line-strong); text-underline-offset: 4px; }
+  .sbar[data-compact]:not([data-open]) :is(.sbar-kicker, .sbar-line, .sbar-notes, .sbar-role, .sbar-consequence, .sbar-quiet, .sbar-access, .sbar-progress, .sbar-facts) { display: none; }
+  .sbar[data-compact]:not([data-open]) .sbar-top { grid-template-columns: minmax(0, 1fr) auto; align-items: start; gap: 0.75rem; }
+  .sbar[data-compact]:not([data-open]) .sbar-control { padding-top: 0; border-top: 0; }
+  .sbar[data-compact]:not([data-open]) .sbar-button { width: auto; min-height: 2.75rem; margin-top: 0; padding: 0.4rem 1rem; font-size: 14px; }
+  .sbar[data-compact]:not([data-open]) .sbar-name { display: -webkit-box; overflow: hidden; -webkit-box-orient: vertical; -webkit-line-clamp: 2; font-size: 1.3rem; }
+  .sbar[data-compact]:not([data-open]) .sbar-status { margin-top: 0.3rem; font-size: 13.5px; gap: 0.1rem 0.7rem; }
+}
+/* The journal's evening follows the bar instead of reaching up to the header. */
+.journal-scene.journal-scene--under-bar { margin-top: 0; }
 
+/* Folded facts at the foot of a sprint's page. */
+.sprint-fold { margin-top: 4rem; padding-top: 0.5rem; border-top: 1px solid var(--line); }
+.sprint-fold > summary { display: inline-flex; align-items: center; min-height: 2.75rem; cursor: pointer; color: var(--ink-soft); text-decoration: underline; text-decoration-color: var(--line-strong); text-underline-offset: 4px; border-radius: 3px; }
+.sprint-fold > summary:hover, .sprint-fold[open] > summary { color: var(--ink); }
+.sprint-done .sprint-fold { margin-top: 3rem; }
+.sprint-about-body { display: grid; gap: 1.5rem; max-width: 44rem; margin-top: 1rem; }
 
 /* Quiet section header row: an eyebrow over content. */
 .eyebrow { font-size: 12px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; color: var(--ink-faint); }

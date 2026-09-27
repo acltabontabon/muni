@@ -135,10 +135,13 @@ try {
   check('While collecting, Maya can’t open the sprint', mk.my_wraps.length === 0)
   check('While collecting, shared thoughts are refused', (await api(owner, 'GET', `/api/sprints/${sprintId}/entries`)).status === 409)
 
-  // Owner closes collection from the sprint guide: the reveal happens on their device.
+  // Owner closes collection from the sprint's page: the reveal happens on their device. Then, on
+  // to the optional themes.
   await owner.goto(`${BASE}/sprints/${sprintId}`)
-  await owner.click('button:has-text("Close collection")')
-  await owner.click('[role=dialog] button:has-text("Close and reveal")')
+  await owner.click('button:has-text("Close collection…")')
+  await owner.click('[role=dialog] button:text-is("Close collection")')
+  await owner.waitForSelector('.sbar-state:has-text("Collection closed")')
+  await owner.click('a:has-text("Group into themes")')
   await owner.waitForURL(/prepare$/)
   await owner.waitForSelector(`text=${SHOWN}`, { timeout: 10000 })
   check('After the reveal, the facilitator reads the thought', true)

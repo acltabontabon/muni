@@ -17,6 +17,30 @@ what the operator and service providers can access: *Privacy & data*, under Acco
 If more than one sprint is collecting for you, Muni asks where the thought should go and
 remembers your choice. It never picks one for you silently.
 
+## A sprint's page
+
+Every sprint has one page, for everyone in it: open it from **Sprints**, from a reminder email, or
+with **Write** (which opens the sprint that's collecting for you). At the top, the sprint bar says
+where it is — *Not open yet*, *Collecting thoughts*, *Collection closed*, *Retro in progress* or
+*Retro done* — and what's next: *Thoughts → Retro → Outcomes*, with the retro's **planned** date.
+A date is only a plan: nothing changes until the facilitator makes the change.
+
+**If you facilitate,** the bar's right-hand column (below the name on a phone) holds the one next
+change, with what it will do written under it:
+
+- **Open collection** — everyone in the sprint can start adding thoughts.
+- **Close collection…** — whenever you're ready; you don't have to wait for the retro date. It
+  reveals every thought, without names, to everyone in the sprint, and stops adding and editing.
+  It doesn't start the retro.
+- While closed: **Start the retro…** when the team is together, and, if it helps, **Group into
+  themes (optional)** first. **More → Reopen collection…** lets people write again until the retro
+  starts; what was already revealed stays visible. Once the retro has started, collection can't
+  be reopened.
+- While live: **Open the stage**; **More → Pause the retro…** if you need to stop.
+- Once it's done, the page is the outcomes: what the team agreed to try, and the recap.
+
+Anyone still writing when collection closes keeps their words on screen; nothing is sent.
+
 ## What the dots mean
 
 | | |

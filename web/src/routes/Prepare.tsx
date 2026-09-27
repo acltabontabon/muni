@@ -1,13 +1,15 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { Link, useNavigate, useParams } from 'react-router'
+import { useNavigate, useParams } from 'react-router'
 import { clsx } from 'clsx'
-import { ArrowRight, ChevronDown, FolderInput, GitMerge, Trash2 } from 'lucide-react'
+import { ChevronDown, FolderInput, GitMerge, Trash2 } from 'lucide-react'
 import { ApiError, del, get, patch, post } from '@/api/client'
 import type { GroupingView, SharedEntry, SprintDetail, ThemeView } from '@/api/types'
 import { useLive } from '@/lib/live'
 import { useKeysEpoch } from '@/lib/e2ee/E2eeProvider'
 import { Badge, Button, Dialog, EmptyState, Input, Spinner, Textarea, useDocumentTitle, useToast } from '@/ui'
 import { AppShell, PageTitle } from '@/ui/shell'
+import { SprintBar, useSprintControl } from '@/ui/sprint-bar'
+import { sprintPlan } from '@/lib/lifecycle'
 import { CategoryMix, EntryCard } from '@/ui/entries'
 
 export function Prepare() {
@@ -21,7 +23,7 @@ export function Prepare() {
   const [newTitle, setNewTitle] = useState('')
   const [pendingReset, setPendingReset] = useState<{ run: (reason: string) => Promise<void> } | null>(null)
   const [resetReason, setResetReason] = useState('')
-  useDocumentTitle(s ? `${s.name} · prepare` : 'Prepare')
+  useDocumentTitle(s ? `${s.name} · themes` : 'Themes')
 
   const load = useCallback(async () => {
     try {
@@ -45,6 +47,7 @@ export function Prepare() {
     load()
   }, [load, keysEpoch])
   useLive(sprintId, () => load())
+  const control = useSprintControl({ id: sprintId, status: s?.status, encryption: s?.encryption }, { online: navigator.onLine, onChanged: (d) => { setS(d); load() } })
 
   /** Runs a structural change; if the server needs a vote-reset reason, asks for one and retries. */
   const structural = useCallback(
@@ -71,7 +74,7 @@ export function Prepare() {
   if (error)
     return (
       <AppShell>
-        <EmptyState title="Preparation studio">{error}</EmptyState>
+        <EmptyState title="Themes">{error}</EmptyState>
       </AppShell>
     )
   if (!s)
@@ -80,10 +83,12 @@ export function Prepare() {
         <div className="grid place-items-center py-20"><Spinner /></div>
       </AppShell>
     )
+  const bar = <SprintBar s={{ ...s, participant_count: s.participants.length }} plan={sprintPlan({ ...s, participant_count: s.participants.length }, { online: navigator.onLine })} control={control} view="themes" />
   if (!g)
     return (
-      <AppShell>
-        <PageTitle eyebrow={s.name} title="Make space to look back">Close collection first. Until then every entry is sealed — including from you.</PageTitle>
+      <AppShell wide>
+        {bar}
+        <PageTitle title="Themes">Thoughts are sealed while collection is open, including from you. Once you close it, you can group them here before the retro.</PageTitle>
         <Button variant="primary" onClick={() => nav(`/sprints/${sprintId}`)}>Back to the sprint</Button>
       </AppShell>
     )
@@ -91,27 +96,10 @@ export function Prepare() {
   const canEdit = g.can_edit
   return (
     <AppShell wide>
-      <PageTitle
-        eyebrow={<Link to={`/sprints/${sprintId}`} className="hover:underline">{s.name}</Link>}
-        title={<>Prepare the <em>conversation</em></>}
-        actions={
-          <>
-            {s.status === 'preparing' ? (
-              <Button variant="primary" onClick={async () => { try { await post(`/api/sprints/${sprintId}/transition`, { to: 'ready' }); toast('Themes marked ready'); load() } catch (e) { toast(e instanceof ApiError ? e.message : 'Couldn’t', 'danger') } }}>
-                Mark ready <ArrowRight className="size-4" />
-              </Button>
-            ) : s.status === 'ready' ? (
-              <Button variant="primary" onClick={async () => { try { await post(`/api/sprints/${sprintId}/transition`, { to: 'live' }); nav(`/sprints/${sprintId}/stage`) } catch (e) { toast(e instanceof ApiError ? e.message : 'Couldn’t', 'danger') } }}>
-                Start the retro <ArrowRight className="size-4" />
-              </Button>
-            ) : s.status === 'live' ? (
-              <Button variant="primary" onClick={() => nav(`/sprints/${sprintId}/stage`)}>Back to the stage</Button>
-            ) : null}
-          </>
-        }
-      >
-        {g.total_entries} {g.total_entries === 1 ? 'thought' : 'thoughts'}, {themes.length} {themes.length === 1 ? 'theme' : 'themes'}, {g.ungrouped.length} not grouped yet. Thoughts stay exactly as written — themes only gather them. {s.status === 'preparing' ? 'Mark ready when the discussion has a shape.' : ''}
-        {g.voting_open ? <span className="ml-2 text-warn">A voting round is open — changing the theme set will ask you to reset it.</span> : null}
+      {bar}
+      <PageTitle title={<>Group into <em>themes</em></>}>
+        Optional. Themes give the conversation a shape; without them, every thought is still shown in the retro. {g.total_entries} {g.total_entries === 1 ? 'thought' : 'thoughts'}, {themes.length} {themes.length === 1 ? 'theme' : 'themes'}, {g.ungrouped.length} not grouped yet. Thoughts stay exactly as written.
+        {g.voting_open ? <span className="ml-2 text-warn">A voting round is open. Changing the theme set will ask you to reset it.</span> : null}
       </PageTitle>
 
       <div className="grid gap-6 lg:grid-cols-[minmax(320px,1fr)_minmax(0,1.6fr)]">

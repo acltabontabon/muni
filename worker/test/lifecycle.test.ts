@@ -24,9 +24,50 @@ describe('lifecycle', () => {
     const reopenNoConfirm = await post(`/api/sprints/${s}/transition`, owner, { to: 'collecting' })
     expect(reopenNoConfirm.status).toBe(409)
     expect(reopenNoConfirm.body.error).toContain('confirm')
-    expect((await post(`/api/sprints/${s}/transition`, owner, { to: 'live' })).status).toBe(409)
     expect((await post(`/api/sprints/${s}/transition`, owner, { to: 'completed' })).status).toBe(409)
     expect((await post(`/api/sprints/${s}/transition`, owner, { to: 'draft' })).status).toBe(409)
+  })
+
+  it('starts the retro straight from a closed sprint, and a repeated transition changes nothing', async () => {
+    const { owner, members, ws } = await team(1)
+    const s = await sprint(owner, members, ws, 'draft')
+    expect((await go(owner, s, 'collecting')).status).toBe(200)
+    // Two clicks (or two tabs) closing collection: the second is a no-op, not an error.
+    const first = await go(owner, s, 'preparing')
+    const again = await go(owner, s, 'preparing')
+    expect(first.status).toBe(200)
+    expect(again.status).toBe(200)
+    expect(again.body.status).toBe('preparing')
+    expect(again.body.collection_closed_at).toBe(first.body.collection_closed_at)
+    // No "mark ready" step is needed.
+    const live = await post(`/api/sprints/${s}/transition`, owner, { to: 'live' })
+    expect(live.status).toBe(200)
+    expect(live.body.status).toBe('live')
+    expect(live.body.has_session).toBe(true)
+    expect((await post(`/api/sprints/${s}/transition`, owner, { to: 'live' })).status).toBe(200)
+    // Members still can't, and a repeat never lets them.
+    expect((await post(`/api/sprints/${s}/transition`, members[0], { to: 'live' })).status).toBe(403)
+  })
+
+  it('reopens collection only until the retro has started', async () => {
+    const { owner, members, ws } = await team(1)
+    const s = await sprint(owner, members, ws, 'draft')
+    await go(owner, s, 'collecting')
+    await go(owner, s, 'preparing')
+    await go(owner, s, 'ready')
+    // From the older "ready" state too.
+    const re = await go(owner, s, 'collecting')
+    expect(re.status).toBe(200)
+    expect(re.body.reopened_count).toBe(1)
+    await go(owner, s, 'preparing')
+    expect((await post(`/api/sprints/${s}/transition`, owner, { to: 'live' })).status).toBe(200)
+    expect((await post(`/api/sprints/${s}/transition`, owner, { to: 'ready' })).status).toBe(200)
+    const d = await get(`/api/sprints/${s}`, owner)
+    expect(d.body.allowed_transitions).toEqual(['live', 'preparing'])
+    const refused = await go(owner, s, 'collecting')
+    expect(refused.status).toBe(409)
+    expect(refused.body.error).toContain('already started')
+    expect((await get(`/api/sprints/${s}`, owner)).body.status).toBe('ready')
   })
 
   it('exposes allowed_transitions per status and role', async () => {
@@ -35,8 +76,8 @@ describe('lifecycle', () => {
     const expected: Record<string, string[]> = {
       draft: ['collecting'],
       collecting: ['preparing'],
-      preparing: ['ready', 'collecting'],
-      ready: ['live', 'preparing'],
+      preparing: ['live', 'collecting', 'ready'],
+      ready: ['live', 'collecting', 'preparing'],
       live: ['completed', 'ready'],
       completed: ['archived'],
       archived: [],
