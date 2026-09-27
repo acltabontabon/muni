@@ -123,41 +123,33 @@ describe('device unlocks', () => {
     expect((await get('/api/me/keys', back.user)).body.passkeys).toHaveLength(1)
   })
 
-  it('never release a passkey account’s share to an email code, or to a passkey added after the device was bound', async () => {
+  it('release only to a passkey that existed when the device was bound — never one added later', async () => {
     const email = `unlock-${tag()}@example.com`
     const u = await signin(email, 'Mixed')
-    const auth = new SoftAuthenticator()
-    const first = await addPasskeyTo(u, auth, { name: 'First' })
-    expect(first.status).toBe(200)
     const kp = newKeyPair()
     expect((await put('/api/me/keys', u, { public_key: b64u(kp.pk) })).status).toBe(200)
     const d = await keepDevice(u)
     expect(d.requires_passkey).toBe(true)
-    // The email-code session that made it can't reopen it.
-    expect((await post(`/api/me/devices/${d.id}/unlock`, u)).body.code).toBe('passkey_required')
-    // A passkey that existed then can.
-    const withFirst = await passkeyLogin(auth, { credId: first.response.id })
-    expect((await post(`/api/me/devices/${d.id}/unlock`, withFirst.user!)).status).toBe(200)
-    // A passkey added afterwards (say, by someone with the inbox) can't.
+    // The passkey the account signed in with then can reopen it.
+    expect((await post(`/api/me/devices/${d.id}/unlock`, u)).status).toBe(200)
+    // A passkey added afterwards (say, by someone with a borrowed session) can't.
     await env.DB.prepare('UPDATE device_unlocks SET bound_at = bound_at - 5000 WHERE id = ?').bind(d.id).run()
-    const second = await addPasskeyTo(withFirst.user!, auth, { name: 'Later' })
-    const withSecond = await passkeyLogin(auth, { credId: second.response.id })
+    const later = new SoftAuthenticator()
+    const second = await addPasskeyTo(u, later, { name: 'Later' })
+    expect(second.status).toBe(200)
+    const withSecond = await passkeyLogin(later, { credId: second.response.id })
     expect((await post(`/api/me/devices/${d.id}/unlock`, withSecond.user!)).body.code).toBe('passkey_required')
-    // Removing every passkey doesn't turn it into an email-unlockable device.
-    expect((await del(`/api/auth/passkeys/${first.body.id}`, withSecond.user!, {})).status).toBe(200)
-    expect((await del(`/api/auth/passkeys/${second.body.id}`, withSecond.user!, {})).status).toBe(200)
-    const emailAgain = await signin(email, null)
-    expect((await post(`/api/me/devices/${d.id}/unlock`, emailAgain)).body.code).toBe('passkey_required')
-    // Nor does a deleted passkey's old session.
-    expect((await post(`/api/me/devices/${d.id}/unlock`, withFirst.user!)).body.code).toBe('passkey_required')
+    // Nor does a removed passkey's old session.
+    const first = (await get('/api/auth/passkeys', withSecond.user!)).body.find((p: { id: string; name: string }) => p.name !== 'Later').id
+    expect((await del(`/api/auth/passkeys/${first}`, withSecond.user!, {})).status).toBe(200)
+    expect((await post(`/api/me/devices/${d.id}/unlock`, u)).body.code).toBe('passkey_required')
   })
 
-  it('for an account without passkeys, release to its email sessions — and to no other account', async () => {
-    const u = await signin(`legacy-${tag()}@example.com`)
+  it('are for one account: no other account can use or see them', async () => {
+    const u = await signin(`owner-${tag()}@example.com`)
     const kp = newKeyPair()
     expect((await put('/api/me/keys', u, { public_key: b64u(kp.pk) })).status).toBe(200)
     const d = await keepDevice(u)
-    expect(d.requires_passkey).toBe(false)
     expect((await post(`/api/me/devices/${d.id}/unlock`, u)).body.share).toBe(d.share)
     const other = await signin(`other-${tag()}@example.com`)
     const r = await post(`/api/me/devices/${d.id}/unlock`, other)

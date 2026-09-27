@@ -95,7 +95,7 @@ version. **Rescheduling** has no key effect.
   setup step, and only when the server confirms the account has none. A missing key on a device is
   never taken to mean the account is new. The public key is published (`account_keys`). The
   private key is held **only in memory**; it reaches a tab by being reopened, never read from
-  storage in plaintext. Nothing is derived from the email address, sign-in codes, a passkey's
+  storage in plaintext. Nothing is derived from an email address, a passkey's
   signature or credential id, the account id or a session token.
 - **Passkey unlock (PRF).** Every passkey ceremony asks for the passkey's PRF output (WebAuthn
   `prf`, input SHA-256(`muni:prf:account-key:v1`) — constant, so discoverable sign-in can ask; the
@@ -112,10 +112,10 @@ version. **Rescheduling** has no key effect.
   is 32 random bytes kept only on the device (IndexedDB `muni-unlock`) and `share` is 32 random
   bytes the server keeps (`device_unlocks`) and releases only to the account's own sessions. Neither
   half opens anything; the server never sees the envelope or `ds`. After signing out, the envelope
-  can't be opened until the person signs in again. **Release rule:** for a device bound while the
-  account had passkeys, only to a session started with a passkey that existed when the device was
-  bound (so an email code — or a passkey added through one — never unlocks it); for accounts
-  without passkeys, to any of its sessions. The binding is renewed whenever the device unlocks by
+  can't be opened until the person signs in again. **Release rule:** only to a session of the same
+  account started with a passkey that already existed when the device was bound (so a passkey
+  added later — say, from a borrowed session — never unlocks it). Passkeys are the only way in, so
+  every device is bound this way (migration 0008). The binding is renewed whenever the device unlocks by
   passkey or recovery key. A new key is kept on the device *before* it's published, and an
   interrupted setup is finished (the same key) on the next load.
 - **Recovery key.** 160 random bits + 16-bit checksum, shown once as nine groups of four
@@ -141,8 +141,9 @@ version. **Rescheduling** has no key effect.
   (confirming it's you with a passkey may have just unlocked it). Content sealed only to the old key
   (their own unrevealed thoughts) is gone; teammates can reshare revealed sprints after confirming
   the new key. A new passkey can't reconstruct a lost old key.
-- **Account recovery ≠ content recovery.** Email sign-in never unlocks content on a device that
-  didn't already have it, and never for a passkey account's device envelope (tested).
+- **Account access ≠ content access.** A passkey that only signs in (no PRF) never unlocks content
+  on a device that didn't already have it, nor a device envelope bound before that passkey
+  existed (tested).
 - **Revocation.** Removing a member or participant stops the server serving them anything new, and
   devices only share keys with current participants. Nothing can erase keys or content already
   received. Removing a device in Account (or forgetting it) stops it reopening the key by itself.
@@ -197,7 +198,7 @@ AES-256-GCM, non-extractable keys) for unlocking the account key in `web/src/lib
 - `web/src/lib/e2ee/keyring.test.ts` (34): decrypt at the API boundary, explicit locked marker,
   refusal to send plaintext without keys, TOFU key-change detection, sealed-version sharing; and
   the lifecycle — **the original bug** (sign out → sign in unlocks with no recovery key, old
-  content reads, new content seals), reload, no plaintext key in storage, email sessions refused,
+  content reads, new content seals), reload, no plaintext key in storage, non-passkey sessions refused,
   forget this device, PRF restore after cleared storage, no-PRF fallback, provisioning only from an
   unlocked device, offline, never a second key, keep-before-publish, sign-out during restoration,
   account switching, stale tabs, waiting instead of "can't be shown", migration (verified,
@@ -206,11 +207,11 @@ AES-256-GCM, non-extractable keys) for unlocking the account key in `web/src/lib
   tampering, non-extractable keys, IV uniqueness, both device halves required; PRF output removed
   from every request body (including as a `Uint8Array`).
 - `worker/test/unlock.test.ts` (12): wraps only for own passkeys and current key, removed with the
-  passkey and on key replacement, the share release rule (email code, later passkey, deleted
+  passkey and on key replacement, the share release rule (later passkey, deleted
   passkeys, other accounts), keep-before-publish, pruning, nothing secret in D1, PRF results
   refused, `x-muni-account` isolation.
 - `worker/test/encryption.test.ts` (6): envelopes only, plaintext refused, sealing policy through
-  reveal, reopen versioning, late participants, recovery vs email sign-in, key replacement, legacy
+  reveal, reopen versioning, late participants, recovery vs a passkey that only signs in, key replacement, legacy
   untouched, AI/export/recap refused, **every D1 table and the room's storage scanned for the
   synthetic text, private keys and sprint secrets**.
 - `web/e2e/encryption.mjs` (17): the real UI end to end, including request bodies captured in the
@@ -227,8 +228,8 @@ cryptographic and application-security review is required before claiming more t
 - **Passkey unlock (`0007_passkey_unlock.sql`, client revision 4).** Additive: two tables. Existing
   devices kept the account key in plaintext in IndexedDB `muni-keys`; on first load the new client
   moves it into a device envelope, reopens the envelope with a share the server released under the
-  normal rule, and only then deletes the plaintext copy. Interrupted or refused (an email session
-  on a passkey account), the old copy stays and the move finishes later; a copy that doesn't match
+  normal rule, and only then deletes the plaintext copy. Interrupted or refused (a session from a
+  passkey added after the device was bound), the old copy stays and the move finishes later; a copy that doesn't match
   the account's key is never deleted. The passkey wrap is added the next time a PRF-capable passkey
   is used. Recovery blobs are untouched. The server refuses revision-3 clients (426), which would
   still store plaintext keys and delete them on sign-out. Rolling back the Worker below this leaves

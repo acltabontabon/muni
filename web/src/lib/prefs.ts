@@ -13,8 +13,6 @@ type Prefs = {
   installHintDismissed?: boolean
   /** A passkey was used or added in this browser: the entrance offers it first. A hint, never proof. */
   passkeyHint?: boolean
-  /** "Not now" to adding a passkey after an email sign-in, per account; not asked again here. */
-  passkeyOfferDismissedFor?: string[]
   /**
    * The signed-in person's character world, remembered so the page is dressed before it paints
    * (public/boot.js). A copy of the account's own setting; cleared on sign-out.

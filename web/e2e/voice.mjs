@@ -41,11 +41,8 @@ async function account(prefix, name) {
     if (!r.ok) throw new Error(`${method} ${path} ${r.status} ${t.slice(0, 200)}`)
     return t ? JSON.parse(t) : null
   }
-  await req('POST', '/api/dev/legacy-account', { email })
-  await req('POST', '/api/auth/request-code', { email })
-  const inbox = await (await fetch(BASE + '/api/dev/inbox')).json()
-  const code = inbox.find((m) => m.to === email && /sign-in code/.test(m.subject)).subject.split(' ')[0]
-  const me = await req('POST', '/api/auth/verify', { email, code })
+  // A signed-in account, made by the development-only endpoint (passkeys themselves: e2e/passkeys.mjs).
+  const me = await req('POST', '/api/dev/session', { name })
   if (me.needs_name) await req('PATCH', '/api/auth/me', { display_name: name })
   return { email, name, id: me.account_id, req, cookies: () => [...jar].map(([n, value]) => ({ name: n, value, domain: new URL(BASE).hostname, path: '/' })) }
 }
@@ -76,7 +73,10 @@ async function open(browser, a, ws, opts = {}) {
   page.on('request', (r) => requests.push({ url: r.url(), method: r.method(), post: r.postData() ?? '' }))
   ctx.on('request', (r) => requests.push({ url: r.url(), method: r.method(), post: r.postData() ?? '' }))
   const errors = []
-  page.on('console', (m) => m.type() === 'error' && errors.push(m.text()))
+  // Accounts made by /api/dev/session have no passkey, so reopening this device's encryption key is
+  // refused (403 passkey_required) — expected here, and the only failure tolerated.
+  page.on('console', (m) => m.type() === 'error' && !/Failed to load resource/.test(m.text()) && errors.push(m.text()))
+  page.on('response', (r) => r.status() >= 400 && !/\/api\/me\/devices\/[^/]+\/unlock$/.test(r.url()) && errors.push(`${r.status()} ${new URL(r.url()).pathname}`))
   page.on('pageerror', (e) => errors.push(String(e)))
   page.on('worker', (w) => {
     if (process.env.DEBUG) console.log('worker started', w.url())

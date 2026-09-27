@@ -2,11 +2,12 @@
 import { Hono } from 'hono'
 import type { HonoEnv } from '../env'
 import { config } from '../lib/config'
-import { requireAuth } from '../lib/auth'
+import { createSession, requireAuth, setSessionCookies } from '../lib/auth'
+import { buildMe } from './auth'
 import { uuid } from '../lib/crypto'
 import { all, batch, one, run } from '../lib/db'
 import { notFound } from '../lib/errors'
-import { addDays, localDate, normalizeEmail } from '../lib/util'
+import { addDays, localDate } from '../lib/util'
 import { INTRO } from '../lib/avatars'
 import { newAccountStatement } from '../lib/accounts'
 
@@ -126,26 +127,27 @@ demo.post('/api/demo/seed', async (c) => {
 })
 
 /**
- * Development and tests only: an account as it was before passkeys — made by an email code, with
- * that address and no passkey — to exercise the "Used Muni before?" path. Never in production.
+ * Development and tests only: a new account, signed in, without a passkey ceremony, so scripts can
+ * set up people quickly. Passkeys themselves are tested with a virtual authenticator
+ * (e2e/passkeys.mjs, worker/test/passkeys.test.ts). Refused in production and wherever demo data is
+ * off; it's the same boundary the demo seed has.
  */
-demo.post('/api/dev/legacy-account', async (c) => {
+demo.post('/api/dev/session', async (c) => {
   const cfg = config(c.env)
   if (cfg.env === 'production' || !cfg.allowDemoSeed) throw notFound()
-  const body = (await c.req.json().catch(() => ({}))) as { email?: string; name?: string; intro?: 'choose' | 'note' | 'done' }
-  const email = normalizeEmail(body.email ?? '')
-  if (!email) throw notFound()
+  const body = (await c.req.json().catch(() => ({}))) as { name?: string; intro?: 'choose' | 'note' | 'done' }
   // Scripts and tests aren't interrupted by the character chooser unless they ask to see it.
   const intro = INTRO[body.intro === 'choose' || body.intro === 'note' ? body.intro : 'done']
-  const existing = await one<{ id: string }>(c.env.DB, 'SELECT account_id AS id FROM account_emails WHERE email = ?', email)
-  if (existing) return c.json({ account_id: existing.id })
   const id = uuid()
-  const now = Date.now()
+  const name = typeof body.name === 'string' ? body.name.trim().slice(0, 80) : ''
+  const [sql, ...args] = newAccountStatement(id, name, isoHandle())
   await batch(c.env.DB, [
-    ['INSERT INTO accounts (id, email, display_name, created_at, name_set_at, avatar_intro) VALUES (?,?,?,?,?,?)', id, email, body.name ?? '', now, body.name ? now : null, intro],
-    ['INSERT INTO account_emails (account_id, email, verified_at) VALUES (?,?,?)', id, email, now],
+    [sql, ...args],
+    ['UPDATE accounts SET avatar_intro = ?, name_set_at = ? WHERE id = ?', intro, name ? Date.now() : null, id],
   ])
-  return c.json({ account_id: id })
+  const session = await createSession(c.env.DB, id, cfg.sessionTtlDays, { method: 'passkey', clientLabel: 'Development' })
+  setSessionCookies(c, cfg, session)
+  return c.json(await buildMe(c.env, id))
 })
 
 /** Development inbox for the console email provider. Never available in production. */

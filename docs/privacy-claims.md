@@ -45,7 +45,7 @@ Last checked 2026-09-28, against `main` plus the encryption changes (docs/ENCRYP
 | Cloudflare hosts app, database, live connection; request logs ≤ 7 days with URL, headers (IP, browser) | Provider + Config | Workers Logs docs (3 days Free / 7 Paid; invocation logs include request metadata and headers); `observability` on at sampling 1 in the production config. Not inspected on the live dashboard |
 | URLs contain only ids, never text or email addresses | Code + Test | Tokens in fragments/bodies (`boundaries.test.ts` “keeps invitation tokens out of URLs…”); no client route puts an email or text in a query string |
 | Muni's own logging records failures only: path, method, short error; no text or email | Test | `privacy.test.ts` “writes no entry text or email address to the log” (spies on `console.*` across a full flow, including a provoked 500) |
-| Resend receives the address and a code / invitation (workspace, inviter name, link) / reminder (sprint name, link); never a thought | Code + Config | `lib/email.ts` templates (the only three); `EMAIL_PROVIDER=resend` in the production config |
+| Resend receives the address and an invitation (workspace, inviter name, link) or a reminder (sprint name, link); never a thought, never a code | Code + Config | `lib/email.ts` templates (the only two); `EMAIL_PROVIDER=resend` in the production config |
 | munimuni.app is on GitHub Pages behind Cloudflare, with Google Fonts | Config | `.github/workflows/pages.yml`; live response headers (`server: cloudflare`, `x-github-request-id`); `site/index.html` font link |
 | No analytics, ads, session recording or error reporting; the app can't load code from or send data to other sites | Code + Config | No such dependency (`web/package.json`); CSP in `web/public/_headers` (`script-src 'self' 'wasm-unsafe-eval'; connect-src 'self'`; `'wasm-unsafe-eval'` allows compiling WebAssembly for voice, not `eval`), confirmed on the live app shell |
 | Voice: audio is transcribed on the device, never uploaded, stored or logged; the model is downloaded from Muni's own origin only after the person agrees; dictation only fills the draft | Code + Test | `web/src/lib/voice/*` (worker loads only `/voice/…` and hashed runtime files; `modelFetch`), `session.test.ts`, `e2e/voice.mjs` ("No request leaves this origin", "No request carries the transcript", "Nothing was submitted to the sprint"); [VOICE.md](VOICE.md) |
@@ -68,7 +68,8 @@ Last checked 2026-09-28, against `main` plus the encryption changes (docs/ENCRYP
 | HTTPS in transit | Config | Custom domain on Cloudflare; HSTS in `_headers` (live) |
 | Stored data encrypted at rest with AES-256, Cloudflare-managed keys | Provider | D1 and Durable Objects data-security docs |
 | Sprints from before encryption (and sprints with encryption turned off) aren't encrypted at the application level; the server can read their thoughts. New sprints: see *Encryption (new sprints)* below | Code | `sprints.encryption` is null for them; `lib/sealed.ts` accepts plaintext only there |
-| Email addresses stored readable; codes and session tokens only as hashes | Code | `accounts.email` plain; `verification_challenges.code_hash`, `sessions.token_hash` (`lib/auth.ts`, `routes/auth.ts`) |
+| Email addresses (only accounts invited by email) stored readable; session tokens only as hashes | Code | `account_emails.email` plain; `sessions.token_hash` (`lib/auth.ts`); `accounts.legacy_key` holds the account id, no address (migration 0008) |
+| Passkeys are the only way in: no email sign-in, codes, password or recovery email | Code + Test | No such route (`passkeys-only.test.ts`: the old endpoints answer 404 and set no cookie; non-passkey sessions don't authenticate; codes table dropped); `web/e2e/entrance.mjs`, `passkeys.mjs` |
 
 ## Device
 
@@ -90,7 +91,7 @@ Last checked 2026-09-28, against `main` plus the encryption changes (docs/ENCRYP
 | Unfinished sprints aren't purged | Code | `retention()` only selects `completed`/`archived` — **open policy decision** |
 | A thought deleted while collecting is removed from the live database (backups keep it ≤ 30 days) | Code | `DELETE FROM entries` in `routes/entries.ts` |
 | Account and email kept while the account exists; no self-service deletion or leaving | Code | No such route — **missing control** |
-| Codes deleted ~1 day after expiry; sessions 30 days, deleted 7 days after ending; hashed limiter rows 24 h; email queue payload cleared when sent | Test + Code | `jobs.ts` `retention()`; `boundaries.test.ts` “keeps a queued email until it’s sent…” |
+| Passkey challenges deleted ~1 day after expiry; sessions 30 days, deleted 7 days after ending; hashed limiter rows 24 h; email queue payload cleared when sent | Test + Code | `jobs.ts` `retention()`; `boundaries.test.ts` “keeps a queued email until it’s sent…” |
 | Admin action log kept indefinitely (no text) | Code | `audit_events` never deleted — **open policy decision** |
 | Backups ≤ 30 days, logs ≤ 7 days | Provider + Config | D1 Time Travel docs (7 Free / 30 Paid); Workers Logs docs. The pilot's plan (Free or Paid) isn't recorded, so the page states the upper bounds |
 
@@ -114,7 +115,7 @@ Last checked 2026-09-28, against `main` plus the encryption changes (docs/ENCRYP
 | The server refuses plaintext for encrypted sprints | Test | `encryption.test.ts` (`encryption_required`), `lib/sealed.ts` |
 | While collecting, the revealing key is held only by the facilitator's devices; other participants can't decrypt early | Test | `encryption.test.ts` “…follow the sealing policy through reveal” (no wraps for participants; early wraps refused) |
 | The facilitator isn't given thoughts before close — server rule, not cryptography | Test | `privacy.test.ts` (unchanged sealing tests); stated as a limitation on the page |
-| Email sign-in alone doesn't unlock content on a device that didn't have it (or a passkey account's device envelope); a passkey that unlocks, or the recovery key, does | Test | `encryption.test.ts` “recovery…”; `unlock.test.ts` release rule; `web/e2e/encryption.mjs` new-device steps |
+| A passkey that only signs in doesn't unlock content on a device that didn't have it (nor a device bound before it existed); a passkey that unlocks, or the recovery key, does | Test | `encryption.test.ts` “recovery…”; `unlock.test.ts` release rule; `web/e2e/encryption.mjs` new-device steps |
 | Signing in with a passkey (PRF) unlocks your writing; its PRF output never reaches Muni | Test | `keyring.test.ts`, `passkeys.test.ts` (web), `unlock.test.ts` (PRF results refused, D1 scan); `web/e2e/unlock.mjs` (captured bodies, PRF output compared) |
 | Signing out keeps this device able to unlock only after signing in again; no plaintext key is stored | Test | `keyring.test.ts` “the original bug…”, “what stays on the device”; `web/e2e/unlock.mjs` |
 | Muni can't recover a lost key | Code | Server holds only wraps it can't open (recovery blob, passkey wraps) and device shares that open nothing alone (`routes/keys.ts`) |

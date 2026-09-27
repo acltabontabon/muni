@@ -3,7 +3,8 @@
 Muni runs on Cloudflare's developer platform: one Worker (serving the API and the built web app),
 one D1 database, one Durable Object class and one cron trigger. That is the only supported
 deployment. You need a Cloudflare account, a domain on it for the app, and an email provider for
-sign-in codes (Resend or Brevo; both have free tiers).
+invitations and sprint reminders (Resend or Brevo; both have free tiers). Nobody signs in by
+email: passkeys are the only way in.
 
 Nothing here touches anyone else's resources: the repository's `worker/wrangler.jsonc` is for local
 development only, and every remote command reads a production config you create for your account.
@@ -31,8 +32,7 @@ node scripts/production-config.mjs
 This writes `worker/wrangler.production.jsonc` from `wrangler.production.example.jsonc`. The file
 is gitignored — it describes your account, not the project. Optional overrides:
 `MUNI_WORKER_NAME` (default `muni`), `MUNI_D1_DATABASE_NAME` (`muni`), `MUNI_EMAIL_PROVIDER`
-(`resend` or `brevo`), `MUNI_AI_PROVIDER` (`none`), `MUNI_SIGNIN_CODES_PER_NETWORK_DAILY` (30), `MUNI_SIGNIN_EMAILS_DAILY_LIMIT`
-(60 — keep it under your provider's daily quota; invitations and reminders need the rest).
+(`resend` or `brevo`), `MUNI_AI_PROVIDER` (`none`).
 
 ## 3. Secrets, schema, deploy
 
@@ -48,9 +48,10 @@ pnpm run deploy
 from Hugging Face only when the files are missing, and is safe to run every time. Without it, the
 app works but voice can't download its model.
 
-The Worker attaches itself to `MUNI_DOMAIN` as a custom domain. Open `https://<your domain>`, sign
-in with your email, and create a workspace. Until the email secret is set, sign-in answers
-`setup_required` instead of pretending to send.
+The Worker attaches itself to `MUNI_DOMAIN` as a custom domain. Open `https://<your domain>`,
+create an account with a passkey, and create a workspace. Until the email secret is set, emailed
+invitations and reminders answer `setup_required` instead of pretending to send (invite links and
+QR codes work without it).
 
 AI-drafted themes are off by default. To offer them, render with `MUNI_AI_PROVIDER=anthropic` and
 add `ANTHROPIC_API_KEY` as a secret; each sprint still opts in before collection starts, and entry
@@ -66,7 +67,8 @@ version; migrations are not reversed.
 **Passkeys** (`0004_passkeys_and_join.sql`) need no new secret: the relying-party ID is rendered
 from `MUNI_DOMAIN` as `WEBAUTHN_RP_ID`, and the Worker refuses to start if it isn't exactly
 `PUBLIC_ORIGIN`'s host. Passkeys registered on one host can't be used on another, so moving the
-app to a new domain means people sign in with an email code there and add a passkey again.
+app to a new domain means everyone creates new passkeys there — there's no other way in, so plan
+it with your users (see [PASSKEYS.md](PASSKEYS.md) §5).
 Rollout, rollback and the real-device test matrix: [PASSKEYS.md](PASSKEYS.md#8-rollout-and-rollback).
 
 ## Deploying from GitHub Actions (optional)

@@ -93,19 +93,19 @@ export type PasskeyProblem = { kind: 'cancelled' | 'unsupported' | 'exists' | 'e
 export function describePasskeyError(e: unknown, during: 'signin' | 'add' | 'confirm' | 'create' = 'signin'): PasskeyProblem {
   if (e instanceof ApiError) {
     if (e.status === 0) return { kind: 'offline', message: 'You’re offline. Passkeys need a connection to Muni — try again when you’re back online.' }
-    if (e.code === 'passkey_unknown') return { kind: 'unknown', message: 'That passkey isn’t linked to a Muni account any more — it may have been removed. Try another passkey, or use a recovery email if your account has one.' }
+    if (e.code === 'passkey_unknown') return { kind: 'unknown', message: 'That passkey isn’t linked to a Muni account any more — it may have been removed. Choose another passkey, or create an account.' }
     if (e.code === 'passkey_taken') return { kind: 'exists', message: 'That passkey already belongs to a Muni account. Go back and continue with it to sign in.' }
     if (e.code === 'quota') return { kind: 'failed', message: sentence(e.message) }
     if (e.code === 'challenge_expired' || e.code === 'challenge_used') return { kind: 'expired', message: 'That took a little long. Try again.' }
     if (e.code === 'passkey_exists') return { kind: 'exists', message: 'That passkey is already on your account.' }
     if (e.code === 'reauth_required') return { kind: 'reauth', message: 'Confirm it’s you first, then try again.' }
     if (e.code === 'rate_limited') return { kind: 'failed', message: during === 'create' ? 'Too many new accounts from this network today. Try again tomorrow.' : 'Too many attempts. Wait a little and try again.' }
-    return { kind: 'failed', message: during === 'signin' ? 'That passkey couldn’t be verified. Try again, or use email instead.' : `${sentence(e.message)}` }
+    return { kind: 'failed', message: during === 'signin' ? 'That passkey couldn’t be verified. Try again.' : `${sentence(e.message)}` }
   }
   if (e instanceof WebAuthnError) {
     if (e.code === 'ERROR_AUTHENTICATOR_PREVIOUSLY_REGISTERED') return { kind: 'exists', message: 'This device or password manager already has a passkey for your account.' }
     if (e.code === 'ERROR_CEREMONY_ABORTED') return { kind: 'cancelled', message: '' }
-    if (e.code === 'ERROR_INVALID_DOMAIN' || e.code === 'ERROR_INVALID_RP_ID') return { kind: 'unsupported', message: 'Passkeys can’t be used on this address. Use email instead.' }
+    if (e.code === 'ERROR_INVALID_DOMAIN' || e.code === 'ERROR_INVALID_RP_ID') return { kind: 'unsupported', message: 'Passkeys can’t be used on this address. Open Muni at its usual address and try again.' }
     if (e.code === 'ERROR_AUTHENTICATOR_MISSING_DISCOVERABLE_CREDENTIAL_SUPPORT' || e.code === 'ERROR_AUTHENTICATOR_MISSING_USER_VERIFICATION_SUPPORT')
       return { kind: 'unsupported', message: 'This authenticator can’t make a passkey Muni can use (it needs a screen lock, PIN or biometric). Try another device or password manager.' }
   }
@@ -122,10 +122,10 @@ export function describePasskeyError(e: unknown, during: 'signin' | 'add' | 'con
             ? 'No passkey was saved, so no account was created. Try again whenever you’re ready.'
             : during === 'add'
             ? 'No passkey was added. You can try again whenever you like.'
-            : 'Not confirmed. Try again, or use an email code.',
+            : 'Not confirmed. Try again whenever you’re ready.',
     }
-  if (name === 'NotSupportedError' || name === 'SecurityError') return { kind: 'unsupported', message: 'Passkeys aren’t available in this browser. Use email instead.' }
-  return { kind: 'failed', message: during === 'signin' ? 'Something went wrong with the passkey. Try again, or use email instead.' : 'Something went wrong with the passkey. Try again.' }
+  if (name === 'NotSupportedError' || name === 'SecurityError') return { kind: 'unsupported', message: 'Passkeys aren’t available in this browser. Open Muni in a current version of Safari, Chrome, Edge or Firefox, or on your phone.' }
+  return { kind: 'failed', message: during === 'signin' ? 'Something went wrong with the passkey. Try again.' : 'Something went wrong with the passkey. Try again.' }
 }
 
 let lastRpId: string | null = null
@@ -139,14 +139,11 @@ async function forgetUnknown(credentialID: string) {
   }
 }
 
-/**
- * Sign in with a passkey. `conditional` waits quietly in the email field's autofill (the browser
- * shows saved passkeys there); otherwise the browser's own passkey sheet opens now.
- */
-export async function signInWithPasskey(opts: { conditional?: boolean } = {}): Promise<Me> {
+/** Sign in with a passkey: the browser's own passkey sheet opens now and lists this site's passkeys. */
+export async function signInWithPasskey(): Promise<Me> {
   const optionsJSON = withPrf(await post<PublicKeyCredentialRequestOptionsJSON>('/api/auth/passkey/login/options', {}))
   lastRpId = optionsJSON.rpId ?? null
-  const { prf, safe: response } = takePrf(await startAuthentication({ optionsJSON, useBrowserAutofill: !!opts.conditional }))
+  const { prf, safe: response } = takePrf(await startAuthentication({ optionsJSON }))
   try {
     const me = await post<Me>('/api/auth/passkey/login/verify', { response, installed: isInstalled() })
     setExpectedAccount(me.account_id)
@@ -162,7 +159,7 @@ export async function signInWithPasskey(opts: { conditional?: boolean } = {}): P
 }
 
 /**
- * Create a new account whose first sign-in method is a passkey (no email). Only an explicit
+ * Create a new account with its passkey (the only way in). Only an explicit
  * choice calls this; the entrance asks existing users to continue with their passkey instead.
  */
 export async function signUpWithPasskey(displayName: string): Promise<Me> {

@@ -6,7 +6,7 @@
 import { describe, expect, it } from 'vitest'
 import { env } from 'cloudflare:test'
 import { b64u, newKeyPair, newRecoveryKey, newSprintSecret, sprintKeys, wrapForRecovery, wrapSprintSecret } from '../../web/src/lib/e2ee/crypto'
-import { codeFor, del, get, inviteToken, post, put, rawReq, signin, sprint, tag, team, verify, legacyAccount } from './harness'
+import { del, get, inviteToken, post, put, rawReq, signin, sprint, tag, team } from './harness'
 
 const tokenOf = (url: string) => url.split('#')[1]
 const count = async (sql: string, ...args: unknown[]) => Number((await env.DB.prepare(sql).bind(...args).first<{ n: number }>())?.n ?? 0)
@@ -60,10 +60,7 @@ describe('asking to join', () => {
   it('needs a session and a chosen name, and admits nobody until approved', async () => {
     const { owner, ws, token } = await setup()
     expect((await post('/api/join/request', null, { token })).status).toBe(401)
-    const email = `join-unnamed-${tag()}@example.com`
-    await legacyAccount(email)
-    await post('/api/auth/request-code', null, { email })
-    const unnamed = (await verify(email, await codeFor(email), null)).user!
+    const unnamed = await signin(`join-unnamed-${tag()}@example.com`, null)
     expect((await post('/api/join/request', unnamed, { token })).body.code).toBe('name_required')
     // Someone with a screenshot of the QR: a pending request, and no access.
     const stranger = await signin(`join-screenshot-${tag()}@example.com`, 'Screenshot')
@@ -226,7 +223,7 @@ describe('approving', () => {
 })
 
 describe('individual email invitations', () => {
-  it('are single-use, for one address, with an explicit member role and a copyable link', async () => {
+  it('are single-use links with an explicit member role; the first passkey account to accept joins', async () => {
     const t = tag()
     const owner = await signin(`inv-owner-${t}@example.com`, 'Owner')
     const ws = (await post('/api/workspaces', owner, { name: 'T' })).body.id
@@ -236,15 +233,15 @@ describe('individual email invitations', () => {
     expect((await env.DB.prepare('SELECT role FROM invitations WHERE id = ?').bind(made.body.invitation_id).first<{ role: string }>())!.role).toBe('member')
     const token = await inviteToken(email)
     expect(tokenOf(made.body.link)).toBe(token)
-    const wrong = await signin(`inv-wrong-${t}@example.com`, 'Wrong')
-    const mismatch = await post('/api/invitations/accept', wrong, { token })
-    expect(mismatch.status).toBe(403)
-    expect(mismatch.body.error).not.toContain(email) // masked
-    const preview = await post('/api/invitations/preview', wrong, { token })
-    expect(preview.body).toMatchObject({ valid: true, matches_session: false, workspace_name: null })
+    expect((await post('/api/invitations/accept', null, { token })).status).toBe(401) // a passkey session is needed
+    const preview = await post('/api/invitations/preview', null, { token })
+    expect(preview.body).toMatchObject({ valid: true, workspace_name: 'T', signed_in: false })
+    expect(preview.body.email_hint).not.toBe(email) // masked
     const right = await signin(email, 'Right')
     expect((await post('/api/invitations/accept', right, { token })).status).toBe(200)
-    expect((await post('/api/invitations/accept', right, { token })).status).toBe(404) // replay
-    expect((await post('/api/invitations/accept', wrong, { token })).status).toBe(404)
+    expect((await post('/api/invitations/accept', right, { token })).status).toBe(404) // single use
+    const other = await signin(`inv-other-${t}@example.com`, 'Other')
+    expect((await post('/api/invitations/accept', other, { token })).status).toBe(404)
+    expect((await post('/api/invitations/preview', other, { token })).body.valid).toBe(false)
   })
 })

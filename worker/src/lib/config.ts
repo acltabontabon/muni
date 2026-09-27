@@ -22,9 +22,7 @@ export interface Config {
   entryMaxChars: number
   aiWorkspaceDailyLimit: number
   aiGlobalDailyLimit: number
-  signinEmailsDailyLimit: number
-  signinCodesPerNetworkDaily: number
-  /** New passkey accounts per network and in total per day (there is no mailbox to slow abuse). */
+  /** New accounts per network and in total per day (nothing else slows abuse). */
   signupsPerNetworkDaily: number
   signupsDailyLimit: number
   /** WebAuthn relying party: an explicit RP ID and the exact origins allowed to use it. */
@@ -48,8 +46,6 @@ export interface ConfigVars {
   ENTRY_MAX_CHARS?: string
   AI_WORKSPACE_DAILY_LIMIT?: string
   AI_GLOBAL_DAILY_LIMIT?: string
-  SIGNIN_EMAILS_DAILY_LIMIT?: string
-  SIGNIN_CODES_PER_NETWORK_DAILY?: string
   SIGNUPS_PER_NETWORK_DAILY?: string
   SIGNUPS_DAILY_LIMIT?: string
   WEBAUTHN_RP_ID?: string
@@ -101,10 +97,7 @@ export function config(vars: ConfigVars): Config {
     entryMaxChars: num(vars.ENTRY_MAX_CHARS, 2000),
     aiWorkspaceDailyLimit: num(vars.AI_WORKSPACE_DAILY_LIMIT, 20),
     aiGlobalDailyLimit: num(vars.AI_GLOBAL_DAILY_LIMIT, 100),
-    // Sign-in codes across all addresses per 24 h. Resend's free tier sends 100 a day in total;
-    // this keeps the rest for invitations and reminders when someone floods the sign-in form.
-    signinEmailsDailyLimit: num(vars.SIGNIN_EMAILS_DAILY_LIMIT, 60),
-    signinCodesPerNetworkDaily: num(vars.SIGNIN_CODES_PER_NETWORK_DAILY, 30),
+    // New accounts per network and in total per 24 h: with passkeys only, nothing else slows abuse.
     signupsPerNetworkDaily: num(vars.SIGNUPS_PER_NETWORK_DAILY, 10),
     signupsDailyLimit: num(vars.SIGNUPS_DAILY_LIMIT, 200),
     webauthn,

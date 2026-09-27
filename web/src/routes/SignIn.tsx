@@ -6,9 +6,9 @@ import { useDocumentTitle } from '@/ui'
 import { AuthFlow, EntranceShell, PROGRESS } from '@/ui/entrance'
 
 /**
- * The entrance: continue with a passkey (or create an account, or — for accounts from before
- * passkeys — sign in with email), then straight on to where the person was going (a validated
- * path on this origin), or home. `?method=email` opens the email path directly (support links).
+ * The entrance: continue with a passkey (or create an account), then straight on to where the
+ * person was going (a validated path on this origin), or home. Old links that asked for the email
+ * path (`?method=email`) land here too, on the passkey sign-in: there is no other way in.
  */
 export function SignIn() {
   useDocumentTitle('Sign in')
@@ -16,7 +16,7 @@ export function SignIn() {
   const nav = useNavigate()
   const [params] = useSearchParams()
   const next = safeNext(params.get('next'))
-  const [progress, setProgress] = useState<number>(PROGRESS.email)
+  const [progress, setProgress] = useState<number>(PROGRESS.start)
   // A live session never sees the entrance (an expired one being renewed, or offline, does).
   useEffect(() => {
     if (me && !sessionEnded && !offline) nav(next, { replace: true })
@@ -24,7 +24,6 @@ export function SignIn() {
   return (
     <EntranceShell progress={progress}>
       <AuthFlow
-        startWith={params.get('method') === 'email' ? 'email' : undefined}
         onProgress={setProgress}
         onDone={async () => {
           await refresh()

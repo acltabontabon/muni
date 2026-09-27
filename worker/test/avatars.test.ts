@@ -22,12 +22,13 @@ describe('a person’s character', () => {
   })
 
   it('never interrupts development accounts unless asked, and shows accounts from before a note', async () => {
+    const dev = await req<{ avatar: unknown }>('POST', '/api/dev/session', null, { name: 'Dev' })
+    expect(dev.body.avatar).toEqual({ id: null, theme: true, intro: 'done' })
     const u = await signin(`dev-${tag()}@example.com`, 'Dev')
-    expect((await me(u)).avatar).toEqual({ id: null, theme: true, intro: 'done' })
     // 0006 marks every account that already existed as "note" (a quiet line, never a gate).
     await env.DB.prepare('UPDATE accounts SET avatar_intro = 1 WHERE id = ?').bind(u.account_id).run()
     expect((await me(u)).avatar.intro).toBe('note')
-    const asked = await req<{ account_id: string }>('POST', '/api/dev/legacy-account', null, { email: `gate-${tag()}@example.com`, intro: 'choose' })
+    const asked = await req<{ account_id: string }>('POST', '/api/dev/session', null, { name: 'Gate', intro: 'choose' })
     const row = await env.DB.prepare('SELECT avatar_intro FROM accounts WHERE id = ?').bind(asked.body.account_id).first<{ avatar_intro: number }>()
     expect(row!.avatar_intro).toBe(0)
   })

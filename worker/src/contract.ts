@@ -21,7 +21,7 @@ export interface WorkspaceSummary {
 }
 export interface Me {
   account_id: string
-  /** The optional verified address; null for an account that signs in only with passkeys. */
+  /** Where invitations and reminders go, if anywhere (from an accepted email invitation). Never a way in. */
   email: string | null
   display_name: string
   /** The person hasn't chosen a display name yet: ask for one before anything else. */
@@ -30,10 +30,10 @@ export interface Me {
   session_expires_at: string
   email_transport: string
   ai_provider: string
-  /** How many passkeys the account has (0 until one is added; email codes always work). */
+  /** How many passkeys the account has: at least one, since a passkey is the only way in. */
   passkeys: number
   /** How the current session signed in; null right after a sign-in response. */
-  auth_method: 'email' | 'passkey' | null
+  auth_method: 'passkey' | null
   /** Until when security-sensitive changes are allowed without confirming again. */
   recent_auth_until: string
   pending_join_requests: { id: string; workspace_name: string; created_at: string }[]
@@ -60,7 +60,7 @@ export interface SessionInfo {
   created_at: string
   last_seen_at: string
   expires_at: string
-  method: 'email' | 'passkey'
+  method: 'passkey'
   label: string | null
   passkey_name: string | null
 }
@@ -116,19 +116,11 @@ export interface MyJoinRequest {
   workspace_id: string | null
   sprint_id: string | null
 }
-export interface CodeSent {
-  sent: boolean
-  expires_in_minutes: number
-  resend_after_seconds: number
-}
 export interface InvitationPreview {
   valid: boolean
   email_hint: string | null
   workspace_name: string | null
-  matches_session: boolean
   signed_in: boolean
-  /** Signed in with an account that has no address: it may confirm the invited one by code. */
-  can_confirm: boolean
 }
 export interface Workspace {
   id: string

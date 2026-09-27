@@ -2,13 +2,13 @@
  * Passkeys and sessions through the public HTTP API, with a software authenticator
  * (test/authenticator.ts). Covers enrollment, sign-in, every ceremony binding the server enforces,
  * synced-passkey counters, recent authentication, removal, and session revocation — including
- * sessions created before this change.
+ * sessions that weren't made by a passkey, which no longer sign anyone in.
  */
 import { describe, expect, it } from 'vitest'
 import { env } from 'cloudflare:test'
 import { b64u, newKeyPair, newRecoveryKey, wrapForRecovery } from '../../web/src/lib/e2ee/crypto'
 import { SoftAuthenticator } from './authenticator'
-import { addPasskeyTo, ageSession, del, get, passkeyLogin, passkeyVerify, patch, post, rawReq, setCookie, signin, skipCooldown, codeFor, tag, verify } from './harness'
+import { addPasskeyTo, ageSession, authenticatorOf, del, get, passkeyLogin, passkeyVerify, patch, post, rawReq, setCookie, signin, tag } from './harness'
 
 const count = async (sql: string, ...args: unknown[]) => Number((await env.DB.prepare(sql).bind(...args).first<{ n: number }>())?.n ?? 0)
 
@@ -20,9 +20,9 @@ describe('adding a passkey', () => {
     const r = await addPasskeyTo(u, auth, { name: 'Laptop' })
     expect(r.status).toBe(200)
     expect(r.body).toMatchObject({ name: 'Laptop', synced: false })
-    expect(await count('SELECT count(*) AS n FROM accounts WHERE email = ?', email)).toBe(1)
-    expect(await count('SELECT count(*) AS n FROM webauthn_credentials WHERE account_id = ?', u.account_id)).toBe(1)
-    expect((await get('/api/auth/me', u)).body.passkeys).toBe(1)
+    expect(await count('SELECT count(*) AS n FROM account_emails WHERE email = ?', email)).toBe(1)
+    expect(await count('SELECT count(*) AS n FROM webauthn_credentials WHERE account_id = ?', u.account_id)).toBe(2)
+    expect((await get('/api/auth/me', u)).body.passkeys).toBe(2)
     // The user handle is opaque: not the account id, not the email.
     const acct = await env.DB.prepare('SELECT webauthn_user_id AS h FROM accounts WHERE id = ?').bind(u.account_id).first<{ h: string }>()
     expect(acct!.h).toMatch(/^[A-Za-z0-9_-]{43}$/)
@@ -34,7 +34,7 @@ describe('adding a passkey', () => {
     const dup = await post('/api/auth/passkey/register/verify', u, { response: again, name: 'x' })
     expect(dup.status).toBe(409)
     expect(dup.body.code).toBe('passkey_exists')
-    expect(await count('SELECT count(*) AS n FROM webauthn_credentials WHERE account_id = ?', u.account_id)).toBe(1)
+    expect(await count('SELECT count(*) AS n FROM webauthn_credentials WHERE account_id = ?', u.account_id)).toBe(2)
   })
 
   it('never attaches because a request names an email: registration needs that account’s own session', async () => {
@@ -46,7 +46,7 @@ describe('adding a passkey', () => {
     const response = await auth.register(o.body)
     const r = await post('/api/auth/passkey/register/verify', b, { response, name: 'x', email: a.email, account_id: a.account_id })
     expect(r.status).toBe(400)
-    expect(await count('SELECT count(*) AS n FROM webauthn_credentials WHERE account_id IN (?, ?)', a.account_id, b.account_id)).toBe(0)
+    expect(await count('SELECT count(*) AS n FROM webauthn_credentials WHERE account_id IN (?, ?)', a.account_id, b.account_id)).toBe(2) // their own first passkeys only
     // Without any session there's no way to register at all.
     expect((await post('/api/auth/passkey/register/options', null)).status).toBe(401)
     // A credential already on one account can't be moved to another.
@@ -57,35 +57,27 @@ describe('adding a passkey', () => {
     expect(moved.body.code).toBe('passkey_taken')
   })
 
-  it('needs a recent sign-in; confirming with a code (same account only) or a passkey allows it', async () => {
+  it('needs a recent sign-in; confirming with one of the account’s own passkeys allows it', async () => {
     const email = `pk-recent-${tag()}@example.com`
     const u = await signin(email)
     await ageSession(u)
     const stale = await post('/api/auth/passkey/register/options', u)
     expect(stale.status).toBe(403)
     expect(stale.body.code).toBe('reauth_required')
-    // Confirming with someone else's address is refused before their code is spent.
-    const other = `pk-recent-other-${tag()}@example.com`
-    await post('/api/auth/request-code', null, { email: other })
-    const wrong = await post('/api/auth/verify', u, { email: other, code: await codeFor(other), reauth: true })
-    expect(wrong.status).toBe(403)
-    expect(wrong.body.code).toBe('account_mismatch')
-    await skipCooldown(email)
-    await post('/api/auth/request-code', null, { email })
-    const re = await verify(email, await codeFor(email))
-    const fresh = { ...re.user!, account_id: u.account_id }
-    expect(re.body.account_id).toBe(u.account_id)
-    const auth = new SoftAuthenticator()
-    expect((await addPasskeyTo(fresh, auth)).status).toBe(200)
-    // Later, a passkey can confirm too (a rotated, recent session for the same account).
-    await ageSession(fresh)
-    const o = await post('/api/auth/passkey/reauth/options', fresh)
+    // Someone else's passkey can't confirm this account.
+    const other = await signin(`pk-recent-other-${tag()}@example.com`)
+    const o1 = await post('/api/auth/passkey/reauth/options', u)
+    const theirs = await post('/api/auth/passkey/reauth/verify', u, { response: await authenticatorOf(other.email)!.assert(o1.body, [...authenticatorOf(other.email)!.creds.keys()][0]).catch(() => null) })
+    expect(theirs.status).not.toBe(200)
+    // Its own passkey does: a rotated, recent session for the same account.
+    const mine = authenticatorOf(email)!
+    const o = await post('/api/auth/passkey/reauth/options', u)
     expect(o.status).toBe(200)
-    const conf = await post('/api/auth/passkey/reauth/verify', fresh, { response: await auth.assert(o.body) })
+    const conf = await post('/api/auth/passkey/reauth/verify', u, { response: await mine.assert(o.body) })
     expect(conf.status).toBe(200)
-    const rotated = { ...fresh, session: setCookie(conf, 'muni_session')!, csrf: setCookie(conf, 'muni_csrf')! }
-    expect((await get('/api/auth/me', fresh)).status).toBe(401) // the old session ended
-    expect((await post('/api/auth/passkey/register/options', rotated)).status).toBe(200)
+    const rotated = { ...u, session: setCookie(conf, 'muni_session')!, csrf: setCookie(conf, 'muni_csrf')! }
+    expect((await get('/api/auth/me', u)).status).toBe(401) // the old session ended
+    expect((await addPasskeyTo(rotated, new SoftAuthenticator())).status).toBe(200)
   })
 
   it('requires user verification and the right origin, RP ID and ceremony type', async () => {
@@ -95,20 +87,17 @@ describe('adding a passkey', () => {
       expect(r.status, JSON.stringify(over)).toBe(400)
       expect(r.body.code).toBe('passkey_failed')
     }
-    expect(await count('SELECT count(*) AS n FROM webauthn_credentials WHERE account_id = ?', u.account_id)).toBe(0)
+    expect(await count('SELECT count(*) AS n FROM webauthn_credentials WHERE account_id = ?', u.account_id)).toBe(1) // only its first
   })
 
-  it('an existing email-only account keeps its id, teams and data when it adds a passkey', async () => {
-    const t = tag()
-    const email = `pk-legacy-${t}@example.com`
-    const u = await signin(email, 'Lee Legacy')
-    const ws = (await post('/api/workspaces', u, { name: 'Legacy team' })).body.id
+  it('a passkey added later signs in to the same account, with its teams', async () => {
+    const u = await signin(`pk-later-${tag()}@example.com`, 'Lee Later')
+    const ws = (await post('/api/workspaces', u, { name: 'Later team' })).body.id
     const auth = new SoftAuthenticator()
     expect((await addPasskeyTo(u, auth)).status).toBe(200)
     const back = await passkeyLogin(auth)
-    expect(back.body).toMatchObject({ account_id: u.account_id, email, passkeys: 1 })
+    expect(back.body).toMatchObject({ account_id: u.account_id, passkeys: 2 })
     expect(back.body.workspaces.map((w: { id: string }) => w.id)).toContain(ws)
-    expect(await count('SELECT count(*) AS n FROM accounts WHERE id = ?', u.account_id)).toBe(1)
   })
 })
 
@@ -212,7 +201,7 @@ describe('signing in with a passkey', () => {
     expect((await passkeyLogin(key, { over: { counter: 6 } })).status).toBe(200)
   })
 
-  it('says plainly when a passkey was removed, and email codes still work', async () => {
+  it('says plainly when a passkey was removed, and the account’s other passkey still works', async () => {
     const email = `pk-removed-${tag()}@example.com`
     const u = await signin(email)
     const auth = new SoftAuthenticator()
@@ -221,7 +210,7 @@ describe('signing in with a passkey', () => {
     const r = await passkeyLogin(auth)
     expect(r.status).toBe(400)
     expect(r.body.code).toBe('passkey_unknown')
-    // Removing the last passkey leaves email codes, which can't be removed.
+    // Its first passkey still signs in.
     expect((await get('/api/auth/me', await signin(email))).status).toBe(200)
   })
 
@@ -290,7 +279,7 @@ describe('sessions and sign-out', () => {
     expect((await get('/api/auth/me', stranger)).status).toBe(200)
   })
 
-  it('handles sessions created before this change (no method or authentication time recorded)', async () => {
+  it('a session with no method recorded (as email-code sessions were) doesn’t sign anyone in', async () => {
     const email = `ses-legacy-${tag()}@example.com`
     const a = await signin(email)
     // What an older Worker writes after the migration: only the original columns.
@@ -299,15 +288,8 @@ describe('sessions and sign-out', () => {
     await env.DB.prepare('INSERT INTO sessions (id, account_id, token_hash, csrf_token, created_at, last_seen_at, expires_at) VALUES (?,?,?,?,?,?,?)')
       .bind(crypto.randomUUID(), a.account_id, await sha256Hex(token), 'legacycsrf', Date.now() - 3_600_000, Date.now() - 3_600_000, Date.now() + 86_400_000).run()
     const legacy = { ...a, session: token, csrf: 'legacycsrf' }
-    const me = await get('/api/auth/me', legacy)
-    expect(me.status).toBe(200)
-    expect(me.body.auth_method).toBe('email')
-    const listed = (await get('/api/auth/sessions', a)).body
-    expect(listed.find((s: { current: boolean }) => !s.current)).toMatchObject({ method: 'email', label: null })
-    // Its sign-in time falls back to when it was created: an hour ago is not "recent".
-    expect((await post('/api/auth/passkey/register/options', legacy)).body.code).toBe('reauth_required')
-    expect((await post('/api/auth/logout-others', a)).status).toBe(200)
     expect((await get('/api/auth/me', legacy)).status).toBe(401)
+    expect((await post('/api/auth/passkey/register/options', legacy)).status).toBe(401)
   })
 
   it('logout is idempotent: an ended session still gets its cookies cleared', async () => {

@@ -1,7 +1,7 @@
 /**
  * Sessions, cookies, CSRF and the authorization contexts every protected
- * handler uses. Identity = control of a mailbox (email codes) or of a passkey registered to the
- * account while signed in. Signing in proves only that: membership and content keys are separate.
+ * handler uses. Identity = control of one of the account's passkeys; nothing else signs anyone in.
+ * Signing in proves only that: membership and content keys are separate.
  */
 import type { Context } from 'hono'
 import { constantTimeEqual, randomToken, sha256Hex } from './crypto'
@@ -19,14 +19,13 @@ export const CSRF_COOKIE = 'muni_csrf'
 export const sessionCookie = (cfg: Config) => (cfg.cookieSecure ? `__Host-${SESSION_COOKIE}` : SESSION_COOKIE)
 export const csrfCookie = (cfg: Config) => (cfg.cookieSecure ? `__Host-${CSRF_COOKIE}` : CSRF_COOKIE)
 export const CSRF_HEADER = 'x-csrf-token'
-export const CODE_TTL_MS = 10 * 60_000
-/** Security-sensitive changes (adding or removing a passkey, recovery settings) need a sign-in this recent. */
+/** Security-sensitive changes (adding or removing a passkey, keys) need a sign-in this recent. */
 export const RECENT_AUTH_MS = 10 * 60_000
-export type AuthMethod = 'email' | 'passkey'
+export type AuthMethod = 'passkey'
 
 export interface Account {
   id: string
-  /** The optional verified address (account_emails), or null for a passkey-only account. */
+  /** Where invitations and reminders go (account_emails), or null. Never a way in. */
   email: string | null
   display_name: string
 }
@@ -90,7 +89,7 @@ export interface NewSession {
 }
 
 /** Always a fresh token (never an adopted one), so a planted cookie can't become a session. */
-export async function createSession(db: D1Database, accountId: string, ttlDays: number, s: NewSession = { method: 'email' }): Promise<{ token: string; csrf: string; id: string }> {
+export async function createSession(db: D1Database, accountId: string, ttlDays: number, s: NewSession): Promise<{ token: string; csrf: string; id: string }> {
   const token = randomToken(32)
   const csrf = randomToken(24)
   const now = Date.now()
@@ -161,7 +160,8 @@ export async function loadSession(db: D1Database, rawToken: string | null): Prom
   const row = await one<SessionRow>(
     db,
     `SELECT s.id, s.csrf_token, s.expires_at, s.last_seen_at, s.auth_method, s.authenticated_at, s.created_at, s.credential_ref, a.id AS aid, ae.email, a.display_name
-     FROM sessions s JOIN accounts a ON a.id = s.account_id LEFT JOIN account_emails ae ON ae.account_id = a.id WHERE s.token_hash = ? AND s.revoked_at IS NULL`,
+     FROM sessions s JOIN accounts a ON a.id = s.account_id LEFT JOIN account_emails ae ON ae.account_id = a.id
+     WHERE s.token_hash = ? AND s.revoked_at IS NULL AND s.auth_method = 'passkey'`,
     await sha256Hex(rawToken),
   )
   if (!row || row.expires_at < Date.now()) return null
@@ -224,12 +224,12 @@ export async function requireAuth(c: Context, cfg: Config, db: D1Database): Prom
 }
 
 /**
- * Adding or removing sign-in methods and changing recovery settings need a recent sign-in on this
- * session, so a borrowed unlocked laptop or a stolen cookie can't quietly add an attacker's passkey.
+ * Adding or removing passkeys and changing keys need a recent sign-in on this session, so a
+ * borrowed unlocked laptop or a stolen cookie can't quietly add an attacker's passkey.
  */
 export function requireRecentAuth(a: Auth) {
   if (Date.now() - a.authenticatedAt > RECENT_AUTH_MS)
-    throw new AppError(403, 'reauth_required', 'confirm it’s you first — sign in again with a passkey (or an email code, if your account has an address)', { recent_auth_minutes: RECENT_AUTH_MS / 60_000 })
+    throw new AppError(403, 'reauth_required', 'confirm it’s you first with your passkey', { recent_auth_minutes: RECENT_AUTH_MS / 60_000 })
 }
 
 export async function membershipRole(db: D1Database, workspaceId: string, accountId: string): Promise<Role | null> {

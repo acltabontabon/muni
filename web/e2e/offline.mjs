@@ -26,14 +26,9 @@ async function account(ctx, { keepLocal = true, name = 'Ana Reyes' } = {}) {
       const email = `e2e-${crypto.randomUUID().slice(0, 8)}@example.test`
       const h = { 'content-type': 'application/json' }
       const csrf = () => document.cookie.match(/muni_csrf=([^;]+)/)?.[1]
-      // Email codes sign in to existing accounts only: one as made before passkeys (dev-only endpoint).
-      await fetch('/api/dev/legacy-account', { method: 'POST', headers: h, body: JSON.stringify({ email }) })
-      await fetch('/api/auth/request-code', { method: 'POST', headers: h, body: JSON.stringify({ email }) })
-      const inbox = await fetch('/api/dev/inbox').then((r) => r.json())
-      const code = inbox.find((m) => m.to === email).subject.split(' ')[0]
-      await fetch('/api/auth/verify', { method: 'POST', headers: h, body: JSON.stringify({ email, code }) })
-      // The name step that follows verification for a new account.
-      await fetch('/api/auth/me', { method: 'PATCH', headers: { ...h, 'x-csrf-token': csrf() }, body: JSON.stringify({ display_name: name }) })
+      // A signed-in account from the development-only endpoint (passkeys themselves: e2e/passkeys.mjs).
+      await fetch('/api/dev/session', { method: 'POST', headers: h, body: JSON.stringify({ name }) })
+      void csrf
       const me = await fetch('/api/auth/me').then((r) => r.json())
       const post = (u, b) => fetch(u, { method: 'POST', headers: { ...h, 'x-csrf-token': csrf() }, body: JSON.stringify(b) }).then((r) => r.json())
       const ws = await post('/api/workspaces', { name: 'Payments team' })
@@ -250,8 +245,18 @@ const browser = await chromium.launch()
   await a.page.waitForTimeout(500)
   try {
     writeFileSync(swPath, `${original}\n// e2e: a newer build\n`)
-    await a.page.evaluate(() => navigator.serviceWorker.getRegistration().then((r) => r.update()))
-    await a.page.waitForSelector('text=A new version of Muni is ready', { timeout: 15000 }).catch(() => {})
+    // The dev server notices a changed file after a moment (longer with the speech model in dist).
+    await a.page.waitForFunction(async () => (await (await fetch('/sw.js', { cache: 'no-store' })).text()).includes('// e2e: a newer build'), null, { timeout: 20000, polling: 250 })
+    await a.page.evaluate(async () => {
+      const r = await navigator.serviceWorker.getRegistration()
+      for (let i = 0; i < 10 && !r.waiting && !r.installing; i++) {
+        await r.update().catch(() => {})
+        await new Promise((res) => setTimeout(res, 1000))
+      }
+    })
+    await a.page.waitForSelector('text=A new version of Muni is ready', { timeout: 15000 }).catch(async () => {
+      if (process.env.DEBUG) console.log('DEBUG', a.page.url(), JSON.stringify(await a.page.evaluate(async () => { const r = await navigator.serviceWorker.getRegistration(); return { waiting: !!r?.waiting, installing: r?.installing?.state ?? null, active: r?.active?.state, controller: !!navigator.serviceWorker.controller } })), JSON.stringify(await a.page.locator('[role=status]').allInnerTexts()))
+    })
     check('New version is offered quietly', (await a.page.locator('text=A new version of Muni is ready').count()) === 1)
     await a.page.click('button:has-text("Update")').catch(() => {})
     await a.page.waitForTimeout(400)

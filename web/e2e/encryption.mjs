@@ -22,23 +22,31 @@ async function api(page, method, path, body) {
     return { status: r.status, body: await r.json().catch(() => null) }
   }, [method, path, body])
 }
-async function signIn(ctx, email, name) {
+/**
+ * A virtual authenticator (Chromium CDP) holding synced passkeys, as a password manager would.
+ * Without PRF, so a passkey signs in but can't open encrypted writing on its own: that's what the
+ * new-device step below needs (with PRF, e2e/unlock.mjs covers passkey unlocking).
+ */
+async function authenticator(page) {
+  const cdp = await page.context().newCDPSession(page)
+  await cdp.send('WebAuthn.enable')
+  const { authenticatorId } = await cdp.send('WebAuthn.addVirtualAuthenticator', {
+    options: { protocol: 'ctap2', transport: 'internal', hasResidentKey: true, hasUserVerification: true, isUserVerified: true, automaticPresenceSimulation: true, defaultBackupEligibility: true, defaultBackupState: true, hasPrf: false },
+  })
+  return { credentials: async () => (await cdp.send('WebAuthn.getCredentials', { authenticatorId })).credentials, add: (credential) => cdp.send('WebAuthn.addCredential', { authenticatorId, credential }) }
+}
+/** A new account, made through the entrance with a passkey. */
+async function signIn(ctx, _email, name) {
   const page = await ctx.newPage()
-  // The "Used Muni before?" path, for an account as made before passkeys (dev-only endpoint).
-  await page.goto(`${BASE}/signin?method=email`)
-  await page.evaluate((e) => fetch('/api/dev/legacy-account', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ email: e }) }), email)
-  await page.fill('input[type=email]', email)
-  await page.click('button:has-text("Send me a code")')
-  await page.waitForSelector('text=Check your inbox.')
-  const code = await page.evaluate(async (e) => (await fetch('/api/dev/inbox').then((r) => r.json())).filter((m) => m.to === e && /sign-in code/.test(m.subject))[0]?.subject.split(' ')[0], email)
-  await page.fill('input[autocomplete="one-time-code"]', code)
-  await page.click('button:has-text("Continue")')
-  await page.waitForSelector('text=What should we call you?')
+  page.passkeys = await authenticator(page)
+  await page.goto(`${BASE}/signin`)
+  await page.click('button:has-text("Create an account")')
   await page.fill('input[autocomplete="name"]', name)
-  await page.click('button:has-text("Continue")')
-  await page.waitForSelector('text=Add a passkey to your account.')
+  await page.click('button:has-text("Create with a passkey")')
+  await page.waitForSelector('text=Add a second passkey')
   await page.click('button:has-text("Not now")')
   await page.waitForURL((u) => !u.pathname.startsWith('/signin'))
+  await page.locator('button:has-text("Decide later")').click({ timeout: 3000 }).catch(() => {})
   return page
 }
 /** Keys are set up without asking; a recovery key is optional (made here for the new-device step). */
@@ -119,24 +127,18 @@ try {
   check('Theme titles are stored as envelopes', themes.length === 1 && themes[0].title.startsWith('e1.'))
   check('…and shown decrypted', (await owner.locator(`input[value="Synthetic-${tag} staging ownership"]`).count()) === 1)
 
-  // Maya on a new device: signing in by email doesn't unlock anything; the recovery key does.
-  await maya.waitForTimeout(31_000) // the sign-in code resend cooldown for her address
+  // Maya on a new device, with her synced passkey (one that can't unlock): signed in, but her
+  // writing stays locked until the recovery key opens it.
   const newDevice = await browser.newContext()
   const maya2 = await newDevice.newPage()
-  await maya2.goto(`${BASE}/signin?method=email`)
-  await maya2.fill('input[type=email]', addr('maya'))
-  await maya2.click('button:has-text("Send me a code")')
-  await maya2.waitForSelector('text=Check your inbox.')
-  await maya2.waitForTimeout(400)
-  const code = await maya2.evaluate(async (e) => (await fetch('/api/dev/inbox').then((r) => r.json())).filter((m) => m.to === e && /sign-in code/.test(m.subject))[0]?.subject.split(' ')[0], addr('maya'))
-  await maya2.fill('input[autocomplete="one-time-code"]', code)
-  await maya2.click('button:has-text("Continue")')
-  await maya2.waitForSelector('text=Add a passkey to your account.')
-  await maya2.click('button:has-text("Not now")')
+  const synced = await authenticator(maya2)
+  await synced.add((await maya.passkeys.credentials())[0])
+  await maya2.goto(`${BASE}/signin`)
+  await maya2.click('button:has-text("Continue with a passkey")')
   await maya2.waitForURL((u) => !u.pathname.startsWith('/signin'))
   await maya2.goto(`${BASE}/sprints/${sprintId}`)
   await maya2.waitForSelector('text=this device can’t unlock it yet', { timeout: 10000 })
-  check('New device: email sign-in alone doesn’t unlock content', (await maya2.locator(`text=${SECRET}`).count()) === 0)
+  check('New device: a passkey that can’t unlock signs in, but the content stays locked', (await maya2.locator(`text=${SECRET}`).count()) === 0)
   await maya2.click('button:has-text("Use recovery key")')
   await maya2.fill('[role=dialog] input', mayaRecovery)
   await maya2.click('[role=dialog] button[type=submit]')

@@ -8,7 +8,7 @@ import { Button, ErrorText, Help, Input, Label, Switch, useDocumentTitle, useToa
 import { DeviceControls, LeaveDialog } from '@/ui/menus'
 import { AppShell, PageTitle } from '@/ui/shell'
 import { EncryptionSettings } from '@/ui/keys'
-import { SecurityActivity, Sessions, SignInMethods } from '@/ui/security'
+import { MailAddress, SecurityActivity, Sessions, SignInMethods } from '@/ui/security'
 import { CharacterSettings } from '@/worlds/Character'
 import { VoiceDeviceSetting } from '@/ui/voice'
 
@@ -42,7 +42,7 @@ export function Account() {
   const reminding = (sprints ?? []).filter((s) => s.reminders_enabled && ['collecting', 'draft', 'preparing', 'ready'].includes(s.status))
   return (
     <AppShell>
-      <PageTitle title="Account">Signed in as <span className="text-ink [overflow-wrap:anywhere]">{me.email ?? me.display_name}</span>{me.email ? null : ' with a passkey'}.</PageTitle>
+      <PageTitle title="Account">Signed in as <span className="text-ink [overflow-wrap:anywhere]">{me.display_name}</span> with a passkey.</PageTitle>
       <div className="max-w-4xl">
         <Block id="name" title="Your name" lead="Shown in your workspaces, when you’re invited to speak, and on experiments you own. Never with your thoughts or votes.">
           <form
@@ -68,7 +68,7 @@ export function Account() {
           <ErrorText>{nameError}</ErrorText>
         </Block>
 
-        <Block id="sign-in" title="Signing in" lead="Passkeys are how you sign in. A recovery email is optional.">
+        <Block id="sign-in" title="Signing in" lead="Your passkeys are the only way into your account. There’s no password and no email sign-in.">
           <SignInMethods />
         </Block>
 
@@ -77,7 +77,9 @@ export function Account() {
           <LeaveDialog kind={forgetting ? 'signout' : null} forget onClose={() => setForgetting(false)} />
         </Block>
 
-        <Block id="notifications" title="Notifications" lead={me.email ? 'Muni emails you only for codes, invitations and these reminders — never marketing.' : 'Reminder emails need a recovery email on your account. Muni never sends marketing.'}>
+        <Block id="notifications" title="Notifications" lead="Muni emails only invitations and these reminders, never marketing — and only to an address you were invited at.">
+          <MailAddress />
+          <div className="mt-4" />
           {sprints === null ? null : reminding.length === 0 ? (
             <p className="text-sm text-ink-soft">No sprint of yours has reminders turned on right now.</p>
           ) : (

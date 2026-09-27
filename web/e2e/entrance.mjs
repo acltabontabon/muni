@@ -1,263 +1,228 @@
 /**
- * End-to-end checks of the email path ("Used Muni before?": email → code → name → passkey offer →
- * destination) and email invitations, against
- * a local `wrangler dev` with the console email provider. Synthetic addresses only.
- * Run from web/:  MUNI_URL=http://localhost:8787 node e2e/entrance.mjs
+ * The entrance, end to end: the sign-in panel (one action, account creation beside it, help only
+ * when asked), keyboard and focus, loading and error states, creating an account, signing out and
+ * back in, old email links, invitations, reduced motion, unsupported browsers and offline — on
+ * desktop and a phone, light and dark. Passkeys use Chromium's CDP virtual authenticator: real
+ * WebAuthn and server, not evidence about physical devices. Synthetic names only.
+ *
+ * Run from web/ against a production build (`npm run build`, then wrangler dev):
+ *   MUNI_URL=http://localhost:8799 node e2e/entrance.mjs     (SHOTS=dir saves screenshots)
  */
 import { chromium } from 'playwright'
+import { mkdirSync } from 'node:fs'
 
-const BASE = process.env.MUNI_URL ?? 'http://localhost:8787'
+const BASE = process.env.MUNI_URL ?? 'http://localhost:8799'
+const SHOTS = process.env.SHOTS ?? null
+if (SHOTS) mkdirSync(SHOTS, { recursive: true })
 const results = []
 const check = (name, ok, detail = '') => {
   results.push({ name, ok })
   console.log(`${ok ? 'PASS' : 'FAIL'}  ${name}${detail ? ` — ${detail}` : ''}`)
 }
-const addr = (p) => `${p}-${crypto.randomUUID().slice(0, 8)}@example.test`
-const codeFor = (page, email) => page.evaluate(async (e) => (await fetch('/api/dev/inbox').then((r) => r.json())).filter((m) => m.to === e && /sign-in code/.test(m.subject))[0]?.subject.split(' ')[0], email)
-const inviteLink = (page, email) => page.evaluate(async (e) => (await fetch('/api/dev/inbox').then((r) => r.json())).find((m) => m.to === e && /invited/.test(m.subject))?.body.split('\n').map((l) => l.trim()).find((l) => l.includes('/invite')), email)
-
-/** An account as made before passkeys (email only, no name, no passkey), via the dev-only endpoint. */
-const legacy = (page, email) => page.evaluate((e) => fetch('/api/dev/legacy-account', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ email: e }) }), email)
-/** The quiet "Used Muni before?" link on the passkey-first entrance. */
-async function toEmail(page) {
-  const link = page.locator('button:has-text("Sign in with email")')
-  if (await link.count()) await link.click()
-  await page.waitForSelector('input[type=email]')
+const DESKTOP = { viewport: { width: 1280, height: 800 } }
+const PHONE = { viewport: { width: 375, height: 740 }, isMobile: true, hasTouch: true, deviceScaleFactor: 2 }
+const shot = async (page, name) => {
+  if (!SHOTS) return
+  await page.waitForTimeout(500)
+  await page.screenshot({ path: `${SHOTS}/${name}.png` })
 }
-/** Email sign-ins for accounts without a passkey end with an offer to add one; these checks decline it. */
-async function skipOffer(page) {
-  await page.waitForSelector('text=Add a passkey to your account.', { timeout: 5000 }).then(() => page.click('button:has-text("Not now")')).catch(() => {})
-}
+const api = (page, method, path, body) =>
+  page.evaluate(async ([m, p, b]) => {
+    const csrf = document.cookie.match(/(?:^|; )(?:__Host-)?muni_csrf=([^;]+)/)?.[1] ?? ''
+    const r = await fetch(p, { method: m, headers: { 'content-type': 'application/json', 'x-csrf-token': csrf }, body: b === undefined ? undefined : JSON.stringify(b) })
+    return { status: r.status, body: await r.json().catch(() => null) }
+  }, [method, path, body])
 
-/** Signs in through the UI; `name` is typed only if the name step appears. */
-async function signIn(page, email, name) {
-  await legacy(page, email)
-  await toEmail(page)
-  await page.fill('input[type=email]', email)
-  await page.click('button:has-text("Send me a code")')
-  await page.waitForSelector('text=Check your inbox.')
-  await page.fill('input[autocomplete="one-time-code"]', await codeFor(page, email))
-  await page.click('button:has-text("Continue")')
-  if (name) {
-    await page.waitForSelector('text=What should we call you?')
-    await page.fill('input[autocomplete="name"]', name)
-    await page.click('button:has-text("Continue")')
-  }
-  await skipOffer(page)
-}
-
-/** A named account created through the API, plus a workspace and a collecting sprint it facilitates. */
-async function owner(browser) {
-  const ctx = await browser.newContext()
-  const page = await ctx.newPage()
-  await page.goto(`${BASE}/signin`)
-  const email = addr('owner')
-  await signIn(page, email, 'Olivia Owner')
-  await page.waitForURL((u) => !u.pathname.startsWith('/signin'))
-  const info = await page.evaluate(async () => {
-    const csrf = document.cookie.match(/muni_csrf=([^;]+)/)[1]
-    const post = (u, b) => fetch(u, { method: 'POST', headers: { 'content-type': 'application/json', 'x-csrf-token': csrf }, body: JSON.stringify(b) }).then((r) => r.json())
-    const me = await fetch('/api/auth/me').then((r) => r.json())
-    const ws = await post('/api/workspaces', { name: 'Synthetic team' })
-    const d = (n) => new Date(Date.now() + n * 86400000).toISOString().slice(0, 10)
-    const s = await post(`/api/workspaces/${ws.id}/sprints`, { name: 'Sprint 7', timezone: 'UTC', starts_on: d(-3), ends_on: d(9), retro_date: d(10), retro_time: '10:00', participant_ids: [me.account_id], facilitator_id: me.account_id, reminders_enabled: false })
-    await post(`/api/sprints/${s.id}/transition`, { to: 'collecting', confirm: true })
-    return { ws: ws.id, sprint: s.id }
+async function authenticator(page) {
+  const cdp = await page.context().newCDPSession(page)
+  await cdp.send('WebAuthn.enable')
+  const { authenticatorId } = await cdp.send('WebAuthn.addVirtualAuthenticator', {
+    options: { protocol: 'ctap2', transport: 'internal', hasResidentKey: true, hasUserVerification: true, isUserVerified: true, automaticPresenceSimulation: true, defaultBackupEligibility: true, defaultBackupState: true },
   })
-  const invite = async (email, sprint = true) => {
-    await page.evaluate(async ([ws, e, s]) => {
-      const csrf = document.cookie.match(/muni_csrf=([^;]+)/)[1]
-      await fetch(`/api/workspaces/${ws}/invitations`, { method: 'POST', headers: { 'content-type': 'application/json', 'x-csrf-token': csrf }, body: JSON.stringify({ email: e, sprint_id: s ?? undefined }) })
-    }, [info.ws, email, sprint ? info.sprint : null])
-    await page.waitForTimeout(1200) // the email job runs after the response
-    return inviteLink(page, email)
+  return {
+    setVerified: (v) => cdp.send('WebAuthn.setUserVerified', { authenticatorId, isUserVerified: v }),
+    credentials: async () => (await cdp.send('WebAuthn.getCredentials', { authenticatorId })).credentials,
+    add: (credential) => cdp.send('WebAuthn.addCredential', { authenticatorId, credential }),
   }
-  return { page, email, ...info, invite }
 }
+async function signOut(page) {
+  await page.goto(`${BASE}/`)
+  await page.locator('header button').last().click()
+  await page.locator('[data-radix-popper-content-wrapper] button:has-text("Sign out")').click()
+  await page.getByRole('dialog').getByRole('button', { name: /^Sign out$/ }).click()
+  await page.waitForURL(/\/signin/)
+}
+const panelText = (page) => page.locator('.entrance-side').innerText()
 
 const browser = await chromium.launch()
 try {
-  // ── New account: name step, then the intended (validated) destination ──────────────────────
+  // ── The panel: hierarchy, restraint, width, keyboard, focus (desktop, light).
   {
-    const ctx = await browser.newContext()
+    const ctx = await browser.newContext(DESKTOP)
     const page = await ctx.newPage()
-    await page.goto(`${BASE}/signin?next=${encodeURIComponent('/account')}`)
-    check('No name field before verification', (await page.locator('input[autocomplete="name"]').count()) === 0)
-    const email = addr('new')
-    await legacy(page, email)
-    await toEmail(page)
-    await page.fill('input[type=email]', email)
-    await page.click('button:has-text("Send me a code")')
-    await page.waitForSelector('text=Check your inbox.')
-    check('Code step shows the address and a Change email action', (await page.locator(`text=${email}`).count()) > 0 && (await page.locator('button:has-text("Change email")').count()) === 1)
-    const code = page.locator('input[autocomplete="one-time-code"]')
-    check('Focus moves to the code input', await code.evaluate((el) => el === document.activeElement))
-    check('Code input: numeric keyboard, one-time-code autofill, labelled', (await code.getAttribute('inputmode')) === 'numeric' && (await code.getAttribute('autocomplete')) === 'one-time-code' && (await page.locator('label:has-text("Code")').count()) === 1)
-    check('Expiry comes from the server', (await page.locator('text=The code works once, for 10 minutes.').count()) === 1)
-    const resend = page.locator('button:has-text("Send a new code")')
-    check('Resend is visible but waits for the cooldown', (await resend.isDisabled()) && /in \d+s/.test(await resend.innerText()))
-
-    // Paste with spaces and text: only the digits stay; leading zeros are kept when typed.
-    await code.fill('')
-    await code.pressSequentially('012 345')
-    check('Leading zero kept, spaces dropped', (await code.inputValue()) === '012345')
-    const real = await codeFor(page, email)
-    const wrong = real === '000000' ? '111111' : '000000'
-    await code.fill(wrong)
-    await code.press('Enter')
-    await page.waitForSelector('[role=alert]')
-    const alert = await page.locator('[role=alert]').innerText()
-    check('Wrong code: specific message with tries left, code kept', /doesn’t match/.test(alert) && /4 tries left/.test(alert) && (await code.inputValue()) === wrong, alert)
-
-    // Double submission: Enter twice quickly sends one verification.
-    let verifies = 0
-    page.on('request', (r) => r.url().endsWith('/api/auth/verify') && verifies++)
-    await code.fill(await codeFor(page, email))
-    await code.press('Enter')
-    await code.press('Enter').catch(() => {})
-    await page.waitForSelector('text=What should we call you?')
-    check('One verification request for a double Enter', verifies === 1, `requests=${verifies}`)
-    check('An account without a chosen name is asked for one (empty, not taken from the address)', (await page.locator('input[autocomplete="name"]').inputValue()) === '')
-    check('Focus moves to the name input', await page.locator('input[autocomplete="name"]').evaluate((el) => el === document.activeElement))
-    await page.fill('input[autocomplete="name"]', 'Nadia New')
-    await page.click('button:has-text("Continue")')
-    await page.waitForSelector('text=Add a passkey to your account.')
-    check('An account from before passkeys is offered a passkey after the email sign-in', true)
-    await page.click('button:has-text("Not now")')
-    await page.waitForURL('**/account')
-    check('After the name, continues to the intended destination', new URL(page.url()).pathname === '/account')
-    const stored = await page.evaluate(() => JSON.stringify(localStorage) + JSON.stringify(sessionStorage))
-    check('Nothing about the code is kept in browser storage', !stored.includes(real))
+    await page.goto(`${BASE}/signin`)
+    const cta = page.getByRole('button', { name: 'Continue with a passkey' })
+    await cta.waitFor()
+    check('Heading: “Welcome back.”', (await page.locator('.entrance-step h1').innerText()) === 'Welcome back.')
+    const text = await panelText(page)
+    check('No introductory paragraph, email, password or biometric explanation by default', !/email|password|fingerprint|biometric/i.test(text), text.replace(/\s+/g, ' ').slice(0, 160))
+    check('“New to Muni? Create an account” is visible', await page.getByRole('button', { name: 'Create an account' }).isVisible())
+    check('“Need help signing in?” is present and closed', (await page.locator('details.entrance-help').evaluate((d) => !d.open)) && (await page.locator('summary', { hasText: 'Need help signing in?' }).isVisible()))
+    check('Footer: only “Privacy & data” and “What is Muni?”', (await page.locator('.entrance-footer').innerText()).replace(/\s+/g, ' ').trim() === 'Privacy & data What is Muni?')
+    const step = await page.locator('.entrance-auth > .entrance-step').boundingBox()
+    const side = await page.locator('.entrance-side').boundingBox()
+    check('Comfortable reading width (≤ 420 px), centred in the panel', step.width <= 420 && Math.abs(step.x + step.width / 2 - (side.x + side.width / 2)) < 40, `${Math.round(step.width)} px`)
+    const help = await page.locator('summary', { hasText: 'Need help signing in?' }).evaluate((el) => parseFloat(getComputedStyle(el).fontSize))
+    const create = await page.locator('.entrance-new').evaluate((el) => parseFloat(getComputedStyle(el).fontSize))
+    check('Help is visually secondary to “Create an account”', help < create, `${help}px vs ${create}px`)
+    await shot(page, 'signin-desktop-light')
+    // Keyboard: the primary action first, then account creation, then help; focus is visible.
+    await page.keyboard.press('Tab')
+    const order = []
+    for (let i = 0; i < 6; i++) {
+      const f = await page.evaluate(() => ({ text: document.activeElement?.textContent?.trim() ?? '', outline: getComputedStyle(document.activeElement).outlineStyle }))
+      order.push(f)
+      await page.keyboard.press('Tab')
+    }
+    const labels = order.map((o) => o.text)
+    const iCta = labels.findIndex((t) => t === 'Continue with a passkey')
+    const iNew = labels.findIndex((t) => t === 'Create an account')
+    const iHelp = labels.findIndex((t) => t === 'Need help signing in?')
+    check('Tab order: passkey → create an account → help', iCta >= 0 && iCta < iNew && iNew < iHelp, labels.slice(0, 4).join(' | '))
+    const focused = order.filter((o) => ['Continue with a passkey', 'Create an account', 'Need help signing in?'].includes(o.text))
+    check('Focus is visible on each', focused.length === 3 && focused.every((o) => o.outline !== 'none'))
+    await page.locator('summary', { hasText: 'Need help signing in?' }).focus()
+    await page.keyboard.press('Enter')
+    const openText = await page.locator('details.entrance-help').innerText()
+    check('Help opens from the keyboard and covers passkeys, other devices, cancelling, accounts, losing a passkey, browsers', ['What’s a passkey?', 'Passkey on your phone?', 'Cancelled', 'More than one account?', 'Lost your passkey?', 'Which browsers?'].every((t) => openText.includes(t)))
+    check('Help promises no recovery that doesn’t exist', !/email|reset|support will/i.test(openText))
+    await shot(page, 'signin-desktop-help')
     await ctx.close()
   }
 
-  // ── Returning account skips the name; an unsafe next is ignored ─────────────────────────────
-  {
-    const ctx = await browser.newContext()
+  // ── Dark, and a phone: the primary action in reach without scrolling.
+  for (const [name, opts] of [['signin-desktop-dark', { ...DESKTOP, colorScheme: 'dark' }], ['signin-phone-light', { ...PHONE }], ['signin-phone-dark', { ...PHONE, colorScheme: 'dark' }]]) {
+    const ctx = await browser.newContext(opts)
     const page = await ctx.newPage()
     await page.goto(`${BASE}/signin`)
-    const email = addr('back')
-    await signIn(page, email, 'Rosa Returning')
-    await page.waitForURL((u) => !u.pathname.startsWith('/signin'))
-    await page.evaluate(() => fetch('/api/auth/logout', { method: 'POST', headers: { 'x-csrf-token': document.cookie.match(/muni_csrf=([^;]+)/)[1] } }))
-    // Wait out the resend cooldown for this address before asking again.
-    await page.waitForTimeout(31_000)
-    await page.goto(`${BASE}/signin?next=${encodeURIComponent('//evil.example/x')}`)
-    await signIn(page, email, null)
-    await page.waitForURL((u) => !u.pathname.startsWith('/signin'))
-    check('Returning account goes straight in (no name step)', (await page.locator('text=What should we call you?').count()) === 0)
-    check('Unsafe next is replaced by home', new URL(page.url()).origin === BASE && new URL(page.url()).pathname === '/', page.url())
-    await page.goto(`${BASE}/signin`)
-    await page.waitForURL((u) => !u.pathname.startsWith('/signin'))
-    check('A signed-in visit to the entrance goes straight on', new URL(page.url()).pathname === '/')
-    const me = await page.evaluate(() => fetch('/api/auth/me').then((r) => r.json()))
-    check('The existing name was not overwritten', me.display_name === 'Rosa Returning')
+    await page.getByRole('button', { name: 'Continue with a passkey' }).waitFor()
+    if (name.includes('phone')) {
+      const b = await page.getByRole('button', { name: 'Continue with a passkey' }).boundingBox()
+      check(`${name}: the passkey button is on screen without scrolling, and ≥ 44 px tall`, b.y + b.height <= 740 && b.height >= 44, JSON.stringify(b))
+      check(`${name}: no sideways scroll`, (await page.evaluate(() => document.documentElement.scrollWidth)) <= 375)
+    }
+    await shot(page, name)
     await ctx.close()
   }
 
-  // ── Interrupted name step resumes on the same URL ─────────────────────────────────────────
+  // ── Create an account, then sign out and back in (desktop): loading, cancel, retry, next.
   {
-    const ctx = await browser.newContext()
+    const ctx = await browser.newContext(DESKTOP)
     const page = await ctx.newPage()
-    await page.goto(`${BASE}/signin`)
-    const email = addr('resume')
-    await legacy(page, email)
-    await toEmail(page)
-    await page.fill('input[type=email]', email)
-    await page.click('button:has-text("Send me a code")')
-    await page.waitForSelector('text=Check your inbox.')
-    await page.fill('input[autocomplete="one-time-code"]', await codeFor(page, email))
-    await page.click('button:has-text("Continue")')
-    await page.waitForSelector('text=What should we call you?')
-    await page.goto(`${BASE}/account`) // closed the tab, came back to a deep link
-    await page.waitForSelector('text=What should we call you?')
-    check('Name step resumes on a deep link, URL kept', new URL(page.url()).pathname === '/account')
-    await page.fill('input[autocomplete="name"]', 'Remy Resumed')
-    await page.click('button:has-text("Continue")')
-    await page.waitForSelector('h1:text-is("Account")')
-    check('…and then the deep link opens', new URL(page.url()).pathname === '/account')
-    const n = await page.evaluate(async (e) => (await fetch('/api/auth/me').then((r) => r.json())).email === e, email)
-    check('Same account throughout', n)
+    const va = await authenticator(page)
+    await page.goto(`${BASE}/signin?next=%2Faccount`)
+    await page.getByRole('button', { name: 'Create an account' }).click()
+    await page.waitForSelector('text=Create your account.')
+    check('Create account: concise — a name, one action, no email', (await page.locator('input[type=email]').count()) === 0 && (await page.locator('.entrance-step').innerText()).length < 260)
+    await shot(page, 'create-account')
+    await page.getByRole('button', { name: 'Create with a passkey' }).click()
+    check('An empty name gets a clear message, focus stays in the field', (await page.locator('[role=alert]').innerText()).includes('Enter the name') && (await page.evaluate(() => document.activeElement?.getAttribute('autocomplete'))) === 'name')
+    await page.fill('input[autocomplete="name"]', 'Nia Newcomer')
+    await page.getByRole('button', { name: 'Create with a passkey' }).click()
+    await page.waitForSelector('text=Welcome, Nia Newcomer.')
+    check('After creating: a second passkey is offered, “Not now” available', await page.getByRole('button', { name: 'Not now' }).isVisible())
+    await shot(page, 'second-passkey')
+    await page.getByRole('button', { name: 'Not now' }).click()
+    await page.waitForURL((u) => !u.pathname.startsWith('/signin'))
+    // A new account meets the character chooser first (e2e/worlds.mjs covers it).
+    await page.locator('button:has-text("Decide later")').click({ timeout: 5000 }).catch(() => {})
+    const me = (await api(page, 'GET', '/api/auth/me')).body
+    check('The account exists with one passkey and no email', me.passkeys === 1 && me.email === null)
+
+    await signOut(page)
+    await page.getByRole('button', { name: 'Continue with a passkey' }).waitFor()
+    // Loading: the button says it's busy while the ceremony runs.
+    await page.route('**/api/auth/passkey/login/options', async (r) => {
+      await new Promise((res) => setTimeout(res, 800))
+      await r.continue()
+    })
+    await va.setVerified(false)
+    await page.getByRole('button', { name: 'Continue with a passkey' }).click()
+    check('Loading: the passkey button is busy while it waits', (await page.getByRole('button', { name: 'Continue with a passkey' }).getAttribute('aria-busy')) === 'true')
+    await page.waitForSelector('text=No passkey was used')
+    check('Cancelled: calm guidance, not an error', (await page.locator('[role=alert]').count()) === 0 && (await page.locator('[role=status]', { hasText: 'No passkey was used' }).count()) === 1)
+    await shot(page, 'signin-cancelled')
+    await page.unroute('**/api/auth/passkey/login/options')
+    await va.setVerified(true)
+    await page.goto(`${BASE}/signin?next=%2Faccount`)
+    await page.getByRole('button', { name: 'Continue with a passkey' }).click()
+    await page.waitForURL((u) => u.pathname === '/account', { timeout: 15000 })
+    check('Retry signs in to the same account and goes on to “next”', (await api(page, 'GET', '/api/auth/me')).body.account_id === me.account_id)
+    check('A signed-in visit to /signin goes straight on', await page.goto(`${BASE}/signin`).then(() => page.waitForURL((u) => !u.pathname.startsWith('/signin'), { timeout: 5000 }).then(() => true, () => false)))
+
+    // A passkey Muni no longer knows: a specific message, as an error.
+    await signOut(page)
+    const creds = await va.credentials()
+    const ghost = await browser.newContext(DESKTOP)
+    const gp = await ghost.newPage()
+    const gva = await authenticator(gp)
+    await gva.add({ ...creds[0], credentialId: Buffer.from(crypto.getRandomValues(new Uint8Array(32))).toString('base64'), userHandle: Buffer.from('nobody-here').toString('base64') })
+    await gp.goto(`${BASE}/signin`)
+    await gp.getByRole('button', { name: 'Continue with a passkey' }).click()
+    await gp.waitForSelector('[role=alert]')
+    check('Unknown passkey: says so, and what to do', /isn’t linked to a Muni account|couldn’t be verified/.test(await gp.locator('[role=alert]').innerText()), await gp.locator('[role=alert]').innerText())
+    await ghost.close()
     await ctx.close()
   }
 
-  // ── Invitation: context kept through email, code, name and join ─────────────────────────────
-  const o = await owner(browser)
+  // ── Old email links, the email API, invitations.
   {
-    const email = addr('invitee')
-    const link = await o.invite(email)
-    const ctx = await browser.newContext()
+    const ctx = await browser.newContext(DESKTOP)
     const page = await ctx.newPage()
-    await page.goto(link.replace('http://localhost:8787', BASE))
-    await page.waitForSelector('text=You’re invited.')
-    const hash = new URL(page.url()).hash
-    check('Invitation page names the invited address (masked)', (await page.locator('text=This invitation is for').innerText()).includes('•••'))
-    await signIn(page, email, 'Ivy Invitee')
-    await page.waitForSelector('text=Join Synthetic team?')
-    check('Invitation kept through the email path, code and name', new URL(page.url()).hash === hash && new URL(page.url()).pathname === '/invite')
-    await page.click('button:has-text("Join the workspace")')
-    await page.waitForURL(`**/sprints/${o.sprint}`)
-    check('Joining opens the sprint it was for', new URL(page.url()).pathname === `/sprints/${o.sprint}`)
-    await ctx.close()
-  }
-  {
-    // Signed in as someone else: a clear way out, no workspace name shown.
-    const email = addr('meant')
-    const link = await o.invite(email, false)
-    const ctx = await browser.newContext()
-    const page = await ctx.newPage()
-    await page.goto(`${BASE}/signin`)
-    await signIn(page, addr('other'), 'Otto Other')
-    await page.waitForURL((u) => !u.pathname.startsWith('/signin'))
-    await page.goto(link.replace('http://localhost:8787', BASE))
-    await page.waitForSelector('text=This invitation is for another address.')
-    check('Wrong account: explained, workspace not named', (await page.locator('text=Synthetic team').count()) === 0)
+    await page.goto(`${BASE}/signin?method=email`)
+    await page.getByRole('button', { name: 'Continue with a passkey' }).waitFor()
+    check('An old ?method=email link opens the passkey sign-in', (await page.locator('input[type=email]').count()) === 0)
+    const r = await page.evaluate(async () => (await fetch('/api/auth/request-code', { method: 'POST', headers: { 'content-type': 'application/json' }, body: '{"email":"x@example.test"}' })).status)
+    check('The email sign-in API is gone', r === 404)
     await page.goto(`${BASE}/invite#not-a-real-token`)
     await page.waitForSelector('text=This invitation can’t be used.')
-    check('Unknown or expired invitation: clear outcome', true)
+    check('Unknown invitation: a clear outcome', true)
     await ctx.close()
   }
 
-  // ── Resend after the cooldown; offline honesty; reduced motion; change email ────────────────
+  // ── Reduced motion, unsupported browser, offline.
   {
-    const ctx = await browser.newContext({ reducedMotion: 'reduce' })
+    const ctx = await browser.newContext({ ...DESKTOP, reducedMotion: 'reduce' })
     const page = await ctx.newPage()
     await page.goto(`${BASE}/signin`)
-    check('Reduced motion: no step animation', (await page.locator('.entrance-step').evaluate((el) => getComputedStyle(el).animationName)) === 'none')
-    const email = addr('offline')
-    await legacy(page, email)
-    await toEmail(page)
-    await page.fill('input[type=email]', email)
-    await ctx.setOffline(true)
-    await page.click('button:has-text("Send me a code")')
-    await page.waitForSelector('[role=alert]')
-    check('Offline: honest message, nothing claimed sent', /offline/.test(await page.locator('[role=alert]').innerText()) && (await page.locator('text=Check your inbox.').count()) === 0)
-    await ctx.setOffline(false)
-    await page.click('button:has-text("Send me a code")')
-    await page.waitForSelector('text=Check your inbox.')
-    check('Retry works once back online', true)
-    await page.click('button:has-text("Change email")')
-    await page.waitForSelector('text=Sign in with email.')
-    check('Change email keeps the address and focuses it', (await page.locator('input[type=email]').inputValue()) === email && (await page.locator('input[type=email]').evaluate((el) => el === document.activeElement)))
-    await page.click('button:has-text("Send me a code")')
-    await page.waitForSelector('text=Check your inbox.')
-    check('Asking again within the cooldown goes on to the code already sent', (await page.locator('text=a moment ago').count()) === 1)
-    const first = await codeFor(page, email)
-    await page.waitForTimeout(31_000)
-    const resend = page.locator('button:has-text("Send a new code")')
-    check('Resend becomes available after the cooldown', !(await resend.isDisabled()))
-    await resend.click()
-    await page.waitForSelector('text=A new code is on its way')
-    const second = await codeFor(page, email)
-    check('A new code was sent', !!second)
-    if (second !== first) {
-      await page.fill('input[autocomplete="one-time-code"]', first)
-      await page.click('button:has-text("Continue")')
-      await page.waitForSelector('[role=alert]')
-      check('The older code no longer works', /doesn’t match/.test(await page.locator('[role=alert]').innerText()))
-    }
+    await page.getByRole('button', { name: 'Continue with a passkey' }).waitFor()
+    check('Reduced motion: the step doesn’t animate, the scene is still', (await page.locator('.entrance-step').evaluate((el) => getComputedStyle(el).animationName)) === 'none' && (await page.locator('.scene-duyan').evaluate((el) => getComputedStyle(el).animationName)) === 'none')
     await ctx.close()
+
+    const u = await browser.newContext(DESKTOP)
+    await u.addInitScript(() => {
+      delete window.PublicKeyCredential
+    })
+    const up = await u.newPage()
+    await up.goto(`${BASE}/signin`)
+    await up.waitForSelector('text=This browser can’t use passkeys.')
+    check('Unsupported browser: says so plainly, points to supported browsers, no other way in', (await up.getByRole('button', { name: 'Continue with a passkey' }).count()) === 0 && !/email/i.test(await panelText(up)))
+    await shot(up, 'signin-unsupported')
+    await u.close()
+
+    const o = await browser.newContext(DESKTOP)
+    const op = await o.newPage()
+    await authenticator(op)
+    await op.goto(`${BASE}/signin`)
+    await op.getByRole('button', { name: 'Continue with a passkey' }).waitFor()
+    await o.setOffline(true)
+    await op.getByRole('button', { name: 'Continue with a passkey' }).click()
+    await op.waitForSelector('[role=alert]')
+    check('Offline: an honest message', /offline/i.test(await op.locator('[role=alert]').innerText()))
+    await o.close()
   }
+} catch (e) {
+  check('run completed', false, String(e?.stack ?? e).split('\n').slice(0, 3).join(' '))
 } finally {
   await browser.close()
 }

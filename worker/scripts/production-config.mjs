@@ -6,8 +6,7 @@
  * Required: MUNI_DOMAIN (e.g. muni.example.com), MUNI_D1_DATABASE_ID (from `wrangler d1 create`),
  *           MUNI_EMAIL_FROM (e.g. "Muni <hello@example.com>", a sender your email provider accepts).
  * Optional: MUNI_WORKER_NAME (muni), MUNI_D1_DATABASE_NAME (muni), MUNI_EMAIL_PROVIDER (resend),
- *           MUNI_AI_PROVIDER (none), MUNI_SIGNIN_CODES_PER_NETWORK_DAILY (30),
- *           MUNI_SIGNIN_EMAILS_DAILY_LIMIT (60).
+ *           MUNI_AI_PROVIDER (none). Email is for invitations and reminders; nobody signs in by email.
  */
 import { existsSync, readFileSync, writeFileSync } from 'node:fs'
 
@@ -20,8 +19,6 @@ const defaults = {
   MUNI_D1_DATABASE_NAME: 'muni',
   MUNI_EMAIL_PROVIDER: 'resend',
   MUNI_AI_PROVIDER: 'none',
-  MUNI_SIGNIN_CODES_PER_NETWORK_DAILY: '30',
-  MUNI_SIGNIN_EMAILS_DAILY_LIMIT: '60',
 }
 const required = ['MUNI_DOMAIN', 'MUNI_D1_DATABASE_ID', 'MUNI_EMAIL_FROM']
 const fail = (msg) => {

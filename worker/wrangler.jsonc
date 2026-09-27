@@ -30,9 +30,7 @@
     "EMAIL_PROVIDER": "console",
     "AI_PROVIDER": "fake",
     "ALLOW_DEMO_SEED": "true",
-    // Local development signs in many throwaway accounts from one address (and e2e runs do).
-    "SIGNIN_CODES_PER_NETWORK_DAILY": "100000",
-    "SIGNIN_EMAILS_DAILY_LIMIT": "100000",
+    // Local development creates many throwaway accounts from one address (and e2e runs do).
     "SIGNUPS_PER_NETWORK_DAILY": "100000",
     "SIGNUPS_DAILY_LIMIT": "100000",
     // Passkeys: the RP ID defaults to PUBLIC_ORIGIN's host (localhost). The Vite dev server is a

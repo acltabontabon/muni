@@ -8,8 +8,8 @@ import stylesCss from '../styles.css?raw'
 import worldsCss from '../worlds/worlds.css?raw'
 
 // Each is shown only while its state lasts: a draft being generated, a transcription running,
-// a join request waiting, the caret in a focused code field.
-const WHILE_BUSY = ['.anim-pulse', '.journal-voice-think', '.entrance-wait i', '.capiz-pane[data-active]::after']
+// a join request waiting.
+const WHILE_BUSY = ['.anim-pulse', '.journal-voice-think', '.entrance-wait i']
 
 function infinite(css: string) {
   const out: string[] = []

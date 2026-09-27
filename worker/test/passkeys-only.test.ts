@@ -1,13 +1,13 @@
 /**
- * Passkey-first accounts: creating an account with a passkey and no email, the optional verified
- * address (add, change, remove, recovery), the last-way-in guards, email invitations for accounts
- * without an address, personal single-use invite links, and what passkey-only accounts are and
- * aren't sent. Through the public HTTP API, with the software authenticator.
+ * Passkeys are the only way in: creating an account with a passkey, email sign-in being gone (its
+ * endpoints, codes and sessions), the last-passkey guard, the address that emailed invitations
+ * leave behind (for mail only), personal single-use invite links, and what accounts without an
+ * address are and aren't sent. Through the public HTTP API, with the software authenticator.
  */
 import { describe, expect, it } from 'vitest'
 import { env } from 'cloudflare:test'
 import { SoftAuthenticator } from './authenticator'
-import { addPasskeyTo, ageSession, codeFor, del, get, inviteToken, lastMailTo, passkeyLogin, passkeySignup, post, rawReq, runJobs, setCookie, signin, skipCooldown, sprint, tag, team, verify, type User } from './harness'
+import { addPasskeyTo, del, get, inviteToken, lastMailTo, passkeySignup, post, rawReq, runJobs, setCookie, signin, sprint, tag, team } from './harness'
 
 const count = async (sql: string, ...args: unknown[]) => Number((await env.DB.prepare(sql).bind(...args).first<{ n: number }>())?.n ?? 0)
 const tokenOf = (url: string) => url.split('#')[1]
@@ -17,20 +17,13 @@ async function fresh(name = 'Pia Passkey') {
   expect(r.status, JSON.stringify(r.body)).toBe(200)
   return { user: r.user!, auth, me: r.body }
 }
-async function addEmail(u: User, email: string) {
-  await skipCooldown(email)
-  const req = await post('/api/me/email/request', u, { email })
-  if (req.status !== 200) return req
-  return post('/api/me/email/verify', u, { email, code: await codeFor(email) })
-}
-
 describe('creating an account with a passkey', () => {
-  it('needs no email address, sets the chosen name, and signs in', async () => {
+  it('needs only a name, and signs in', async () => {
     const { user, me } = await fresh('Pia')
     expect(me).toMatchObject({ email: null, display_name: 'Pia', needs_name: false, passkeys: 1, created: true, auth_method: 'passkey' })
-    // The legacy column holds a placeholder that can never be an address.
-    const legacy = await env.DB.prepare('SELECT email, webauthn_user_id FROM accounts WHERE id = ?').bind(user.account_id).first<{ email: string; webauthn_user_id: string }>()
-    expect(legacy!.email).toBe(`@${user.account_id}`)
+    // No email column: the legacy key is the account's own id.
+    const legacy = await env.DB.prepare('SELECT legacy_key, webauthn_user_id FROM accounts WHERE id = ?').bind(user.account_id).first<{ legacy_key: string; webauthn_user_id: string }>()
+    expect(legacy!.legacy_key).toBe(user.account_id)
     expect(legacy!.webauthn_user_id).toMatch(/^[A-Za-z0-9_-]{43}$/)
     expect(await count('SELECT count(*) AS n FROM account_emails WHERE account_id = ?', user.account_id)).toBe(0)
     expect((await get('/api/auth/me', user)).body.account_id).toBe(user.account_id)
@@ -72,129 +65,85 @@ describe('creating an account with a passkey', () => {
     expect([c.signupsPerNetworkDaily, c.signupsDailyLimit]).toEqual([10, 200])
   })
 
-  it('a code for an address never creates an account', async () => {
-    const email = `pf-nocreate-${tag()}@example.com`
-    await post('/api/auth/request-code', null, { email })
-    expect((await verify(email, await codeFor(email))).body.code).toBe('no_account')
-  })
 })
 
-describe('the optional email address', () => {
-  it('is added only by proving the mailbox, with a recent sign-in, and then works for recovery', async () => {
-    const { user, auth } = await fresh()
-    const email = `pf-add-${tag()}@example.com`
-    await ageSession(user)
-    expect((await post('/api/me/email/request', user, { email })).body.code).toBe('reauth_required')
-    const back = (await passkeyLogin(auth)).user!
-    expect((await addEmail(back, email)).body).toEqual({ ok: true, email })
-    expect((await get('/api/auth/me', back)).body.email).toBe(email)
-    expect((await env.DB.prepare('SELECT email FROM accounts WHERE id = ?').bind(user.account_id).first<{ email: string }>())!.email).toBe(`@${user.account_id}`)
-    // Recovery: every passkey gone from this device — sign in with a code instead.
-    const r = await signin(email)
-    expect(r.account_id).toBe(user.account_id)
+describe('email sign-in is gone', () => {
+  it('its endpoints don’t exist, answer nothing useful, and never start a session', async () => {
+    const email = `pk-only-${tag()}@example.com`
+    await signin(email, 'Has an address')
+    for (const [path, body] of [
+      ['/api/auth/request-code', { email }],
+      ['/api/auth/verify', { email, code: '123456' }],
+      ['/api/auth/verify', { email, code: '123456', reauth: true }],
+      ['/api/me/email/request', { email }],
+      ['/api/me/email/verify', { email, code: '123456' }],
+      ['/api/invitations/confirm', { token: 'x' }],
+    ] as const) {
+      const r = await rawReq('POST', path, { json: body })
+      expect(r.status, path).toBe(404)
+      expect(setCookie(r, 'muni_session'), path).toBeNull()
+    }
+    expect(await count("SELECT count(*) AS n FROM dev_mail WHERE to_addr = ?", email)).toBe(0)
+    // Nothing is left to redeem: the codes table is gone.
+    expect(await count("SELECT count(*) AS n FROM sqlite_master WHERE name = 'verification_challenges'")).toBe(0)
   })
 
-  it('a code is bound to the account that asked for it', async () => {
-    const a = await fresh('A')
-    const b = await fresh('B')
-    const email = `pf-bound-${tag()}@example.com`
-    await post('/api/me/email/request', a.user, { email })
-    const stolen = await post('/api/me/email/verify', b.user, { email, code: await codeFor(email) })
-    expect(stolen.status).toBe(400)
-    expect(await count('SELECT count(*) AS n FROM account_emails WHERE email = ?', email)).toBe(0)
+  it('a session from an email code, if one were left, doesn’t sign anyone in', async () => {
+    const { user } = await fresh('Old session')
+    const { sha256Hex } = await import('../src/lib/crypto')
+    const token = 'old-email-session-token-' + tag()
+    await env.DB.prepare("INSERT INTO sessions (id, account_id, token_hash, csrf_token, created_at, last_seen_at, expires_at, auth_method) VALUES (?,?,?,?,?,?,?, 'email')")
+      .bind(crypto.randomUUID(), user.account_id, await sha256Hex(token), 'csrf', Date.now(), Date.now(), Date.now() + 86_400_000).run()
+    expect((await get('/api/auth/me', { ...user, session: token, csrf: 'csrf' })).status).toBe(401)
   })
 
-  it('an address on another account is refused — and said so only after its code is verified', async () => {
-    const owner = await fresh('Owner of address')
-    const email = `pf-taken-${tag()}@example.com`
-    await addEmail(owner.user, email)
-    const other = await fresh('Other')
-    await skipCooldown(email)
-    const asked = await post('/api/me/email/request', other.user, { email })
-    expect(asked.body).toEqual({ sent: true, expires_in_minutes: 10, resend_after_seconds: 30 })
-    const r = await post('/api/me/email/verify', other.user, { email, code: await codeFor(email) })
-    expect(r.status).toBe(409)
-    expect(r.body.code).toBe('email_in_use')
-    expect((await get('/api/auth/me', other.user)).body.email).toBeNull()
-  })
-
-  it('changing or removing it frees the old address; removing needs a passkey', async () => {
-    const { user } = await fresh()
-    const first = `pf-first-${tag()}@example.com`
-    const second = `pf-second-${tag()}@example.com`
-    await addEmail(user, first)
-    await addEmail(user, second)
-    expect((await get('/api/auth/me', user)).body.email).toBe(second)
-    const other = await fresh('Takes the old one')
-    expect((await addEmail(other.user, first)).status).toBe(200)
-    expect((await del('/api/me/email', user)).status).toBe(200)
-    expect((await get('/api/auth/me', user)).body.email).toBeNull()
-    await skipCooldown(second)
-    await post('/api/auth/request-code', null, { email: second })
-    expect((await verify(second, await codeFor(second))).body.code).toBe('no_account')
-    // An email-only account can't remove its address: it would have no way in.
-    const legacy = await signin(`pf-legacy-${tag()}@example.com`, 'Legacy')
-    const r = await del('/api/me/email', legacy)
-    expect(r.status).toBe(409)
-    expect(r.body.code).toBe('last_method')
+  it('an address never signs in, and removing it only stops the mail', async () => {
+    const email = `pk-addr-${tag()}@example.com`
+    const u = await signin(email, 'Mail only')
+    expect((await get('/api/auth/me', u)).body.email).toBe(email)
+    expect((await del('/api/me/email', u)).status).toBe(200)
+    expect((await get('/api/auth/me', u)).body.email).toBeNull()
+    expect((await get('/api/auth/me', u)).status).toBe(200) // still signed in: the passkey is the way in
   })
 })
 
 describe('the last way in', () => {
-  it('the only passkey of an account without an address can’t be removed; with another method it can', async () => {
-    const { user, auth } = await fresh()
-    const only = (await get('/api/auth/passkeys', user)).body[0].id
-    const refused = await del(`/api/auth/passkeys/${only}`, user)
+  it('an account’s only passkey can’t be removed — an address doesn’t change that', async () => {
+    const u = await signin(`pk-last-${tag()}@example.com`, 'Has an address')
+    const only = (await get('/api/auth/passkeys', u)).body[0].id
+    const refused = await del(`/api/auth/passkeys/${only}`, u)
     expect(refused.status).toBe(409)
     expect(refused.body.code).toBe('last_method')
-    await addPasskeyTo(user, new SoftAuthenticator())
-    expect((await del(`/api/auth/passkeys/${only}`, user)).status).toBe(200)
-    const remaining = (await get('/api/auth/passkeys', user)).body[0].id
-    expect((await del(`/api/auth/passkeys/${remaining}`, user)).body.code).toBe('last_method')
-    await addEmail(user, `pf-lastway-${tag()}@example.com`)
-    expect((await del(`/api/auth/passkeys/${remaining}`, user)).status).toBe(200)
-    void auth
+    await addPasskeyTo(u, new SoftAuthenticator())
+    expect((await del(`/api/auth/passkeys/${only}`, u)).status).toBe(200)
+    const remaining = (await get('/api/auth/passkeys', u)).body[0].id
+    expect((await del(`/api/auth/passkeys/${remaining}`, u)).body.code).toBe('last_method')
   })
 })
 
-describe('email invitations for accounts without an address', () => {
-  it('join after confirming the invited address by code, which the account keeps', async () => {
+describe('emailed invitations', () => {
+  it('an account without an address keeps the invited one, for mail only', async () => {
     const { owner, ws } = await team(0)
     const email = `pf-inv-${tag()}@example.com`
     await post(`/api/workspaces/${ws}/invitations`, owner, { email })
     const token = await inviteToken(email)
     const { user } = await fresh('Invitee')
-    const preview = await post('/api/invitations/preview', user, { token })
-    expect(preview.body).toMatchObject({ valid: true, matches_session: false, can_confirm: true, workspace_name: null })
-    const bare = await post('/api/invitations/accept', user, { token })
-    expect(bare.status).toBe(403)
-    expect(bare.body.code).toBe('confirm_email')
-    // Someone else's code for the invited address doesn't work here.
-    const intruder = await fresh('Intruder')
-    await post('/api/invitations/confirm', intruder.user, { token })
-    expect((await post('/api/invitations/accept', user, { token, code: await codeFor(email) })).status).toBe(400)
-    await skipCooldown(email)
-    expect((await post('/api/invitations/confirm', user, { token })).body.sent).toBe(true)
-    const ok = await post('/api/invitations/accept', user, { token, code: await codeFor(email) })
-    expect(ok.status).toBe(200)
+    expect((await post('/api/invitations/preview', user, { token })).body).toMatchObject({ valid: true, signed_in: true })
+    expect((await post('/api/invitations/accept', user, { token })).status).toBe(200)
     expect((await get('/api/auth/me', user)).body.email).toBe(email)
     expect((await get(`/api/workspaces/${ws}`, user)).status).toBe(200)
   })
 
-  it('an invited address that belongs to another account sends the person there, not into a second identity', async () => {
+  it('an address another account already has stays with that account', async () => {
     const { owner, ws } = await team(0)
     const email = `pf-inv-taken-${tag()}@example.com`
     const existing = await signin(email, 'Existing')
     await post(`/api/workspaces/${ws}/invitations`, owner, { email })
     const token = await inviteToken(email)
     const { user } = await fresh('Newcomer')
-    await skipCooldown(email)
-    await post('/api/invitations/confirm', user, { token })
-    const r = await post('/api/invitations/accept', user, { token, code: await codeFor(email) })
-    expect(r.status).toBe(409)
-    expect(r.body.code).toBe('email_other_account')
-    expect(await count('SELECT count(*) AS n FROM memberships WHERE workspace_id = ? AND account_id = ?', ws, user.account_id)).toBe(0)
-    expect((await post('/api/invitations/accept', existing, { token })).status).toBe(200)
+    expect((await post('/api/invitations/accept', user, { token })).status).toBe(200)
+    expect((await get('/api/auth/me', user)).body.email).toBeNull()
+    expect((await get('/api/auth/me', existing)).body.email).toBe(email)
   })
 })
 

@@ -25,7 +25,7 @@ export function Join() {
   const nav = useNavigate()
   const [preview, setPreview] = useState<JoinPreview | null>(null)
   const [loadError, setLoadError] = useState('')
-  const [progress, setProgress] = useState<number>(PROGRESS.email)
+  const [progress, setProgress] = useState<number>(PROGRESS.start)
   const [requestId, setRequestId] = useState<string | null>(null)
   const load = useCallback(() => {
     setLoadError('')
@@ -70,8 +70,8 @@ export function Join() {
         intro={{
           title: 'You’re invited to a team.',
           lead: preview.mode === 'direct'
-            ? 'This personal link adds you to the team once you’re signed in. Continue with your passkey, or create an account — no email needed.'
-            : 'Continue with your passkey, or create an account — no email needed. Anyone with this code can ask to join, so someone on the team approves each request.',
+            ? 'This personal link adds you to the team once you’re signed in with your passkey, or once you’ve created an account.'
+            : 'Sign in with your passkey, or create an account. Anyone with this code can ask to join, so someone on the team approves each request.',
         }}
         onDone={async () => {
           await refresh()

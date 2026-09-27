@@ -53,8 +53,9 @@ cd worker && pnpm install && pnpm migrate:local && pnpm dev    # API + local D1,
 cd web && npm install && npm run dev                           # app with hot reload, http://localhost:5173
 ```
 
-Local defaults (`worker/wrangler.jsonc`): sign-in codes and invitations go to a development inbox
-at `GET /api/dev/inbox` instead of email, a local stand-in replaces the AI provider, and
+Local defaults (`worker/wrangler.jsonc`): invitation and reminder emails go to a development inbox
+at `GET /api/dev/inbox`, scripts can create a signed-in account with `POST /api/dev/session`
+(development only), a local stand-in replaces the AI provider, and
 `POST /api/demo/seed` builds a fictional sprint for the signed-in account.
 
 Checks:
@@ -80,7 +81,7 @@ configured.
 
 - Early software with a single maintainer; expect changes to the data model and API.
 - Cloudflare only (Workers, D1, Durable Objects).
-- Sign-in is passkey-first (WebAuthn); an email address is optional (recovery, email invitations, reminders). Accounts from before passkeys can still sign in with an email code. No SSO or social login.
+- Passkeys are the only way to sign in (WebAuthn): no email sign-in, password, SSO or social login. Losing every passkey means losing the account. An address, if an account has one, only receives invitations and reminders.
 - English only.
 - Tested mostly in Chromium; Safari/iOS and Firefox less thoroughly.
 - Encryption covers new sprints' content only, trusts the delivered frontend, and hasn't been

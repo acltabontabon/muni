@@ -39,11 +39,8 @@ async function account(prefix, name, intro = 'done') {
     if (!r.ok) throw new Error(`${method} ${path} ${r.status} ${t.slice(0, 200)}`)
     return t ? JSON.parse(t) : null
   }
-  await req('POST', '/api/dev/legacy-account', { email, name, intro })
-  await req('POST', '/api/auth/request-code', { email })
-  const inbox = await (await fetch(BASE + '/api/dev/inbox')).json()
-  const code = inbox.find((m) => m.to === email && /sign-in code/.test(m.subject)).subject.split(' ')[0]
-  const me = await req('POST', '/api/auth/verify', { email, code })
+  // A signed-in account, made by the development-only endpoint (passkeys themselves: e2e/passkeys.mjs).
+  const me = await req('POST', '/api/dev/session', { name, intro })
   return { email, name, id: me.account_id, req, cookies: () => [...jar].map(([n, value]) => ({ name: n, value, domain: new URL(BASE).hostname, path: '/' })) }
 }
 

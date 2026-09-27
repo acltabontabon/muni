@@ -1,12 +1,11 @@
 /**
  * Passkeys: standard WebAuthn through @simplewebauthn/server (docs/PASSKEYS.md).
  *
- * What a passkey proves is the same thing an email code proves — control of this account — and
+ * A passkey is the only way into an account. What it proves is control of the account, and
  * nothing more: it grants no membership. Separately, and only in the browser, a passkey that
  * supports the PRF extension can unlock the account's encryption key (routes/keys.ts); its PRF
  * output never reaches the server, which refuses any request that carries one. A passkey is added only by a
- * signed-in person who recently proved control of the account, never because a request names an
- * email address.
+ * signed-in person who recently proved control of the account with another passkey.
  *
  * Every ceremony uses a random, expiring, single-use challenge from our own table. The challenge is
  * consumed atomically *before* the response is verified, so a replayed or concurrently reused
@@ -73,7 +72,7 @@ interface CredentialRow {
 
 const failed = (code: string, message: string, status = 400) => new AppError(status, code, message)
 /** One message for every verification failure: details go to nobody (they'd help only an attacker). */
-const notVerified = () => failed('passkey_failed', 'that passkey couldn’t be verified — try again, or use an email code')
+const notVerified = () => failed('passkey_failed', 'that passkey couldn’t be verified — try again')
 
 async function readJson(c: Context<HonoEnv>): Promise<Record<string, unknown>> {
   const len = Number(c.req.header('content-length') ?? 0)
@@ -243,7 +242,7 @@ passkeys.post('/api/auth/passkey/login/verify', async (c) => {
 async function verifyAssertion(db: D1Database, cfg: Config, response: AuthenticationResponseJSON, expectAccount?: string): Promise<{ cred: CredentialRow; account: string }> {
   const cred = await one<CredentialRow>(db, 'SELECT * FROM webauthn_credentials WHERE credential_id = ?', response.id)
   // The browser still offers a passkey Muni no longer has (it was removed): say so plainly.
-  if (!cred) throw failed('passkey_unknown', 'this passkey isn’t linked to a Muni account any more — it may have been removed. Use an email code instead.')
+  if (!cred) throw failed('passkey_unknown', 'this passkey isn’t linked to a Muni account any more — it may have been removed. Choose another passkey, or create an account.')
   if (expectAccount && cred.account_id !== expectAccount) throw failed('account_mismatch', 'that passkey belongs to a different account', 403)
   const handle = response.response.userHandle
   if (handle) {
@@ -295,7 +294,7 @@ passkeys.post('/api/auth/passkey/reauth/options', async (c) => {
   const owned = await all<CredentialRow>(c.env.DB, 'SELECT * FROM webauthn_credentials WHERE account_id = ?', a.account.id)
   const creds = typeof body.credential === 'string' ? owned.filter((k) => k.id === body.credential) : owned
   if (typeof body.credential === 'string' && !creds.length) throw notFound('passkey not found')
-  if (!creds.length) throw failed('no_passkeys', 'this account has no passkey yet — confirm with an email code', 409)
+  if (!creds.length) throw failed('no_passkeys', 'this account has no passkey', 409)
   const options = await generateAuthenticationOptions({
     rpID: cfg.webauthn.rpId,
     userVerification: 'required',
@@ -337,7 +336,7 @@ passkeys.post('/api/auth/passkey/register/options', async (c) => {
   const acct = (await one<{ display_name: string }>(c.env.DB, 'SELECT display_name FROM accounts WHERE id = ?', a.account.id))!
   // What the person's password manager shows to tell accounts apart: the address if the account
   // has one, otherwise the name they chose. Never used to find the account.
-  const label = a.account.email ?? (acct.display_name || 'Muni account')
+  const label = acct.display_name || 'Muni account'
   const options = await generateRegistrationOptions({
     rpName: cfg.webauthn.rpName,
     rpID: cfg.webauthn.rpId,
@@ -411,7 +410,7 @@ passkeys.post('/api/auth/passkey/register/verify', async (c) => {
 /**
  * Options to create a new account whose first sign-in method is this passkey. Nothing is created
  * until the registration is verified. No email address is needed. Account creation is limited
- * per network and per day, because there is no mailbox to slow abuse down.
+ * per network and per day, because nothing else slows abuse down.
  */
 passkeys.post('/api/auth/passkey/signup/options', async (c) => {
   const cfg = config(c.env)
@@ -511,24 +510,23 @@ passkeys.patch('/api/auth/passkeys/:id', async (c) => {
 
 /**
  * Removing a passkey stops it signing in. It doesn't end sessions unless `revoke_sessions` asks
- * for that (other sessions started with this passkey; never the one making the request). The
- * last passkey of an account without an email address can't be removed.
+ * for that (other sessions started with this passkey; never the one making the request). An
+ * account's last passkey can't be removed: it's the only way in.
  */
 passkeys.delete('/api/auth/passkeys/:id', async (c) => {
   const a = await requireAuth(c, config(c.env), c.env.DB)
   requireRecentAuth(a)
   const body = await readJson(c)
   const id = c.req.param('id')
-  // Without an email address the last passkey is the only way in: it can't be removed.
+  // The last passkey is the only way in: it can't be removed.
   const r = await run(
     c.env.DB,
-    `DELETE FROM webauthn_credentials WHERE id = ? AND account_id = ?
-       AND (EXISTS (SELECT 1 FROM account_emails WHERE account_id = ?) OR (SELECT count(*) FROM webauthn_credentials WHERE account_id = ?) > 1)`,
-    id, a.account.id, a.account.id, a.account.id,
+    'DELETE FROM webauthn_credentials WHERE id = ? AND account_id = ? AND (SELECT count(*) FROM webauthn_credentials WHERE account_id = ?) > 1',
+    id, a.account.id, a.account.id,
   )
   if (!r.meta.changes) {
     if (await one(c.env.DB, 'SELECT 1 AS x FROM webauthn_credentials WHERE id = ? AND account_id = ?', id, a.account.id))
-      throw failed('last_method', 'this is your only way to sign in — add another passkey or a recovery email first', 409)
+      throw failed('last_method', 'this is your only passkey, and so your only way in — add another one first', 409)
     throw notFound('passkey not found')
   }
   // Its wrap of the account key goes with it (also by the foreign key), so it can't unlock anything.

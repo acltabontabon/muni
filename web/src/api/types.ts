@@ -4,7 +4,6 @@ export type {
   AiStatus,
   AuditEvent,
   CaptureTarget,
-  CodeSent,
   Category,
   Command,
   Experiment,

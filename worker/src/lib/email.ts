@@ -1,6 +1,6 @@
 /**
- * Email delivery behind an adapter. Messages carry neutral links and codes,
- * never entry content. Free-tier HTTPS providers are supported; without one
+ * Email delivery behind an adapter, for the two things Muni mails: invitations and sprint reminders.
+ * Messages carry neutral links, never entry content, and never sign anyone in. Free-tier HTTPS providers are supported; without one
  * configured in production the app reports "setup required" instead of
  * pretending.
  */
@@ -45,25 +45,15 @@ export async function sendMail(cfg: Config, db: D1Database, mail: Mail): Promise
     }
     case 'none':
     default:
-      throw setupRequired('email delivery isn’t set up on this server yet — sign-in codes can’t be sent. Ask the operator to configure an email provider.')
+      throw setupRequired('email delivery isn’t set up on this server yet — invitations and reminders can’t be emailed. Ask the operator to configure an email provider, or invite with a link instead.')
   }
 }
 
 export const templates = {
-  signInCode: (to: string, code: string): Mail => ({
-    to,
-    subject: `${code} is your Muni sign-in code`,
-    body: `Your Muni sign-in code is:\n\n    ${code}\n\nIt expires in 10 minutes and works once.\n\nIf you didn’t request this, you can ignore this email.\n`,
-  }),
-  confirmCode: (to: string, code: string, purpose: 'add_email' | 'invite'): Mail => ({
-    to,
-    subject: `${code} is your Muni confirmation code`,
-    body: `Your Muni confirmation code is:\n\n    ${code}\n\n${purpose === 'invite' ? 'Enter it on the invitation page to confirm this address is yours and join the team.' : 'Enter it in Muni to add this address to your account for recovery, invitations and reminders.'} It expires in 10 minutes and works once.\n\nIf you didn’t ask for this, you can ignore this email — nothing changes without the code.\n`,
-  }),
   invitation: (to: string, workspace: string, inviter: string, link: string): Mail => ({
     to,
     subject: `${inviter} invited you to ${workspace} on Muni`,
-    body: `${inviter} invited you to join the “${workspace}” workspace on Muni.\n\nOpen this invitation to join. You’ll sign in or create an account with a passkey, and confirm this address with a code if your account doesn’t have it yet:\n\n    ${link}\n\nThis invitation is for ${to} only and expires in 14 days. Forwarding the link does not let someone else join.\n`,
+    body: `${inviter} invited you to join the “${workspace}” workspace on Muni.\n\nOpen this invitation to join. You’ll sign in, or create an account, with a passkey:\n\n    ${link}\n\nThe link works once and expires in 14 days; whoever opens it first joins, so please don’t forward it.\n`,
   }),
   reminder: (to: string, sprint: string, kind: string, link: string): Mail => ({
     to,

@@ -1,17 +1,14 @@
 import { Hono } from 'hono'
 import type { HonoEnv } from '../env'
 import { config } from '../lib/config'
-import { RECENT_AUTH_MS, clearSessionCookies, clientLabel, createSession, loadSession, readCookie, requireAuth, revokeSession, securityEvent, sessionCookie, setSessionCookies, checkOrigin, type Auth } from '../lib/auth'
+import { RECENT_AUTH_MS, clearSessionCookies, loadSession, readCookie, requireAuth, revokeSession, securityEvent, sessionCookie, checkOrigin, type Auth } from '../lib/auth'
 import { sha256Hex } from '../lib/crypto'
 import { all, batch, one, run } from '../lib/db'
-import { AppError, bad } from '../lib/errors'
+import { bad } from '../lib/errors'
 import { clientClass, limit } from '../lib/ratelimit'
-import { maskEmail, nonempty, normalizeEmail } from '../lib/util'
+import { maskEmail, nonempty } from '../lib/util'
 import { accountByEmail, emailOf, setAccountEmail } from '../lib/accounts'
-import { issueCode, spendCode } from '../lib/codes'
 import { INTRO, introName, isAvatarId } from '../lib/avatars'
-
-export { RESEND_COOLDOWN_MS } from '../lib/codes'
 
 export const auth = new Hono<HonoEnv>()
 
@@ -39,7 +36,7 @@ export async function buildMe(env: HonoEnv['Bindings'], accountId: string, sessi
   const authedAt = session?.authenticatedAt ?? Date.now()
   return {
     account_id: accountId,
-    /** Optional and verified: recovery, email invitations, reminders. Never needed to sign in. */
+    /** Where invitations and reminders go, if anywhere. Never a way to sign in. */
     email,
     display_name: acct?.display_name ?? '',
     /** No name chosen yet (a new account, or one whose name was once inferred): ask before anything else. */
@@ -58,45 +55,6 @@ export async function buildMe(env: HonoEnv['Bindings'], accountId: string, sessi
     ...(extra.created !== undefined ? { created: extra.created } : {}),
   }
 }
-
-/**
- * Request a one-time code for signing in to an existing account by email ("Used Muni before?").
- * Never reveals whether an account exists: the answer and the email are the same either way.
- */
-auth.post('/api/auth/request-code', async (c) => {
-  const cfg = config(c.env)
-  checkOrigin(c.req.raw, cfg)
-  const body = (await c.req.json().catch(() => ({}))) as { email?: string }
-  const email = normalizeEmail(body.email ?? '')
-  if (!email) throw bad('enter a valid email address')
-  return c.json(await issueCode(c, cfg, email, 'signin'))
-})
-
-/**
- * Exchange a code for a session on the account that has this address. Consumes the code; bounded
- * attempts; rotates any presented session. It never creates an account: new accounts are made
- * with a passkey. Only after the code proved control of the mailbox does the answer say that no
- * account has this address.
- */
-auth.post('/api/auth/verify', async (c) => {
-  const cfg = config(c.env)
-  checkOrigin(c.req.raw, cfg)
-  const body = (await c.req.json().catch(() => ({}))) as { email?: string; code?: string; reauth?: boolean; installed?: boolean }
-  const email = normalizeEmail(body.email ?? '')
-  if (!email) throw bad('enter a valid email address')
-  const old = await loadSession(c.env.DB, readCookie(c.req.raw, sessionCookie(cfg)))
-  // Confirming it's you (step-up) must stay on the same account: checked before the code is spent.
-  if (body.reauth === true && (!old || old.auth.account.email !== email)) throw new AppError(403, 'account_mismatch', 'use the email address of the account you’re signed in to')
-  await spendCode(c.env.DB, email, body.code, 'signin')
-  const accountId = await accountByEmail(c.env.DB, email)
-  if (!accountId) throw new AppError(404, 'no_account', 'no Muni account has this address — create one with a passkey instead')
-  // Rotation: whatever session was presented ends; the new one has a fresh token.
-  if (old) await revokeSession(c.env.DB, old.auth.sessionId)
-  const session = await createSession(c.env.DB, accountId, cfg.sessionTtlDays, { method: 'email', clientLabel: clientLabel(c.req.raw, body.installed === true) })
-  setSessionCookies(c, cfg, session)
-  await securityEvent(c.env.DB, accountId, body.reauth === true ? 'reauth.email' : 'signin.email')
-  return c.json(await buildMe(c.env, accountId, undefined, { created: false }))
-})
 
 auth.get('/api/auth/me', async (c) => {
   const a = await requireAuth(c, config(c.env), c.env.DB)
@@ -238,55 +196,30 @@ const bodyToken = async (c: { req: { json: () => Promise<unknown> } }) => {
   return typeof b.token === 'string' ? b.token.trim() : ''
 }
 
-/** Preview: safe without a session; reveals only a masked address. The workspace name appears only to the intended recipient. */
+/**
+ * Preview: safe without a session. The link is the invitation: its token went only to the invited
+ * address, so whoever holds it may see the workspace's name (and a masked address).
+ */
 auth.post('/api/invitations/preview', async (c) => {
   const cfg = config(c.env)
   checkOrigin(c.req.raw, cfg)
   await limit(c.env.DB, `invite-preview:${await sha256Hex(clientClass(c.req.raw))}`, 60, 10 * 60_000)
   const session = await loadSession(c.env.DB, readCookie(c.req.raw, sessionCookie(cfg)))
   const inv = await liveInvite(c.env.DB, await bodyToken(c))
-  if (!inv) return c.json({ valid: false, email_hint: null, workspace_name: null, matches_session: false, signed_in: !!session, can_confirm: false })
-  const mine = session?.auth.account.email ?? null
-  const matches = mine === inv.email
-  // A signed-in account without an address can confirm the invited one by code (and keep it).
-  return c.json({ valid: true, email_hint: maskEmail(inv.email), workspace_name: matches ? inv.workspace_name : null, matches_session: matches, signed_in: !!session, can_confirm: !!session && !matches && mine === null })
+  if (!inv) return c.json({ valid: false, email_hint: null, workspace_name: null, signed_in: !!session })
+  return c.json({ valid: true, email_hint: maskEmail(inv.email), workspace_name: inv.workspace_name, signed_in: !!session })
 })
 
 /**
- * Send a code to the invited address so a signed-in account without an address can prove it
- * controls that mailbox. The link alone proves nothing (links get forwarded).
- */
-auth.post('/api/invitations/confirm', async (c) => {
-  const cfg = config(c.env)
-  const a = await requireAuth(c, cfg, c.env.DB)
-  const inv = await liveInvite(c.env.DB, await bodyToken(c))
-  if (!inv) return c.json({ error: 'this invitation is no longer valid', code: 'not_found' }, 404)
-  if (a.account.email === inv.email) return c.json({ sent: false, matches: true })
-  if (a.account.email) throw new AppError(403, 'forbidden', `this invitation was sent to ${maskEmail(inv.email)} — sign in to the account with that address to accept it`)
-  return c.json(await issueCode(c, cfg, inv.email, 'invite', a.account.id))
-})
-
-/**
- * Accept with a session whose verified address matches — or, for an account with no address, a
- * code sent to the invited address (which is then kept as the account's verified address). If
- * that address already belongs to another account, the person is sent there instead of ending up
- * with two identities. Single use under concurrency.
+ * Accept, signed in with a passkey. The token is single use (under concurrency too) and expires:
+ * it admits whoever redeems it first, like a personal invite link. An account with no address for
+ * invitations and reminders takes the invited one, unless another account already has it; that
+ * address is only ever a destination for mail, never a way in.
  */
 auth.post('/api/invitations/accept', async (c) => {
   const a = await requireAuth(c, config(c.env), c.env.DB)
-  const body = (await c.req.json().catch(() => ({}))) as { token?: unknown; code?: unknown }
-  const inv = await liveInvite(c.env.DB, typeof body.token === 'string' ? body.token.trim() : '')
+  const inv = await liveInvite(c.env.DB, await bodyToken(c))
   if (!inv) return c.json({ error: 'this invitation is no longer valid', code: 'not_found' }, 404)
-  if (inv.email !== a.account.email) {
-    if (a.account.email || body.code === undefined)
-      return c.json({ error: `this invitation was sent to ${maskEmail(inv.email)} — ${a.account.email ? 'sign in with the account that has that address' : 'confirm that address with a code'} to accept it`, code: a.account.email ? 'forbidden' : 'confirm_email' }, 403)
-    await spendCode(c.env.DB, inv.email, body.code, 'invite', a.account.id)
-    const owner = await accountByEmail(c.env.DB, inv.email)
-    if (owner && owner !== a.account.id)
-      return c.json({ error: 'that address belongs to another Muni account — sign in to it with “Used Muni before?”, then open this invitation again', code: 'email_other_account' }, 409)
-    if (!(await setAccountEmail(c.env.DB, a.account.id, inv.email))) return c.json({ error: 'that address belongs to another Muni account', code: 'email_other_account' }, 409)
-    await securityEvent(c.env.DB, a.account.id, 'email.added', { via: 'invitation' })
-  }
   // Teammates see the name of whoever joins, so it's chosen before joining (never inferred).
   const named = await one<{ ok: number }>(c.env.DB, "SELECT (name_set_at IS NOT NULL AND trim(display_name) <> '') AS ok FROM accounts WHERE id = ?", a.account.id)
   if (!named?.ok) return c.json({ error: 'choose the name your teammates will see first', code: 'name_required' }, 409)
@@ -303,5 +236,7 @@ auth.post('/api/invitations/accept', async (c) => {
   ]
   if (inv.sprint_id) stmts.push(['INSERT OR IGNORE INTO sprint_participants (sprint_id, account_id, is_facilitator, created_at) SELECT id, ?, 0, ? FROM sprints WHERE id = ? AND status NOT IN (\'completed\',\'archived\')', a.account.id, Date.now(), inv.sprint_id])
   await batch(c.env.DB, stmts)
+  if (!a.account.email && !(await accountByEmail(c.env.DB, inv.email)) && (await setAccountEmail(c.env.DB, a.account.id, inv.email)))
+    await securityEvent(c.env.DB, a.account.id, 'email.added', { via: 'invitation' })
   return c.json({ workspace_id: inv.workspace_id, sprint_id: inv.sprint_id })
 })

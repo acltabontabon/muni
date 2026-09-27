@@ -73,8 +73,8 @@ async function createAccount(page, name) {
   await page.goto(`${BASE}/signin`)
   await page.click('button:has-text("Create an account")')
   await page.fill('input[autocomplete="name"]', name)
-  await page.click('button:has-text("Create a passkey")')
-  await page.waitForSelector('text=Keep a way back in.')
+  await page.click('button:has-text("Create with a passkey")')
+  await page.waitForSelector('text=Add a second passkey')
   await page.click('button:has-text("Not now")')
   await page.waitForURL((u) => !u.pathname.startsWith('/signin'))
   await page.locator('button:has-text("Decide later")').click({ timeout: 5000 }).catch(() => {})
@@ -219,16 +219,18 @@ for (const prf of [true, false]) {
   const page = await ctx.newPage()
   try {
     // An account set up by an older build: a key in plaintext in IndexedDB `muni-keys` (v1).
-    await page.goto(`${BASE}/api/dev/inbox`)
-    const email = `legacy-${tag()}@example.test`
-    const seeded = await page.evaluate(async (e) => {
-      const post = (p, b, csrf) => fetch(p, { method: p.includes('/me') ? 'PATCH' : 'POST', headers: { 'content-type': 'application/json', ...(csrf ? { 'x-csrf-token': csrf } : {}) }, body: JSON.stringify(b) })
-      await post('/api/dev/legacy-account', { email: e })
-      await post('/api/auth/request-code', { email: e })
-      const code = (await fetch('/api/dev/inbox').then((r) => r.json())).find((m) => m.to === e && /code/.test(m.subject)).subject.split(' ')[0]
-      const me = await (await post('/api/auth/verify', { email: e, code })).json()
+    // Its passkey is made straight through the API (as that build did), so this build's own key set-up doesn't run.
+    await virtualAuthenticator(page, { prf: false })
+    await page.goto(`${BASE}/privacy`)
+    const seeded = await page.evaluate(async () => {
+      const dec = (s) => Uint8Array.from(atob(s.replace(/-/g, '+').replace(/_/g, '/') + '==='.slice((s.length + 3) % 4)), (c) => c.charCodeAt(0))
+      const enc = (b) => btoa(String.fromCharCode(...new Uint8Array(b))).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '')
+      const json = { 'content-type': 'application/json' }
+      const o = await (await fetch('/api/auth/passkey/signup/options', { method: 'POST', headers: json, body: JSON.stringify({ display_name: 'Legacy Lee' }) })).json()
+      const cred = await navigator.credentials.create({ publicKey: { ...o, challenge: dec(o.challenge), user: { ...o.user, id: dec(o.user.id) }, excludeCredentials: (o.excludeCredentials ?? []).map((c) => ({ ...c, id: dec(c.id) })) } })
+      const response = { id: cred.id, rawId: enc(cred.rawId), type: cred.type, clientExtensionResults: {}, authenticatorAttachment: cred.authenticatorAttachment, response: { clientDataJSON: enc(cred.response.clientDataJSON), attestationObject: enc(cred.response.attestationObject), transports: cred.response.getTransports?.() ?? [] } }
+      const me = await (await fetch('/api/auth/passkey/signup/verify', { method: 'POST', headers: json, body: JSON.stringify({ response, name: 'Old laptop' }) })).json()
       const csrf = document.cookie.match(/(?:^|; )(?:__Host-)?muni_csrf=([^;]+)/)?.[1]
-      await post('/api/auth/me', { display_name: 'Legacy Lee' }, csrf)
       const kp = await crypto.subtle.generateKey({ name: 'X25519' }, true, ['deriveBits'])
       const jwk = await crypto.subtle.exportKey('jwk', kp.privateKey)
       await fetch('/api/me/keys', { method: 'PUT', headers: { 'content-type': 'application/json', 'x-csrf-token': csrf }, body: JSON.stringify({ public_key: jwk.x }) })
@@ -246,7 +248,7 @@ for (const prf of [true, false]) {
         }
       })
       return { account: me.account_id, sk: jwk.d }
-    }, email)
+    })
     await page.goto(`${BASE}/account#encryption`)
     await page.locator('button:has-text("Decide later")').click({ timeout: 3000 }).catch(() => {})
     await page.locator('button:has-text("Not now")').click({ timeout: 3000 }).catch(() => {})

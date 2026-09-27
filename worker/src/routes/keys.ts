@@ -158,22 +158,20 @@ keys.put('/api/me/devices/:id', async (c) => {
   const held = await count(db, 'SELECT count(*) AS n FROM device_unlocks WHERE account_id = ?', a.account.id)
   if (held >= MAX_DEVICES)
     await run(db, 'DELETE FROM device_unlocks WHERE id IN (SELECT id FROM device_unlocks WHERE account_id = ? ORDER BY coalesce(last_used_at, created_at) LIMIT ?)', a.account.id, held - MAX_DEVICES + 1)
-  const hasPasskeys = (await count(db, 'SELECT count(*) AS n FROM webauthn_credentials WHERE account_id = ?', a.account.id)) > 0
   const share = randomToken(32)
   const now = Date.now()
   await run(
     db,
     'INSERT INTO device_unlocks (id, account_id, share, key_version, requires_passkey, bound_at, label, created_at, last_used_at) VALUES (?,?,?,?,?,?,?,?,?)',
-    id, a.account.id, share, version, hasPasskeys ? 1 : 0, now, clientLabel(c.req.raw, body.installed === true), now, now,
+    id, a.account.id, share, version, 1, now, clientLabel(c.req.raw, body.installed === true), now, now,
   )
   if (!replaced?.meta.changes) await securityEvent(db, a.account.id, 'keys.device_added', { device: id })
-  return c.json({ created: true, share, key_version: version, requires_passkey: hasPasskeys })
+  return c.json({ created: true, share, key_version: version, requires_passkey: true })
 })
 
 /**
- * The share for reopening this device's key. Only to a session of the same account; for a device
- * bound while the account had passkeys, only to a session started with a passkey that existed then
- * (an email code, or a passkey added later through one, never unlocks it).
+ * The share for reopening this device's key: only to a session of the same account, started with a
+ * passkey that already existed when the device was bound (a passkey added later never unlocks it).
  */
 keys.post('/api/me/devices/:id/unlock', async (c) => {
   const a = await requireAuth(c, config(c.env), c.env.DB)
@@ -181,13 +179,8 @@ keys.post('/api/me/devices/:id/unlock', async (c) => {
   await limit(db, `device-unlock:${a.account.id}`, 120, 10 * 60_000)
   const d = await one<DeviceRow>(db, 'SELECT * FROM device_unlocks WHERE id = ? AND account_id = ?', c.req.param('id'), a.account.id)
   if (!d) throw new AppError(404, 'device_unknown', 'this device can’t unlock your account any more')
-  if (d.requires_passkey === 1) {
-    const ok =
-      a.authMethod === 'passkey' && a.credentialRef
-        ? await one(db, 'SELECT 1 AS x FROM webauthn_credentials WHERE id = ? AND account_id = ? AND created_at <= ?', a.credentialRef, a.account.id, d.bound_at)
-        : null
-    if (!ok) throw new AppError(403, 'passkey_required', 'sign in with your passkey to unlock your writing on this device')
-  }
+  const ok = a.credentialRef ? await one(db, 'SELECT 1 AS x FROM webauthn_credentials WHERE id = ? AND account_id = ? AND created_at <= ?', a.credentialRef, a.account.id, d.bound_at) : null
+  if (!ok) throw new AppError(403, 'passkey_required', 'sign in with your passkey to unlock your writing on this device')
   await run(db, 'UPDATE device_unlocks SET last_used_at = ? WHERE id = ?', Date.now(), d.id)
   return c.json({ share: d.share, key_version: d.key_version })
 })

@@ -1,48 +1,8 @@
 import { describe, expect, it } from 'vitest'
 import { env } from 'cloudflare:test'
-import { codeFor, del, get, inviteToken, legacyAccount, post, signin, skipCooldown, sprint, tag, team, verify } from './harness'
+import { del, get, inviteToken, post, signin, sprint, tag, team } from './harness'
 
-describe('sign-in', () => {
-  it('rejects wrong codes, bounds attempts, refuses replay', async () => {
-    const email = `bounded-${tag()}@example.com`
-    await legacyAccount(email)
-    await post('/api/auth/request-code', null, { email })
-    for (let i = 0; i < 5; i++) expect((await verify(email, '000000')).status).toBe(400)
-    const code = await codeFor(email)
-    expect((await verify(email, code)).status).toBe(400) // exhausted
-    await skipCooldown(email)
-    await post('/api/auth/request-code', null, { email })
-    const fresh = await codeFor(email)
-    expect((await verify(email, fresh)).status).toBe(200)
-    expect((await verify(email, fresh)).status).toBe(400) // replay
-  })
-
-  it('rate-limits code requests per address', async () => {
-    const email = `rl-${tag()}@example.com`
-    for (let i = 0; i < 5; i++) {
-      await skipCooldown(email)
-      expect((await post('/api/auth/request-code', null, { email })).status).toBe(200)
-    }
-    await skipCooldown(email)
-    const capped = await post('/api/auth/request-code', null, { email })
-    expect(capped.status).toBe(429)
-    expect(capped.body.retry_after_seconds).toBeGreaterThan(0)
-  })
-
-  it('caps sign-in emails across all addresses per day, with an honest message', async () => {
-    // Fill today's global budget directly (60 by default) instead of sending 60 emails.
-    const now = Date.now()
-    const existing = (await env.DB.prepare("SELECT count(*) AS n FROM rate_events WHERE bucket = 'code-all' AND at > ?").bind(now - 86_400_000).first<{ n: number }>())!.n
-    const stmts = Array.from({ length: Math.max(0, 60 - existing) }, () => env.DB.prepare("INSERT INTO rate_events (bucket, at) VALUES ('code-all', ?)").bind(now))
-    if (stmts.length) await env.DB.batch(stmts)
-    const r = await post('/api/auth/request-code', null, { email: `capped-${tag()}@example.com` })
-    expect(r.status).toBe(503)
-    expect(r.body.code).toBe('quota')
-    expect(r.body.error).toContain('try again tomorrow')
-    await env.DB.prepare("DELETE FROM rate_events WHERE bucket = 'code-all'").run()
-    expect((await post('/api/auth/request-code', null, { email: `after-${tag()}@example.com` })).status).toBe(200)
-  })
-
+describe('sessions', () => {
   it('requires a session, CSRF for mutations, and an allowed origin', async () => {
     expect((await get('/api/auth/me')).status).toBe(401)
     const u = await signin(`csrf-${tag()}@example.com`)
@@ -64,7 +24,7 @@ describe('sign-in', () => {
     expect((await get('/api/auth/me', a)).status).toBe(401)
   })
 
-  it('refuses sign-in codes with an explicit setup-required state when no email provider is configured', async () => {
+  it('refuses to email (invitations, reminders) with an explicit setup-required state when no provider is configured', async () => {
     // Exercised through the config layer: the console provider is the only one wired in tests,
     // so assert the adapter's contract directly.
     const { sendMail } = await import('../src/lib/email')
@@ -81,7 +41,7 @@ async function fetchRaw(method: string, path: string, headers: Record<string, st
 }
 
 describe('invitations and membership', () => {
-  it('binds an invitation to its recipient, single use, revocable, expirable', async () => {
+  it('an invitation link is single use, revocable and expirable, and needs a passkey session', async () => {
     const { owner, ws } = await team(0)
     const t = tag()
     const invited = `invitee-${t}@example.com`
@@ -89,10 +49,10 @@ describe('invitations and membership', () => {
     const token = await inviteToken(invited)
     const preview = await post('/api/invitations/preview', null, { token: token })
     expect(preview.body.valid).toBe(true)
-    expect(preview.body.workspace_name).toBeNull()
     expect(preview.body.email_hint).toContain('•••')
+    expect((await post('/api/invitations/accept', null, { token: token })).status).toBe(401)
     const stranger = await signin(`stranger-${t}@example.com`)
-    expect((await post('/api/invitations/accept', stranger, { token: token })).status).toBe(403)
+    expect((await post('/api/invitations/accept', stranger, { token: 'not-the-token' })).status).toBe(404)
     expect((await get(`/api/workspaces/${ws}`, stranger)).status).toBe(403)
     const right = await signin(invited)
     expect((await post('/api/invitations/accept', right, { token: token })).status).toBe(200)

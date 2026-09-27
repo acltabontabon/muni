@@ -347,7 +347,7 @@ export function WorkspacePeople() {
         {ws.can_invite && ws.pending_invitations.length ? (
           <section className="mt-10" aria-labelledby="pending">
             <h2 id="pending" className="font-display text-lg">Invited</h2>
-            <p className="text-sm text-ink-soft">Waiting for them to confirm their email. Links expire after 14 days.</p>
+            <p className="text-sm text-ink-soft">Waiting for them to open the link. Links expire after 14 days.</p>
             <ul className="mt-4 divide-y divide-line rounded-2xl bg-card shadow-[0_0_0_1px_var(--line)]">
               {ws.pending_invitations.map((i) => (
                 <li key={i.id} className="flex items-center gap-3 p-4 text-sm">
@@ -389,7 +389,7 @@ export function InviteDialog({ open, onClose, workspaceId, sprints, onInvited, d
     }
   }, [open, defaultSprint])
   return (
-    <Dialog open={open} onOpenChange={(o) => !o && onClose()} title="Invite by email" description="For teammates who use email. They get a link, and joining needs that exact address confirmed with a code, so a forwarded link doesn’t let someone else in. No email? Use an invite link or QR instead.">
+    <Dialog open={open} onOpenChange={(o) => !o && onClose()} title="Invite by email" description="We email them a link. It works once — whoever opens it first and signs in with a passkey joins — and expires in 14 days. No email? Use an invite link or QR instead.">
       <form
         className="space-y-4"
         onSubmit={async (e) => {
@@ -438,7 +438,7 @@ export function InviteDialog({ open, onClose, workspaceId, sprints, onInvited, d
             ))}
           </ul>
         ) : null}
-        {done.some((d) => d.link) ? <p className="text-xs text-ink-soft">The link works only for that email address, whoever opens it.</p> : null}
+        {done.some((d) => d.link) ? <p className="text-xs text-ink-soft">Share it only with that person: the link works once, for whoever opens it first.</p> : null}
         <div className="flex justify-end gap-2">
           <Button type="button" variant="ghost" onClick={onClose}>Done</Button>
           <Button type="submit" variant="primary" busy={busy}>{done.length ? 'Invite another' : 'Send invitation'}</Button>

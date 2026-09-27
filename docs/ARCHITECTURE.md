@@ -117,29 +117,28 @@ access, can join `author_account_id` to accounts — the mitigation is operation
 cryptographic. New sprints' content is encrypted client-side (docs/ENCRYPTION.md), which removes
 the operator's stored ability to read it but not to see authorship or to ship a malicious
 frontend; legacy sprints stay plaintext. Small teams and distinctive writing can
-identify an author. Email verification proves control of a mailbox, not that a mailbox belongs
-to one person. Exports and AI requests are copies retention can't retract.
+identify an author. Exports and AI requests are copies retention can't retract.
 
 ## Authentication and authorization
 
-- **Sign-in is passkey-first** (WebAuthn via `@simplewebauthn/server`): one "Continue with a
-  passkey" action, accounts created with a passkey and no email, RP ID = the app's own host,
-  exact origins from configuration, user verification required, single-use challenges consumed
-  atomically before verification. An email address is an optional, verified setting
-  (`account_emails`): code sign-in for recovery and for accounts from before passkeys, email
-  invitations, reminders. Codes (10 minutes, 5 attempts, single use, hashed, purpose- and
-  account-bound) never create accounts; request answers are identical whether or not an account
-  exists. Sensitive changes need a sign-in within 10 minutes. Details: [PASSKEYS.md](PASSKEYS.md).
+- **Passkeys are the only way in** (WebAuthn via `@simplewebauthn/server`): one "Continue with a
+  passkey" action, accounts created with a passkey and a name, RP ID = the app's own host, exact
+  origins from configuration, user verification required, single-use challenges consumed
+  atomically before verification. There is no email sign-in, password or recovery email; only
+  sessions made by a passkey authenticate. An address, if an account has one (`account_emails`,
+  from an accepted emailed invitation), is only where invitations and reminders go. Sensitive
+  changes need a passkey confirmation within 10 minutes. Details: [PASSKEYS.md](PASSKEYS.md).
 - **Sessions** are a random token in an HttpOnly, Secure, SameSite=Lax cookie (`__Host-` prefixed
   over HTTPS), stored as its SHA-256, with a 30-day expiry and server-side revocation. Mutations
   need the per-session CSRF token in a header plus an allowed `Origin`; the live socket needs an
   allowed `Origin` too. No CORS headers are sent.
-- **Invitations** are single-use, expire after 14 days, and bind to the invited address. The token
-  travels in the link's fragment and in request bodies, never in a URL the server sees.
+- **Emailed invitations** are single-use links that expire after 14 days; whoever accepts first,
+  signed in with a passkey, joins. The token travels in the link's fragment and in request
+  bodies, never in a URL the server sees.
 - **Invite QR codes / shared links** let a signed-in person *ask* to join; an owner or the sprint's
   facilitator approves each request. **Personal links** work once and join their first signed-in
   user directly. Both grant only the `member` role, expire and can be turned off; only token
-  hashes are stored. Accounts without an address confirm an emailed invitation's address by code.
+  hashes are stored.
 - **Every request is authorized from D1**: an active membership for workspace routes; for sprint
   routes, membership plus participation (owners can see a sprint's settings, not its content).
   Nothing the client sends (user id, role, workspace) is trusted. Revoking a membership or a

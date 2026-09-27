@@ -317,8 +317,8 @@ async function resumeSetup(my: number, id: string, dev: DeviceRecord): Promise<b
 /**
  * The plaintext key an older build kept is deleted only once its envelope has been reopened with
  * a share the server released under its normal rule (so the next visit can reopen it too). If the
- * rule refuses this session (an email code on a passkey account), the old copy stays until a
- * passkey sign-in, or until signing out.
+ * rule refuses this session (a passkey added after the device was set up), the old copy stays until
+ * a sign-in with an earlier passkey, or until signing out.
  */
 async function retireLegacy(my: number, id: string, deviceId: string, share: Uint8Array) {
   try {

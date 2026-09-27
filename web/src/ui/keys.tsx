@@ -32,7 +32,7 @@ function RecoveryKeyView({ value }: { value: string }) {
         <Button
           size="sm"
           onClick={() => {
-            const text = `Muni recovery key for ${me?.email || me?.display_name || 'your account'}\n\n${value}\n\nKeep this private. With it, any device you sign in on can read your encrypted writing and your team’s encrypted retrospectives.\nMuni can’t recover it for you.\n`
+            const text = `Muni recovery key for ${me?.display_name || 'your account'}\n\n${value}\n\nKeep this private. With it, any device you sign in on can read your encrypted writing and your team’s encrypted retrospectives.\nMuni can’t recover it for you.\n`
             const a = document.createElement('a')
             a.href = URL.createObjectURL(new Blob([text], { type: 'text/plain' }))
             a.download = 'muni-recovery-key.txt'
@@ -394,7 +394,7 @@ export function EncryptionSettings({ onForget }: { onForget?: () => void }) {
         <p className="text-ink-soft">Unlocking…</p>
       )}
       <ErrorText>{error}</ErrorText>
-      <p className="text-sm text-ink-soft">Signing in with a passkey that unlocks your writing opens it on any device. An email code gets you into your account, not into encrypted content. Muni’s servers only ever hold your key locked. <Link to="/privacy#encryption" className="underline underline-offset-2">How encryption works</Link></p>
+      <p className="text-sm text-ink-soft">Signing in with a passkey that unlocks your writing opens it on any device. A passkey that only signs in gets you into your account, not into encrypted content. Muni’s servers only ever hold your key locked. <Link to="/privacy#encryption" className="underline underline-offset-2">How encryption works</Link></p>
       <UnlockDialog open={dialog === 'unlock'} onClose={() => setDialog(null)} />
       <NewRecoveryDialog open={dialog === 'recovery'} onClose={() => setDialog(null)} />
     </div>

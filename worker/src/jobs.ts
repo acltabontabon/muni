@@ -178,7 +178,6 @@ export async function retention(env: AppEnv) {
   await db.batch([
     db.prepare('DELETE FROM experiments WHERE sprint_id IN (SELECT s.id FROM sprints s JOIN workspaces w ON w.id = s.workspace_id WHERE COALESCE(s.completed_at, s.updated_at) < ? - w.outcome_retention_days * 86400000)').bind(now),
     db.prepare('DELETE FROM recaps WHERE sprint_id IN (SELECT s.id FROM sprints s JOIN workspaces w ON w.id = s.workspace_id WHERE COALESCE(s.completed_at, s.updated_at) < ? - w.outcome_retention_days * 86400000)').bind(now),
-    db.prepare('DELETE FROM verification_challenges WHERE expires_at < ?').bind(now - 86_400_000),
     db.prepare('DELETE FROM sessions WHERE expires_at < ? OR revoked_at < ?').bind(now - 7 * 86_400_000, now - 7 * 86_400_000),
     db.prepare("DELETE FROM jobs WHERE status IN ('succeeded','cancelled') AND finished_at < ?").bind(now - 30 * 86_400_000),
     db.prepare("DELETE FROM jobs WHERE status = 'failed' AND finished_at < ?").bind(now - 90 * 86_400_000),

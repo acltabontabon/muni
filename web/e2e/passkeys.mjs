@@ -1,7 +1,7 @@
 /**
- * End-to-end: passkey-first sign-in, accounts without email, the optional recovery email, the
- * "Used Muni before?" migration, invitations (team QR with approval, personal single-use links,
- * email invitations confirmed by code), sign-out and sessions — in real Chromium, against a local
+ * End-to-end: passkeys as the only way in (the entrance, a new account, the help, email sign-in
+ * gone), invitations (team QR with approval, personal single-use links, emailed invitation
+ * links), sign-out and sessions — in real Chromium, against a local
  * `wrangler dev` over HTTPS (so cookies carry the production `__Host-` prefix):
  *
  *   cd worker && npx wrangler dev --local-protocol https --port 8793 --var PUBLIC_ORIGIN:https://localhost:8793
@@ -39,32 +39,12 @@ async function inbox(page, email, re) {
   }
   throw new Error(`no mail for ${email}`)
 }
-const codeIn = async (page, email) => (await inbox(page, email, /code/)).subject.split(' ')[0]
-const legacy = (page, email) => page.evaluate((e) => fetch('/api/dev/legacy-account', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ email: e }) }), email)
-
-/** "Used Muni before?": an account as made before passkeys, signed in with a code; the passkey offer declined. */
-async function emailSignIn(page, email, name, { offer = 'skip' } = {}) {
-  await legacy(page, email)
-  const link = page.locator('button:has-text("Sign in with email")')
-  if (await link.count()) await link.click()
-  await page.fill('input[type=email]', email)
-  await page.click('button:has-text("Send me a code")')
-  await page.waitForSelector('text=Check your inbox.')
-  await page.fill('input[autocomplete="one-time-code"]', await codeIn(page, email))
-  await page.click('button:has-text("Continue")')
-  if (name) {
-    await page.waitForSelector('text=What should we call you?')
-    await page.fill('input[autocomplete="name"]', name)
-    await page.click('button:has-text("Continue")')
-  }
-  if (offer === 'skip') await page.waitForSelector('text=Add a passkey to your account.', { timeout: 5000 }).then(() => page.click('button:has-text("Not now")')).catch(() => {})
-}
 /** A new account: name, then a passkey (the page must have a virtual authenticator). */
 async function createAccount(page, name, { protect = 'skip' } = {}) {
   await page.click('button:has-text("Create an account")')
   await page.fill('input[autocomplete="name"]', name)
-  await page.click('button:has-text("Create a passkey")')
-  await page.waitForSelector('text=Keep a way back in.')
+  await page.click('button:has-text("Create with a passkey")')
+  await page.waitForSelector('text=Add a second passkey')
   if (protect === 'skip') await page.click('button:has-text("Not now")')
 }
 async function virtualAuthenticator(page) {
@@ -101,7 +81,7 @@ async function teamWithSprint(page, name) {
   return { ws: ws.body.id, sprint: sp.body.id, me: me.body }
 }
 
-// ------------------------------------------------------------------ 1. the entrance, new account, recovery nudge
+// ------------------------------------------------------------------ 1. the entrance, a new account, signing out and back in
 
 let firstCredential
 {
@@ -114,32 +94,24 @@ let firstCredential
   await page.waitForSelector('button:has-text("Continue with a passkey")')
   check('sign-in: one primary action, no email or username field', (await page.locator('input[type=email], input[autocomplete~="username"]').count()) === 0)
   check('sign-in: nothing starts a passkey prompt by itself', starts.length === 0)
-  await page.click('summary:has-text("Passkey on another device")')
-  check('sign-in explains cross-device, cancelling and switching accounts', (await page.locator('text=use a phone or tablet').count()) > 0 && (await page.locator('text=Switching accounts?').count()) === 1)
-  await shot(page, '01-signin-desktop')
+  check('sign-in: no email path anywhere', (await page.locator('text=/email/i').count()) === 0)
+  await page.click('summary:has-text("Need help signing in?")')
+  check('help explains passkeys, other devices, cancelling, accounts and losing a passkey', (await page.locator('text=use a phone or tablet').count()) > 0 && (await page.locator('text=More than one account?').count()) === 1 && (await page.locator('text=Lost your passkey?').count()) === 1)
+  await shot(page, '01-signin-desktop-help')
 
   await page.click('button:has-text("Create an account")')
-  await page.waitForSelector('text=Create your Muni account.')
+  await page.waitForSelector('text=Create your account.')
   check('create account: asks only for a name — no email', (await page.locator('input[type=email]').count()) === 0)
-  check('create account: warns existing users against a second identity', (await page.locator('text=A new one won’t include your teams').count()) === 1)
   await shot(page, '02-create-account')
   await page.fill('input[autocomplete="name"]', 'Pia Passkey')
-  await page.click('button:has-text("Create a passkey")')
-  await page.waitForSelector('text=Keep a way back in.')
-  await shot(page, '03-keep-a-way-back-in')
+  await page.click('button:has-text("Create with a passkey")')
+  await page.waitForSelector('text=Welcome, Pia Passkey.')
+  await shot(page, '03-second-passkey')
   const me = await api(page, 'GET', '/api/auth/me')
   check('new account has no email, one passkey, the chosen name', me.body.email === null && me.body.passkeys === 1 && me.body.display_name === 'Pia Passkey')
-  // Add a recovery email from the nudge.
-  await page.click('button:has-text("Add a recovery email")')
-  const email = addr('pia')
-  await page.fill('input[type=email]', email)
-  await page.click('button:has-text("Send a code")')
-  await page.fill('input[autocomplete="one-time-code"]', await codeIn(page, email))
-  await page.click('button:has-text("Confirm address")')
-  await page.waitForSelector('text=You’re set.')
-  await page.click('button:has-text("Continue")')
+  check('onboarding offers a second passkey, never an email', (await page.locator('button:has-text("Add a second passkey")').count()) === 1 && (await page.locator('input[type=email]').count()) === 0)
+  await page.click('button:has-text("Not now")')
   await out(page)
-  check('recovery email added and verified during onboarding', (await api(page, 'GET', '/api/auth/me')).body.email === email)
   // A new account's first page: choose a character (web/e2e/worlds.mjs covers the chooser itself).
   await page.waitForSelector('.w-chooser')
   check('a new account meets the character chooser once', (await page.locator('.w-tile').count()) === 8)
@@ -164,24 +136,20 @@ let firstCredential
   await out(page)
   check('returning with a passkey signs in to the same account', (await api(page, 'GET', '/api/auth/me')).body.account_id === me.body.account_id)
 
-  // Settings: optional email, second passkey advice, last-way-in guard.
+  // Settings: one passkey is flagged, and it can't be removed.
   await page.goto(`${BASE}/account#sign-in`)
-  await page.waitForSelector('text=Recovery email')
+  await page.waitForSelector('text=One passkey.')
+  check('account: one passkey is flagged, with no email alternative offered', (await page.locator('text=/recovery email/i').count()) === 0)
   await shot(page, '06-account-security')
-  await page.click('button:has-text("Remove")')
-  await page.waitForSelector('text=You have one passkey.')
-  await page.click('button:has-text("Remove anyway")')
-  await page.waitForSelector('text=One passkey, no recovery email.')
-  check('removing the email warns about a single passkey, then shows a standing nudge', (await api(page, 'GET', '/api/auth/me')).body.email === null)
   await page.click('[aria-label^="Manage"]')
   await page.click('button:has-text("Remove…")')
   await page.getByRole('dialog').getByRole('button', { name: 'Remove passkey' }).click()
-  await page.waitForSelector('text=This is your only way to sign in.')
-  check('the last passkey of an account without email can’t be removed', (await va.credentials()).length === 1)
+  await page.waitForSelector('text=This is your only passkey')
+  check('the last passkey can’t be removed', (await va.credentials()).length === 1)
   await page.keyboard.press('Escape')
   await page.setViewportSize(MOBILE.viewport)
   await page.goto(`${BASE}/account#sign-in`)
-  await page.waitForSelector('text=Recovery email')
+  await page.waitForSelector('text=One passkey.')
   await shot(page, '07-account-security-mobile')
   await page.setViewportSize(DESKTOP)
 
@@ -212,27 +180,25 @@ let firstCredential
   await Promise.all([ctx.close(), other.close()])
 }
 
-// ------------------------------------------------------------------ 2. existing email-only accounts move to passkeys
+// ------------------------------------------------------------------ 2. email sign-in is gone
 
 {
   const ctx = await newCtx()
   const page = await ctx.newPage()
-  const va = await virtualAuthenticator(page)
-  await page.goto(`${BASE}/signin`)
-  const email = addr('legacy')
-  await emailSignIn(page, email, 'Lee Legacy', { offer: 'keep' })
-  await page.waitForSelector('text=Add a passkey to your account.')
-  await shot(page, '08-legacy-add-passkey')
-  await page.click('button:has-text("Add a passkey")')
-  await out(page)
-  const before = (await api(page, 'GET', '/api/auth/me')).body
-  const t = await teamWithSprint(page, 'Legacy team')
-  await signOut(page)
-  await page.waitForSelector('text=Welcome back.')
-  await page.click('button:has-text("Continue with a passkey")')
-  await out(page)
-  const after = (await api(page, 'GET', '/api/auth/me')).body
-  check('an email-only account adds a passkey and keeps its id, email and teams', after.account_id === before.account_id && after.email === email && after.workspaces.some((w) => w.id === t.ws) && (await va.credentials()).length === 1)
+  // Old links to the email path land on the passkey sign-in.
+  await page.goto(`${BASE}/signin?method=email`)
+  await page.waitForSelector('button:has-text("Continue with a passkey")')
+  check('an old “?method=email” link opens the passkey sign-in, with no email field', (await page.locator('input[type=email]').count()) === 0)
+  const tried = await page.evaluate(async () => {
+    const out = {}
+    for (const p of ['/api/auth/request-code', '/api/auth/verify']) {
+      const r = await fetch(p, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ email: 'someone@example.test', code: '123456' }) })
+      out[p] = r.status
+    }
+    out.me = (await fetch('/api/auth/me')).status
+    return out
+  })
+  check('the email endpoints are gone and sign no one in', tried['/api/auth/request-code'] === 404 && tried['/api/auth/verify'] === 404 && tried.me === 401, JSON.stringify(tried))
   await ctx.close()
 }
 
@@ -246,7 +212,7 @@ let firstCredential
   const page = await ctx.newPage()
   await page.goto(`${BASE}/signin`)
   await page.waitForSelector('text=This browser can’t use passkeys.')
-  check('unsupported browser: says so plainly; the email path remains for older accounts', (await page.locator('button:has-text("Continue with a passkey")').count()) === 0 && (await page.locator('button:has-text("Sign in with email")').count()) === 1)
+  check('unsupported browser: says so plainly and offers no other way in', (await page.locator('button:has-text("Continue with a passkey")').count()) === 0 && (await page.locator('text=/email/i').count()) === 0)
   await shot(page, '09-unsupported-browser')
   await ctx.close()
 }
@@ -325,7 +291,7 @@ let firstCredential
   const lateOk = await lp.waitForSelector('text=This invite code can’t be used.', { timeout: 8000 }).then(() => true).catch(() => false)
   check('…and only once', lateOk)
 
-  // Email invitation to a new, passkey-only person: confirm the address with a code.
+  // An emailed invitation to a new person: create an account with a passkey, then join.
   const invited = addr('invited')
   await api(op, 'POST', `/api/workspaces/${ws}/invitations`, { email: invited, sprint_id: sprint })
   await op.waitForTimeout(1200)
@@ -334,34 +300,35 @@ let firstCredential
   const ip = await ictx.newPage()
   await virtualAuthenticator(ip)
   await ip.goto(link)
-  await ip.waitForSelector('text=You’re invited.')
+  await ip.waitForSelector('text=You’re invited to Falcon team.')
+  await shot(ip, '16-invited-mobile')
   await createAccount(ip, 'Ines Invited')
-  await ip.waitForSelector('text=Confirm it’s your address.')
-  await shot(ip, '16-confirm-address-mobile')
-  await ip.click('button:has-text("Email me a code")')
-  await ip.fill('#inv-code', await codeIn(ip, invited))
-  await ip.click('button:has-text("Confirm and join")')
+  await ip.waitForSelector('text=Join Falcon team?')
+  await ip.click('button:has-text("Join the workspace")')
   await ip.waitForURL(new RegExp(`/sprints/${sprint}`))
-  check('an email invitation works for a passkey-only account after confirming the address, which it keeps', (await api(ip, 'GET', '/api/auth/me')).body.email === invited)
+  check('an emailed invitation joins a new passkey account; the address is kept for mail only', (await api(ip, 'GET', '/api/auth/me')).body.email === invited)
   await Promise.all([owner.close(), joiner.close(), guest.close(), late.close(), ictx.close()])
 }
 
-// ------------------------------------------------------------------ 5. sign-out and sessions (older accounts, pre-prefix cookies)
+// ------------------------------------------------------------------ 5. sign-out and sessions (pre-prefix cookies)
 
 {
   const ctx = await newCtx()
   await ctx.addCookies([{ name: 'muni_csrf', value: 'LEGACYstaleToken', domain: 'localhost', path: '/', secure: true, sameSite: 'Lax', expires: Math.floor(Date.now() / 1000) + 86400 * 20 }])
   const page = await ctx.newPage()
+  const va = await virtualAuthenticator(page)
   await page.goto(`${BASE}/signin`)
-  const email = addr('signout')
-  await emailSignIn(page, email, 'Sam Signout')
+  await createAccount(page, 'Sam Signout')
   await out(page)
+  await page.locator('button:has-text("Decide later")').click({ timeout: 5000 }).catch(() => {})
   check('legacy cookie is expired by the server on the next response', !(await ctx.cookies()).map((c) => c.name).includes('muni_csrf'))
+  // The same synced passkey on another device: a second session.
   const other = await newCtx()
   const op = await other.newPage()
+  const va2 = await virtualAuthenticator(op)
+  await va2.add((await va.credentials())[0])
   await op.goto(`${BASE}/signin`)
-  await page.waitForTimeout(31_000)
-  await emailSignIn(op, email)
+  await op.click('button:has-text("Continue with a passkey")')
   await out(op)
   await page.goto(`${BASE}/account#sessions`)
   await page.waitForSelector('button:has-text("Sign out everywhere else")')
