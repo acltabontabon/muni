@@ -102,8 +102,8 @@ that stays in place while only the section beneath it changes: a quiet running h
 workspace's name set large, and a single fine rule that is also the evening's horizon — the shore,
 the duyan and the sun (the moon at night) resting on it at the far end, drawn once and still. The
 sections hang from that rule as links; the current one carries a short ink ribbon and a heavier
-weight (widths reserved, so nothing moves). A section's own action sits on the rule's right: *New
-sprint*, *Invite*. On a phone the name takes the full measure and the shore rests on the rule below it.
+weight (widths reserved, so nothing moves). A section's own action sits on the rule's right (People's
+*Invite*); a new sprint is made from the workspace menu, or from Sprints when none is open. On a phone the name takes the full measure and the shore rests on the rule below it.
 
 Below the rule nothing is boxed. Content sits on the page with rules and a margin column: each
 section's title and a line of why on the left (12.5rem), its rows or controls on the right.
@@ -185,6 +185,27 @@ words there), their thoughts read-only once closed, *Join the retro* while
 it's live, and the outcomes and recap once it's done. On a phone, while writing, the bar folds to
 two lines — the name with the facilitator's button, then the state and the planned retro —
 and *Details* unfolds the rest, so the field and *Add to sprint* stay in the first screen.
+
+## Themes: the sorting table
+
+The facilitator's optional work while collection is closed (`/sprints/:id/prepare`), under the same
+sprint bar. Not a form: a table where thoughts are sorted.
+
+- **Loose thoughts** sit on the left as passages — the words, the category as a word in Fraunces
+  italic in the margin, hairlines between — and stay in view (sticky) while the themes scroll.
+- **Picking up** a thought (a click, Enter or Space; loose or already in a theme) gives it a rubric
+  edge and a warm wash. **One tray** at the foot of the screen then says where they can go: an
+  existing theme (named in full), a new one (named in the tray), or back among the loose. Dragging
+  a thought onto a theme does the same. No checkboxes, no menu per thought.
+- **Themes are chapters** on an ink rule, numbered in Fraunces italic rubric: the title and the
+  *Open with* question are edited where they're read (Enter or leaving the field saves, Escape puts
+  it back, a quiet *Saved*); the thoughts inside are always in view; the notes (a neutral summary, a
+  draft experiment) fold away; park, flag, merge and remove are in one ⋯ menu, and removing says
+  that its thoughts go back, exactly as written.
+- A thin **tally** line under the heading fills as thoughts find a theme (*6 of 12 thoughts in 2
+  themes*). With no themes yet, one italic line invites: pick up a few that belong together.
+- On a phone the columns stack, the margin word sits above the thought, and the tray is a sheet
+  along the bottom edge whose destinations scroll sideways.
 
 ## Characters and worlds
 

@@ -149,12 +149,13 @@ try {
   check('After the reveal, Maya can open the sprint', mk2.my_wraps.length === 1)
 
   // A theme created in preparation is sealed too.
+  await owner.click('button:has-text("New theme")')
   await owner.fill('input[aria-label="New theme title"]', `Synthetic-${tag} staging ownership`)
-  await owner.click('button:has-text("Add")')
+  await owner.click('.sort-new-form button:has-text("Add")')
   await owner.waitForTimeout(800)
   const themes = (await owner.evaluate(async (id) => (await fetch(`/api/sprints/${id}/themes`, { headers: { 'x-muni-client': '5' } }).then((r) => r.json())), sprintId)).themes
   check('Theme titles are stored as envelopes', themes.length === 1 && themes[0].title.startsWith('e1.'))
-  check('…and shown decrypted', (await owner.locator(`input[value="Synthetic-${tag} staging ownership"]`).count()) === 1)
+  check('…and shown decrypted', (await owner.locator('textarea[aria-label="Theme title"]').first().inputValue().catch(() => '')) === `Synthetic-${tag} staging ownership`)
 
   // Maya on a new device, with her synced passkey (one that can't unlock): signed in, but her
   // writing stays locked until the recovery key opens it.

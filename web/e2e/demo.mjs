@@ -254,22 +254,25 @@ async function write(page, sprintId, text, category) {
   await page.click('button:has-text("Add to sprint")')
   await page.waitForSelector(`.passage[data-state=submitted]:has-text("${text.slice(0, 30)}")`, { timeout: 15000 })
 }
-/** The facilitator gathers thoughts into themes on the Prepare page (titles are sealed in the browser). */
+/** The facilitator gathers thoughts into themes on the Themes page (titles are sealed in the browser). */
 async function group(page) {
+  const titled = (title) => page.waitForFunction((t) => [...document.querySelectorAll('textarea[aria-label="Theme title"]')].some((f) => f.value === t), title, { timeout: 15000 })
   for (const t of THEMES) {
-    for (const e of t.entries) await page.locator('section[aria-label="Ungrouped entries"] div.bg-card', { has: page.locator('p', { hasText: e }) }).locator('input[type=checkbox]').check()
-    await page.locator(`section[aria-label="Ungrouped entries"] button:has-text("Move ${t.entries.length} to")`).click()
-    await page.fill('[role=menu] input[aria-label="New theme title"]', t.title)
-    await page.click('[role=menu] button:has-text("Create")')
-    await page.waitForSelector(`input[aria-label="Theme title"][value="${t.title}"]`, { timeout: 15000 })
+    for (const e of t.entries) await page.locator('.sort-loose .sort-thought-inner', { hasText: e }).click()
+    await page.locator('.sort-tray button:has-text("New theme")').click()
+    await page.fill('.sort-tray input[aria-label="New theme title"]', t.title)
+    await page.click('.sort-tray button:has-text("Create")')
+    await titled(t.title)
   }
   for (const t of THEMES) {
-    const card = page.locator('section[aria-label="Themes"] article', { has: page.locator(`input[value="${t.title}"]`) })
-    await card.locator('textarea[aria-label="Opening question"]').fill(t.question)
-    await card.locator('button:has-text("Save theme")').click()
-    await card.locator('button:has-text("Save theme")').waitFor({ state: 'detached' })
+    const chapter = page.locator('.sort-chapter').filter({ has: page.locator(`textarea[aria-label="Theme title"]`) }).nth(THEMES.indexOf(t))
+    const q = chapter.locator('textarea[aria-label="Opening question"]')
+    await q.fill(t.question)
+    await q.press('Enter')
+    await chapter.locator('.sort-saved').waitFor({ timeout: 10000 })
   }
 }
+
 // ---------- the demo ----------
 let failed = false
 try {

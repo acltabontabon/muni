@@ -6,7 +6,7 @@
  */
 import { useMemo, useState } from 'react'
 import { Link } from 'react-router'
-import { ArrowRight, Plus } from 'lucide-react'
+import { ArrowRight } from 'lucide-react'
 import type { Experiment, Participant, SprintDetail, SprintSummary } from '@/api/types'
 import { useAuth } from '@/lib/auth'
 import { OUTCOME_LABEL } from '@/lib/categories'
@@ -15,7 +15,7 @@ import { useResource } from '@/lib/resource'
 import { dateRange, describeRetro, shortDate } from '@/lib/schedule'
 import { useDocumentTitle } from '@/ui'
 import { Postcard } from '@/ui/art'
-import { SectionActions, SectionError, SectionPending, useWorkspaceShell } from './Layout'
+import { SectionError, SectionPending, useWorkspaceShell } from './Layout'
 import { initials } from './People'
 
 /** The order an open sprint is chosen as "the" current one. */
@@ -34,12 +34,6 @@ export function WorkspaceSprints() {
   const lead = active.find((s) => s.is_participant) ?? active[0] ?? null
   // Who's in the current sprint (the list only counts them).
   const detail = useResource<SprintDetail>(lead ? `/api/sprints/${lead.id}` : null)
-
-  const newSprint = !offline ? (
-    <Link to={`/workspaces/${ws.id}/sprints/new`} className="ws-btn ws-btn--secondary">
-      <Plus className="size-4" aria-hidden /> New sprint
-    </Link>
-  ) : null
 
   if (sprints.error) return <SectionError error={sprints.error} onRetry={() => { void sprints.reload(); void experiments.reload() }} what="this workspace’s sprints" />
   // First visit: the page appears once, when the list and its experiments are both here.
@@ -71,7 +65,6 @@ export function WorkspaceSprints() {
 
   return (
     <>
-      <SectionActions>{newSprint}</SectionActions>
       <div className="ws-sprints">
         {lead ? (
           <Chapter s={lead} people={detail.data?.id === lead.id ? detail.data.participants : undefined} />

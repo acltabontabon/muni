@@ -31,8 +31,10 @@ those as highlights. The app's About → What's new and each GitHub release are 
   everyone before it happens, and collection can be reopened until the retro starts.
 - **Everyone’s thoughts at once, without names.** Nobody on the team, facilitator included, reads
   anything until collection closes. Then every thought appears together, in random order, with no names.
-- **A retro with a shape.** Everyone votes privately on what to discuss first, and the live session
-  moves topic by topic on a shared screen while each person follows along on their own device.
+- **A retro with a shape.** If it helps, the facilitator gathers thoughts into themes on a calm
+  sorting table — pick up the ones that belong together, name them, give each an opening question.
+  Everyone votes privately on what to discuss first, and the live session moves topic by topic on a
+  shared screen while each person follows along on their own device.
 - **Experiments that come back.** Agree on one to three changes to try. They open the next sprint’s
   retro, so the team sees what actually happened.
 - **Encrypted on your team’s devices.** New sprints are encrypted before anything leaves the browser,
