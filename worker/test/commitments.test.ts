@@ -1,5 +1,6 @@
 /** Experiments, ownership, recap and exports after the retro. */
 import { describe, expect, it } from 'vitest'
+import { endSentence } from '../src/routes/commitments'
 import { closeCollection, del, entry, get, go, ids, patch, post, put, req, sprint, team, type User } from './harness'
 
 const CHANGE = 'For the next sprint, reserve a 15-minute daily review window'
@@ -148,6 +149,19 @@ describe('commitments', () => {
     const md = await req<string>('GET', `/api/sprints/${s}/export.md`, members[0])
     expect(md.status).toBe(200)
     expect(md.body.startsWith('Edited recap: we will pair on big reviews.')).toBe(true)
+  })
+
+  it('drafts the recap without doubling punctuation the team already wrote', async () => {
+    expect(endSentence('PRs spend less time waiting')).toBe('PRs spend less time waiting.')
+    expect(endSentence('Do PRs wait less than a day?')).toBe('Do PRs wait less than a day?')
+    expect(endSentence('No reverts!')).toBe('No reverts!')
+    expect(endSentence('Fewer pings.  ')).toBe('Fewer pings.')
+    const { owner, members, ws } = await team(1)
+    const { s } = await liveSprint(owner, members, ws)
+    await propose(owner, s, { success_signal: 'Do PRs wait less than a day?' })
+    const draft = await put(`/api/sprints/${s}/recap`, owner, {})
+    expect(draft.body.body).toContain('success signal: Do PRs wait less than a day? Review on')
+    expect(draft.body.body).not.toMatch(/[?!.]\./)
   })
 
   it('exports summary and raw views after completion', async () => {

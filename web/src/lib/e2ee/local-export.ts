@@ -14,6 +14,16 @@ const csvSafe = (s: string) => {
   const t = s.replace(/[\r\n]+/g, ' ')
   return /^[=+\-@\t\r]/.test(t) ? `'${t}` : t
 }
+/**
+ * Text as the end of a sentence: a full stop only if it doesn't already end with one (or with ?, !
+ * or …, perhaps inside a closing quote or bracket). "Who owns staging?" stays as written.
+ */
+export const endSentence = (s: string) => (/[.?!…]["'”’)\]]*$/.test(s.trimEnd()) ? s.trimEnd() : `${s.trimEnd()}.`)
+/** Titles in a sentence, as written: "A, B and C" — no comma straight after a title ending in ? or !. */
+export function listTitles(titles: string[]): string {
+  const asks = (t: string) => /[?!]["'”’)\]]*$/.test(t)
+  return titles.map((t, i) => (i === 0 ? t : `${i === titles.length - 1 ? ' and ' : asks(titles[i - 1]) ? ' ' : ', '}${t}`)).join('')
+}
 const csvRow = (cells: string[]) => cells.map((c) => `"${csvSafe(c).replace(/"/g, '""')}"`).join(',') + '\r\n'
 
 export function summaryMarkdown(s: SprintDetail, g: GroupingView | null, exps: Experiment[], recap: string | null): string {
@@ -51,7 +61,7 @@ export function rawMarkdown(s: SprintDetail, g: GroupingView | null): string {
 export function recapDraft(s: SprintDetail, g: GroupingView | null, exps: Experiment[]): string {
   const discussed = (g?.themes ?? []).filter((t) => t.takeaway || t.discussed)
   let out = `# ${s.name} — retro recap\n\n`
-  if (discussed.length) out += `We talked about ${discussed.map((t) => text(t.title)).join(', ')}.\n\n` + discussed.filter((t) => t.takeaway).map((t) => `- ${text(t.title)}: ${text(t.takeaway)}`).join('\n') + '\n\n'
+  if (discussed.length) out += `${endSentence(`We talked about ${listTitles(discussed.map((t) => text(t.title)))}`)}\n\n` + discussed.filter((t) => t.takeaway).map((t) => `- ${text(t.title)}: ${text(t.takeaway)}`).join('\n') + '\n\n'
   const agreed = exps.filter((e) => e.status !== 'proposed')
   out += agreed.length ? `We agreed to try:\n\n${agreed.map((e) => `- ${text(e.change_to_try)}${e.owner_name ? ` (${e.owner_name})` : ''} — we’ll know by: ${text(e.success_signal)}; revisit ${e.review_on}`).join('\n')}\n` : 'No experiments this time.\n'
   return out

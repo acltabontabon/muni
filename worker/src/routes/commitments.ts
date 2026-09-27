@@ -152,6 +152,9 @@ commitments.get('/api/workspaces/:workspaceId/experiments', async (c) => {
 })
 
 // ---------- recap ----------
+/** Text as the end of a sentence: a full stop only if it doesn't already end with one (or ?, ! or …). */
+export const endSentence = (s: string) => (/[.?!…]["'”’)\]]*$/.test(s.trimEnd()) ? s.trimEnd() : `${s.trimEnd()}.`)
+
 export async function generateRecap(db: D1Database, ctx: SprintCtx): Promise<string> {
   const s = (await one<{ name: string; goal: string | null }>(db, 'SELECT name, goal FROM sprints WHERE id = ?', ctx.sprint.id))!
   let out = `# ${s.name} — retro recap\n\n`
@@ -177,7 +180,7 @@ export async function generateRecap(db: D1Database, ctx: SprintCtx): Promise<str
   if (!exps.length) out += '_No experiments were agreed._\n\n'
   for (const e of exps) {
     const owner = e.owner_name ? (e.owner_accepted ? `owner: ${e.owner_name}` : `proposed owner: ${e.owner_name} (not yet accepted)`) : 'no owner yet'
-    out += `- **${e.change_to_try}** — success signal: ${e.success_signal}. Review on ${e.review_on}. (${owner})\n`
+    out += `- **${e.change_to_try}** — success signal: ${endSentence(e.success_signal)} Review on ${e.review_on}. (${owner})\n`
   }
   out += '\n## Parked\n\n'
   const parked = themes.filter((t) => Number(t.parked) === 1 || Number(t.discussed) !== 1)

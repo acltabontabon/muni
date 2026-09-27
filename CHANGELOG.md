@@ -16,6 +16,12 @@ those as highlights. The app's About → What's new and each GitHub release are 
 
 ## [Unreleased]
 
+### Fixed
+
+- A recap filled in from the retro no longer adds a full stop after a theme title or success signal
+  that already ends with one, a question mark or an exclamation mark (“Who owns staging?” stays as
+  written).
+
 ## [1.0.0-rc.1] - 2026-09-28
 
 ### Added
