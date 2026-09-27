@@ -23,6 +23,12 @@ const ACTIONS: Record<string, string> = {
   'membership.revoked': 'removed a member',
   'invitation.sent': 'sent an invitation',
   'invitation.accepted': 'joined the workspace',
+  'join_link.revoked': 'turned off an invite code',
+  'join_link.redeemed': 'joined with a personal invite link',
+  'join_request.created': 'asked to join',
+  'join_request.approved': 'approved a request to join',
+  'join_request.declined': 'declined a request to join',
+  'keys.replaced': 'set up new encryption keys',
   'sprint.created': 'set up a sprint',
   'sprint.updated': 'changed a sprint’s setup',
   'grouping.changed': 'reorganized themes',
@@ -59,6 +65,7 @@ export function describeAction(e: Pick<AuditEvent, 'action' | 'meta'>): string {
     const key = `${String(e.meta?.from ?? '')}>${String(e.meta?.to ?? '')}`
     return TRANSITION[key] ?? 'changed the sprint’s stage'
   }
+  if (e.action === 'join_link.created') return e.meta?.mode === 'direct' ? 'made a personal invite link' : 'made a team invite QR'
   return ACTIONS[e.action] ?? humanize(e.action)
 }
 

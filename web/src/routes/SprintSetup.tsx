@@ -3,6 +3,7 @@ import { Link, useNavigate, useParams } from 'react-router'
 import { ChevronDown } from 'lucide-react'
 import { clsx } from 'clsx'
 import { ApiError, del, get, patch, post } from '@/api/client'
+import { useResources } from '@/lib/resource'
 import type { SprintDetail, WorkspaceDetail } from '@/api/types'
 import { describeRetro, zoneName } from '@/lib/schedule'
 import { Button, ErrorText, Help, Input, Label, Select, Spinner, Switch, useDocumentTitle, useToast } from '@/ui'
@@ -98,6 +99,7 @@ export function SprintSetup() {
   const { workspaceId: wsParam, sprintId } = useParams()
   const nav = useNavigate()
   const toast = useToast()
+  const resources = useResources()
   const [ws, setWs] = useState<WorkspaceDetail | null>(null)
   const [existing, setExisting] = useState<SprintDetail | null>(null)
   const [error, setError] = useState('')
@@ -202,6 +204,8 @@ export function SprintSetup() {
         for (const id of f.participant_ids) if (!existing.participants.some((p) => p.account_id === id)) await post(`/api/sprints/${existing.id}/participants`, { account_id: id })
         for (const p of existing.participants) if (!f.participant_ids.includes(p.account_id) && !p.is_facilitator) await del(`/api/sprints/${existing.id}/participants/${p.account_id}`)
         toast('Setup saved')
+        resources.invalidate(`/api/sprints/${existing.id}`)
+        resources.invalidate(`/api/workspaces/${existing.workspace_id}`)
         nav(`/sprints/${existing.id}`)
       } else {
         let enc: Record<string, unknown> = {}
@@ -230,6 +234,7 @@ export function SprintSetup() {
             toast(`Sprint saved as a draft, but collection didn’t open: ${err instanceof ApiError ? err.message : 'try again from the sprint'}`, 'danger')
           }
         } else toast('Saved as a draft — open collection when you’re ready')
+        resources.invalidate(`/api/workspaces/${wsParam}`)
         nav(`/sprints/${s.id}`)
       }
     } catch (err) {

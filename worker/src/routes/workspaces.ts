@@ -43,13 +43,16 @@ workspaces.post('/api/workspaces', async (c) => {
 
 workspaces.get('/api/workspaces/:workspaceId', async (c) => {
   const m = await requireMember(c, config(c.env), c.env.DB, c.req.param('workspaceId'))
-  const workspace = await loadWorkspace(c.env, m.workspaceId, m.role)
   const isOwner = m.role === 'owner'
-  const rows = await all<{ id: string; display_name: string; email: string | null; role: string; created_at: number }>(c.env.DB, `SELECT a.id, a.display_name, ${EMAIL_OF_A} AS email, m.role, m.created_at FROM memberships m JOIN accounts a ON a.id = m.account_id WHERE m.workspace_id = ? AND m.revoked_at IS NULL ORDER BY m.created_at`, m.workspaceId)
-  const can_invite = await canInvite(c.env.DB, m.workspaceId, m.auth.account.id, m.role)
-  const pending = can_invite
-    ? await all<{ id: string; email: string; sprint_id: string | null; expires_at: number; created_at: number }>(c.env.DB, 'SELECT id, email, sprint_id, expires_at, created_at FROM invitations WHERE workspace_id = ? AND accepted_at IS NULL AND revoked_at IS NULL AND expires_at > ? ORDER BY created_at DESC LIMIT 100', m.workspaceId, Date.now())
-    : []
+  // Independent reads travel to the database together. Pending invitations are read alongside and
+  // returned only to someone who may invite.
+  const [workspace, rows, can_invite, invitations] = await Promise.all([
+    loadWorkspace(c.env, m.workspaceId, m.role),
+    all<{ id: string; display_name: string; email: string | null; role: string; created_at: number }>(c.env.DB, `SELECT a.id, a.display_name, ${EMAIL_OF_A} AS email, m.role, m.created_at FROM memberships m JOIN accounts a ON a.id = m.account_id WHERE m.workspace_id = ? AND m.revoked_at IS NULL ORDER BY m.created_at`, m.workspaceId),
+    canInvite(c.env.DB, m.workspaceId, m.auth.account.id, m.role),
+    all<{ id: string; email: string; sprint_id: string | null; expires_at: number; created_at: number }>(c.env.DB, 'SELECT id, email, sprint_id, expires_at, created_at FROM invitations WHERE workspace_id = ? AND accepted_at IS NULL AND revoked_at IS NULL AND expires_at > ? ORDER BY created_at DESC LIMIT 100', m.workspaceId, Date.now()),
+  ])
+  const pending = can_invite ? invitations : []
   return c.json({
     workspace,
     members: rows.map((r) => ({ account_id: r.id, display_name: r.display_name, email: isOwner ? r.email : null, role: r.role, joined_at: new Date(r.created_at).toISOString(), is_you: r.id === m.auth.account.id })),

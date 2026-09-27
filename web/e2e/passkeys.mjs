@@ -230,7 +230,8 @@ let firstCredential
 
   // Team QR (approval).
   await op.goto(`${BASE}/workspaces/${ws}/people`)
-  await op.click('button:has-text("Invite link or QR")')
+  await op.click('.ws-actions button:has-text("Invite")')
+  await op.click('button:has-text("With a link or QR")')
   await op.waitForSelector('text=Kind of invite')
   await op.selectOption('select >> nth=0', { label: 'Sprint 12 (sprint)' })
   await shot(op, '10-invite-kinds')
@@ -267,7 +268,8 @@ let firstCredential
   await op.keyboard.press('Escape')
 
   // Personal single-use link.
-  await op.click('button:has-text("Invite link or QR")')
+  await op.click('.ws-actions button:has-text("Invite")')
+  await op.click('button:has-text("With a link or QR")')
   // The team QR shown earlier comes back first; switch to a personal link from there.
   await op.click('button:has-text("Personal link instead")')
   await op.waitForSelector('label:has-text("Personal link") input:checked')

@@ -4,7 +4,10 @@ import { SignIn } from './routes/SignIn'
 import { Invite } from './routes/Invite'
 import { Join, JoinStatus } from './routes/Join'
 import { Home } from './routes/Home'
-import { WorkspacePage, WorkspacePeople, WorkspaceSettings } from './routes/Workspace'
+import { WorkspaceLayout } from './routes/workspace/Layout'
+import { WorkspaceSprints } from './routes/workspace/Sprints'
+import { WorkspacePeople } from './routes/workspace/People'
+import { WorkspaceSettings } from './routes/workspace/Settings'
 import { SprintSetup } from './routes/SprintSetup'
 import { SprintHome } from './routes/SprintHome'
 import { Prepare } from './routes/Prepare'
@@ -18,6 +21,7 @@ import { Spinner, useDocumentTitle } from './ui'
 import { EntranceShell, NameStep, PROGRESS } from './ui/entrance'
 import { LeaveDialog } from './ui/menus'
 import { LocalProvider } from './lib/local/LocalProvider'
+import { ResourceProvider } from './lib/resource'
 import { OfflineStart } from './ui/status'
 import { isPersonalPath, WorldProvider } from './worlds/world'
 import { CharacterGate } from './worlds/Character'
@@ -73,9 +77,11 @@ export function App() {
   const { me } = useAuth()
   return (
     // Keyed by account: switching people on a device starts every view afresh, so text typed by
-    // one person can never be saved or sent under another.
+    // one person can never be saved or sent under another, and what one person's pages read (the
+    // resource cache) is never shown to the next.
     <WorldProvider>
     <LocalProvider key={me?.account_id ?? 'signed-out'} accountId={me?.account_id ?? null}>
+    <ResourceProvider>
     <Routes>
       <Route path="/signin" element={<SignIn />} />
       {/* Invitation links carry the token in the fragment (/invite#token), which never reaches a server. */}
@@ -91,9 +97,12 @@ export function App() {
       {/* The old bookmarkable capture link opens the same home (a ?sprint= deep link is kept). */}
       <Route path="/capture" element={<Protected><Home /></Protected>} />
       <Route path="/account" element={<Protected><Account /></Protected>} />
-      <Route path="/workspaces/:workspaceId" element={<Protected><WorkspacePage /></Protected>} />
-      <Route path="/workspaces/:workspaceId/people" element={<Protected><WorkspacePeople /></Protected>} />
-      <Route path="/workspaces/:workspaceId/settings" element={<Protected><WorkspaceSettings /></Protected>} />
+      {/* One opening for the workspace's sections: it stays in place while only the section changes. */}
+      <Route path="/workspaces/:workspaceId" element={<Protected><WorkspaceLayout /></Protected>}>
+        <Route index element={<WorkspaceSprints />} />
+        <Route path="people" element={<WorkspacePeople />} />
+        <Route path="settings" element={<WorkspaceSettings />} />
+      </Route>
       <Route path="/workspaces/:workspaceId/sprints/new" element={<Protected><SprintSetup /></Protected>} />
       <Route path="/sprints/:sprintId" element={<Protected><SprintHome /></Protected>} />
       <Route path="/sprints/:sprintId/setup" element={<Protected><SprintSetup /></Protected>} />
@@ -103,6 +112,7 @@ export function App() {
       <Route path="/sprints/:sprintId/outcomes" element={<Protected><Outcomes /></Protected>} />
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
+    </ResourceProvider>
     </LocalProvider>
     </WorldProvider>
   )

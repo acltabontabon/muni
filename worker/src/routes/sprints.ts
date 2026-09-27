@@ -62,10 +62,20 @@ interface FullRow {
 }
 const iso = (n: number | null | undefined) => (n === null || n === undefined ? null : new Date(n).toISOString())
 
-async function summary(db: D1Database, r: FullRow, me: string) {
-  const participant_count = await count(db, 'SELECT count(*) AS n FROM sprint_participants WHERE sprint_id = ?', r.id)
-  const fac = await one<{ display_name: string }>(db, 'SELECT a.display_name FROM sprint_participants sp JOIN accounts a ON a.id = sp.account_id WHERE sp.sprint_id = ? AND sp.is_facilitator = 1 LIMIT 1', r.id)
-  const mine = await one<{ is_facilitator: number; reminders_opt_out: number }>(db, 'SELECT is_facilitator, reminders_opt_out FROM sprint_participants WHERE sprint_id = ? AND account_id = ?', r.id, me)
+/**
+ * A sprint row with the fields a summary adds for the person asking, computed in the same query:
+ * a list of sprints is one round trip to the database, not three per sprint. The first bound
+ * value is the person's account id; `s` is the sprint. Use as `SELECT ${WITH_SUMMARY} FROM sprints s ${MINE} WHERE …`.
+ */
+const WITH_SUMMARY = `s.*,
+  (SELECT count(*) FROM sprint_participants p WHERE p.sprint_id = s.id) AS participant_count,
+  (SELECT a.display_name FROM sprint_participants p JOIN accounts a ON a.id = p.account_id WHERE p.sprint_id = s.id AND p.is_facilitator = 1 LIMIT 1) AS facilitator_name,
+  mine.account_id AS mine_id, mine.is_facilitator AS mine_facilitator, mine.reminders_opt_out AS mine_opt_out`
+const MINE = 'LEFT JOIN sprint_participants mine ON mine.sprint_id = s.id AND mine.account_id = ?'
+type SummaryRow = FullRow & { participant_count: number; facilitator_name: string | null; mine_id: string | null; mine_facilitator: number | null; mine_opt_out: number | null }
+
+function summary(r: SummaryRow) {
+  const mine = r.mine_id ? { is_facilitator: r.mine_facilitator, reminders_opt_out: r.mine_opt_out } : null
   return {
     id: r.id,
     workspace_id: r.workspace_id,
@@ -81,26 +91,30 @@ async function summary(db: D1Database, r: FullRow, me: string) {
     retro_local_date: r.retro_local_date,
     retro_local_time: r.retro_local_time,
     retro_duration_min: r.retro_duration_min,
-    participant_count,
-    facilitator_name: fac?.display_name ?? null,
+    participant_count: Number(r.participant_count),
+    facilitator_name: r.facilitator_name ?? null,
     is_facilitator: !!mine && bool(mine.is_facilitator),
     is_participant: !!mine,
     reminders_enabled: bool(r.reminders_enabled),
     my_reminders_opt_out: !!mine && bool(mine.reminders_opt_out),
     encryption: isEncrypted(r) ? ENCRYPTION : null,
+    allowed_transitions: allowedTransitions(r.status, !!mine && bool(mine.is_facilitator)),
   }
 }
 
 export async function detail(env: HonoEnv['Bindings'], ctx: SprintCtx) {
   const db = env.DB
-  const r = (await one<FullRow>(db, 'SELECT * FROM sprints WHERE id = ?', ctx.sprint.id))!
-  const s = await summary(db, r, ctx.auth.account.id)
-  const prows = await all<{ id: string; display_name: string; is_facilitator: number }>(db, 'SELECT a.id, a.display_name, sp.is_facilitator FROM sprint_participants sp JOIN accounts a ON a.id = sp.account_id WHERE sp.sprint_id = ? ORDER BY sp.is_facilitator DESC, a.display_name', r.id)
+  const r = (await one<SummaryRow>(db, `SELECT ${WITH_SUMMARY} FROM sprints s ${MINE} WHERE s.id = ?`, ctx.auth.account.id, ctx.sprint.id))!
+  const s = summary(r)
   const sealed = r.status === 'draft' || r.status === 'collecting'
-  const entry_count = sealed ? null : await count(db, 'SELECT count(*) AS n FROM entries WHERE sprint_id = ?', r.id)
-  const theme_count = await count(db, 'SELECT count(*) AS n FROM themes WHERE sprint_id = ?', r.id)
-  const ws = await one<{ name: string }>(db, 'SELECT name FROM workspaces WHERE id = ?', r.workspace_id)
-  const prev = await one<{ id: string }>(db, `SELECT id FROM sprints WHERE workspace_id = ? AND id <> ? AND status IN ('completed','archived') AND starts_on <= ? ORDER BY starts_on DESC, created_at DESC LIMIT 1`, r.workspace_id, r.id, r.starts_on)
+  // Independent reads, so they travel to the database together rather than one after another.
+  const [prows, entry_count, theme_count, ws, prev] = await Promise.all([
+    all<{ id: string; display_name: string; is_facilitator: number }>(db, 'SELECT a.id, a.display_name, sp.is_facilitator FROM sprint_participants sp JOIN accounts a ON a.id = sp.account_id WHERE sp.sprint_id = ? ORDER BY sp.is_facilitator DESC, a.display_name', r.id),
+    sealed ? null : count(db, 'SELECT count(*) AS n FROM entries WHERE sprint_id = ?', r.id),
+    count(db, 'SELECT count(*) AS n FROM themes WHERE sprint_id = ?', r.id),
+    one<{ name: string }>(db, 'SELECT name FROM workspaces WHERE id = ?', r.workspace_id),
+    one<{ id: string }>(db, `SELECT id FROM sprints WHERE workspace_id = ? AND id <> ? AND status IN ('completed','archived') AND starts_on <= ? ORDER BY starts_on DESC, created_at DESC LIMIT 1`, r.workspace_id, r.id, r.starts_on),
+  ])
   return {
     ...s,
     opening_question: r.opening_question,
@@ -209,19 +223,17 @@ sprints.post('/api/workspaces/:workspaceId/sprints', async (c) => {
 
 sprints.get('/api/workspaces/:workspaceId/sprints', async (c) => {
   const m = await requireMember(c, config(c.env), c.env.DB, c.req.param('workspaceId'))
-  const rows = await all<FullRow>(c.env.DB, 'SELECT * FROM sprints WHERE workspace_id = ? ORDER BY starts_on DESC, created_at DESC LIMIT 200', m.workspaceId)
-  const out = []
-  for (const r of rows) out.push(await summary(c.env.DB, r, m.auth.account.id))
-  return c.json(out)
+  const rows = await all<SummaryRow>(c.env.DB, `SELECT ${WITH_SUMMARY} FROM sprints s ${MINE} WHERE s.workspace_id = ? ORDER BY s.starts_on DESC, s.created_at DESC LIMIT 200`, m.auth.account.id, m.workspaceId)
+  return c.json(rows.map(summary))
 })
 
 /** Where should a new thought go? Powers the bookmarkable /capture route. */
 sprints.get('/api/me/capture-target', async (c) => {
   const a = await requireAuth(c, config(c.env), c.env.DB)
-  const rows = await all<FullRow>(
+  const rows = await all<SummaryRow>(
     c.env.DB,
-    `SELECT s.* FROM sprints s WHERE s.status IN ('collecting','preparing','ready','live')
-     AND EXISTS (SELECT 1 FROM sprint_participants sp WHERE sp.sprint_id = s.id AND sp.account_id = ?)
+    `SELECT ${WITH_SUMMARY} FROM sprints s ${MINE} WHERE s.status IN ('collecting','preparing','ready','live')
+     AND mine.account_id IS NOT NULL
      AND EXISTS (SELECT 1 FROM memberships m WHERE m.workspace_id = s.workspace_id AND m.account_id = ? AND m.revoked_at IS NULL)
      ORDER BY s.collection_opened_at DESC, s.retro_at LIMIT 50`,
     a.account.id,
@@ -230,7 +242,7 @@ sprints.get('/api/me/capture-target', async (c) => {
   const collecting = []
   const upcoming = []
   for (const r of rows) {
-    const s = await summary(c.env.DB, r, a.account.id)
+    const s = summary(r)
     if (r.status === 'collecting') collecting.push(s)
     else upcoming.push(s)
   }

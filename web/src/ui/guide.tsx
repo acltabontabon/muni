@@ -10,6 +10,7 @@ import { ApiError, post } from '@/api/client'
 import type { SprintDetail } from '@/api/types'
 import { CONFIRM_COPY, STEPS, type Action, type Confirm, type Guide, type Step } from '@/lib/lifecycle'
 import { Button, Dialog, useToast } from '@/ui'
+import { useResources } from '@/lib/resource'
 import { keyring } from '@/lib/e2ee/keyring'
 import { b64u } from '@/lib/e2ee/crypto'
 
@@ -34,6 +35,7 @@ const variant = (a: Action) => (a.tone === 'primary' ? 'primary' : a.tone === 's
 export function useActionRunner(s: Pick<SprintDetail, 'id'> & Partial<Pick<SprintDetail, 'status' | 'encryption'>>, opts: { onChanged: (d: SprintDetail) => void; onInvite?: () => void; online: boolean }) {
   const nav = useNavigate()
   const toast = useToast()
+  const resources = useResources()
   const [confirming, setConfirming] = useState<(Action & { kind: 'transition' }) | null>(null)
   const [busy, setBusy] = useState<string | null>(null)
   const transition = async (a: Action & { kind: 'transition' }) => {
@@ -42,6 +44,9 @@ export function useActionRunner(s: Pick<SprintDetail, 'id'> & Partial<Pick<Sprin
       const extra = s.encryption === 'e1' ? await encryptedTransition(s.id, s.status ?? '', a.to) : {}
       const d = await post<SprintDetail>(`/api/sprints/${s.id}/transition`, { to: a.to, confirm: !!a.confirm, ...extra })
       keyring.forgetSprint(s.id)
+      // The workspace's lists show this sprint's state: read them again when next shown.
+      resources.invalidate(`/api/sprints/${s.id}`)
+      resources.invalidate(`/api/workspaces/${d.workspace_id}`)
       setConfirming(null)
       opts.onChanged(d)
       if (a.then) nav(a.then)

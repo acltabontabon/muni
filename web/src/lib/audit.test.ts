@@ -13,10 +13,13 @@ describe('activity wording', () => {
   })
 
   it('never shows a raw event label', () => {
-    for (const a of ['sprint.created', 'invitation.sent', 'membership.revoked', 'meeting.phase_changed', 'recap.published', 'something.brand_new']) {
+    for (const a of ['sprint.created', 'invitation.sent', 'membership.revoked', 'meeting.phase_changed', 'recap.published', 'join_link.created', 'join_link.revoked', 'join_link.redeemed', 'join_request.created', 'join_request.approved', 'join_request.declined', 'keys.replaced', 'something.brand_new']) {
       const text = describeAction(ev(a))
       expect(text, a).not.toMatch(/[._]/)
     }
+    // Every action the server records is known by name, not humanized.
+    for (const a of ['join_link.created', 'join_link.revoked', 'join_link.redeemed', 'join_request.created', 'join_request.approved', 'join_request.declined', 'keys.replaced']) expect(describeAction(ev(a)), a).not.toMatch(/\(/)
+    expect(describeAction(ev('join_link.created', { mode: 'direct' }))).toBe('made a personal invite link')
   })
 
   it('names the sprint, and never an id from the metadata', () => {

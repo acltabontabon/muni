@@ -105,6 +105,60 @@ page. Measured with handle-free waits, nothing is left behind.
   triggers join; a failure doesn't block the next.
 - `web/e2e/perf.mjs` budgets, below.
 
+## Switching workspace sections (2026-09-27)
+
+Opening People (and switching between Sprints, People and Settings) was slow and awkward. Measured
+before changing anything, with a realistically seeded workspace (13 people, 16 sprints, invitations,
+invite codes, two people asking to join), the same machine, phone emulation at 4× slowdown, and a
+copy of the Worker that delays each D1 call by a fixed amount and counts them. The delay was set from
+production: from the Singapore edge, a request that reads D1 once costs ~5–10 ms more than one that
+doesn't (8 ms used); 35 ms stands for an edge further from the database. The harness itself lives
+outside the repo; `e2e/workspace.mjs` keeps the behaviour it checked.
+
+**Causes, in order of weight:**
+
+1. **The sprint list was one query per sprint, three times.** `GET /workspaces/:id/sprints` read the
+   rows, then — one after another — each sprint's participant count, facilitator and the reader's own
+   participation: 51 D1 calls for 16 sprints, growing with the archive (≈0.55 s at 8 ms, ≈1.9 s at
+   35 ms). People and Settings fetched this list too (for sprint names), so it kept them changing
+   long after they appeared. The sprint record did the same (12 calls in sequence).
+2. **Every section was its own page.** Each rendered its own header and read the workspace from
+   scratch with nothing kept, so every switch — including back to a section just seen — took the
+   workspace's name, band and navigation down to a spinner and rebuilt them (the band's evening
+   scene restarting its motion each time).
+3. **People loaded in a waterfall.** The requests and invite-code lists only started once the
+   workspace had arrived, then each appeared on its own: 5–6 visible states per visit.
+4. Sprints read the current sprint only after the list, and requests from a section already left
+   kept running (a second copy of the sprint list on the next page).
+
+Code loading wasn't a factor (one bundle, already loaded), and rendering a section costs ~70 ms at
+4× slowdown.
+
+**Fixes.** The list's per-person fields are computed in the same query as its rows (one D1 call
+for any number of sprints; `worker/test/lists.test.ts`), and the other reads of the workspace, the
+sprint record, invite codes and join requests go to the database together rather than in turn. The
+workspace is one route with a persistent opening built from who you are (no request). Sections read
+through a small in-memory cache per account (`lib/resource.tsx`): what was seen shows at once,
+is checked again after a few seconds, is shared between readers, is keyed by path so one workspace's
+answer can't land in another, and is invalidated by the changes that affect it. A section's first
+load shows quiet lines in the section only, after 350 ms, and appears once, whole.
+
+| Phone, 4× slowdown | Before (8 ms / 35 ms per D1 call) | After (8 ms / 35 ms) |
+| --- | --- | --- |
+| Sprints → People, first time: content | 245 / 388 ms, then 4 more changes | 207 / 279 ms, whole |
+| Sprints → People, first time: page still changing until | 716 / 561 ms | 184 / 258 ms |
+| People again (seen before): content | 139–142 / 270–282 ms | 79 / 79–81 ms, no request waited on |
+| People → Sprints (seen before): content | settled at 0.76 s / content at 2.1–2.5 s | 79–88 / 68–75 ms |
+| Frames with the name or navigation missing, per switch | 3–5 (People), 33–144 (Sprints) | 0 |
+| Layout shift arriving on Sprints | 0.125 | 0 |
+| Opening People by its link (cold): settled | 849 ms / 2.42 s | 421 / 690 ms |
+| Opening Sprints by its link (cold): content | 909 ms / 2.47 s | 440 / 703 ms |
+| `GET …/sprints` (16 sprints) | 51 D1 calls, 0.55 / 1.9 s | 3 calls, 35 / 115 ms |
+| `GET /sprints/:id` | 12 calls in sequence | 9 calls, 2 rounds |
+
+The workspace page left alone: 0 frames and 0 paints from the start (the opening's evening is drawn
+once, still); before, the band's scene moved for its first ~15 s after every switch.
+
 ## Budgets
 
 Measured on the harness above (phone emulation, 4× slowdown). They are regression limits, not

@@ -1,10 +1,10 @@
 /**
  * The entrance's evening, carried into the app at a few deliberate moments: a small postcard of
  * the person in the duyan beside "My thoughts", a wider one for empty and finished states, and a
- * strip of horizon for a workspace. Same drawing, same palettes (dusk in light mode, moonlit in
+ * workspace's horizon, set on the rule under its name. Same drawing, same palettes (dusk in light mode, moonlit in
  * dark). All decoration: aria-hidden, nothing interactive, still under prefers-reduced-motion.
  */
-import { useId, useRef, type CSSProperties, type ReactNode } from 'react'
+import { useId, useRef } from 'react'
 import { clsx } from 'clsx'
 import { DuyanScene, HORIZON, Land, useStill } from './scene'
 
@@ -31,74 +31,37 @@ export function Postcard({ framing = 'close', lights = 0, className }: { framing
 }
 
 /**
- * A strip of evening under a workspace's name: sky, the sun (moon at night) near the horizon,
- * the shore at the far edge, and its reflection. Content sits over the open sky on the left.
+ * The workspace's horizon: the opening's rule is the waterline, and at its far end the shore sits
+ * on it — the two palms and the duyan — with the sun (the moon, at night) half set beside them and a
+ * little light on the water below. Drawn once, still: no filter, no motion. Sized by its container.
  */
-export function HorizonBand({ children, className }: { children: ReactNode; className?: string }) {
-  const ref = useRef<HTMLDivElement>(null)
-  const paused = useStill(ref)
+export function HorizonMark({ className }: { className?: string }) {
   const u = useId().replace(/:/g, '')
-  const id = (n: string) => `${u}-${n}`
-  const H = 174 // the band's waterline, in its own units: low, so names sit in open sky
-  const s = 0.55
-  const tx = 1362
-  const ty = H - HORIZON * s
+  const H = HORIZON
   return (
-    <div ref={ref} className={clsx('horizon entrance-art', className)} data-paused={paused || undefined}>
-      <svg viewBox="0 0 1600 200" preserveAspectRatio="xMaxYMax slice" aria-hidden focusable="false" className="scene">
+    <div className={clsx('horizon-mark', className)} aria-hidden>
+      <svg viewBox={`-150 70 520 ${H - 70 + 26}`} preserveAspectRatio="xMaxYMax meet" focusable="false" className="scene scene-still">
         <defs>
-          <linearGradient id={id('sky')} x1="0" y1="0" x2="0" y2="1">
-            <stop offset="0" style={{ stopColor: 'var(--sky-top)' }} />
-            <stop offset="0.55" style={{ stopColor: 'var(--sky-top)' }} />
-            <stop offset="1" style={{ stopColor: 'color-mix(in oklab, var(--sky-top) 45%, var(--sky-glow))' }} />
-          </linearGradient>
-          <linearGradient id={id('sea')} x1="0" y1="0" x2="0" y2="1">
-            <stop offset="0" style={{ stopColor: 'var(--sea-a)' }} />
-            <stop offset="1" style={{ stopColor: 'var(--sea-b)' }} />
-          </linearGradient>
-          <radialGradient id={id('halo')}>
-            <stop offset="0" style={{ stopColor: 'var(--halo)', stopOpacity: 0.5 }} />
-            <stop offset="1" style={{ stopColor: 'var(--halo)', stopOpacity: 0 }} />
-          </radialGradient>
-          <clipPath id={id('water')}>
-            <rect x="-3000" y={H} width="4800" height="200" />
+          <clipPath id={`${u}-air`}>
+            <rect x="-400" y="0" width="1000" height={H} />
           </clipPath>
-          <clipPath id={id('air')}>
-            <rect x="-3000" y="-200" width="4800" height={H + 200} />
-          </clipPath>
-          <filter id={id('ripple')} x="-5%" y="-5%" width="110%" height="110%">
-            <feTurbulence type="fractalNoise" baseFrequency="0.012 0.2" numOctaves="2" seed="4" result="n" />
-            <feDisplacementMap in="SourceGraphic" in2="n" scale="6" xChannelSelector="R" yChannelSelector="G" />
-          </filter>
-          <g id={id('shore')} transform={`translate(${tx} ${ty}) scale(${s})`}>
-            <Land />
-          </g>
         </defs>
-        <rect x="-3000" y="-200" width="4800" height={H + 200} fill={`url(#${id('sky')})`} />
-        <g className="scene-stars">
-          {[[1010, 40, 1.2], [1090, 22, 0.9], [1160, 58, 1], [1300, 30, 0.8], [940, 70, 0.8], [1460, 18, 1], [860, 30, 0.7], [760, 58, 0.9]].map(([x, y, r], i) => (
-            <circle key={i} cx={x} cy={y} r={r} style={{ animationDelay: `${(i * 0.9) % 5}s` } as CSSProperties} />
+        <g className="horizon-mark-stars">
+          {[[-96, 96, 1.6], [-40, 128, 1.2], [8, 90, 1.4], [330, 110, 1.2]].map(([x, y, r], i) => (
+            <circle key={i} cx={x} cy={y} r={r} />
           ))}
         </g>
-        <g clipPath={`url(#${id('air')})`}>
-          <circle cx="1478" cy="160" r="46" fill={`url(#${id('halo')})`} />
-          <circle cx="1478" cy="160" r="17" style={{ fill: 'var(--sun-disc)' }} />
+        <g clipPath={`url(#${u}-air)`}>
+          <circle cx="-62" cy={H + 6} r="58" className="horizon-mark-halo" />
+          <circle cx="-62" cy={H + 6} r="30" className="horizon-mark-sun" />
         </g>
-        <rect x="-3000" y={H} width="4800" height="60" fill={`url(#${id('sea')})`} />
-        <g className="scene-glints" transform={`translate(1478 ${H})`}>
-          {[26, 18, 30, 14, 22].map((w, i) => (
-            <rect key={i} x={-w / 2 + (i % 2 ? 6 : -4)} y={4 + i * 5} width={w} height="1.4" rx="0.7" style={{ animationDelay: `${i * 0.4}s` } as CSSProperties} />
+        <g className="horizon-mark-glints" transform={`translate(-62 ${H})`}>
+          {[34, 22, 14].map((w, i) => (
+            <rect key={i} x={-w / 2 + (i % 2 ? 5 : -3)} y={6 + i * 6} width={w} height="2" rx="1" />
           ))}
         </g>
-        <use href={`#${id('shore')}`} />
-        <g clipPath={`url(#${id('water')})`}>
-          <g transform={`translate(0 ${H * 2}) scale(1 -1)`} className="scene-mirror" filter={`url(#${id('ripple')})`}>
-            <use href={`#${id('shore')}`} />
-          </g>
-        </g>
-        <line x1="-3000" x2="1600" y1={H} y2={H} className="scene-horizon" />
+        <Land />
       </svg>
-      <div className="horizon-text relative">{children}</div>
     </div>
   )
 }

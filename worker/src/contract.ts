@@ -183,6 +183,8 @@ export interface SprintSummary {
   my_reminders_opt_out: boolean
   /** null: a sprint from before encryption, stored as plaintext. 'e1': content is encrypted on participants' devices. */
   encryption: 'e1' | null
+  /** The changes of state this person may make (only ever the facilitator's). */
+  allowed_transitions: string[]
 }
 export interface Participant {
   account_id: string
@@ -207,7 +209,6 @@ export interface SprintDetail extends SprintSummary {
   content_purged_at: string | null
   has_session: boolean
   session_cancelled: boolean
-  allowed_transitions: string[]
   role: string
   workspace_name: string
   previous_sprint_id: string | null

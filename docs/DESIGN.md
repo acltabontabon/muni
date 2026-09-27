@@ -95,10 +95,45 @@ toolbars and an opened help or error message move nothing above them; larger tex
 An upright tablet uses the same page on a wider measure; a phone on its side puts the words and
 the evening beside the action.
 
+## The workspace
+
+*A shared journal, each sprint an open chapter.* Sprints, People and Settings share one opening
+that stays in place while only the section beneath it changes: a quiet running head, the
+workspace's name set large, and a single fine rule that is also the evening's horizon — the shore,
+the duyan and the sun (the moon at night) resting on it at the far end, drawn once and still. The
+sections hang from that rule as links; the current one carries a short ink ribbon and a heavier
+weight (widths reserved, so nothing moves). A section's own action sits on the rule's right: *New
+sprint*, *Invite*. On a phone the name takes the full measure and the shore rests on the rule below it.
+
+Below the rule nothing is boxed. Content sits on the page with rules and a margin column: each
+section's title and a line of why on the left (12.5rem), its rows or controls on the right.
+
+- **Sprints.** The current sprint is the chapter: its name set large (a link to its guide), the goal
+  in Fraunces italic, the lifecycle as a line through the page (a tick for done, a filled ring and
+  *Now* for the current step, open rings ahead — shape and words, not colour alone; not links), then
+  the phase in words and its one primary action. The facilitator's next step sits apart under a
+  rubric margin line, *only you see this*. Beside it, quieter, behind a hairline: the retro as an
+  appointment (date large, time and zone, how soon, your own time), the sprint's dates and people,
+  whether it's encrypted, and experiments due for another look. Other sprints follow as a ledger —
+  title, dates and state on shared columns — eight at a time. On a phone the lifecycle becomes a
+  short bar and one sentence (*Step 2 of 5 Collect · Next: Prepare*).
+- **People.** A directory: owners and members as two groups on one fine-ruled list, each person a
+  monogram (two initials in Fraunces italic; yours in rubric), a name that wraps rather than
+  truncates, an address only where an owner may see it, and the manage menu (⋯) in one column.
+  Someone asking to join comes first under a rubric rule, because it needs a decision. Invitations
+  and invite codes follow for those who manage them. A search field appears past twelve people.
+- **Settings.** One form, one *Save changes* (enabled only when something changed; *Discard* beside
+  it). Edits not yet saved are kept while you visit another section and said so; closing the tab
+  asks first. Values are checked where they're typed. Activity is a dated log, never content.
+
+Loading is said where the content goes (quiet lines, only after 350 ms), never over the page; an
+empty state only after an answer says there's nothing; a failed load says so in the section with
+*Try again*.
+
 ## Illustration
 
 The entrance's duyan scene appears at a few deliberate moments, never as a full-height backdrop:
-a small postcard beside “My thoughts” (and larger in its empty state), a horizon strip under a
+a small postcard beside “My thoughts” (and larger in its empty state), the horizon under a
 workspace's name, and the evening with kept lights on a completed retro. Saved thoughts are
 passages in a journal: text first, a margin marker with the category, one ⋯ menu each.
 
@@ -200,7 +235,8 @@ No glassmorphism, no gradients on text.
 
 ## Screens
 
-1. Workspace overview — sprints as a vertical timeline, current sprint first.
+1. Workspace — one opening over Sprints (the current sprint as a chapter, then a ledger), People and
+   Settings (see *The workspace*).
 2. Sprint setup — a single tall form with sections, not a wizard.
 3. Capture — full-width composer with category chips, sheet-like on mobile,
    "My entries" beneath.
@@ -211,7 +247,8 @@ No glassmorphism, no gradients on text.
 6. Companion — phone-friendly, follows the stage, private votes and
    "Ready to speak / Pass for now", with a visible "look around" toggle.
 7. Outcomes — experiments with owners and review dates, recap, exports.
-8. Settings — account, privacy explanation, workspace, retention.
+8. Settings — account and privacy on Account; the workspace's name, retention and activity in its
+   Settings section.
 
 ## Accessibility
 

@@ -83,6 +83,16 @@ async function canManage(db: D1Database, workspaceId: string, sprintId: string |
   return n > 0
 }
 
+/** `canManage` for many rows of one request: each scope (the workspace, or one sprint) is asked once. */
+function manageChecker(db: D1Database, workspaceId: string, accountId: string, role: string) {
+  const seen = new Map<string, Promise<boolean>>()
+  return (sprintId: string | null) => {
+    const k = sprintId ?? ''
+    if (!seen.has(k)) seen.set(k, canManage(db, workspaceId, sprintId, accountId, role))
+    return seen.get(k)!
+  }
+}
+
 async function isMemberOf(db: D1Database, workspaceId: string, sprintId: string | null, accountId: string): Promise<boolean> {
   const m = await count(db, 'SELECT count(*) AS n FROM memberships WHERE workspace_id = ? AND account_id = ? AND revoked_at IS NULL', workspaceId, accountId)
   if (!m) return false
@@ -91,8 +101,10 @@ async function isMemberOf(db: D1Database, workspaceId: string, sprintId: string 
 }
 
 async function linkView(db: D1Database, l: LinkRow) {
-  const who = await one<{ display_name: string }>(db, 'SELECT display_name FROM accounts WHERE id = ?', l.created_by)
-  const sp = l.sprint_id ? await one<{ name: string }>(db, 'SELECT name FROM sprints WHERE id = ?', l.sprint_id) : null
+  const [who, sp] = await Promise.all([
+    one<{ display_name: string }>(db, 'SELECT display_name FROM accounts WHERE id = ?', l.created_by),
+    l.sprint_id ? one<{ name: string }>(db, 'SELECT name FROM sprints WHERE id = ?', l.sprint_id) : null,
+  ])
   return {
     id: l.id,
     sprint_id: l.sprint_id,
@@ -153,9 +165,9 @@ join.post('/api/workspaces/:workspaceId/join-links', async (c) => {
 join.get('/api/workspaces/:workspaceId/join-links', async (c) => {
   const m = await requireMember(c, config(c.env), c.env.DB, c.req.param('workspaceId'))
   const rows = await all<LinkRow>(c.env.DB, 'SELECT * FROM join_links WHERE workspace_id = ? AND revoked_at IS NULL AND expires_at > ? ORDER BY created_at DESC LIMIT 50', m.workspaceId, Date.now())
-  const out = []
-  for (const l of rows) if (await canManage(c.env.DB, m.workspaceId, l.sprint_id, m.auth.account.id, m.role)) out.push(await linkView(c.env.DB, l))
-  return c.json(out)
+  const may = manageChecker(c.env.DB, m.workspaceId, m.auth.account.id, m.role)
+  const allowed = await Promise.all(rows.map((l) => may(l.sprint_id)))
+  return c.json(await Promise.all(rows.filter((_, i) => allowed[i]).map((l) => linkView(c.env.DB, l))))
 })
 
 /** Turn a link off: nobody new can ask with it. Requests already made stay until decided. */
@@ -317,9 +329,11 @@ join.get('/api/workspaces/:workspaceId/join-requests', async (c) => {
       WHERE r.workspace_id = ? AND r.status = 'pending' AND r.created_at > ? ORDER BY r.created_at LIMIT 100`,
     Date.now(), m.workspaceId, Date.now() - REQUEST_TTL_MS,
   )
+  const may = manageChecker(c.env.DB, m.workspaceId, m.auth.account.id, m.role)
+  const allowed = await Promise.all(rows.map((r) => may(r.sprint_id)))
   const out = []
-  for (const r of rows) {
-    if (!(await canManage(c.env.DB, m.workspaceId, r.sprint_id, m.auth.account.id, m.role))) continue
+  for (const [i, r] of rows.entries()) {
+    if (!allowed[i]) continue
     out.push({
       id: r.id,
       display_name: r.display_name,
