@@ -78,11 +78,19 @@ jobs:
           [ -n "${{ vars.MUNI_DOMAIN }}" ] || { echo "::error::Set the MUNI_DOMAIN variable on the production environment."; exit 1; }
           state="$(node scripts/verify-deploy.mjs "$ORIGIN" "$VERSION" "$GITHUB_SHA" --state)"
           echo "Production: $state (releasing $VERSION at $GITHUB_SHA)"
-          echo "state=$state" >> "$GITHUB_OUTPUT"
           if [ "$state" = newer ]; then
-            echo "::error::Production already runs a later version than $VERSION. To go back, roll back (docs/RELEASING.md) instead of deploying an older tag."
-            exit 1
+            # A later version whose release was withdrawn (its tag deleted) may be replaced; any other
+            # later version is a rollback, not a release.
+            served="$(node -e 'fetch(process.argv[1] + "/api/version").then((r) => r.json()).then((j) => console.log(j.version ?? ""), () => console.log(""))' "$ORIGIN")"
+            if [ -n "$served" ] && [ -z "$(git ls-remote --tags origin "refs/tags/v$served")" ]; then
+              echo "::notice::Production runs $served, a withdrawn release (no v$served tag): $VERSION replaces it."
+              state=older
+            else
+              echo "::error::Production already runs a later version than $VERSION. To go back, roll back (docs/RELEASING.md) instead of deploying an older tag."
+              exit 1
+            fi
           fi
+          echo "state=$state" >> "$GITHUB_OUTPUT"
       - name: Credentials are configured
         if: steps.now.outputs.state != 'live'
         env:

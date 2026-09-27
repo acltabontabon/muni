@@ -110,7 +110,8 @@ check. Promoting is a normal release: `prepare 1.0.0`, a short changelog entry, 
    tests and build, and the Worker's typecheck and tests.
 2. **deploy** (the `production` environment): asks production what it's running. If it's already this
    version *and* this commit, it skips to verification (a re-run). If it's a later version, it stops:
-   going back is a rollback, not a release. Otherwise it builds the tagged commit, applies D1
+   going back is a rollback, not a release — unless that later version's release was withdrawn (its
+   tag deleted, as when release candidates are folded into one): then this release replaces it. Otherwise it builds the tagged commit, applies D1
    migrations (retrying once), and deploys the Worker — which serves the API and the app together, so
    they change in one step — stamped with the commit (`--var MUNI_COMMIT:<sha>`) and tagged with the
    version. Then it checks production from outside until `/api/version` reports this version and
