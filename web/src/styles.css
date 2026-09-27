@@ -1212,9 +1212,9 @@ body {
 .whatsnew-version { font-family: var(--font-wordmark); font-weight: 500; font-size: clamp(1.7rem, 1.3rem + 1.4vw, 2.2rem); line-height: 1.1; letter-spacing: -0.01em; font-variant-numeric: lining-nums; }
 .whatsnew-meta { display: flex; flex-wrap: wrap; align-items: center; gap: 0.4rem 0.75rem; font-size: 14px; color: var(--ink-soft); }
 .whatsnew-current { font-size: 13px; color: var(--status-ink); }
-.whatsnew-intro { margin-top: 1rem; font-size: 17.5px; line-height: 1.6; color: var(--ink); text-wrap: pretty; }
 .whatsnew-p { margin-top: 0.75rem; font-size: 15.5px; line-height: 1.6; color: var(--ink-soft); text-wrap: pretty; }
-.whatsnew-highlights { display: grid; gap: 0 2.25rem; margin-top: 1.75rem; }
+.whatsnew-kind { margin-top: 1.75rem; }
+.whatsnew-highlights { display: grid; gap: 0 2.25rem; margin-top: 0.6rem; }
 .whatsnew-highlights li { display: grid; align-content: start; grid-template-columns: 2.1rem minmax(0, 1fr); column-gap: 0.4rem; padding: 1.05rem 0 1.15rem; border-top: 1px solid var(--line); }
 .whatsnew-n { grid-row: span 2; padding-top: 0.2rem; font-family: var(--font-wordmark); font-size: 13.5px; font-variant-numeric: lining-nums tabular-nums; color: var(--accent-ink); }
 .whatsnew-h { font-family: var(--font-display); font-weight: 600; font-size: 17px; line-height: 1.35; letter-spacing: -0.012em; color: var(--ink); }

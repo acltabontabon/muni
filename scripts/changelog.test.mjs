@@ -2,22 +2,25 @@ import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
 import { inline, isPrerelease, parseChangelog, plain } from './changelog.mjs'
-import { problems, project, releaseNotes } from './release.mjs'
+import { changelogLinks, problems, project, releaseNotes } from './release.mjs'
 
-const sample = `# Changelog
+const head = `# Changelog
 
-Intro for maintainers.
+All notable changes to this project will be documented in this file.
+
+The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
+and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 <!-- a maintainer note that must never be shown -->
-
+`
+const sample = `${head}
 ## [Unreleased]
+
+### Added
 
 - a draft note that isn't released yet
 
 ## [1.1.0] - 2026-11-03
-
-A short introduction
-over two lines.
 
 ### Added
 
@@ -31,26 +34,38 @@ over two lines.
 
 ## [1.0.0] - 2026-10-01
 
-First.
-
-### Highlights
+### Added
 
 - One.
 
-[1.1.0]: https://github.com/o/r/releases/tag/v1.1.0
+[unreleased]: https://github.com/o/r/compare/v1.1.0...HEAD
+[1.1.0]: https://github.com/o/r/compare/v1.0.0...v1.1.0
+[1.0.0]: https://github.com/o/r/releases/tag/v1.0.0
 `
 
-test('reads releases newest first, without Unreleased or comments', () => {
-  const { unreleased, releases } = parseChangelog(sample)
-  assert.match(unreleased, /draft note/)
+test('reads Keep a Changelog: Unreleased, releases newest first, links, no comments', () => {
+  const { unreleased, releases, links } = parseChangelog(sample)
+  assert.equal(plain(unreleased[0].items[0]), "a draft note that isn't released yet")
   assert.deepEqual(releases.map((r) => [r.version, r.date]), [['1.1.0', '2026-11-03'], ['1.0.0', '2026-10-01']])
   const [r] = releases
-  assert.equal(plain(r.intro[0]), 'A short introduction over two lines.')
   assert.deepEqual(r.sections.map((s) => [s.title, s.items.length]), [['Added', 2], ['Fixed', 1]])
   assert.equal(plain(r.sections[0].items[0]), 'Exports. Download a sprint as a file. It wraps onto a second line.')
   assert.ok(!JSON.stringify(releases).includes('maintainer note'))
   assert.ok(!JSON.stringify(releases).includes('draft note'))
   assert.ok(!r.markdown.includes('releases/tag'), 'link definitions stay out of the notes')
+  assert.deepEqual(links, changelogLinks('o/r', ['1.1.0', '1.0.0']))
+})
+
+test('refuses anything that isn’t Keep a Changelog', () => {
+  const entry = (body) => `${head}\n## [Unreleased]\n\n## [1.0.0] - 2026-10-01\n\n${body}\n`
+  assert.throws(() => parseChangelog(entry('### Highlights\n\n- One.')), /use Added, Changed/)
+  assert.throws(() => parseChangelog(entry('### Fixed\n\n- One.\n\n### Added\n\n- Two.')), /keep the order/)
+  assert.throws(() => parseChangelog(entry('### Added\n\n- One.\n\n### Added\n\n- Two.')), /keep the order/)
+  assert.throws(() => parseChangelog(entry('An introduction.\n\n### Added\n\n- One.')), /not free text/)
+  assert.throws(() => parseChangelog(entry('### Added\n')), /empty|lists no changes/)
+  assert.throws(() => parseChangelog(entry('')), /lists no changes/)
+  assert.throws(() => parseChangelog(`${head}\n## [1.0.0] - 2026-10-01\n\n### Added\n\n- One.\n`), /Unreleased/)
+  assert.throws(() => parseChangelog('## [Unreleased]\n'), /# Changelog/)
 })
 
 test('inline formatting and safe links only', () => {
@@ -66,12 +81,13 @@ test('inline formatting and safe links only', () => {
   assert.throws(() => inline('[x](//evil.example)'), /must be https/)
 })
 
-test('rejects entries that would publish badly', () => {
-  assert.throws(() => parseChangelog('## [1.0] - 2026-01-01\n'), /semantic version/)
-  assert.throws(() => parseChangelog('## [1.0.0]\n'), /release date/)
-  assert.throws(() => parseChangelog('## [1.0.0] - 2026-13-45\n'), /release date/)
-  assert.throws(() => parseChangelog('## [1.0.0] - 2026-01-01\n\n- bullet without a section\n'), /needs a “### Section”/)
-  assert.throws(() => parseChangelog('## [1.0.0] - 2026-01-01\n\n## [1.0.0] - 2026-01-01\n'), /twice/)
+test('rejects versions and dates that would publish badly', () => {
+  const at = (h) => `${head}\n## [Unreleased]\n\n${h}\n\n### Added\n\n- One.\n`
+  assert.throws(() => parseChangelog(at('## [1.0] - 2026-01-01')), /semantic version/)
+  assert.throws(() => parseChangelog(at('## [1.0.0]')), /release date/)
+  assert.throws(() => parseChangelog(at('## [1.0.0] - 2026-13-45')), /release date/)
+  assert.throws(() => parseChangelog(`${head}\n## [Unreleased]\n\n## [1.0.0] - 2026-01-01\n\n- bullet without a section\n`), /heading above it/)
+  assert.throws(() => parseChangelog(`${at('## [1.0.0] - 2026-01-01')}\n## [1.0.0] - 2026-01-01\n\n### Added\n\n- One.\n`), /twice/)
 })
 
 test('prereleases are recognised by semver rules', () => {
@@ -94,7 +110,9 @@ test('release notes are the changelog entry, with the demo and the app', () => {
   assert.ok(notes.includes(`/releases/download/v${version}/muni-demo.gif`))
   assert.ok(notes.includes(app))
   for (const s of entry.sections) assert.ok(notes.includes(`### ${s.title}`))
-  assert.ok(!/<!--|\[Unreleased\]/.test(notes))
+  assert.ok(!/<!--|\[Unreleased\]|\[unreleased\]:/.test(notes))
+  assert.ok(notes.split('\n').every((l) => !/^\s{2}\S/.test(l)), 'no wrapped lines: GitHub breaks on every newline')
+  assert.equal(notes.includes('[!NOTE]'), entry.prerelease)
   assert.throws(() => releaseNotes('v0.0.1'), /doesn’t match/)
 })
 

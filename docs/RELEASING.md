@@ -71,15 +71,19 @@ check. Promoting is a normal release: `prepare 1.0.0`, a short changelog entry, 
 
 ## 3. Preparing a release
 
-1. As changes land, add user-facing notes under `## [Unreleased]` in `CHANGELOG.md`: what people can
-   now do, what got easier, what was fixed, and any action they must take. Leave out refactors,
-   dependency updates, file names and commit hashes. Start the entry with a short paragraph, then
-   `### Highlights`, `### Improved`, `### Fixed`, `### Breaking changes` — only the sections that help.
-   The first section's bullets can lead with a **bold phrase**: the app shows those as highlights.
+1. As changes land, add user-facing notes under `## [Unreleased]` in `CHANGELOG.md`, which follows
+   [Keep a Changelog 1.1.0](https://keepachangelog.com/en/1.1.0/) exactly: bullets under `### Added`,
+   `### Changed`, `### Deprecated`, `### Removed`, `### Fixed` and `### Security`, in that order, only
+   the ones you need. Say what people can now do, what got easier or was fixed, and what they must do
+   after updating — a breaking change goes under Changed or Removed and starts with **Breaking:**.
+   Leave out refactors, dependency updates, file names and commit hashes. A bullet can lead with a
+   **bold phrase**; when a release's first section leads that way, the app shows it as highlights.
+   `scripts/changelog.mjs` refuses anything else (other headings, free text, empty sections, a wrong
+   order, versions out of order, stale link references).
 2. On a branch, choose the number (section 2) and run:
 
    ```bash
-   node scripts/release.mjs prepare 1.2.0            # sets every version, dates the Unreleased notes
+   node scripts/release.mjs prepare 1.2.0            # sets every version, dates the Unreleased notes, updates the links
    node scripts/release.mjs check                    # versions, changelog
    node scripts/release.mjs notes v1.2.0             # preview the GitHub release body
    ```
@@ -112,8 +116,10 @@ check. Promoting is a normal release: `prepare 1.0.0`, a short changelog entry, 
    version. Then it checks production from outside until `/api/version` reports this version and
    commit, `/api/health` reaches the database, and the page, its scripts and the service worker all
    belong to the same build (`scripts/verify-deploy.mjs`, up to 4 minutes).
-3. **publish** (the only job that can write to the repository): builds the notes from the changelog
-   entry, creates the release as a draft with the demo attached, then publishes it — marked prerelease
+3. **publish** (the only job that can write to the repository): builds the release page — the demo,
+   what Muni is and where to open it, a note on a release candidate, then the version's changelog entry
+   as written and the comparison with the previous tag — creates it as a draft with the demo attached,
+   then publishes it — marked prerelease
    for `-rc` versions, latest otherwise — and checks the demo's URL resolves. On a re-run it updates the
    existing release instead of creating another.
 

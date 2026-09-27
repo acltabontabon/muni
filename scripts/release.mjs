@@ -13,6 +13,7 @@
 import { existsSync, readFileSync, statSync, writeFileSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 import { isPrerelease, markdown, parseChangelog, SEMVER } from './changelog.mjs'
+import { compare } from './verify-deploy.mjs'
 
 const root = fileURLToPath(new URL('..', import.meta.url))
 const path = (p) => `${root}${p}`
@@ -27,8 +28,22 @@ const DEMO_MAX_BYTES = 10 * 1024 * 1024
 export function project() {
   const pkg = readJson('package.json')
   const repo = String(pkg.repository ?? '').replace(/^github:/, '')
-  return { version: pkg.version, repo, app: pkg.config?.appUrl }
+  return { version: pkg.version, repo, app: pkg.config?.appUrl, site: pkg.homepage, tagline: pkg.description }
 }
+
+/**
+ * The link references Keep a Changelog ends with, for these versions (newest first): Unreleased
+ * compares the newest tag with HEAD, each release compares with the one before it, and the first
+ * release links to its tag.
+ */
+export function changelogLinks(repo, versions) {
+  const gh = `https://github.com/${repo}`
+  return {
+    unreleased: versions.length ? `${gh}/compare/v${versions[0]}...HEAD` : `${gh}/commits/HEAD`,
+    ...Object.fromEntries(versions.map((v, i) => [v, versions[i + 1] ? `${gh}/compare/v${versions[i + 1]}...v${v}` : `${gh}/releases/tag/v${v}`])),
+  }
+}
+const linkBlock = (links) => Object.entries(links).map(([k, url]) => `[${k}]: ${url}`).join('\n')
 
 /** Every problem that would make this checkout unfit to release (or, with a tag, to release as that tag). */
 export function problems({ tag } = {}) {
@@ -52,13 +67,13 @@ export function problems({ tag } = {}) {
   }
   const entry = log.releases.find((r) => r.version === version)
   if (!entry) out.push(`CHANGELOG.md has no “## [${version}] - YYYY-MM-DD” entry`)
-  else {
-    if (!entry.intro.length) out.push(`CHANGELOG.md: ${version} needs an introduction paragraph`)
-    if (!entry.sections.some((s) => s.items.length)) out.push(`CHANGELOG.md: ${version} lists no changes`)
-    if (log.releases[0]?.version !== version) out.push(`CHANGELOG.md: ${version} should be the newest release (first below Unreleased)`)
-  }
-  const dates = log.releases.map((r) => r.date)
-  if (dates.some((d, i) => i && d > dates[i - 1])) out.push('CHANGELOG.md: releases must be newest first')
+  else if (log.releases[0]?.version !== version) out.push(`CHANGELOG.md: ${version} should be the newest release (first below Unreleased)`)
+  if (!/keepachangelog\.com\/en\/1\.1\.0/.test(log.preamble) || !/semver\.org\/spec\/v2\.0\.0/.test(log.preamble)) out.push('CHANGELOG.md: keep the standard preamble (Keep a Changelog 1.1.0, Semantic Versioning 2.0.0)')
+  const versions = log.releases.map((r) => r.version)
+  for (let i = 1; i < versions.length; i++) if (compare(versions[i - 1], versions[i]) <= 0 || log.releases[i - 1].date < log.releases[i].date) out.push(`CHANGELOG.md: ${versions[i - 1]} must be newer than the ${versions[i]} below it`)
+  const want = changelogLinks(repo, versions)
+  for (const [k, url] of Object.entries(want)) if (log.links[k.toLowerCase()] !== url) out.push(`CHANGELOG.md: the link reference for [${k}] should be ${url}`)
+  for (const k of Object.keys(log.links)) if (!(k in want) && !Object.keys(want).some((w) => w.toLowerCase() === k)) out.push(`CHANGELOG.md: [${k}] links to a version that isn’t in the file`)
   if (tag !== undefined) {
     if (!/^v\d/.test(tag) || !SEMVER.test(tag.slice(1))) out.push(`tag “${tag}” isn’t vMAJOR.MINOR.PATCH`)
     else if (tag !== `v${version}`) out.push(`tag ${tag} doesn’t match the committed version ${version}`)
@@ -71,20 +86,39 @@ export function problems({ tag } = {}) {
   return out
 }
 
-/** The GitHub release body: the CHANGELOG entry, with the demo and the way to the app. */
+/**
+ * The GitHub release body: the demo, what Muni is and where to go, a note when it's a prerelease,
+ * then the version's CHANGELOG entry as written — Added, Changed, … — and the comparison with the
+ * release before. One paragraph per line: GitHub turns every newline in a release body into a break.
+ */
 export function releaseNotes(tag) {
-  const { version, repo, app } = project()
+  const { version, repo, app, site, tagline } = project()
   if (tag !== `v${version}`) throw new Error(`tag ${tag} doesn’t match the committed version ${version}`)
-  const entry = parseChangelog(readFileSync(path('CHANGELOG.md'), 'utf8')).releases.find((r) => r.version === version)
-  if (!entry) throw new Error(`CHANGELOG.md has no entry for ${version}`)
-  const asset = (name) => `https://github.com/${repo}/releases/download/${tag}/${name}`
+  const log = parseChangelog(readFileSync(path('CHANGELOG.md'), 'utf8'))
+  const i = log.releases.findIndex((r) => r.version === version)
+  if (i === -1) throw new Error(`CHANGELOG.md has no entry for ${version}`)
+  const entry = log.releases[i]
+  const previous = log.releases[i + 1]?.version
+  const gh = `https://github.com/${repo}`
+  const asset = (name) => `${gh}/releases/download/${tag}/${name}`
+  const stable = version.replace(/-.*$/, '')
+  const sep = ' &nbsp;·&nbsp; '
   return [
-    `<p align="center"><a href="${asset('muni-demo.mp4')}"><img src="${asset('muni-demo.gif')}" alt="A short walkthrough of Muni: writing a thought during the sprint, then the team’s retro." width="720"></a></p>`,
+    `<p align="center"><a href="${asset('muni-demo.mp4')}"><img src="${asset('muni-demo.gif')}" alt="Muni in 27 seconds: a thought written during the sprint, the team’s thoughts revealed without names, the live retro, and the experiments agreed." width="760"></a></p>`,
     '',
-    ...entry.intro.flatMap((p) => [markdown(p), '']),
-    ...entry.sections.flatMap((sec) => [`### ${sec.title}`, '', ...sec.items.map((i) => `- ${markdown(i)}`), '']),
-    `**Open Muni:** ${app}  `,
-    `**Every release:** [CHANGELOG.md](https://github.com/${repo}/blob/${tag}/CHANGELOG.md)`,
+    '<h3 align="center">Keep the thought. Bring it to the conversation.</h3>',
+    `<p align="center">${tagline}</p>`,
+    `<p align="center"><a href="${app}"><b>Open Muni</b></a>${sep}<a href="${site}">Website</a>${sep}<a href="${gh}/blob/${tag}/CHANGELOG.md">Changelog</a>${sep}<a href="${gh}/blob/${tag}/README.md#known-limitations">Known limitations</a></p>`,
+    '',
+    ...(entry.prerelease
+      ? ['> [!NOTE]', `> A release candidate for Muni ${stable}. It’s what runs at ${app.replace(/^https:\/\//, '')} now; ${stable} follows once it has passed its final checks.`, '']
+      : []),
+    ...entry.sections.flatMap((sec) => [`### ${sec.title}`, '', ...sec.items.map((item) => `- ${markdown(item)}`), '']),
+    '---',
+    '',
+    previous ? `**Full changelog:** [v${previous}...${tag}](${gh}/compare/v${previous}...${tag})` : `**First release.** Everything since the beginning: [${tag}](${gh}/commits/${tag}).`,
+    '',
+    `<sub>The demo is real Muni with a made-up team. Full quality: [muni-demo.mp4](${asset('muni-demo.mp4')}).</sub>`,
     '',
   ].join('\n')
 }
@@ -92,6 +126,13 @@ export function releaseNotes(tag) {
 /** Sets every version to `v` and dates the Unreleased notes as that release. */
 function prepare(v, date) {
   if (!SEMVER.test(v)) throw new Error(`“${v}” isn’t a semantic version`)
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) throw new Error(`“${date}” isn’t a date as YYYY-MM-DD`)
+  // Everything is checked before anything is written.
+  const log = readFileSync(path('CHANGELOG.md'), 'utf8')
+  const { unreleased, releases } = parseChangelog(log)
+  const has = releases.some((r) => r.version === v)
+  if (!has && !unreleased.length) throw new Error('CHANGELOG.md: write the release under “## [Unreleased]” first')
+  if (!has && releases[0] && compare(v, releases[0].version) <= 0) throw new Error(`${v} isn’t newer than ${releases[0].version}`)
   for (const f of ['package.json', ...SYNCED]) {
     const text = readFileSync(path(f), 'utf8')
     writeFileSync(path(f), text.replace(/("version":\s*")[^"]+(")/, `$1${v}$2`))
@@ -101,11 +142,10 @@ function prepare(v, date) {
   lock.version = v
   if (lock.packages?.['']) lock.packages[''].version = v
   writeFileSync(path(lockPath), JSON.stringify(lock, null, 2) + '\n')
-  const log = readFileSync(path('CHANGELOG.md'), 'utf8')
-  const { unreleased, releases } = parseChangelog(log)
-  if (releases.some((r) => r.version === v)) return console.log(`CHANGELOG.md already has ${v}; versions set.`)
-  if (!unreleased.trim()) throw new Error('CHANGELOG.md: write the release under “## [Unreleased]” first')
-  writeFileSync(path('CHANGELOG.md'), log.replace(/^## \[Unreleased\][^\n]*\n/m, `## [Unreleased]\n\n## [${v}] - ${date}\n`))
+  if (has) return console.log(`CHANGELOG.md already has ${v}; versions set.`)
+  const dated = log.replace(/^## \[Unreleased\][^\n]*\n/m, `## [Unreleased]\n\n## [${v}] - ${date}\n`)
+  const body = dated.replace(/^\[[^\]]+\]:\s+\S+\s*$\n?/gm, '').trimEnd()
+  writeFileSync(path('CHANGELOG.md'), `${body}\n\n${linkBlock(changelogLinks(project().repo, [v, ...releases.map((r) => r.version)]))}\n`)
   console.log(`Set ${v} everywhere and dated it ${date}. Review, commit, then tag v${v} (docs/RELEASING.md).`)
 }
 

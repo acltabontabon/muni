@@ -2,7 +2,7 @@
   "name": "muni",
   "private": true,
   "version": "1.0.0-rc.1",
-  "description": "Muni — keep the thought, bring it to the conversation. The version here is the one source for the app, the Worker and releases (docs/RELEASING.md).",
+  "description": "Muni is a calm place to keep what happens during a sprint and bring it to the retrospective.",
   "license": "Apache-2.0",
   "homepage": "https://munimuni.app",
   "repository": "github:acltabontabon/muni",

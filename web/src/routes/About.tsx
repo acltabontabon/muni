@@ -118,7 +118,7 @@ function Out({ href, title, detail }: { href: string; title: string; detail: str
   )
 }
 
-/** What's new: every release, newest first — its introduction, then its highlights and changes. */
+/** What's new: every release, newest first, as CHANGELOG.md has it — Added, Changed, Fixed… — with a bold-led first section shown as highlights. */
 export function WhatsNew() {
   useDocumentTitle('What’s new in Muni')
   const { hash } = useLocation()
@@ -164,10 +164,10 @@ function ReleaseEntry({ r, first }: { r: ReleaseNotes; first: boolean }) {
           {r.version === APP_VERSION ? <span className="whatsnew-current">You’re using this version</span> : null}
         </p>
       </header>
-      {r.intro.map((p, i) => (
-        <p key={i} className={i === 0 ? 'whatsnew-intro' : 'whatsnew-p'}><Spans spans={p} /></p>
-      ))}
+      {r.prerelease ? <p className="whatsnew-p">A release candidate for Muni {r.version.replace(/-.*$/, '')}: this is what runs now, and {r.version.replace(/-.*$/, '')} follows once it has passed its final checks.</p> : null}
       {lead && isHighlights ? (
+        <>
+        <h3 className="about-eyebrow whatsnew-kind">{lead.title}</h3>
         <ol className="whatsnew-highlights" aria-label={lead.title}>
           {lead.items.map((item, i) => {
             const [title, ...body] = item
@@ -180,6 +180,7 @@ function ReleaseEntry({ r, first }: { r: ReleaseNotes; first: boolean }) {
             )
           })}
         </ol>
+        </>
       ) : null}
       {(lead && isHighlights ? rest : r.sections).map((s) => (
         <div key={s.title} className="whatsnew-section">
