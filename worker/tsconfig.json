@@ -10,6 +10,7 @@
     "skipLibCheck": true,
     "isolatedModules": true,
     "noUnusedLocals": true,
+    "resolveJsonModule": true,
     // The encryption tests use the web client's crypto (../web/src/lib/e2ee). Its libraries resolve
     // from the worker's own devDependencies, so CI doesn't need the web app installed here.
     "paths": { "@noble/*": ["./node_modules/@noble/*"] }

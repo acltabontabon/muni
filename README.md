@@ -39,7 +39,8 @@ using Muni read the same in the app, at `/privacy`.
 | `worker/` | The backend: a Cloudflare Worker (TypeScript, Hono) with D1 (SQLite) for durable data, a `MeetingRoom` Durable Object per sprint for live meeting state and WebSockets, and a cron trigger for jobs. It also serves the built web app. |
 | `web/` | The React 19 + Vite + Tailwind 4 client, an installable PWA. |
 | `site/` | The marketing site (static HTML/CSS/JS). |
-| `docs/` | Architecture and privacy model, deployment, design notes, using Muni, the security review. |
+| `docs/` | Architecture and privacy model, deployment and releasing, design notes, using Muni, the security review. |
+| `scripts/` | Release tooling: the changelog parser, release checks and notes, the production check. |
 
 Muni runs on Cloudflare Workers, D1 and Durable Objects, and nothing else: there is no other
 supported backend and no container image.
@@ -63,12 +64,21 @@ Checks:
 ```bash
 cd worker && pnpm typecheck && pnpm test
 cd web && npm run typecheck && npm run lint && npm test && npm run build
+node --test scripts/ && node scripts/release.mjs check          # from the root: versions and changelog
 ```
 
 Browser end-to-end suites run against `wrangler dev` serving the production build:
 `node e2e/entrance.mjs` and `node e2e/offline.mjs` (from `web/`, with `MUNI_URL` if not port 8787).
 `node e2e/worlds.mjs` checks the eight character worlds against the Vite dev server (add `OFFLINE=1`
 against the production build for the offline part); `SHOTS=dir` saves every world's screenshots.
+
+## Versions and releases
+
+Muni follows [semantic versioning](https://semver.org). What changed in each version is in
+[`CHANGELOG.md`](CHANGELOG.md) — the same notes the app shows under About → What's new and each
+[GitHub release](https://github.com/acltabontabon/muni/releases) carries. Releases are cut by pushing a
+version tag; [`docs/RELEASING.md`](docs/RELEASING.md) describes the process, what counts as a breaking
+change, and how production is deployed, verified and rolled back.
 
 ## Deploy your own
 

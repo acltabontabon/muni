@@ -6,8 +6,23 @@ import { createHash } from 'node:crypto'
 import { readdirSync, readFileSync, statSync } from 'node:fs'
 import path from 'node:path'
 import { fileURLToPath, URL } from 'node:url'
+import { parseChangelog } from '../scripts/changelog.mjs'
 
 const src = fileURLToPath(new URL('./src', import.meta.url))
+
+/**
+ * The release this build is: the version from the root package.json (the one source, see
+ * docs/RELEASING.md) and the released notes from CHANGELOG.md, parsed once here so the app ships
+ * data, never markdown. Unreleased notes and maintainer comments are dropped by the parser.
+ */
+const rootDir = fileURLToPath(new URL('..', import.meta.url))
+const VERSION: string = JSON.parse(readFileSync(path.join(rootDir, 'package.json'), 'utf8')).version
+const RELEASES = parseChangelog(readFileSync(path.join(rootDir, 'CHANGELOG.md'), 'utf8')).releases.map(({ markdown: _markdown, ...r }) => r)
+
+/** `<meta name="muni-version">` in the page, so a deployment can be checked from outside. */
+function versionMeta(): Plugin {
+  return { name: 'muni-version', transformIndexHtml: () => [{ tag: 'meta', attrs: { name: 'muni-version', content: VERSION }, injectTo: 'head' }] }
+}
 
 /**
  * The display faces each character world uses (web/src/worlds/worlds.css). They aren't part of the
@@ -69,7 +84,8 @@ function serviceWorker(): Plugin {
 }
 
 export default defineConfig({
-  plugins: [react(), tailwindcss(), serviceWorker()],
+  plugins: [react(), tailwindcss(), versionMeta(), serviceWorker()],
+  define: { __MUNI_VERSION__: JSON.stringify(VERSION), __MUNI_RELEASES__: JSON.stringify(RELEASES) },
   resolve: { alias: { '@': src } },
   server: {
     port: 5173,

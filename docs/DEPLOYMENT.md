@@ -50,7 +50,9 @@ QR codes work without it).
 
 ## Updating
 
-Pull, rebuild the web app (`npm run build`), then `pnpm migrate:remote && pnpm run deploy`. Migrations are usually additive
+Update to a release tag (`git checkout v1.2.0`; the changelog says what changed and whether you must do
+anything), rebuild the web app (`npm run build`), then `pnpm migrate:remote && pnpm run deploy`.
+`GET /api/version` reports what's running. Migrations are usually additive
 (new tables and columns), so the previous Worker keeps working against a newer schema.
 `pnpm exec wrangler rollback --config wrangler.production.jsonc` restores the previous Worker
 version; migrations are not reversed.
@@ -71,17 +73,17 @@ app to a new domain means everyone creates new passkeys there — there's no oth
 it with your users (see [PASSKEYS.md](PASSKEYS.md) §5).
 Rollout, rollback and the real-device test matrix: [PASSKEYS.md](PASSKEYS.md#8-rollout-and-rollback).
 
-## Deploying from GitHub Actions (optional)
+## Releasing from GitHub Actions
 
-`.github/workflows/deploy.yml` is manual-only and runs only in the repository it names. For your
-own fork, change that guard, then create an environment called `production` limited to your main
-branch, with:
-
-- secrets `CLOUDFLARE_API_TOKEN` (an API token scoped to one account: Workers Scripts edit,
-  D1 edit, Workers Routes edit — not a Global API Key) and `CLOUDFLARE_ACCOUNT_ID`;
-- variables `MUNI_DOMAIN`, `MUNI_D1_DATABASE_ID`, `MUNI_EMAIL_FROM`.
+act.munimuni.app is released by pushing a version tag: `.github/workflows/release.yml` checks the
+tag against the committed version and changelog, runs every test, applies migrations, deploys the
+Worker, verifies production from outside and publishes the GitHub release. The process, the
+configuration it needs (an environment called `production` that admits only `v*` tags, a scoped API
+token, three variables) and recovery are in [RELEASING.md](RELEASING.md). The workflow runs only in
+the repository it names; for your own fork, change that guard.
 
 Pull-request workflows never receive these: `ci.yml` runs with a read-only token and no secrets.
+To check any deployment from outside: `node scripts/verify-deploy.mjs https://<your domain> <version>`.
 
 ## Operations
 

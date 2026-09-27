@@ -1,0 +1,18 @@
+{
+  "name": "muni",
+  "private": true,
+  "version": "1.0.0-rc.1",
+  "description": "Muni — keep the thought, bring it to the conversation. The version here is the one source for the app, the Worker and releases (docs/RELEASING.md).",
+  "license": "Apache-2.0",
+  "homepage": "https://munimuni.app",
+  "repository": "github:acltabontabon/muni",
+  "type": "module",
+  "config": {
+    "appUrl": "https://act.munimuni.app"
+  },
+  "scripts": {
+    "release:check": "node scripts/release.mjs check",
+    "release:notes": "node scripts/release.mjs notes",
+    "test": "node --test scripts/"
+  }
+}

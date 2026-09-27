@@ -1,0 +1,180 @@
+name: Release
+# The one way Muni reaches production. Pushing a version tag (vX.Y.Z, or vX.Y.Z-rc.N for a prerelease)
+# for a commit on main runs, in order:
+#   check    the tag matches the committed version, CHANGELOG.md has the entry, every test and build passes
+#   deploy   builds that exact commit, applies D1 migrations, deploys the Worker (API + app), then checks
+#            production from outside until it serves this version and commit
+#   publish  creates the GitHub release from the CHANGELOG entry, with the demo attached
+# A failure stops everything after it: no release is published for a deploy that didn't verify.
+# Re-running is safe: a deploy already live is verified, not repeated; an existing release is updated.
+# Setup, recovery and rollback: docs/RELEASING.md.
+on:
+  push:
+    tags: ['v[0-9]*.[0-9]*.[0-9]*']
+permissions:
+  contents: read
+# One production release at a time, and never cancelled halfway through a deploy.
+concurrency:
+  group: production-release
+  cancel-in-progress: false
+jobs:
+  check:
+    if: github.repository == 'acltabontabon/muni'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    outputs:
+      version: ${{ steps.meta.outputs.version }}
+      prerelease: ${{ steps.meta.outputs.prerelease }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with: { persist-credentials: false, fetch-depth: 0 }
+      - uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
+        with: { version: 10 }
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with: { node-version: 22 }
+      - name: Tag, version and changelog agree
+        run: |
+          node scripts/release.mjs check --tag "$GITHUB_REF_NAME"
+          node --test scripts/
+      - name: The tagged commit is on main
+        run: |
+          git merge-base --is-ancestor "$GITHUB_SHA" origin/main || {
+            echo "::error::$GITHUB_REF_NAME points at $GITHUB_SHA, which isn't on main. Release only reviewed, merged commits."
+            exit 1
+          }
+      - id: meta
+        run: |
+          v="$(node scripts/release.mjs version)"
+          echo "version=$v" >> "$GITHUB_OUTPUT"
+          case "$v" in *-*) echo "prerelease=true" >> "$GITHUB_OUTPUT" ;; *) echo "prerelease=false" >> "$GITHUB_OUTPUT" ;; esac
+      - name: Web — typecheck, lint, test, build
+        working-directory: web
+        run: npm ci --ignore-scripts && npm run typecheck && npm run lint && npm test && npm run build
+      - name: Worker — typecheck, test
+        working-directory: worker
+        run: pnpm install --frozen-lockfile && pnpm typecheck && pnpm test
+
+  deploy:
+    needs: check
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    # Secrets and variables live here, and this environment only admits v* tags (docs/RELEASING.md).
+    environment:
+      name: production
+      url: https://${{ vars.MUNI_DOMAIN }}
+    env:
+      VERSION: ${{ needs.check.outputs.version }}
+      ORIGIN: https://${{ vars.MUNI_DOMAIN }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with: { persist-credentials: false }
+      - uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
+        with: { version: 10 }
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with: { node-version: 22 }
+      - name: What production serves now
+        id: now
+        run: |
+          [ -n "${{ vars.MUNI_DOMAIN }}" ] || { echo "::error::Set the MUNI_DOMAIN variable on the production environment."; exit 1; }
+          state="$(node scripts/verify-deploy.mjs "$ORIGIN" "$VERSION" "$GITHUB_SHA" --state)"
+          echo "Production: $state (releasing $VERSION at $GITHUB_SHA)"
+          echo "state=$state" >> "$GITHUB_OUTPUT"
+          if [ "$state" = newer ]; then
+            echo "::error::Production already runs a later version than $VERSION. To go back, roll back (docs/RELEASING.md) instead of deploying an older tag."
+            exit 1
+          fi
+      - name: Credentials are configured
+        if: steps.now.outputs.state != 'live'
+        env:
+          HAS_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN != '' }}
+          HAS_ACCOUNT: ${{ secrets.CLOUDFLARE_ACCOUNT_ID != '' }}
+          MUNI_D1_DATABASE_ID: ${{ vars.MUNI_D1_DATABASE_ID }}
+          MUNI_EMAIL_FROM: ${{ vars.MUNI_EMAIL_FROM }}
+        run: |
+          missing=""
+          [ "$HAS_TOKEN" = true ] || missing="$missing CLOUDFLARE_API_TOKEN"
+          [ "$HAS_ACCOUNT" = true ] || missing="$missing CLOUDFLARE_ACCOUNT_ID"
+          for v in MUNI_D1_DATABASE_ID MUNI_EMAIL_FROM; do [ -n "${!v}" ] || missing="$missing $v"; done
+          if [ -n "$missing" ]; then echo "::error::The production environment is missing:$missing (docs/RELEASING.md)."; exit 1; fi
+      - name: Build the tagged commit
+        if: steps.now.outputs.state != 'live'
+        working-directory: web
+        run: |
+          npm ci --ignore-scripts && npm run build
+          grep -q "<meta name=\"muni-version\" content=\"$VERSION\"" dist/index.html
+      - name: Render the production config
+        if: steps.now.outputs.state != 'live'
+        working-directory: worker
+        env:
+          MUNI_DOMAIN: ${{ vars.MUNI_DOMAIN }}
+          MUNI_D1_DATABASE_ID: ${{ vars.MUNI_D1_DATABASE_ID }}
+          MUNI_EMAIL_FROM: ${{ vars.MUNI_EMAIL_FROM }}
+        run: pnpm install --frozen-lockfile && node scripts/production-config.mjs
+      # Migrations first: they're additive, so the Worker that's live keeps working against the new
+      # schema. Applying is idempotent (only pending migrations run). One retry for Cloudflare's
+      # occasional transient D1 error.
+      - name: Apply D1 migrations
+        if: steps.now.outputs.state != 'live'
+        working-directory: worker
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: |
+          apply() { pnpm exec wrangler d1 migrations apply DB --remote --config wrangler.production.jsonc; }
+          apply || { echo "Retrying once in 20 s"; sleep 20; apply; }
+      - name: Deploy the Worker and the app
+        if: steps.now.outputs.state != 'live'
+        working-directory: worker
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: >-
+          pnpm exec wrangler deploy --config wrangler.production.jsonc
+          --var "MUNI_COMMIT:$GITHUB_SHA"
+          --tag "$GITHUB_REF_NAME"
+          --message "Release $GITHUB_REF_NAME ($GITHUB_SHA)"
+      - name: Production serves this release
+        run: node scripts/verify-deploy.mjs "$ORIGIN" "$VERSION" "$GITHUB_SHA" --wait 240
+
+  publish:
+    needs: [check, deploy]
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: write
+    env:
+      TAG: ${{ github.ref_name }}
+      VERSION: ${{ needs.check.outputs.version }}
+      PRERELEASE: ${{ needs.check.outputs.prerelease }}
+      GH_TOKEN: ${{ github.token }}
+      GH_REPO: ${{ github.repository }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with: { persist-credentials: false }
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with: { node-version: 22 }
+      - name: Release notes from CHANGELOG.md
+        run: node scripts/release.mjs notes "$TAG" > "$RUNNER_TEMP/notes.md"
+      # Created as a draft, assets attached, then published: the page never shows a missing demo.
+      # A release that already exists (a re-run) is brought up to date instead of duplicated.
+      - name: Create or update the GitHub release
+        run: |
+          assets=(docs/demo/muni-demo.gif docs/demo/muni-demo.mp4)
+          kind=(--latest); [ "$PRERELEASE" = true ] && kind=(--prerelease)
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            gh release edit "$TAG" --title "Muni $VERSION" --notes-file "$RUNNER_TEMP/notes.md"
+            gh release upload "$TAG" "${assets[@]}" --clobber
+            gh release edit "$TAG" --draft=false "${kind[@]}"
+          else
+            gh release create "$TAG" --draft --verify-tag --title "Muni $VERSION" --notes-file "$RUNNER_TEMP/notes.md" "${assets[@]}"
+            gh release edit "$TAG" --draft=false "${kind[@]}"
+          fi
+      - name: The demo in the notes resolves
+        run: |
+          url="https://github.com/$GH_REPO/releases/download/$TAG/muni-demo.gif"
+          for _ in 1 2 3 4 5 6; do
+            type="$(curl -fsSL -o /dev/null -w '%{content_type}' "$url" || true)"
+            case "$type" in image/gif*|application/octet-stream*) echo "✓ $url"; exit 0 ;; esac
+            sleep 10
+          done
+          echo "::error::$url didn't resolve to the GIF"; exit 1

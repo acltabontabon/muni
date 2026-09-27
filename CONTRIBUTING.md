@@ -10,7 +10,8 @@ before putting work into a change.
   That's not a judgement of the work.
 - For anything larger than a small fix, open an issue first and describe the problem you want to
   solve. It saves you from building something that can't be merged.
-- There is no release schedule; `main` is what runs.
+- There is no release schedule. Versions are tagged from `main` when they're ready ([`docs/RELEASING.md`](docs/RELEASING.md)).
+- If your change is visible to people using Muni, add a line under `## [Unreleased]` in [`CHANGELOG.md`](CHANGELOG.md), written for them.
 
 ## Reporting bugs
 

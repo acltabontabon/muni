@@ -2,7 +2,7 @@
  * Muni on Cloudflare Workers. Static assets are served by the platform (the
  * Worker runs only for /api/*); everything else is the API and the room objects.
  */
-import { Hono } from 'hono'
+import { Hono, type Context } from 'hono'
 import type { AppEnv, HonoEnv } from './env'
 import { config, ConfigError } from './lib/config'
 import { AppError } from './lib/errors'
@@ -22,6 +22,8 @@ import { passkeys } from './routes/passkeys'
 import { join } from './routes/join'
 import { email } from './routes/email'
 import { scheduled } from './jobs'
+// The release version has one source, the root package.json (docs/RELEASING.md).
+import release from '../../package.json'
 
 export { MeetingRoom } from './room'
 
@@ -61,15 +63,25 @@ app.use('*', async (c, next) => {
   c.header('cache-control', 'no-store')
 })
 
-app.get('/healthz', (c) => c.json({ status: 'ok', email_transport: config(c.env).email }))
-app.get('/readyz', async (c) => {
+/**
+ * What's running: the release version, the commit a release deploy stamped on it (`--var
+ * MUNI_COMMIT:<sha>`; null for a local deploy) and the oldest client revision it accepts. Public and
+ * cheap, so a release can check production from outside. Under /api/ because only /api/* reaches
+ * the Worker in production; /healthz and /readyz answer only where the Worker runs first (local).
+ */
+const version = (env: AppEnv) => ({ name: 'muni', version: release.version, commit: env.MUNI_COMMIT || null, min_client_revision: MIN_CLIENT_REVISION })
+async function ready(c: Context<HonoEnv>) {
   try {
     await c.env.DB.prepare('SELECT 1').first()
-    return c.json({ status: 'ready', database: 'ok', email_transport: config(c.env).email })
+    return c.json({ status: 'ready', database: 'ok', email_transport: config(c.env).email, ...version(c.env) })
   } catch {
-    return c.json({ status: 'not ready', database: 'unreachable' }, 503)
+    return c.json({ status: 'not ready', database: 'unreachable', ...version(c.env) }, 503)
   }
-})
+}
+app.get('/api/version', (c) => c.json(version(c.env)))
+app.get('/api/health', ready)
+app.get('/healthz', (c) => c.json({ status: 'ok', email_transport: config(c.env).email }))
+app.get('/readyz', ready)
 
 app.route('/', auth)
 app.route('/', workspaces)
