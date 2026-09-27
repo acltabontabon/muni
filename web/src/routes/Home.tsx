@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { Link, useNavigate, useSearchParams } from 'react-router'
 import { ArrowRight, ChevronRight, Compass, Radio } from 'lucide-react'
 import { get } from '@/api/client'
@@ -39,15 +39,21 @@ export function Home() {
   const [data, setData] = useState<Loaded | null>(null)
   const [chosen, setChosen] = useState<string | null>(params.get('sprint') ?? readPrefs().lastSprint ?? null)
 
+  // The local store's object changes with every queue update; reading it through a ref keeps
+  // these loaders stable, so a sync never re-fetches the page or re-subscribes its listeners.
+  const localRef = useRef(local)
+  useEffect(() => {
+    localRef.current = local
+  }, [local])
   const load = useCallback(async () => {
-    const cached = await local.cachedContexts()
+    const cached = await localRef.current.cachedContexts()
     try {
       const capture = await get<CaptureTarget>('/api/me/capture-target')
       setData((d) => ({ capture, sprints: d?.sprints ?? null, experiments: d?.experiments ?? null, cached, offline: false }))
     } catch {
       setData((d) => ({ capture: d?.capture ?? null, sprints: d?.sprints ?? null, experiments: d?.experiments ?? null, cached, offline: true }))
     }
-  }, [local])
+  }, [])
   useEffect(() => {
     load()
     const onVisible = () => document.visibilityState === 'visible' && load()
@@ -69,13 +75,20 @@ export function Home() {
   }, [allSprints, deepSprint])
   const ws = useCurrentWorkspace(me, hint)
 
-  // Workspace-scoped extras: past sprints and commitments.
+  // Workspace-scoped extras: past sprints and commitments. Keyed by the workspace's id: the
+  // workspace object is rebuilt whenever the account is re-read.
+  const wsId = ws?.id ?? null
+  const dataOffline = !!data?.offline
   useEffect(() => {
-    if (!ws || data?.offline) return
-    Promise.all([get<SprintSummary[]>(`/api/workspaces/${ws.id}/sprints`).catch(() => null), get<Experiment[]>(`/api/workspaces/${ws.id}/experiments`).catch(() => null)]).then(([sprints, experiments]) =>
-      setData((d) => (d ? { ...d, sprints, experiments } : d)),
-    )
-  }, [ws, data?.offline])
+    if (!wsId || dataOffline) return
+    let live = true
+    Promise.all([get<SprintSummary[]>(`/api/workspaces/${wsId}/sprints`).catch(() => null), get<Experiment[]>(`/api/workspaces/${wsId}/experiments`).catch(() => null)]).then(([sprints, experiments]) => {
+      if (live) setData((d) => (d ? { ...d, sprints, experiments } : d))
+    })
+    return () => {
+      live = false
+    }
+  }, [wsId, dataOffline])
 
   const offline = authOffline || !!data?.offline
   // Where can a thought go in this workspace? From the server, or (offline) from what this device kept.
@@ -94,9 +107,9 @@ export function Home() {
   useEffect(() => {
     if (!data?.capture || offline) return
     for (const s of data.capture.collecting) {
-      local.cacheContext({ id: s.id, workspace_id: s.workspace_id, name: s.name, status: s.status, retro_local: s.retro_local, timezone: s.timezone }, me?.workspaces.find((w) => w.id === s.workspace_id)?.name ?? null)
+      localRef.current.cacheContext({ id: s.id, workspace_id: s.workspace_id, name: s.name, status: s.status, retro_local: s.retro_local, timezone: s.timezone }, me?.workspaces.find((w) => w.id === s.workspace_id)?.name ?? null)
     }
-  }, [data?.capture, offline, local, me])
+  }, [data?.capture, offline, me])
 
   const dest = pickDestination(collectingHere, chosen)
   const [sticky, setSticky] = useState<Sprintish | null>(null)

@@ -7,7 +7,7 @@
  * Decoration only: aria-hidden, no text, nothing interactive. Motion is CSS on transforms and
  * opacity, paused while the tab is hidden and still under prefers-reduced-motion.
  */
-import { useEffect, useId, useState, type CSSProperties } from 'react'
+import { useEffect, useId, useRef, useState, type CSSProperties, type RefObject } from 'react'
 
 export const HORIZON = 272
 const SHORE = 1.3
@@ -118,6 +118,25 @@ function useCompact() {
   return compact
 }
 
+/** Whether a scene should hold still: the tab is hidden, or the scene is scrolled out of view. */
+export function useStill(ref: RefObject<Element | null>) {
+  const [hidden, setHidden] = useState(() => typeof document !== 'undefined' && document.hidden)
+  const [away, setAway] = useState(false)
+  useEffect(() => {
+    const on = () => setHidden(document.hidden)
+    document.addEventListener('visibilitychange', on)
+    return () => document.removeEventListener('visibilitychange', on)
+  }, [])
+  useEffect(() => {
+    const el = ref.current
+    if (!el || typeof IntersectionObserver === 'undefined') return
+    const io = new IntersectionObserver(([e]) => setAway(!e.isIntersecting))
+    io.observe(el)
+    return () => io.disconnect()
+  }, [ref])
+  return hidden || away
+}
+
 /** `frame` crops the same drawing for the app's small postcards (a viewBox in scene units). */
 export function DuyanScene({ progress, className, frame }: { progress: number; className?: string; frame?: string }) {
   const compact = useCompact() && !frame
@@ -127,8 +146,20 @@ export function DuyanScene({ progress, className, frame }: { progress: number; c
   // Ids are per instance, so the scene can appear more than once on a page.
   const u = useId().replace(/:/g, '')
   const id = (n: string) => `${u}-${n}`
+  // Each finished step lets the evening breathe again (the motion is finite; see styles.css).
+  const svg = useRef<SVGSVGElement>(null)
+  const seen = useRef(progress)
+  useEffect(() => {
+    if (seen.current === progress) return
+    seen.current = progress
+    for (const a of svg.current?.getAnimations?.({ subtree: true }) ?? []) {
+      if ((a as CSSAnimation).animationName === 'keep') continue
+      a.currentTime = 0
+      a.play()
+    }
+  }, [progress])
   return (
-    <svg className={`scene ${className ?? ''}`} viewBox={frame ?? (compact ? '100 138 540 196' : '0 0 640 400')} preserveAspectRatio={frame || compact ? 'xMidYMid slice' : 'xMidYMax meet'} aria-hidden focusable="false">
+    <svg ref={svg} className={`scene ${className ?? ''}`} viewBox={frame ?? (compact ? '100 138 540 196' : '0 0 640 400')} preserveAspectRatio={frame || compact ? 'xMidYMid slice' : 'xMidYMax meet'} aria-hidden focusable="false">
       <defs>
         <linearGradient id={id("glow")} x1="0" y1="0" x2="0" y2="1">
           <stop offset="0" style={{ stopColor: 'var(--sky-top)', stopOpacity: 0 }} />
@@ -138,10 +169,6 @@ export function DuyanScene({ progress, className, frame }: { progress: number; c
           <stop offset="0" style={{ stopColor: 'var(--sea-a)' }} />
           <stop offset="1" style={{ stopColor: 'var(--sea-b)' }} />
         </linearGradient>
-        <radialGradient id={id("sun")} cx="0.5" cy="0.42" r="0.6">
-          <stop offset="0" style={{ stopColor: 'var(--sun-a)' }} />
-          <stop offset="1" style={{ stopColor: 'var(--sun-b)' }} />
-        </radialGradient>
         <radialGradient id={id("halo")}>
           <stop offset="0" style={{ stopColor: 'var(--halo)', stopOpacity: 0.55 }} />
           <stop offset="1" style={{ stopColor: 'var(--halo)', stopOpacity: 0 }} />
@@ -183,7 +210,7 @@ export function DuyanScene({ progress, className, frame }: { progress: number; c
       <g clipPath={`url(#${id("sky")})`}>
         <g className="scene-sun" style={{ transform: `translateY(${sunY - 196}px)` }}>
           <circle cx="470" cy="196" r="80" fill={`url(#${id("halo")})`} />
-          <circle cx="470" cy="196" r="34" fill={`url(#${id("sun")})`} />
+          <circle cx="470" cy="196" r="34" style={{ fill: 'var(--sun-disc)' }} />
         </g>
       </g>
       <rect x="-960" y={HORIZON} width="2560" height={400 - HORIZON + 200} fill={`url(#${id("sea")})`} />
@@ -217,7 +244,10 @@ export function DuyanScene({ progress, className, frame }: { progress: number; c
       {/* Alitaptap: fireflies along the shore at night. */}
       <g className="scene-fireflies">
         {FIREFLIES.map(([x, y], i) => (
-          <circle key={i} cx={x} cy={y} r="2" style={{ animationDelay: `${i * 1.3}s`, animationDuration: `${7 + (i % 3) * 2}s` } as CSSProperties} />
+          <g key={i} style={{ animationDelay: `${i * 1.3}s`, animationDuration: `${7 + (i % 3) * 2}s` } as CSSProperties}>
+            <circle cx={x} cy={y} r="5" className="scene-firefly-glow" />
+            <circle cx={x} cy={y} r="2" />
+          </g>
         ))}
       </g>
 

@@ -11,7 +11,7 @@ import { KeyRound } from 'lucide-react'
 import { Button, ErrorText } from '@/ui'
 import { addPasskey, describePasskeyError, hasPasskeyHint, isInstalled, signInWithPasskey, signUpWithPasskey, suggestedPasskeyName, supportsPasskeys } from '@/lib/passkeys'
 import { EmailSetup } from './email-setup'
-import { DuyanScene } from './scene'
+import { DuyanScene, useStill } from './scene'
 
 /** How far the evening has gone: email → code → name → in. Drives the sun and the kept lights. */
 export const PROGRESS = { email: 0.16, code: 0.5, name: 0.8, done: 1 } as const
@@ -20,15 +20,11 @@ export const PROGRESS = { email: 0.16, code: 0.5, name: 0.8, done: 1 } as const
 const BAYBAYIN = '\u170B\u1713\u1708\u1712 \u170B\u1713\u1708\u1712'
 
 export function EntranceShell({ progress = PROGRESS.email, children }: { progress?: number; children: ReactNode }) {
-  // Nothing moves while nobody is looking.
-  const [hidden, setHidden] = useState(false)
-  useEffect(() => {
-    const on = () => setHidden(document.hidden)
-    document.addEventListener('visibilitychange', on)
-    return () => document.removeEventListener('visibilitychange', on)
-  }, [])
+  // Nothing moves while nobody is looking: a hidden tab, or the scene scrolled away.
+  const sceneRef = useRef<HTMLDivElement>(null)
+  const still = useStill(sceneRef)
   return (
-    <div className="entrance" data-paused={hidden || undefined}>
+    <div className="entrance" data-paused={still || undefined}>
       <header className="entrance-brand">
         <div className="entrance-top">
           <div className="entrance-wordmark">
@@ -44,7 +40,7 @@ export function EntranceShell({ progress = PROGRESS.email, children }: { progres
           <p className="entrance-lede">Capture what matters during the sprint, while it’s still fresh.</p>
           <p className="entrance-kicker"><i lang="tl">muni-muni</i> · Filipino · to reflect; to ponder.</p>
         </div>
-        <div className="entrance-scene">
+        <div className="entrance-scene" ref={sceneRef}>
           <DuyanScene progress={progress} />
         </div>
       </header>

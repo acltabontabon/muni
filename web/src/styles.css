@@ -71,6 +71,9 @@
   --sky-glow: #e7c4a4;
   --sun-a: #f5dcc3;
   --sun-b: #cf7652;
+  /* The sun is a flat disc, cut from paper like the palms: one colour, no highlight (a shaded
+     sphere read as a 3D ball against the flat scene). The halo around it stays soft. */
+  --sun-disc: #dc8b67;
   --halo: #dd9c7a;
   --sea-a: #d6d1c8;
   --sea-b: #a9a399;
@@ -123,6 +126,7 @@
   --sky-glow: #332c2c;
   --sun-a: #f4efe4;
   --sun-b: #cdc4b3;
+  --sun-disc: #ebe4d6;
   --halo: #d9c9a6;
   --sea-a: #17191e;
   --sea-b: #0a0b0d;
@@ -335,7 +339,7 @@ body {
   width: calc(var(--art-h) * 0.26);
   aspect-ratio: 1;
   border-radius: 999px;
-  background: radial-gradient(circle at 50% 42%, var(--sun-a), var(--sun-b));
+  background: var(--sun-disc);
   box-shadow: 0 0 0 calc(var(--art-h) * 0.1) color-mix(in oklab, var(--halo) 22%, transparent), 0 0 calc(var(--art-h) * 0.4) calc(var(--art-h) * 0.08) color-mix(in oklab, var(--halo) 30%, transparent);
   /* Sets it behind the waterline: the only cut is along the horizon (0.11 × art height above the
      disc's bottom). The other sides reach past the halo, which extends 0.48 × art height (spread +
@@ -567,7 +571,7 @@ body {
 .sealed-row { display: flex; flex-wrap: wrap; justify-content: center; gap: 8px; }
 .sealed-line { height: 1px; margin: 12px -24px 0; background: linear-gradient(90deg, transparent, color-mix(in oklab, var(--accent) 55%, transparent) 20%, color-mix(in oklab, var(--accent) 55%, transparent) 80%, transparent); }
 .sealed-row--mirror { margin-top: 8px; opacity: 0.22; transform: scaleY(-1); filter: blur(0.6px); max-height: 44px; overflow: hidden; align-content: flex-end; }
-.sealed-bubble { width: 36px; height: 24px; border-radius: 999px; background: var(--card); box-shadow: 0 0 0 1px var(--line-strong); animation: pulse-soft 3.6s ease-in-out infinite; }
+.sealed-bubble { width: 36px; height: 24px; border-radius: 999px; background: var(--card); box-shadow: 0 0 0 1px var(--line-strong); animation: pulse-soft 3.6s ease-in-out 3.5 forwards; }
 @media (prefers-reduced-motion: reduce) { .sealed-bubble { animation: none; } }
 
 /* ── Postcards: the entrance's scene, small, at a few deliberate moments. ─────────────────── */
@@ -717,30 +721,40 @@ body {
 .entrance-kicker i { font-family: var(--font-wordmark); font-size: 15px; color: var(--e-ink); }
 
 /* ── The scene ───────────────────────────────────────────────────────────────────────────── */
+/* Motion is a breath, not a loop: the shore sways, stars twinkle and birds cross for about twenty
+   seconds, then everything comes to rest where it began, and the page stops drawing. It breathes
+   again when something happens (each finished step, see scene.tsx). An endless loop kept phones
+   repainting the whole scene, and its rippled reflection, sixty times a second. */
 .scene-land, .scene-land path, .scene-land circle, .scene-land rect { fill: var(--land); }
 .scene-land .scene-limb, .scene-land .scene-rope { fill: none; stroke: var(--land); }
 .scene-mirror { opacity: 0.2; }
 .dark .scene-mirror { opacity: 0.55; }
 .scene-horizon { stroke: color-mix(in oklab, var(--sea-a) 60%, var(--land)); stroke-width: 0.8; opacity: 0.5; }
-.scene-glints rect { fill: var(--glint); opacity: 0.55; animation: glint 3.6s ease-in-out infinite alternate; }
+.scene-glints rect { fill: var(--glint); opacity: 0.55; animation: glint 3.6s ease-in-out 3.5 alternate forwards; }
 .scene-stars circle { fill: var(--star); opacity: 0; }
-.dark .scene-stars circle { opacity: 0.8; animation: twinkle 5s ease-in-out infinite; }
-.scene-birds { stroke: var(--land); opacity: 0.55; animation: birds 34s linear infinite; }
+.dark .scene-stars circle { opacity: 0.8; animation: twinkle 5s ease-in-out 2.5 forwards; }
+.scene-birds { stroke: var(--land); opacity: 0.55; animation: birds 22s linear 1 forwards; }
 .dark .scene-birds { display: none; }
-.scene-fireflies circle { fill: var(--light); opacity: 0; }
-.dark .scene-fireflies circle { animation: firefly 8s ease-in-out infinite; filter: drop-shadow(0 0 3px var(--light)); }
+.scene-fireflies { display: none; }
+.dark .scene-fireflies { display: inline; }
+.scene-fireflies circle { fill: var(--light); }
+.scene-fireflies g { opacity: 0; }
+/* The glow is a second, fainter circle (scene.tsx), not a filter: a filter under a moving element is
+   re-rasterised every frame. */
+.dark .scene-fireflies g { animation: firefly 8s ease-in-out 1 both; }
+.scene-fireflies .scene-firefly-glow { opacity: 0.28; }
 .scene-sun { transition: transform 1400ms var(--ease-out-soft); }
-.scene-duyan { animation: sway 6.5s ease-in-out infinite alternate; }
-.scene-tsinelas { animation: dangle 3.25s ease-in-out infinite alternate; }
-.scene-crown { animation: breeze 7s ease-in-out infinite alternate; }
+.scene-duyan { animation: sway 6.5s ease-in-out 2.5 alternate forwards; }
+.scene-tsinelas { animation: dangle 3.25s ease-in-out 5.5 alternate forwards; }
+.scene-crown { animation: breeze 7s ease-in-out 2.5 alternate forwards; }
 .scene-palm--b .scene-crown { animation-duration: 8.5s; animation-delay: -2s; }
-.scene-thought { animation: drift 7s ease-in-out infinite; }
+.scene-thought { animation: drift 7s ease-in-out 1.5 forwards; }
 .scene-thought circle, .scene-bubble rect { fill: var(--e-panel); stroke: var(--land); stroke-width: 1.2; }
 .dark .scene-thought circle, .dark .scene-bubble rect { fill: #1d1e23; stroke: #6f6a61; }
-.scene-bubble .scene-dot { fill: var(--accent); stroke: none; animation: dot 1.4s ease-in-out infinite; }
+.scene-bubble .scene-dot { fill: var(--accent); stroke: none; animation: dot 1.4s ease-in-out 6.4 forwards; }
 .scene-keep { animation: keep 1500ms var(--ease-out-soft) both; }
 .scene-keep-core { fill: var(--light); }
-.scene-keep circle:first-child { animation: glow 3.2s ease-in-out 1.5s infinite alternate; transform-box: fill-box; transform-origin: center; }
+.scene-keep circle:first-child { animation: glow 3.2s ease-in-out 1.5s 3.5 alternate forwards; transform-box: fill-box; transform-origin: center; }
 
 @keyframes glint { from { opacity: 0.2; } to { opacity: 0.75; } }
 @keyframes twinkle { 0%, 100% { opacity: 0.25; } 50% { opacity: 0.95; } }
@@ -927,7 +941,7 @@ body {
   .entrance-step, .scene *, .capiz-pane[data-lit] { animation: none !important; }
   .scene-sun { transition: none; }
   .dark .scene-stars circle { opacity: 0.7; }
-  .dark .scene-fireflies circle { opacity: 0.8; }
+  .dark .scene-fireflies g { opacity: 0.8; }
   .scene-thought { opacity: 1; }
   .scene-birds { transform: translateX(40px); }
 }

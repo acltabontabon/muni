@@ -64,8 +64,14 @@ export function initPwa() {
       watch(reg.waiting)
       watch(reg.installing)
       reg.addEventListener('updatefound', () => watch(reg.installing))
-      // Look for a new version when Muni comes back to the foreground (a small, cacheless fetch).
-      document.addEventListener('visibilitychange', () => document.visibilityState === 'visible' && reg.update().catch(() => {}))
+      // Look for a new version when Muni comes back to the foreground (a small, cacheless fetch),
+      // at most every quarter of an hour: a phone flicks between apps far more often than that.
+      let checked = Date.now()
+      document.addEventListener('visibilitychange', () => {
+        if (document.visibilityState !== 'visible' || Date.now() - checked < 15 * 60_000) return
+        checked = Date.now()
+        reg.update().catch(() => {})
+      })
     })
     .catch(() => {})
   // The first worker taking control of a fresh visit is not an update; only a change of an

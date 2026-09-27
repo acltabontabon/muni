@@ -4,20 +4,9 @@
  * strip of horizon for a workspace. Same drawing, same palettes (dusk in light mode, moonlit in
  * dark). All decoration: aria-hidden, nothing interactive, still under prefers-reduced-motion.
  */
-import { useEffect, useId, useState, type CSSProperties, type ReactNode } from 'react'
+import { useId, useRef, type CSSProperties, type ReactNode } from 'react'
 import { clsx } from 'clsx'
-import { DuyanScene, HORIZON, Land } from './scene'
-
-/** Pause every animation while the tab is hidden. */
-function usePaused() {
-  const [hidden, setHidden] = useState(() => typeof document !== 'undefined' && document.hidden)
-  useEffect(() => {
-    const on = () => setHidden(document.hidden)
-    document.addEventListener('visibilitychange', on)
-    return () => document.removeEventListener('visibilitychange', on)
-  }, [])
-  return hidden
-}
+import { DuyanScene, HORIZON, Land, useStill } from './scene'
 
 const FRAMES = {
   // The hammock, the person and their thought bubble; the palms' trunks at the edges.
@@ -31,10 +20,11 @@ const FRAMES = {
  * a retro is complete, never as a count of anyone's contributions.
  */
 export function Postcard({ framing = 'close', lights = 0, className }: { framing?: keyof typeof FRAMES; lights?: 0 | 1 | 2 | 4; className?: string }) {
-  const paused = usePaused()
+  const ref = useRef<HTMLDivElement>(null)
+  const paused = useStill(ref)
   const progress = lights >= 4 ? 1 : lights >= 2 ? 0.8 : lights >= 1 ? 0.5 : 0.16
   return (
-    <div className={clsx('postcard entrance-art', className)} data-paused={paused || undefined} aria-hidden>
+    <div ref={ref} className={clsx('postcard entrance-art', className)} data-paused={paused || undefined} aria-hidden>
       <DuyanScene progress={progress} frame={FRAMES[framing]} />
     </div>
   )
@@ -45,7 +35,8 @@ export function Postcard({ framing = 'close', lights = 0, className }: { framing
  * the shore at the far edge, and its reflection. Content sits over the open sky on the left.
  */
 export function HorizonBand({ children, className }: { children: ReactNode; className?: string }) {
-  const paused = usePaused()
+  const ref = useRef<HTMLDivElement>(null)
+  const paused = useStill(ref)
   const u = useId().replace(/:/g, '')
   const id = (n: string) => `${u}-${n}`
   const H = 174 // the band's waterline, in its own units: low, so names sit in open sky
@@ -53,7 +44,7 @@ export function HorizonBand({ children, className }: { children: ReactNode; clas
   const tx = 1362
   const ty = H - HORIZON * s
   return (
-    <div className={clsx('horizon entrance-art', className)} data-paused={paused || undefined}>
+    <div ref={ref} className={clsx('horizon entrance-art', className)} data-paused={paused || undefined}>
       <svg viewBox="0 0 1600 200" preserveAspectRatio="xMaxYMax slice" aria-hidden focusable="false" className="scene">
         <defs>
           <linearGradient id={id('sky')} x1="0" y1="0" x2="0" y2="1">
@@ -65,10 +56,6 @@ export function HorizonBand({ children, className }: { children: ReactNode; clas
             <stop offset="0" style={{ stopColor: 'var(--sea-a)' }} />
             <stop offset="1" style={{ stopColor: 'var(--sea-b)' }} />
           </linearGradient>
-          <radialGradient id={id('sun')} cx="0.5" cy="0.42" r="0.6">
-            <stop offset="0" style={{ stopColor: 'var(--sun-a)' }} />
-            <stop offset="1" style={{ stopColor: 'var(--sun-b)' }} />
-          </radialGradient>
           <radialGradient id={id('halo')}>
             <stop offset="0" style={{ stopColor: 'var(--halo)', stopOpacity: 0.5 }} />
             <stop offset="1" style={{ stopColor: 'var(--halo)', stopOpacity: 0 }} />
@@ -95,7 +82,7 @@ export function HorizonBand({ children, className }: { children: ReactNode; clas
         </g>
         <g clipPath={`url(#${id('air')})`}>
           <circle cx="1478" cy="160" r="46" fill={`url(#${id('halo')})`} />
-          <circle cx="1478" cy="160" r="17" fill={`url(#${id('sun')})`} />
+          <circle cx="1478" cy="160" r="17" style={{ fill: 'var(--sun-disc)' }} />
         </g>
         <rect x="-3000" y={H} width="4800" height="60" fill={`url(#${id('sea')})`} />
         <g className="scene-glints" transform={`translate(1478 ${H})`}>

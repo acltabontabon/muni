@@ -88,6 +88,15 @@ export function LocalProvider({ accountId, children }: { accountId: string | nul
   }, [accountId])
 
   const pass = useCallback(async (force: boolean): Promise<FlushResult | null> => {
+    // Nothing waiting to go: no request at all (coming back to the app, reconnecting and timers
+    // all end here when the queue is empty).
+    if (accountId) {
+      const waiting = await storeRef.current.listOutbox(accountId).catch(() => null)
+      if (waiting && !waiting.some((i) => i.status === 'queued' || i.status === 'sending')) {
+        setSync('idle')
+        return { state: 'ok', accountId, submitted: [], attention: [] }
+      }
+    }
     setSync('sending')
     try {
       const r = await flush({ store: storeRef.current, fetch: (i, init) => fetch(i, init), csrf: async () => csrfToken() || null, notify: () => { reload(); channel?.postMessage('changed') }, seal: sealThought }, { force })
@@ -103,7 +112,7 @@ export function LocalProvider({ accountId, children }: { accountId: string | nul
       await reload()
       channel?.postMessage('changed')
     }
-  }, [reload])
+  }, [accountId, reload])
 
   const run = useMemo(() => {
     const serial = serialPasses(pass)
