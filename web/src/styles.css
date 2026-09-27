@@ -605,6 +605,41 @@ body {
 .chapter-role { font-weight: 400; color: var(--ink-soft); }
 .chapter-role::before { content: '· '; color: var(--ink-faint); }
 
+/* The sprint's days on one line, like the horizon above: a tick a day (shorter at the weekend),
+   the days gone inked in, today standing up from the line, the retro as the sun resting on it.
+   Days after the sprint and before its retro are only a dotted stretch of line. */
+.days { margin: 1.9rem 0 0; max-width: 40rem; }
+.days-line { position: relative; display: grid; grid-template-columns: repeat(var(--n), minmax(0, 1fr)); align-items: end; height: 30px; margin: 0; padding: 0; list-style: none; }
+.days-line::after { content: ''; position: absolute; left: 0; right: 0; bottom: 0; height: 1px; background: var(--line-strong); }
+.days-line li { position: relative; height: 100%; }
+.days-line li::before { content: ''; position: absolute; left: 50%; bottom: 0; width: 1px; height: 9px; margin-left: -0.5px; background: var(--line-strong); }
+.days-line li[data-rest]::before { height: 5px; }
+.days-line li[data-past]::before { background: var(--ink-soft); }
+/* The stretch already travelled is inked in, up to today. */
+.days-line li[data-past] { box-shadow: inset 0 -1.5px 0 var(--ink-soft); }
+.days-line li[data-today] { background: linear-gradient(var(--ink-soft), var(--ink-soft)) left bottom / 50% 1.5px no-repeat; }
+.days-line li[data-after]::before { height: 0; }
+.days-line li[data-after]::after { content: ''; position: absolute; left: 0; right: 0; bottom: -1px; height: 3px; background: radial-gradient(circle, var(--line-strong) 1px, transparent 1.5px) 0 0 / 6px 3px repeat-x; }
+.days-line li[data-today]::before { width: 2px; height: 24px; margin-left: -1px; background: var(--accent); border-radius: 1px; }
+.days-line li[data-retro]::after { content: ''; position: absolute; left: 50%; bottom: -1px; width: 16px; height: 8px; margin-left: -8px; border-radius: 16px 16px 0 0; background: var(--sun-disc); box-shadow: 0 -2px 14px 4px color-mix(in oklab, var(--sun-disc) 30%, transparent); }
+.days-caption { display: flex; flex-wrap: wrap; align-items: baseline; gap: 0.2rem 1.1rem; margin-top: 0.7rem; font-size: 14px; color: var(--ink-soft); }
+.days-where { font-weight: 600; color: var(--ink); }
+.days-retro { margin-left: auto; }
+@media (max-width: 639px) { .days-retro { margin-left: 0; } }
+
+/* Who's in: the People page's monograms, overlapping a little; yours in rubric, the facilitator ringed. */
+.crew { display: flex; flex-wrap: wrap; align-items: center; gap: 0.6rem 1rem; margin-top: 1.6rem; }
+.crew-marks { display: flex; margin: 0; padding: 0 0 0 6px; list-style: none; }
+.crew-marks li { margin-left: -6px; border-radius: 999px; box-shadow: 0 0 0 2px var(--paper); }
+.crew-marks .person-mark { width: 2.25rem; height: 2.25rem; font-size: 14px; }
+.crew-marks li[data-you] .person-mark { background: var(--accent-soft); color: var(--accent-ink); }
+.crew-marks li[data-fac] .person-mark { box-shadow: inset 0 0 0 1.5px var(--ink-soft); }
+.crew-more { display: grid; place-items: center; width: 2.25rem; height: 2.25rem; border-radius: 999px; background: var(--card); font-size: 12.5px; color: var(--ink-soft); }
+.crew-note { font-size: 14.5px; color: var(--ink-soft); }
+
+/* A section that's still to come: its title and one line of what will gather there. */
+.ws-section--quiet .ws-section-note { max-width: 34rem; font-size: 15px; line-height: 1.55; color: var(--ink-faint); text-wrap: pretty; }
+
 .chapter-aside { display: grid; align-content: start; gap: 1.6rem; min-width: 0; }
 .aside-block + .aside-block { padding-top: 1.5rem; border-top: 1px solid var(--line); }
 @media (max-width: 899px) {

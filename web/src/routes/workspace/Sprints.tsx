@@ -7,7 +7,7 @@
 import { useMemo, useState } from 'react'
 import { Link } from 'react-router'
 import { ArrowRight, Plus } from 'lucide-react'
-import type { Experiment, SprintSummary } from '@/api/types'
+import type { Experiment, Participant, SprintDetail, SprintSummary } from '@/api/types'
 import { useAuth } from '@/lib/auth'
 import { OUTCOME_LABEL } from '@/lib/categories'
 import { PHASE_OF, STATUS_PHRASE } from '@/lib/lifecycle'
@@ -16,6 +16,7 @@ import { dateRange, describeRetro, shortDate } from '@/lib/schedule'
 import { useDocumentTitle } from '@/ui'
 import { Postcard } from '@/ui/art'
 import { SectionActions, SectionError, SectionPending, useWorkspaceShell } from './Layout'
+import { initials } from './People'
 
 /** The order an open sprint is chosen as "the" current one. */
 const ORDER = ['live', 'ready', 'preparing', 'collecting', 'draft']
@@ -31,6 +32,8 @@ export function WorkspaceSprints() {
   const list = sprints.data
   const active = useMemo(() => (list ?? []).filter((s) => ORDER.includes(s.status)).sort((a, b) => ORDER.indexOf(a.status) - ORDER.indexOf(b.status)), [list])
   const lead = active.find((s) => s.is_participant) ?? active[0] ?? null
+  // Who's in the current sprint (the list only counts them).
+  const detail = useResource<SprintDetail>(lead ? `/api/sprints/${lead.id}` : null)
 
   const newSprint = !offline ? (
     <Link to={`/workspaces/${ws.id}/sprints/new`} className="ws-btn ws-btn--secondary">
@@ -71,7 +74,7 @@ export function WorkspaceSprints() {
       <SectionActions>{newSprint}</SectionActions>
       <div className="ws-sprints">
         {lead ? (
-          <Chapter s={lead} />
+          <Chapter s={lead} people={detail.data?.id === lead.id ? detail.data.participants : undefined} />
         ) : (
           <section className="chapter" aria-labelledby="chapter-title">
             <p className="ws-eyebrow">Between sprints</p>
@@ -99,19 +102,33 @@ export function WorkspaceSprints() {
               </ul>
               {revisit.length > 4 ? <p className="aside-note mt-3">And {revisit.length - 4} more, in their sprints’ outcomes.</p> : null}
             </section>
+          ) : lead && !exps.length ? (
+            <section className="aside-block" aria-labelledby="revisit">
+              <h2 id="revisit" className="ws-eyebrow">To revisit</h2>
+              <p className="aside-note">What the team agrees to try in a retro comes back here, each with the day to look at it again.</p>
+            </section>
           ) : null}
         </aside>
       </div>
 
       {open.length ? <Ledger id="open" title="Also in progress" rows={open} /> : null}
       {upcoming.length ? <Ledger id="upcoming" title="Upcoming" rows={upcoming} /> : null}
-      {past.length ? <Archive past={past} exps={exps} /> : null}
+      {past.length ? (
+        <Archive past={past} exps={exps} />
+      ) : lead ? (
+        <section className="ws-section ws-section--quiet" aria-labelledby="earlier">
+          <div className="ws-section-head">
+            <h2 id="earlier" className="ws-section-title">Earlier sprints</h2>
+          </div>
+          <p className="ws-section-note">The first chapter. When {lead.name} is done, it’s kept here with what the team agreed to try, and later, whether it helped.</p>
+        </section>
+      ) : null}
     </>
   )
 }
 
-/** The open chapter: the sprint's name, where it is, and the way in. Nothing to do here but open it. */
-function Chapter({ s }: { s: SprintSummary }) {
+/** The open chapter: the sprint's name, where it is, its days and its people, and the way in. */
+function Chapter({ s, people }: { s: SprintSummary; people?: Participant[] }) {
   const href = `/sprints/${s.id}`
   return (
     <section className="chapter" aria-labelledby="chapter-title">
@@ -125,6 +142,8 @@ function Chapter({ s }: { s: SprintSummary }) {
         <span>{stateOf(s)}</span>
         {s.is_facilitator ? <span className="chapter-role">You’re facilitating</span> : null}
       </p>
+      <SprintDays s={s} />
+      {people?.length ? <Crew people={people} /> : null}
       <div className="chapter-actions">
         <Link to={href} className="ws-btn ws-btn--primary">
           Open sprint <ArrowRight className="size-4" aria-hidden />
@@ -134,7 +153,7 @@ function Chapter({ s }: { s: SprintSummary }) {
   )
 }
 
-/** The retro as an appointment, and the sprint's plain facts. */
+/** The retro as an appointment. */
 function Appointment({ s }: { s: SprintSummary }) {
   const r = describeRetro(s.retro_at, s.timezone)
   return (
@@ -147,15 +166,79 @@ function Appointment({ s }: { s: SprintSummary }) {
         </p>
         <p className="aside-note">{r.relative}{r.yours ? ` · ${r.yours}` : ''}</p>
       </section>
-      <section className="aside-block" aria-labelledby="sprint-facts">
-        <h2 id="sprint-facts" className="ws-eyebrow">Sprint</h2>
-        <p className="aside-line">{dateRange(s.starts_on, s.ends_on)}</p>
-        <p className="aside-line">
-          {s.participant_count} {s.participant_count === 1 ? 'person' : 'people'}
-          {s.facilitator_name ? <> · facilitated by {s.is_facilitator ? 'you' : s.facilitator_name}</> : null}
-        </p>
-      </section>
     </>
+  )
+}
+
+/** A calendar day ("2026-09-27") in a timezone, or on this device. */
+function dayIn(tz: string, at = Date.now()) {
+  try {
+    return new Intl.DateTimeFormat('en-CA', { timeZone: tz, year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date(at))
+  } catch {
+    return new Date(at).toISOString().slice(0, 10)
+  }
+}
+const DAY = 86_400_000
+const addDay = (d: string, n: number) => new Date(Date.parse(`${d}T12:00:00Z`) + n * DAY).toISOString().slice(0, 10)
+
+/**
+ * The sprint's days on one line — the workspace's horizon again: the days gone inked in, today
+ * standing up from it, and the retro as the sun resting on the line. A picture of where the team
+ * is; it says the same in words underneath.
+ */
+function SprintDays({ s }: { s: SprintSummary }) {
+  const today = dayIn(s.timezone)
+  const retro = s.retro_local_date
+  const last = retro > s.ends_on ? retro : s.ends_on
+  const days: string[] = []
+  for (let d = s.starts_on; d <= last && days.length < 60; d = addDay(d, 1)) days.push(d)
+  const length = Math.round((Date.parse(`${s.ends_on}T12:00:00Z`) - Date.parse(`${s.starts_on}T12:00:00Z`)) / DAY) + 1
+  const n = Math.round((Date.parse(`${today}T12:00:00Z`) - Date.parse(`${s.starts_on}T12:00:00Z`)) / DAY) + 1
+  const where = n < 1 ? `Starts ${shortDate(s.starts_on)}` : n > length ? 'The sprint’s days are over' : `Day ${n} of ${length}`
+  return (
+    <figure className="days" aria-label={`${where}. ${dateRange(s.starts_on, s.ends_on)}; retro planned ${shortDate(retro)}.`}>
+      <ol className="days-line" aria-hidden style={{ ['--n' as string]: days.length }}>
+        {days.map((d) => {
+          const wd = new Date(`${d}T12:00:00Z`).getUTCDay()
+          return (
+            <li
+              key={d}
+              data-past={d < today || undefined}
+              data-today={d === today || undefined}
+              data-rest={wd === 0 || wd === 6 || undefined}
+              data-after={d > s.ends_on || undefined}
+              data-retro={d === retro || undefined}
+            />
+          )
+        })}
+      </ol>
+      <figcaption className="days-caption">
+        <span className="days-where">{where}</span>
+        <span>{dateRange(s.starts_on, s.ends_on)}</span>
+        <span className="days-retro">Retro, planned {shortDate(retro)}</span>
+      </figcaption>
+    </figure>
+  )
+}
+
+/** The sprint's people, as the People page draws them; the facilitator marked. */
+function Crew({ people }: { people: Participant[] }) {
+  const shown = people.slice(0, 9)
+  return (
+    <div className="crew">
+      <ul className="crew-marks" aria-label={`Who’s in: ${people.map((p) => p.display_name + (p.is_facilitator ? ' (facilitator)' : '')).join(', ')}`}>
+        {shown.map((p) => (
+          <li key={p.account_id} title={p.display_name + (p.is_facilitator ? ' · facilitator' : '') + (p.is_you ? ' · you' : '')} data-you={p.is_you || undefined} data-fac={p.is_facilitator || undefined}>
+            <span className="person-mark" aria-hidden>{initials(p.display_name)}</span>
+          </li>
+        ))}
+        {people.length > shown.length ? <li className="crew-more" aria-hidden>+{people.length - shown.length}</li> : null}
+      </ul>
+      <p className="crew-note">
+        {people.length} {people.length === 1 ? 'person' : 'people'}
+        {people.find((p) => p.is_facilitator) ? <> · facilitated by {people.find((p) => p.is_facilitator)!.is_you ? 'you' : people.find((p) => p.is_facilitator)!.display_name}</> : null}
+      </p>
+    </div>
   )
 }
 

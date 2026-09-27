@@ -110,9 +110,13 @@ section's title and a line of why on the left (12.5rem), its rows or controls on
 
 - **Sprints.** A place to find a sprint and open it, not a second copy of it. The current sprint is
   the chapter: its name set large, the goal in Fraunces italic, where it is in one line (the sprint
-  bar's dot and phrase, and *You’re facilitating* when you are), and one way in: *Open sprint*.
+  bar's dot and phrase, and *You’re facilitating* when you are), its days drawn as the opening's
+  horizon (a tick a day, the stretch travelled inked in, today standing up in rubric, the planned
+  retro as the sun — the moon at night — resting on the line; the same in words beneath), who's in
+  as the People page's monograms, and one way in: *Open sprint*. Sections still to come (*To
+  revisit*, *Earlier sprints*) say in one quiet line what will gather there.
   Beside it, quieter, behind a hairline: the retro as planned (date large, time and zone, how soon,
-  your own time), the sprint's dates and people, and experiments due for another look. Other
+  your own time), and experiments due for another look. Other
   sprints follow as a ledger — title, dates and state on shared columns — eight at a time; every
   row opens the sprint's own page.
 - **People.** A directory: owners and members as two groups on one fine-ruled list, each person a
