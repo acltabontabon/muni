@@ -8,7 +8,7 @@
  * thought, and the UI never says "submitted" until the server has it. Drafts belong to the sprint
  * they were started for (lib/drafts.ts).
  */
-import { useCallback, useEffect, useId, useLayoutEffect, useMemo, useRef, useState, type FormEvent, type ReactNode } from 'react'
+import { createContext, useCallback, useContext, useEffect, useId, useLayoutEffect, useMemo, useRef, useState, type FormEvent, type ReactNode } from 'react'
 import { Link } from 'react-router'
 import { clsx } from 'clsx'
 import * as Popover from '@radix-ui/react-popover'
@@ -37,7 +37,8 @@ const isFinePointer = () => window.matchMedia('(pointer: fine)').matches
 const periodOptions = PERIODS.map((p) => ({ id: p.id, label: p.label, color: 'var(--ink-faint)' }))
 const MOD = typeof navigator !== 'undefined' && /Mac|iPhone|iPad/.test(navigator.platform) ? '⌘' : 'Ctrl'
 
-type Notice = { tone: 'ok' | 'local' | 'warn'; text: string }
+/** What happened to a save: `submitted` (the sprint has it), `waiting` (kept here, sent later), `attention` (needs a decision). */
+export type Notice = { tone: 'ok' | 'local' | 'warn'; kind: 'submitted' | 'waiting' | 'attention'; sprintName: string; text: string }
 
 /**
  * Small word choices with a coloured marker (categories, periods, filters). A radio group; picking
@@ -94,32 +95,16 @@ function PrivacyDisclosure({ encrypted }: { encrypted: boolean }) {
 }
 
 /**
- * The composer. Mount it with `key={sprintId}`: each destination has its own text, so switching
- * workspace or sprint never carries words somewhere else. Choosing another destination from the
- * composer's own "Saving to" list is the one explicit way to move them.
+ * What every composer does, whatever it looks like: the text and its draft on this device, moving
+ * it to another sprint, and saving through the send queue. A world with its own layout (Guhit's
+ * sketchbook) renders this same behaviour differently; nothing about drafts, queueing, encryption
+ * or what "submitted" means changes with the look.
  *
- * `fieldId` lets a page put the field's label (the heading) elsewhere, such as on the scene's
- * horizon; without it, the composer shows its own heading.
+ * Mount the component using it with `key={sprintId}`: each destination has its own text.
  */
-export function Composer({
-  dest,
-  choices,
-  onChoose,
-  headingLevel = 1,
-  fieldId,
-  closed,
-}: {
-  dest: Destination | null
-  choices: Destination[]
-  onChoose: (d: Destination) => void
-  headingLevel?: 1 | 2
-  fieldId?: string
-  /** Shown when the destination stopped collecting while text was still here. */
-  closed?: ReactNode
-}) {
+export function useComposer({ dest, choices, onChoose, onSaved }: { dest: Destination | null; choices: Destination[]; onChoose: (d: Destination) => void; onSaved?: () => void }) {
   const local = useLocal()
   const uid = useId()
-  const bodyId = fieldId ?? `${uid}-body`
   const [p, setP] = useState<Payload>(emptyPayload)
   // The text as of the last keystroke, before React renders it. A draft restored from the device
   // checks this, so it can never replace something typed before it arrived.
@@ -129,8 +114,11 @@ export function Composer({
   const [error, setError] = useState<string | null>(null)
   const [notice, setNotice] = useState<Notice | null>(null)
   const [restored, setRestored] = useState(false)
-  const [nudge, setNudge] = useState<string | null>(null)
   const area = useRef<HTMLTextAreaElement>(null)
+  const savedRef = useRef(onSaved)
+  useEffect(() => {
+    savedRef.current = onSaved
+  })
   const sprintId = dest?.sprintId ?? null
 
   // Always write through the current store (it changes when "keep drafts on this device" flips).
@@ -208,15 +196,15 @@ export function Composer({
         setP(latest.current)
         setMore(false)
         setRestored(false)
-        setNudge(null)
+        savedRef.current?.()
         const where = choices.length > 1 ? ` to ${dest.sprintName}` : ''
         if (result?.submitted.some((s) => s.id === item.id)) {
-          setNotice({ tone: 'ok', text: `Submitted${where}. It stays hidden from your team until collection closes.` })
+          setNotice({ tone: 'ok', kind: 'submitted', sprintName: dest.sprintName, text: `Submitted${where}. It stays hidden from your team until collection closes.` })
           announceKept()
-        } else if (result?.attention.includes(item.id)) setNotice({ tone: 'warn', text: 'This thought wasn’t submitted. It’s kept with your thoughts, with what to do next.' })
-        else if (result?.state === 'signed_out') setNotice({ tone: 'local', text: local.kind === 'device' ? 'Saved on this device. Sign in again to send it.' : 'Kept in this tab. Sign in again to send it.' })
-        else if (result?.state === 'upgrade') setNotice({ tone: 'local', text: 'Saved. Reload Muni to send it.' })
-        else setNotice({ tone: 'local', text: local.kind === 'device' ? 'Saved on this device. We’ll send it when you reconnect.' : 'Kept in this tab. Keep Muni open until it’s sent — or turn on “Keep drafts on this device” in your account.' })
+        } else if (result?.attention.includes(item.id)) setNotice({ tone: 'warn', kind: 'attention', sprintName: dest.sprintName, text: 'This thought wasn’t submitted. It’s kept with your thoughts, with what to do next.' })
+        else if (result?.state === 'signed_out') setNotice({ tone: 'local', kind: 'waiting', sprintName: dest.sprintName, text: local.kind === 'device' ? 'Saved on this device. Sign in again to send it.' : 'Kept in this tab. Sign in again to send it.' })
+        else if (result?.state === 'upgrade') setNotice({ tone: 'local', kind: 'waiting', sprintName: dest.sprintName, text: 'Saved. Reload Muni to send it.' })
+        else setNotice({ tone: 'local', kind: 'waiting', sprintName: dest.sprintName, text: local.kind === 'device' ? 'Saved on this device. We’ll send it when you reconnect.' : 'Kept in this tab. Keep Muni open until it’s sent — or turn on “Keep drafts on this device” in your account.' })
         if (isFinePointer()) area.current?.focus()
       } catch (err) {
         // Nothing was stored: the text stays exactly where it is, and so does its draft.
@@ -242,8 +230,37 @@ export function Composer({
     }
   }
 
+  return { uid, p, set, submit, onKey, busy, error, notice, restored, typing: hasText(p), more, setMore, area, choose, storage: local.kind }
+}
+
+/**
+ * The composer. Mount it with `key={sprintId}`: each destination has its own text, so switching
+ * workspace or sprint never carries words somewhere else. Choosing another destination from the
+ * composer's own "Saving to" list is the one explicit way to move them.
+ *
+ * `fieldId` lets a page put the field's label (the heading) elsewhere, such as on the scene's
+ * horizon; without it, the composer shows its own heading.
+ */
+export function Composer({
+  dest,
+  choices,
+  onChoose,
+  headingLevel = 1,
+  fieldId,
+  closed,
+}: {
+  dest: Destination | null
+  choices: Destination[]
+  onChoose: (d: Destination) => void
+  headingLevel?: 1 | 2
+  fieldId?: string
+  /** Shown when the destination stopped collecting while text was still here. */
+  closed?: ReactNode
+}) {
+  const [nudge, setNudge] = useState<string | null>(null)
+  const { uid, p, set, submit, onKey, busy, error, notice, restored, typing, more, setMore, area, choose, storage } = useComposer({ dest, choices, onChoose, onSaved: () => setNudge(null) })
+  const bodyId = fieldId ?? `${uid}-body`
   const H = headingLevel === 1 ? 'h1' : 'h2'
-  const typing = hasText(p)
   return (
     <form onSubmit={submit} aria-label={dest ? `Write a thought for ${dest.sprintName}` : 'Write a thought'} className="scroll-mt-24">
       {fieldId ? null : (
@@ -299,7 +316,7 @@ export function Composer({
           {typing && dest ? (
             <>
               <span className="dot dot--draft" aria-hidden /> {restored ? 'Draft restored · ' : 'Draft · '}
-              {local.kind === 'device' ? 'kept on this device, not sent yet' : 'kept in this tab, not sent yet'}
+              {storage === 'device' ? 'kept on this device, not sent yet' : 'kept in this tab, not sent yet'}
             </>
           ) : null}
         </p>
@@ -486,6 +503,13 @@ function EntryMenu({ actions, note, label }: { actions: MenuAction[]; note?: str
   )
 }
 
+/**
+ * How a category is chosen when a thought is edited in place. Muni's journal shows the five words;
+ * a world with its own composer (Guhit's sketchbook) provides the same single, optional choice in
+ * its own form, so editing looks like writing.
+ */
+export const CategoryField = createContext<((field: { value: Category | null; onChange: (c: Category | null) => void }) => ReactNode) | null>(null)
+
 const toPayload = (e: MyEntry): Payload => ({ body: e.body, category: (e.category as Category) ?? null, impact: e.impact ?? '', might_help: e.might_help ?? '', period: (e.period as Period) ?? null })
 
 /**
@@ -499,6 +523,7 @@ function InlineEditor({ initial, onSave, onCancel, saveLabel = 'Save changes', n
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
   const ref = useRef<HTMLTextAreaElement>(null)
+  const categoryField = useContext(CategoryField)
   useEffect(() => {
     const el = ref.current
     if (!el) return
@@ -519,12 +544,24 @@ function InlineEditor({ initial, onSave, onCancel, saveLabel = 'Save changes', n
     <form onSubmit={save} className="max-w-[34rem]" onKeyDown={(e) => { if (e.key === 'Escape') { e.stopPropagation(); onCancel() } else if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') { e.preventDefault(); save() } }}>
       <label htmlFor={`${uid}-b`} className="sr-only">Edit thought</label>
       <textarea ref={ref} id={`${uid}-b`} className="journal-field journal-field--edit" value={p.body} onChange={(e) => set({ body: e.target.value })} maxLength={2000} />
-      <div className="mt-2">
-        <Choices value={p.category} onChange={(v) => set({ category: v as Category | null })} options={CATEGORIES} label="Category (optional)" allowNone />
-      </div>
-      <button type="button" className="journal-tool mt-1" onClick={() => setMore((m) => !m)} aria-expanded={more}>
-        <Plus className={clsx('size-4 transition-transform', more && 'rotate-45')} aria-hidden /> {more ? 'Less context' : 'Context'}
-      </button>
+      {categoryField ? (
+        // A world's own category control sits on one line with the context toggle.
+        <div className="journal-edit-opts">
+          {categoryField({ value: p.category, onChange: (c) => set({ category: c }) })}
+          <button type="button" className="journal-tool" onClick={() => setMore((m) => !m)} aria-expanded={more}>
+            <Plus className={clsx('size-4 transition-transform', more && 'rotate-45')} aria-hidden /> {more ? 'Less context' : 'Context'}
+          </button>
+        </div>
+      ) : (
+        <>
+          <div className="mt-2">
+            <Choices value={p.category} onChange={(v) => set({ category: v as Category | null })} options={CATEGORIES} label="Category (optional)" allowNone />
+          </div>
+          <button type="button" className="journal-tool mt-1" onClick={() => setMore((m) => !m)} aria-expanded={more}>
+            <Plus className={clsx('size-4 transition-transform', more && 'rotate-45')} aria-hidden /> {more ? 'Less context' : 'Context'}
+          </button>
+        </>
+      )}
       {more ? (
         <div className="mt-2 space-y-3">
           <div>
@@ -745,7 +782,7 @@ const PAGE = 12
  * Your thoughts for one sprint: what's still on this device first, then what reached the sprint.
  * Only you see this view; the times and "yours" here never appear in shared, anonymous views.
  */
-export function MyThoughts({ sprintId, editable, moveChoices, online, className, onCount }: { sprintId: string; editable: boolean; moveChoices: Destination[]; online: boolean; className?: string; onCount?: (n: number | null) => void }) {
+export function MyThoughts({ sprintId, editable, moveChoices, online, className, onCount, empty: emptyArt }: { sprintId: string; editable: boolean; moveChoices: Destination[]; online: boolean; className?: string; onCount?: (n: number | null) => void; /** A world's own empty collection, in place of the picture and line. */ empty?: ReactNode }) {
   const local = useLocal()
   const toast = useToast()
   const { voice } = useWorld()
@@ -821,6 +858,9 @@ export function MyThoughts({ sprintId, editable, moveChoices, online, className,
       </header>
 
       {entries && count === 0 ? (
+        emptyArt ? (
+          <div className="mine-empty">{emptyArt}</div>
+        ) : (
         <div className="mine-empty mt-3 flex items-end gap-4 mark-indent">
           <WorldEmptyArt fallback={<Hammock className="block w-24 shrink-0 lg:hidden" />} />
           {voice ? (
@@ -831,6 +871,7 @@ export function MyThoughts({ sprintId, editable, moveChoices, online, className,
             <p className="mine-empty-text max-w-[20rem] text-[15px] leading-relaxed text-ink-soft">{MUNI_WORDS.empty}</p>
           )}
         </div>
+        )
       ) : null}
       {failed && !entries ? <p className="mt-3 text-sm text-ink-soft mark-indent">{mine.length ? 'Your submitted thoughts show here when Muni can reach the server.' : 'Your thoughts show here when Muni can reach the server.'}</p> : null}
 

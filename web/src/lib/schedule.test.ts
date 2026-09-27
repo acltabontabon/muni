@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { dateRange, describeRetro, relativeTime, zoneName } from './schedule'
+import { dateRange, describeRetro, relativeTime, retroShort, zoneName } from './schedule'
 
 const retro = Date.parse('2026-09-29T06:00:00Z') // 14:00 in Manila
 
@@ -46,5 +46,28 @@ describe('small formatters', () => {
   it('zone names and date ranges', () => {
     expect(zoneName('America/Argentina/Buenos_Aires')).toBe('Buenos Aires time')
     expect(dateRange('2026-09-14', '2026-09-27', 'en-GB')).toMatch(/^14 Sept? – 27 Sept?$/)
+  })
+})
+
+describe('retroShort', () => {
+  // Thu 1 Oct 2026, 15:00 in Manila (07:00 UTC).
+  const at = Date.UTC(2026, 9, 1, 7, 0)
+  const o = (now: number) => ({ now, locale: 'en-GB' })
+  it('says only the next thing worth knowing', () => {
+    expect(retroShort(at, 'Asia/Manila', o(at - 6 * 86_400_000))).toBe('retro Thu 1 Oct')
+    expect(retroShort(at, 'Asia/Manila', o(at - 86_400_000))).toBe('retro tomorrow')
+    expect(retroShort(at, 'Asia/Manila', o(at - 3 * 3_600_000))).toBe('retro today, 15:00')
+    expect(retroShort(at, 'Asia/Manila', o(at + 3_600_000))).toBe('retro was today, 15:00')
+    expect(retroShort(at, 'Asia/Manila', o(at + 3 * 86_400_000))).toBe('retro was Thu 1 Oct')
+  })
+  it('counts days on the sprint’s calendar, not the device’s', () => {
+    // 23:30 UTC on 30 Sep is already 1 Oct in Manila: the retro is today there.
+    expect(retroShort(at, 'Asia/Manila', o(Date.UTC(2026, 8, 30, 23, 30)))).toBe('retro today, 15:00')
+    expect(retroShort(at, 'America/New_York', o(Date.UTC(2026, 8, 30, 23, 30)))).toBe('retro tomorrow')
+  })
+  it('has nothing to say without a schedule', () => {
+    expect(retroShort(null, 'Asia/Manila')).toBeNull()
+    expect(retroShort('', 'Asia/Manila')).toBeNull()
+    expect(retroShort('not a date', 'Asia/Manila')).toBeNull()
   })
 })

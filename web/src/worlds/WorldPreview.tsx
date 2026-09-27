@@ -31,6 +31,68 @@ export function WorldPreview({ id, className }: { id: AvatarId; className?: stri
     ro.observe(el)
     return () => ro.disconnect()
   }, [])
+  const passages = (
+    <ul className="passages mt-3">
+      {SAMPLES.map((s) => (
+        <li key={s.n} className="passage" data-state="submitted" style={{ ['--tone' as string]: categoryMeta(s.cat).color }}>
+          <div className="passage-mark">
+            <span className="cat">{categoryMeta(s.cat).label}</span>
+            <span className="passage-when">
+              <span>{s.hm}</span>
+            </span>
+            <span className="passage-stamp" data-day={s.day} data-mon={s.mon} data-hm={s.hm} data-n={s.n} data-rn={s.n === 2 ? 'ii' : 'i'} />
+          </div>
+          <div className="passage-body">
+            <p className="passage-text">{s.body}</p>
+          </div>
+        </li>
+      ))}
+    </ul>
+  )
+  // Guhit's page is its own layout (guhit/Studio.tsx): previewed with the same classes.
+  if (id === 'guhit')
+    return (
+      <div ref={box} className={className} aria-hidden>
+        <div className="w-scope w-preview" data-world={id} style={{ width: VIRTUAL, zoom }}>
+          <div className="app-bg w-preview-page guhit-preview">
+            <div className="guhit-book">
+              <div className="guhit-book-top">
+                <div className="guhit-tab" data-static>
+                  <span className="guhit-tab-name">Sprint 14</span>
+                  <span className="guhit-tab-meta">
+                    <span className="guhit-tab-state" data-state="collecting">
+                      <span className="guhit-tab-dot" />
+                      Collecting
+                    </span>{' '}
+                    · retro Thu 1 Oct
+                  </span>
+                </div>
+              </div>
+              <div className="guhit-sheet">
+                <p className="guhit-title">
+                  What’s worth <em>remembering</em>?
+                </p>
+                <p className="guhit-invite">{c.world.invitations[0]}</p>
+                <div className="guhit-field">Something that happened, helped, or got in the way…</div>
+                <div className="guhit-actions">
+                  <span className="guhit-opts">
+                    <span className="guhit-opt">+ Category</span>
+                    <span className="guhit-opt">+ Context</span>
+                  </span>
+                  <span className="w-preview-save">Add to sprint</span>
+                </div>
+              </div>
+            </div>
+            <section className="mine">
+              <p className="mine-title">
+                My thoughts <span className="font-normal text-ink-faint">2</span>
+              </p>
+              {passages}
+            </section>
+          </div>
+        </div>
+      </div>
+    )
   return (
     <div ref={box} className={className} aria-hidden>
       <div className="w-scope w-preview" data-world={id} style={{ width: VIRTUAL, zoom }}>
@@ -68,22 +130,7 @@ export function WorldPreview({ id, className }: { id: AvatarId; className?: stri
                   My thoughts <span className="ml-1 font-normal text-ink-faint">2</span>
                 </p>
               </header>
-              <ul className="passages mt-3">
-                {SAMPLES.map((s) => (
-                  <li key={s.n} className="passage" data-state="submitted" style={{ ['--tone' as string]: categoryMeta(s.cat).color }}>
-                    <div className="passage-mark">
-                      <span className="cat">{categoryMeta(s.cat).label}</span>
-                      <span className="passage-when">
-                        <span>{s.hm}</span>
-                      </span>
-                      <span className="passage-stamp" data-day={s.day} data-mon={s.mon} data-hm={s.hm} data-n={s.n} data-rn={s.n === 2 ? 'ii' : 'i'} />
-                    </div>
-                    <div className="passage-body">
-                      <p className="passage-text">{s.body}</p>
-                    </div>
-                  </li>
-                ))}
-              </ul>
+              {passages}
             </section>
           </div>
         </div>

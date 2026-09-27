@@ -329,142 +329,432 @@
 }
 
 /* ── Guhit: the gloriously unfinished studio ─────────────────────────────────────────────── */
-
+/*
+ * Guhit's writing page is its own layout (worlds/guhit/Studio.tsx): a working sketchbook open on a
+ * desk. The desk is the page; the sheet is lighter paper on it (charcoal paper on a darker desk at
+ * night), with one page offset beneath. Coral is the marker: the index tab's edge, the underline,
+ * the primary action, the tick after a save. Cobalt and yellow stay in the drawings. Nothing
+ * decorative sits behind text or in the writing area; user text and controls are upright.
+ */
 :root[data-world='guhit'], .w-scope[data-world='guhit'] {
-  /* Sketchbook stock, graphite, cobalt; vermilion only where a marker would be. */
-  --paper: #f5f2ea;
-  --card: #fdfcf8;
-  --card-2: #ebe6da;
-  --ink: #1f1f22;
-  --ink-soft: #4b4a4f;
-  --ink-faint: #636268;
-  --line: #e1dccf;
-  --line-strong: #c7c0b0;
-  --accent: #2f4fb5;
-  --accent-soft: #dfe4f5;
-  --accent-ink: #27439c;
-  --action: #1f1f22;
-  --action-ink: #fdfcf8;
+  /* Warm desk, sketchbook stock, graphite; coral where a marker would be. */
+  --paper: #ede7dc;
+  --card: #fdfbf6;
+  --card-2: #e6dfd2;
+  --ink: #1f1d1b;
+  --ink-soft: #4a4642;
+  --ink-faint: #625d57;
+  --line: #e2dbce;
+  --line-strong: #c6bdae;
+  --accent: #d4553a;
+  --accent-soft: #f8e1d8;
+  --accent-ink: #a93a21;
+  --action: #c24a2f;
+  --action-ink: #fffaf5;
   --glow: transparent;
   --font-world-display: 'Bricolage Grotesque Variable', var(--font-display);
   --font-world-em: 'Caveat Variable', cursive;
   --font-world-meta: 'Caveat Variable', cursive;
-  --g-ink: #1f1f22;
-  --g-dot: rgb(31 31 34 / 0.11);
-  --g-sheet: #fffefa;
+  --g-ink: #1f1d1b;
+  --g-edge: #d9d1c2;
+  --g-under: #f4efe5;
+  --g-sheet: #fdfbf6;
   --g-sheet-line: #ddd6c6;
-  --g-mark: #7f7c86;
-  --g-note: #4b4a4f;
-  --g-red: #d9482b;
-  --g-red-ink: #b83a20;
+  --g-mark: #8a847c;
+  --g-note: #4a4642;
+  --g-sticky: #f6e3a6;
+  --g-red: #d4553a;
+  --g-red-ink: #a93a21;
   --g-blue: #2f4fb5;
   --g-yellow: #e3b23c;
+  --g-wood: #e9c9a0;
+  --g-metal: #b9b4ac;
   --g-glass: rgb(214 228 236 / 0.7);
   --g-tape: rgb(227 190 96 / 0.5);
   --g-grid-line: #b9b3a5;
   --g-shadow: #ddd6c6;
+  --g-lift: rgb(60 44 30 / 0.16);
+  --g-plan: #f5f4ef;
+  --g-plan-grid: rgb(47 79 181 / 0.1);
+  --g-plan-ink: #3b56a8;
 }
 :root.dark[data-world='guhit'], .dark .w-scope[data-world='guhit'] {
-  /* The studio after midnight: slate board, chalk lines. */
-  --paper: #15171b;
-  --card: #1c1f24;
-  --card-2: #23262c;
-  --ink: #eceae4;
-  --ink-soft: #b9b7b0;
-  --ink-faint: #918f89;
-  --line: #2a2d33;
-  --line-strong: #3e4149;
-  --accent: #93a8ff;
-  --accent-soft: #1f2640;
-  --accent-ink: #b5c4ff;
-  --action: #eceae4;
-  --action-ink: #15171b;
+  /* The studio after midnight: charcoal paper on a darker desk, warm ink, the marker still coral. */
+  --paper: #121110;
+  --card: #25221f;
+  --card-2: #2e2a26;
+  --ink: #efe9df;
+  --ink-soft: #c6beb2;
+  --ink-faint: #a0978b;
+  --line: #34302b;
+  --line-strong: #4a443d;
+  --accent: #f08466;
+  --accent-soft: #3a241d;
+  --accent-ink: #f6a68d;
+  --action: #f08466;
+  --action-ink: #1b1411;
   --glow: transparent;
   --font-world-display: 'Bricolage Grotesque Variable', var(--font-display);
   --font-world-em: 'Caveat Variable', cursive;
   --font-world-meta: 'Caveat Variable', cursive;
-  --g-ink: #e6e3dc;
-  --g-dot: rgb(236 234 228 / 0.08);
-  --g-sheet: #1f2228;
-  --g-sheet-line: #3a3d45;
-  --g-mark: #8a8893;
-  --g-note: #b9b7b0;
-  --g-red: #f07a5c;
-  --g-red-ink: #f59a80;
+  --g-ink: #e9e2d6;
+  --g-edge: #3d3833;
+  --g-under: #1c1a18;
+  --g-sheet: #25221f;
+  --g-sheet-line: #3a3530;
+  --g-mark: #7d756b;
+  --g-note: #c6beb2;
+  --g-sticky: #5b4a24;
+  --g-red: #f08466;
+  --g-red-ink: #f6a68d;
   --g-blue: #8aa0ff;
-  --g-yellow: #f0c55c;
+  --g-yellow: #e0b650;
+  --g-wood: #b99570;
+  --g-metal: #8d887f;
   --g-glass: rgb(120 140 160 / 0.25);
   --g-tape: rgb(240 197 92 / 0.28);
   --g-grid-line: #555964;
   --g-shadow: #101215;
+  --g-lift: rgb(0 0 0 / 0.5);
+  --g-plan: #1c1d20;
+  --g-plan-grid: rgb(138 160 255 / 0.09);
+  --g-plan-ink: #8ea2e8;
 }
 
 @scope ([data-world='guhit']) to ([data-world]:not([data-world='guhit'])) {
-  .app-bg, :scope.w-gate { background: radial-gradient(circle, var(--g-dot) 1.1px, transparent 1.5px) 0 0 / 22px 22px, var(--paper); }
+  /* The desk: plain. Texture stays off the page, so nothing competes with the sheet. */
+  .app-bg, :scope.w-gate { background: var(--paper); }
+
+  /* ── The studio page ── */
+  .guhit-studio { display: grid; gap: 2.75rem; }
+  @media (min-width: 1024px) {
+    .guhit-studio { grid-template-columns: minmax(0, 1fr) minmax(0, 20rem); gap: 3rem; align-items: start; }
+  }
+  @media (min-width: 1280px) {
+    .guhit-studio { grid-template-columns: minmax(0, 45rem) minmax(0, 24rem); gap: 4.5rem; justify-content: center; }
+  }
+  .guhit-desk, .guhit-shelf { min-width: 0; }
+  .guhit-notices:empty { display: none; }
+  .guhit-notices { margin-bottom: 1.25rem; }
+  @media (min-width: 1024px) { .guhit-shelf { padding-top: 3.35rem; } }
+
+  /* ── The sketchbook: the index tab, the pencil, the sheet ── */
+  .guhit-book { position: relative; }
+  .guhit-book-top { display: flex; align-items: flex-end; justify-content: space-between; gap: 1rem; padding-left: 1rem; }
+  @media (min-width: 640px) { .guhit-book-top { padding-left: 1.5rem; } }
+
+  .guhit-tab {
+    position: relative; z-index: 2;
+    display: flex; flex-direction: column; align-items: flex-start; gap: 0.15rem;
+    min-width: 0; max-width: min(32rem, 100%);
+    margin-bottom: -1px;
+    padding: 0.62rem 2.5rem 0.6rem 0.95rem;
+    border: 1px solid var(--g-edge); border-bottom: 0; border-radius: 9px 9px 0 0;
+    background: var(--card);
+    box-shadow: inset 0 3px 0 var(--accent);
+    text-align: left;
+    transition: background 140ms;
+  }
+  .guhit-tab[data-static] { padding-right: 1.1rem; }
+  button.guhit-tab:hover, .guhit-tab[data-state='open'] { background: color-mix(in oklab, var(--card) 88%, var(--accent-soft)); }
+  .guhit-tab:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+  .guhit-tab-name {
+    display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden;
+    font-family: var(--font-world-display); font-weight: 650; font-stretch: 94%; font-size: 15.5px; line-height: 1.25; letter-spacing: -0.012em;
+    color: var(--ink); overflow-wrap: anywhere;
+  }
+  .guhit-tab-meta { font-size: 13px; line-height: 1.35; color: var(--ink-soft); }
+  .guhit-tab-state { display: inline-flex; align-items: center; gap: 0.35rem; font-weight: 550; }
+  .guhit-tab-dot { width: 7px; height: 7px; border-radius: 999px; box-shadow: inset 0 0 0 1.5px var(--ink-faint); }
+  .guhit-tab-state[data-state='collecting'] { color: var(--status-ink); }
+  .guhit-tab-state[data-state='collecting'] .guhit-tab-dot { background: var(--status); box-shadow: none; }
+  .guhit-tab-state[data-state='closed-now'] { color: var(--warn); }
+  .guhit-tab-state[data-state='closed-now'] .guhit-tab-dot { background: var(--warn); box-shadow: none; }
+  .guhit-tab-chev { position: absolute; right: 0.8rem; top: 50%; width: 16px; height: 16px; margin-top: -8px; color: var(--ink-faint); transition: transform 160ms; }
+  .guhit-tab[data-state='open'] .guhit-tab-chev { transform: rotate(180deg); }
+
+  .guhit-pencil { display: none; position: relative; z-index: 3; flex: none; width: 9.5rem; height: 1.15rem; margin: 0 2.25rem -0.55rem 0; overflow: visible; }
+  @media (min-width: 640px) { .guhit-pencil { display: block; } }
+
+  .guhit-sheet {
+    position: relative;
+    padding: 1.6rem 1.15rem 1.25rem;
+    background: var(--card);
+    border: 1px solid var(--g-edge);
+    border-radius: 0 6px 6px 6px;
+    /* One page beneath, offset — the sketchbook — and a little lift off the desk. */
+    box-shadow: 6px 7px 0 -1px var(--g-under), 6px 7px 0 0 var(--g-edge), 0 22px 40px -32px var(--g-lift);
+  }
+  @media (min-width: 640px) { .guhit-sheet { padding: 2.1rem 2.35rem 1.6rem; } }
+  .guhit-reg { position: absolute; width: 14px; height: 14px; fill: none; stroke: var(--g-mark); stroke-width: 0.9; }
+  .guhit-reg--tr { top: 11px; right: 11px; }
+  .guhit-reg--bl { bottom: 11px; left: 11px; }
+  @media (max-width: 639px) { .guhit-reg--bl { display: none; } }
+
+  .guhit-title {
+    max-width: 24ch;
+    font-family: var(--font-world-display); font-weight: 720; font-stretch: 90%;
+    font-size: clamp(1.6rem, 1.15rem + 1.7vw, 2.45rem); line-height: 1.06; letter-spacing: -0.035em;
+    text-wrap: balance; overflow-wrap: anywhere;
+  }
+  .guhit-title label { cursor: text; }
+  .guhit-title em { position: relative; font-family: var(--font-world-em); font-style: normal; font-weight: 700; font-size: 1.2em; line-height: 0.8; letter-spacing: 0; color: var(--accent-ink); padding-right: 0.06em; }
+  /* The underline: a marker stroke, inked left to right once when the page opens. */
+  .guhit-title em::after {
+    content: ''; position: absolute; left: -3%; bottom: -0.36em; width: 106%; height: 0.32em;
+    background: var(--accent);
+    -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 300 20' preserveAspectRatio='none'%3E%3Cpath d='M3 13C40 6 92 5 140 9s96 7 128-1c9-2 16-6 21-10-6 9-16 15-30 16' fill='none' stroke='%23000' stroke-width='3.2' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E") 0 0 / 100% 100% no-repeat;
+    mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 300 20' preserveAspectRatio='none'%3E%3Cpath d='M3 13C40 6 92 5 140 9s96 7 128-1c9-2 16-6 21-10-6 9-16 15-30 16' fill='none' stroke='%23000' stroke-width='3.2' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E") 0 0 / 100% 100% no-repeat;
+    clip-path: inset(0 0 0 0);
+    animation: guhit-reveal 820ms 180ms var(--ease-out-soft) both;
+    pointer-events: none;
+  }
+  .guhit-invite { margin-top: 0.7rem; font-family: var(--font-world-meta); font-size: 20px; line-height: 1.2; color: var(--ink-soft); }
+
+  /* The writing area: the calmest thing on the page. */
+  .guhit-field {
+    display: block; width: 100%;
+    margin-top: 1.1rem; padding: 0.35rem 0 0.6rem;
+    resize: none; field-sizing: content; min-height: 8.5rem; max-height: 55vh;
+    border: 0; border-radius: 0; background: transparent;
+    font-size: 1.1875rem; line-height: 1.62; color: var(--ink);
+    box-shadow: inset 0 -1px 0 var(--line-strong);
+    transition: box-shadow 140ms;
+    scroll-margin-bottom: 8rem;
+  }
+  .guhit-field::placeholder { color: var(--ink-faint); }
+  .guhit-field:hover { box-shadow: inset 0 -1px 0 var(--ink-faint); }
+  .guhit-field:focus, .guhit-field:focus-visible { outline: none; box-shadow: inset 0 -2px 0 var(--accent); }
+  @media (max-width: 639px) { .guhit-field { font-size: 1.0625rem; min-height: 6.5rem; } }
+  .guhit-field--small {
+    margin-top: 0.3rem; padding: 0.5rem 0.65rem; min-height: 3.4rem;
+    font-size: 15px; line-height: 1.55;
+    border-radius: 5px; background: color-mix(in oklab, var(--paper) 40%, var(--card));
+    box-shadow: inset 0 0 0 1px var(--line); scroll-margin-bottom: 6rem;
+  }
+  .guhit-field--small:hover { box-shadow: inset 0 0 0 1px var(--line-strong); }
+  .guhit-field--small:focus, .guhit-field--small:focus-visible { box-shadow: inset 0 0 0 1.5px var(--accent); }
+
+  .guhit-under { display: flex; align-items: center; justify-content: space-between; gap: 1rem; min-height: 1.9rem; margin-top: 0.2rem; }
+  .guhit-draft { font-size: 12.5px; color: var(--ink-faint); text-align: right; }
+  .guhit-link { padding: 0.15rem 0; font-size: 13.5px; color: var(--ink-soft); text-decoration: underline dotted; text-decoration-color: var(--line-strong); text-underline-offset: 3px; border-radius: 3px; }
+  .guhit-link:hover { color: var(--ink); text-decoration-color: var(--accent); }
+
+  .guhit-prompt { display: flex; align-items: flex-start; gap: 0.5rem; margin-top: 1rem; padding: 0.5rem 0.25rem 0.5rem 0.8rem; border-left: 2px solid var(--accent); background: color-mix(in oklab, var(--accent-soft) 45%, transparent); border-radius: 0 5px 5px 0; }
+  .guhit-prompt p { flex: 1; min-width: 0; padding-top: 0.25rem; font-size: 15.5px; line-height: 1.45; color: var(--ink); }
+  .guhit-prompt-lead { color: var(--ink-faint); }
+  .guhit-prompt-tools { display: flex; align-items: center; gap: 0.15rem; flex: none; }
+  .guhit-prompt-x { width: 32px; height: 32px; }
+
+  .guhit-context { display: grid; gap: 0.9rem; margin-top: 0.9rem; animation: rise 200ms var(--ease-out-soft) both; }
+  @media (min-width: 640px) { .guhit-context { grid-template-columns: 1fr 1fr; } }
+  .guhit-context label, .guhit-context-label { display: block; font-size: 13px; font-weight: 550; color: var(--ink-soft); }
+  .guhit-context-wide { grid-column: 1 / -1; }
+  .guhit-context .cat-choices { margin-top: 0.2rem; }
+
+  .guhit-actions { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 0.6rem 1rem; margin-top: 1rem; }
+  .guhit-opts { display: flex; flex-wrap: wrap; align-items: center; gap: 0.1rem 0.2rem; min-width: 0; margin-left: -0.55rem; }
+  .guhit-opt { display: inline-flex; align-items: center; gap: 0.4rem; min-width: 0; max-width: 100%; height: 2.25rem; padding: 0 0.6rem; border-radius: 8px; font-size: 14px; color: var(--ink-soft); white-space: nowrap; transition: background 140ms, color 140ms; }
+  .guhit-opt:hover, .guhit-opt[data-state='open'], .guhit-opt[aria-expanded='true'] { color: var(--ink); background: color-mix(in oklab, var(--ink) 5%, transparent); }
+  .guhit-opt[data-set] { color: var(--ink); font-weight: 550; }
+  .guhit-opt > span:last-child { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+  .guhit-opt-dot { flex: none; width: 8px; height: 8px; border-radius: 999px; background: var(--c, var(--accent)); }
+  .guhit-opt-dot--ink { background: var(--ink-faint); }
+  .guhit-opt-sum { font-weight: 400; color: var(--ink-soft); }
+  @media (max-width: 420px) { .guhit-opt-sum { display: none; } }
+  .guhit-save { min-width: 9.75rem; }
+  .guhit-save { margin-left: auto; }
+  @media (max-width: 639px) { .guhit-actions { gap: 0.5rem; } .guhit-save { min-width: 8.5rem; } }
+
+  .guhit-fine { max-width: 40rem; margin-top: 0.9rem; font-size: 13px; line-height: 1.45; color: var(--ink-faint); }
+  .guhit-note { display: flex; align-items: flex-start; gap: 0.55rem; margin-top: 0.8rem; font-size: 14px; line-height: 1.45; color: var(--ink); animation: fade 160ms ease-out both; }
+  .guhit-note strong { font-weight: 600; overflow-wrap: anywhere; }
+  .guhit-note[data-tone='warn'] { padding: 0.5rem 0.7rem; border-radius: 6px; background: color-mix(in oklab, var(--warn) 11%, transparent); color: var(--warn); }
+  .guhit-tick { flex: none; width: 22px; height: 18px; margin-top: 0; overflow: visible; }
+  .guhit-tick path { fill: none; stroke: var(--accent); stroke-width: 2.6; stroke-linecap: round; stroke-linejoin: round; stroke-dasharray: 1; stroke-dashoffset: 0; animation: guhit-ink 460ms 60ms var(--ease-out-soft) both; }
+  .guhit-closed { margin-top: 1rem; padding: 0.6rem 0.8rem; border-radius: 6px; background: color-mix(in oklab, var(--warn) 10%, transparent); font-size: 14px; line-height: 1.45; }
+
+  /* A sheet showing a state instead of the composer. */
+  .guhit-state-body { margin-top: 1.1rem; }
+  .guhit-state-body .passages { margin-top: 1rem; }
+
+  /* ── Panels: a small sheet beside its control; on a phone, from the bottom ── */
+  .guhit-pop {
+    z-index: 50; width: min(21rem, calc(100vw - 24px)); padding: 0.4rem;
+    border: 1px solid var(--g-edge); border-radius: 9px; background: var(--card);
+    box-shadow: 4px 5px 0 -1px var(--g-under), 4px 5px 0 0 var(--g-edge), 0 18px 36px -22px var(--g-lift);
+    animation: rise 160ms var(--ease-out-soft) both;
+  }
+  .guhit-pop:has(.guhit-details) { width: min(25rem, calc(100vw - 24px)); }
+  .guhit-veil { position: fixed; inset: 0; z-index: 50; background: rgb(24 20 16 / 0.36); animation: fade 160ms ease-out both; }
+  .guhit-drawer {
+    position: fixed; z-index: 51; left: 0; right: 0; bottom: 0;
+    max-height: 86dvh; overflow-y: auto; overscroll-behavior: contain;
+    padding: 0.6rem 0.75rem max(0.9rem, env(safe-area-inset-bottom));
+    border-top: 1px solid var(--g-edge); border-radius: 14px 14px 0 0; background: var(--card);
+    box-shadow: 0 -14px 30px -20px var(--g-lift);
+    animation: guhit-up 220ms var(--ease-out-soft) both;
+  }
+  .guhit-drawer:focus { outline: none; }
+  .guhit-drawer-head { display: flex; align-items: center; justify-content: space-between; gap: 1rem; padding: 0.1rem 0 0.35rem 0.55rem; }
+  .guhit-panel-title { font-size: 15px; font-weight: 650; color: var(--ink); }
+
+  .guhit-cats { list-style: none; margin: 0; padding: 0; }
+  .guhit-cat { display: grid; grid-template-columns: 10px auto minmax(0, 1fr); align-items: baseline; column-gap: 0.6rem; width: 100%; min-height: 2.5rem; padding: 0.55rem 0.6rem; border-radius: 6px; text-align: left; font-size: 14.5px; color: var(--ink); }
+  .guhit-cat:hover { background: color-mix(in oklab, var(--ink) 5%, transparent); }
+  .guhit-cat:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+  .guhit-cat[aria-pressed='true'] { background: color-mix(in oklab, var(--c) 13%, transparent); }
+  .guhit-cat-dot { align-self: center; width: 9px; height: 9px; border-radius: 999px; box-shadow: inset 0 0 0 1.5px var(--c); }
+  .guhit-cat[aria-pressed='true'] .guhit-cat-dot { background: var(--c); }
+  .guhit-cat-dot--none { box-shadow: inset 0 0 0 1.5px var(--ink-faint); }
+  .guhit-cat-label { font-weight: 560; white-space: nowrap; }
+  .guhit-cat-hint { font-size: 13px; color: var(--ink-faint); }
+  .guhit-cats-clear { margin-top: 0.25rem; padding-top: 0.25rem; border-top: 1px solid var(--line); }
+  @media (max-width: 639px) { .guhit-cat { min-height: 3rem; align-items: center; } }
+
+  .guhit-details { padding: 0.55rem 0.6rem 0.45rem; }
+  .guhit-kicker { font-size: 11.5px; font-weight: 600; letter-spacing: 0.07em; text-transform: uppercase; color: var(--ink-faint); }
+  .guhit-details-name { margin-top: 0.2rem; font-family: var(--font-world-display); font-weight: 650; font-size: 17px; line-height: 1.25; letter-spacing: -0.015em; overflow-wrap: anywhere; }
+  .guhit-details-sub { font-size: 13px; color: var(--ink-faint); }
+  .guhit-details-list { margin-top: 0.75rem; font-size: 13.5px; line-height: 1.5; }
+  .guhit-details-list div + div { margin-top: 0.55rem; }
+  .guhit-details-list dt { font-weight: 600; color: var(--ink); }
+  .guhit-details-list dd { margin: 0.05rem 0 0; color: var(--ink-soft); }
+  .guhit-details-links { display: flex; flex-wrap: wrap; gap: 0.3rem 1rem; margin-top: 0.8rem; font-size: 13.5px; }
+  .guhit-details-links a { font-weight: 550; color: var(--accent-ink); text-decoration: underline; text-decoration-color: color-mix(in oklab, var(--accent) 40%, transparent); text-underline-offset: 3px; }
+  .guhit-details-more { margin-top: 0.8rem; padding-top: 0.65rem; border-top: 1px solid var(--line); }
+  .guhit-details-more ul { list-style: none; margin: 0.3rem 0 0.2rem -0.45rem; padding: 0; }
+  .guhit-row { display: block; width: 100%; padding: 0.5rem 0.45rem; border-radius: 6px; text-align: left; font-size: 14px; font-weight: 550; color: var(--ink); overflow-wrap: anywhere; }
+  .guhit-row:hover { background: color-mix(in oklab, var(--ink) 5%, transparent); }
+  .guhit-row .guhit-details-sub { font-weight: 400; }
+
+  .guhit-tip { z-index: 60; display: flex; align-items: center; gap: 0.3rem; padding: 0.35rem 0.55rem; border-radius: 6px; background: var(--ink); color: var(--card); font-size: 12.5px; animation: fade 120ms ease-out both; }
+
+  /* ── The collection: pages already filled, in the same book ── */
+  .guhit-shelf .mark-indent { padding-left: 0; }
+  .guhit-shelf .mark-outdent { margin-left: 0; }
+  .mine-title { font-family: var(--font-world-display); font-weight: 680; font-stretch: 92%; font-size: 1.2rem; letter-spacing: -0.02em; }
+  .passages { display: grid; gap: 0.7rem; }
+  .guhit-shelf .passages { margin-top: 1rem; }
+  .passage, .passage:first-child {
+    grid-template-columns: minmax(0, 1fr) auto; column-gap: 0.5rem; row-gap: 0.3rem;
+    margin: 0; padding: 0.8rem 0.55rem 1rem 1rem;
+    border: 1px solid var(--g-edge); border-radius: 4px;
+    background: var(--card);
+    box-shadow: none;
+  }
+  .passage-mark { grid-column: 1; grid-row: 1; flex-direction: row; align-items: center; gap: 0.55rem; min-height: 1.5rem; padding-top: 0; font-size: 12.5px; text-align: left; }
+  .passage-body { grid-column: 1 / -1; grid-row: 2; }
+  .passage-menu { grid-column: 2; grid-row: 1; align-self: center; margin: -0.4rem -0.1rem -0.4rem 0; }
+  .passage-mark .cat { font-family: var(--font-sans); font-style: normal; font-size: 12.5px; font-weight: 600; letter-spacing: 0.01em; line-height: 1; }
+  .passage-mark .cat::before { display: inline-block; width: 7px; height: 7px; margin: 0 0.4rem 0 0; vertical-align: 0.06em; border-radius: 999px; }
+  .passage-mark .period { color: var(--ink-faint); }
+  .passage-stamp[data-n] { display: block; margin-left: auto; font-family: var(--font-world-meta); font-size: 16px; line-height: 1; color: var(--ink-faint); }
+  .passage-stamp[data-n]::before { content: 'p. ' attr(data-n); }
+  .passage-text { max-width: none; font-size: 1.02rem; line-height: 1.6; }
+  .passage-text[data-short] { font-size: 1.1rem; line-height: 1.48; letter-spacing: -0.008em; }
+  .passage-context { max-width: none; border-left-color: color-mix(in oklab, var(--accent) 35%, var(--line)); }
+  .passage[data-state='queued'], .passage[data-state='sending'] { padding-left: 1rem; background: linear-gradient(90deg, color-mix(in oklab, var(--status) 7%, var(--card)), var(--card) 70%); box-shadow: inset 3px 0 0 color-mix(in oklab, var(--status) 60%, transparent); border-radius: 4px; }
+  .passage[data-state='attention'] { padding-left: 1rem; background: linear-gradient(90deg, color-mix(in oklab, var(--warn) 8%, var(--card)), var(--card) 75%); box-shadow: inset 3px 0 0 var(--warn); border-radius: 4px; }
+  .passage[data-editing] { padding-right: 1rem; }
+  /* Editing a page: the same field and controls as the writing sheet. */
+  .passage .journal-field--edit { margin-top: 0.1rem; padding: 0.6rem 0.75rem; min-height: 5rem; border-radius: 5px; background: color-mix(in oklab, var(--paper) 40%, var(--card)); box-shadow: inset 0 0 0 1px var(--line); font-size: 1.02rem; line-height: 1.6; }
+  .passage .journal-field--edit:focus, .passage .journal-field--edit:focus-visible { outline: none; box-shadow: inset 0 0 0 1.5px var(--accent); }
+  .journal-edit-opts { display: flex; flex-wrap: wrap; align-items: center; gap: 0.1rem 0.2rem; margin: 0.5rem 0 0 -0.55rem; }
+  .journal-edit-opts .journal-tool { height: 2.25rem; margin: 0; padding: 0 0.6rem; font-size: 14px; }
+  .passage .journal-field--small { border-radius: 5px; background: color-mix(in oklab, var(--paper) 40%, var(--card)); box-shadow: inset 0 0 0 1px var(--line); padding: 0.5rem 0.65rem; }
+  .passage.anim-reflect { animation: guhit-settle 480ms var(--ease-out-soft) both; }
+  .passage-gone, .passage-gone:first-child { padding: 0.7rem 0.6rem 0.7rem 1rem; border: 1px dashed var(--g-edge); border-radius: 4px; }
+  @media (min-width: 1280px) {
+    .passage { grid-template-columns: minmax(0, 1fr) auto; column-gap: 0.5rem; }
+    .passage-mark { grid-column: 1; grid-row: 1; flex-direction: row; align-items: center; gap: 0.55rem; padding-top: 0; text-align: left; }
+    .passage-mark .cat::before { display: inline-block; margin: 0 0.4rem 0 0; }
+    .passage-body { grid-column: 1 / -1; }
+    .passage-menu { grid-column: 2; }
+  }
+
+  /* An empty collection: one small moment, and the page still useful. */
+  :scope .guhit-shelf .mine-empty { display: block; padding: 0; text-align: left; }
+  .guhit-empty { display: flex; flex-direction: column; gap: 0.6rem; margin-top: 0.9rem; padding: 1rem 1.1rem 1.1rem; border: 1px dashed var(--g-edge); border-radius: 6px; }
+  .guhit-empty-art { display: flex; align-items: flex-end; gap: 0.5rem; }
+  .guhit-empty-plan { width: 150px; height: 84px; overflow: visible; }
+  .guhit-empty-note rect { fill: var(--g-sticky); stroke: var(--g-ink); stroke-width: 1; }
+  .guhit-empty-note path, .guhit-empty-floor path { fill: none; stroke: var(--g-ink); stroke-width: 1.1; stroke-linecap: round; }
+  .guhit-empty-floor rect { fill: none; stroke: var(--g-ink); stroke-width: 1.3; }
+  .guhit-empty-arrow { fill: none; stroke: var(--accent); stroke-width: 1.4; stroke-linecap: round; stroke-linejoin: round; }
+  .guhit-empty-plan text { fill: var(--ink-soft); }
+  .guhit-empty-text { font-size: 15px; line-height: 1.5; color: var(--ink-soft); text-wrap: pretty; }
+  .guhit-empty-sub { display: block; margin-top: 0.15rem; font-size: 13.5px; color: var(--ink-faint); }
+
+  /* ── The master plan on the desk (wide screens): one feeling, escalating ── */
+  .guhit-plan { display: none; }
+  @media (min-width: 1024px) { .guhit-plan { display: block; margin: 3.5rem 0 0 0.5rem; } }
+  .guhit-plan svg { display: block; width: 100%; height: auto; overflow: visible; }
+  .guhit-p-paper { fill: var(--g-plan); stroke: var(--g-edge); stroke-width: 1; }
+  .guhit-p-grid { fill: none; stroke: var(--g-plan-grid); stroke-width: 0.7; }
+  .guhit-p-tape { fill: var(--g-tape); }
+  .guhit-p-sticky { fill: var(--g-sticky); stroke: var(--g-ink); stroke-width: 0.8; }
+  .guhit-p-line, .guhit-p-thin, .guhit-p-hi { fill: none; stroke-linecap: round; stroke-linejoin: round; }
+  .guhit-p-line { stroke: var(--g-plan-ink); stroke-width: 1.6; }
+  .guhit-p-thin { stroke: var(--g-plan-ink); stroke-width: 1.1; }
+  .guhit-p-hi { stroke: var(--accent); stroke-width: 1.6; }
+  .guhit-p-dash { stroke-dasharray: 9 8; }
+  .guhit-p-hi-fill, .guhit-p-flag { fill: var(--accent); }
+  .guhit-p-awning { fill: color-mix(in oklab, var(--accent) 80%, transparent); stroke: var(--g-plan-ink); stroke-width: 1; }
+  .guhit-p-paint-y { fill: var(--g-yellow); opacity: 0.9; }
+  .guhit-p-paint-b { fill: var(--g-blue); opacity: 0.8; }
+  .guhit-p-paint-r { fill: none; stroke: var(--accent); stroke-width: 3; stroke-linecap: round; }
+  .guhit-p-route { fill: none; stroke: var(--accent); stroke-width: 1.8; stroke-dasharray: 2 7; stroke-linecap: round; }
+  .guhit-p-stamp { fill: none; stroke: var(--accent); stroke-width: 2; }
+  .guhit-p-stamp-text { fill: var(--accent); font-family: var(--font-sans); font-size: 10.5px; font-weight: 700; letter-spacing: 0.08em; }
+  .guhit-p-note { fill: var(--ink-soft); }
+  .guhit-p-block rect { fill: var(--card); stroke: var(--g-plan-ink); stroke-width: 1.2; }
+  .guhit-p-block path { fill: none; stroke: var(--g-plan-ink); stroke-width: 1; }
+  .guhit-p-block-title { fill: var(--ink); font-family: var(--font-sans); font-size: 10px; font-weight: 700; letter-spacing: 0.1em; }
+  /* What the next thought will add: pencilled in, not built. */
+  .guhit-p-ghost { opacity: 0.5; }
+  .guhit-p-ghost .guhit-p-line, .guhit-p-ghost .guhit-p-thin, .guhit-p-ghost .guhit-p-hi, .guhit-p-ghost .guhit-p-stamp { stroke: var(--ink-faint); stroke-width: 1; stroke-dasharray: 0.012 0.014; }
+  .guhit-p-ghost .guhit-p-dash, .guhit-p-ghost .guhit-p-route { stroke: var(--ink-faint); stroke-dasharray: 3 6; }
+  .guhit-p-ghost .guhit-p-hi-fill, .guhit-p-ghost .guhit-p-flag, .guhit-p-ghost .guhit-p-awning, .guhit-p-ghost [class*='guhit-p-paint'] { fill: none; stroke: var(--ink-faint); stroke-width: 1; stroke-dasharray: 3 4; opacity: 1; }
+  .guhit-p-ghost .guhit-p-stamp-text, .guhit-p-ghost .guhit-p-note { fill: var(--ink-faint); }
+  .guhit-p-ghost .guhit-p-note { display: none; }
+  /* Added by a save during this visit: inked in once. */
+  .guhit-p-new { animation: fade 300ms ease-out both; }
+  .guhit-p-new .guhit-p-line, .guhit-p-new .guhit-p-thin, .guhit-p-new .guhit-p-hi { stroke-dasharray: 1; animation: guhit-ink 1100ms 120ms var(--ease-out-soft) both; }
+
+  /* The chooser's miniature of the studio. */
+  .guhit-preview { display: grid; grid-template-columns: minmax(0, 1.35fr) minmax(0, 1fr); gap: 22px; align-items: start; padding: 22px 22px 26px; }
+  .guhit-preview .guhit-sheet { padding: 1.3rem 1.3rem 1rem; }
+  .guhit-preview .guhit-title { font-size: 1.75rem; }
+  .guhit-preview .guhit-field { min-height: 4.5rem; color: var(--ink-faint); }
+  .guhit-preview .mine { padding-top: 3.1rem; }
+  .guhit-preview .passage-text { font-size: 0.95rem; }
+
+  /* ── Muni's journal classes, still used by the welcome page ── */
   .journal-scene[data-scene] .journal-sky { --art-w: calc(var(--art-h) * 1.55); }
   @media (min-width: 1024px) { .journal-scene[data-scene] .journal-sky { --art-w: calc(var(--art-h) * 2.2); } }
-  /* A pencil line instead of a horizon. */
   .journal-water {
-    background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 400 6' preserveAspectRatio='none'%3E%3Cpath d='M0 3.2C40 2 80 4.4 130 3s110 2 170 .6 70 1.6 100 .8' fill='none' stroke='%237f7c86' stroke-width='1.2'/%3E%3C/svg%3E") 0 2px / 100% 6px no-repeat;
+    background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 400 6' preserveAspectRatio='none'%3E%3Cpath d='M0 3.2C40 2 80 4.4 130 3s110 2 170 .6 70 1.6 100 .8' fill='none' stroke='%238a847c' stroke-width='1.2'/%3E%3C/svg%3E") 0 2px / 100% 6px no-repeat;
   }
   .journal-title { font-weight: 720; font-stretch: 90%; letter-spacing: -0.035em; }
-  .journal-title em { font-weight: 700; font-size: 1.2em; line-height: 0.8; letter-spacing: 0; color: var(--g-red-ink); padding-right: 0.08em; }
-  .w-invite { font-family: var(--font-world-meta); font-size: 21px; line-height: 1.2; color: var(--ink-soft); }
+  .journal-title em { font-weight: 700; font-size: 1.2em; line-height: 0.8; letter-spacing: 0; color: var(--accent-ink); padding-right: 0.08em; }
+  .w-invite { font-family: var(--font-world-meta); font-size: 21px; line-height: 1.2; color: var(--ink-soft); order: 2; }
   .w-title-slot { display: block; order: 1; width: min(23rem, 78%); height: 14px; margin-top: 2px; }
-  .w-invite { order: 2; }
   .guhit-flourish { display: block; width: 100%; height: 100%; overflow: visible; }
-  .guhit-flourish path { stroke-dasharray: 1; stroke-dashoffset: 0.36; transition: stroke-dashoffset 900ms var(--ease-out-soft); }
-  .guhit-flourish[data-done] path { stroke-dashoffset: 0; }
+  .guhit-flourish path { stroke-dasharray: 1; stroke-dashoffset: 0; animation: guhit-ink 820ms 180ms var(--ease-out-soft) both; }
+  .journal-field { border-radius: 2px; background: var(--card); box-shadow: 5px 6px 0 -1px var(--g-under), 5px 6px 0 0 var(--g-edge); padding: 1.2rem 1.4rem 1.05rem; }
 
-  /* The writing sheet: clean, with crop marks at its corners. */
-  .journal-field {
-    --m: var(--g-mark);
-    border-radius: 2px;
-    background:
-      linear-gradient(var(--m), var(--m)) 7px 7px / 10px 1.2px no-repeat,
-      linear-gradient(var(--m), var(--m)) 7px 7px / 1.2px 10px no-repeat,
-      linear-gradient(var(--m), var(--m)) calc(100% - 7px) 7px / 10px 1.2px no-repeat,
-      linear-gradient(var(--m), var(--m)) calc(100% - 7px) 7px / 1.2px 10px no-repeat,
-      linear-gradient(var(--m), var(--m)) 7px calc(100% - 7px) / 10px 1.2px no-repeat,
-      linear-gradient(var(--m), var(--m)) 7px calc(100% - 7px) / 1.2px 10px no-repeat,
-      linear-gradient(var(--m), var(--m)) calc(100% - 7px) calc(100% - 7px) / 10px 1.2px no-repeat,
-      linear-gradient(var(--m), var(--m)) calc(100% - 7px) calc(100% - 7px) / 1.2px 10px no-repeat,
-      var(--g-sheet);
-    box-shadow: 5px 6px 0 -1px var(--g-shadow);
-    padding: 1.2rem 1.4rem 1.05rem;
+  @media (prefers-reduced-motion: reduce) {
+    .guhit-title em::after, .guhit-tick path, .guhit-flourish path { animation: none; }
+    .guhit-context, .guhit-pop, .guhit-drawer, .guhit-note, .guhit-veil, .guhit-tip { animation: fade 120ms ease-out both; }
+    .passage.anim-reflect, .guhit-p-new { animation: fade 160ms ease-out both; }
+    .guhit-p-new .guhit-p-line, .guhit-p-new .guhit-p-thin, .guhit-p-new .guhit-p-hi { animation: none; stroke-dasharray: none; }
   }
-  .journal-field:hover { box-shadow: 5px 6px 0 -1px var(--g-shadow), inset 0 0 0 1px var(--line-strong); }
-  .journal-field:focus, .journal-field:focus-visible {
-    background-color: var(--g-sheet);
-    box-shadow: 5px 6px 0 -1px var(--g-shadow), inset 0 0 0 1.5px var(--accent), 0 0 0 4px color-mix(in oklab, var(--accent) 12%, transparent);
-  }
-  .journal-field--small { padding: 0.6rem 0.8rem 0.55rem; box-shadow: 3px 4px 0 -1px var(--g-shadow); }
-
-  /* Saved thoughts: sketchbook sheets, taped down, numbered. Text upright; controls in line. */
-  .mine-title { font-family: var(--font-world-display); font-weight: 720; font-stretch: 90%; font-size: 1.3rem; letter-spacing: -0.02em; }
-  .passages { padding-top: 0.6rem; }
-  .passage, .passage:first-child {
-    margin-bottom: 1.1rem;
-    padding: 1.15rem 1rem 1.3rem 1.15rem;
-    border: 1px solid var(--g-sheet-line);
-    border-radius: 2px;
-    background: var(--g-sheet);
-    box-shadow: 5px 6px 0 -1px var(--g-shadow);
-  }
-  .passage::before { content: ''; position: absolute; top: -7px; left: 16%; width: 58px; height: 15px; background: var(--g-tape); transform: rotate(-3deg); }
-  .passage:nth-child(even)::before { left: auto; right: 20%; transform: rotate(4deg); }
-  .passage-gone { border-top: 0; }
-  .passage-mark .cat { font-style: normal; font-weight: 600; font-size: 19px; line-height: 1; letter-spacing: 0; }
-  .passage-mark .cat::before { display: none; }
-  .passage-stamp[data-n] { display: block; position: absolute; right: 12px; bottom: 6px; font-family: var(--font-world-meta); font-size: 15px; color: var(--ink-faint); }
-  .passage-stamp[data-n]::before { content: 'sheet ' attr(data-n); }
-  .passage-menu { margin-top: -0.5rem; margin-right: -0.4rem; }
-  @media (min-width: 1280px) { .passage-mark { padding-top: 0.1rem; } }
-
-  @media (min-width: 1024px) { .w-slot--compose { display: block; margin: 2.5rem 0 0 -0.25rem; max-width: 26rem; aspect-ratio: 320 / 170; } }
-  .guhit-empty { display: flex; align-items: flex-end; gap: 0.4rem; }
 }
-@media (prefers-reduced-motion: reduce) { .guhit-flourish path { transition: none; } }
+@keyframes guhit-ink { from { stroke-dashoffset: 1; } to { stroke-dashoffset: 0; } }
+@keyframes guhit-reveal { from { clip-path: inset(0 100% 0 0); } to { clip-path: inset(0 0 0 0); } }
+@keyframes guhit-settle { from { opacity: 0; transform: translateY(-10px); } to { opacity: 1; transform: none; } }
+@keyframes guhit-up { from { transform: translateY(24px); opacity: 0.4; } to { transform: none; opacity: 1; } }
 
 /* ── Biyahe: thoughts through a moving window ────────────────────────────────────────────── */
 

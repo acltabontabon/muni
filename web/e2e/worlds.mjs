@@ -100,7 +100,8 @@ try {
             const facts = await page.evaluate(() => {
               const vw = document.documentElement.clientWidth
               const field = document.querySelector('textarea[name="thought"]').getBoundingClientRect()
-              const save = [...document.querySelectorAll('button')].find((b) => b.textContent.trim() === 'Save thought').getBoundingClientRect()
+              // Guhit's studio names the action for what it does ("Add to sprint"); the other worlds keep Muni's composer.
+              const save = [...document.querySelectorAll('button')].find((b) => ['Save thought', 'Add to sprint'].includes(b.textContent.trim())).getBoundingClientRect()
               return { overflow: document.documentElement.scrollWidth - vw, fieldTop: field.top, saveBottom: save.bottom, vh: innerHeight, label: document.querySelector('label[for="thought-field"]')?.textContent }
             })
             const at = `${w} ${label} ${theme} ${kind}`

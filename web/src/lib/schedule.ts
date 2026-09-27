@@ -91,3 +91,28 @@ export function dateRange(startsOn: string, endsOn: string, locale?: string): st
 export function shortDate(d: string, locale?: string): string {
   return new Date(`${d}T12:00:00Z`).toLocaleDateString(locale, { weekday: 'short', day: 'numeric', month: 'short', timeZone: 'UTC' }).replace(',', '')
 }
+
+/**
+ * The retro in a few words, for a label that also names the sprint: "retro today, 15:00",
+ * "retro tomorrow", "retro Sat 3 Oct". Days are counted in the sprint's timezone (its calendar is
+ * the one the retro is on). The whole picture — time, zone, the reader's own time — belongs in
+ * details (describeRetro); this is only the next thing worth knowing.
+ */
+export function retroShort(retroAt: string | number | null | undefined, tz: string, opts: { now?: number; locale?: string } = {}): string | null {
+  const at = typeof retroAt === 'number' ? retroAt : retroAt ? Date.parse(retroAt) : NaN
+  if (!Number.isFinite(at)) return null
+  const now = opts.now ?? Date.now()
+  const r = describeRetro(at, tz, { now, locale: opts.locale, deviceTz: tz })
+  const day = (t: number) => {
+    try {
+      return new Intl.DateTimeFormat('en-CA', { timeZone: tz, year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date(t))
+    } catch {
+      return new Date(t).toISOString().slice(0, 10)
+    }
+  }
+  const days = Math.round((Date.parse(`${day(at)}T00:00:00Z`) - Date.parse(`${day(now)}T00:00:00Z`)) / 86_400_000)
+  if (days === 0) return r.past ? `retro was today, ${r.time}` : `retro today, ${r.time}`
+  if (days === 1) return 'retro tomorrow'
+  if (days === -1) return 'retro was yesterday'
+  return r.past ? `retro was ${r.date}` : `retro ${r.date}`
+}

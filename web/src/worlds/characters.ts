@@ -78,7 +78,7 @@ export const CHARACTERS: Record<AvatarId, Character> = {
       font: 'Bricolage Grotesque Variable',
     },
     context: 'A barangay is the smallest unit of local government in the Philippines: a neighbourhood with its own hall, captain and, often, a basketball court.',
-    themeColor: { light: '#f5f2ea', dark: '#15171b' },
+    themeColor: { light: '#ede7dc', dark: '#121110' },
   },
   biyahe: {
     id: 'biyahe',

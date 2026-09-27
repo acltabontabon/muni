@@ -111,7 +111,7 @@ anything a teammate sees (tested in `worker/test/avatars.test.ts`).
 | world | place | light / dark | display type | the collection | its one moment |
 | --- | --- | --- | --- | --- | --- |
 | **Kape** — The Morning Thinker | the café corner outside of time: a tabletop, pandesal, sugar sachets, a café stamp | morning light on warm paper / the café stayed open for you | Young Serif, DM Mono | a receipt roll: torn ends, perforations, order numbers, stamp labels | a curl of steam rises from the cup |
-| **Guhit** — The Creative | the gloriously unfinished studio: dot-grid sketchbook, a brush jar, a taped floor plan | sketchbook stock / slate and chalk | Bricolage Grotesque, Caveat | taped, numbered sketchbook sheets; margin notes escalating to a mural | the heading's underline finishes itself |
+| **Guhit** — The Creative | the gloriously unfinished studio, as its own layout: a working sketchbook on a desk, the sprint as its index tab, a pencil on the sheet, the barangay master plan taped below | warm desk and sketchbook stock / charcoal paper on a darker desk | Bricolage Grotesque, Caveat | numbered pages (“p. 5”) in the same book | the underline inks once on entry; a save draws a tick and adds the next ambitious thing to the master plan |
 | **Biyahe** — The Commuter | thoughts through a moving window: a bus window holding a horizon that stays still | a daylight ride / the late ride home, city lit | Barlow Condensed | a route with a stop per thought; dates as ticket stubs | the newest ticket is punched |
 | **Bola** — The Neighborhood Athlete | the court after the noise settles: the hoop, the painted arc, tsinelas courtside | sun-warmed concrete / one floodlight | Archivo (expanded and condensed) | strong spacing; dates worn like jersey numbers | the ball settles with one bounce |
 | **Pahina** — The Reader | a private reading room: a stack of books, folded glasses, a lamp | afternoon by a window / a reading lamp | Newsreader | a table of contents: chapter numerals, dotted leaders | a ribbon bookmark glides to where you are |
@@ -119,9 +119,21 @@ anything a teammate sees (tested in `worker/test/avatars.test.ts`).
 | **Porma** — The Dressed-Up Dreamer | everyday life, unnecessarily well dressed: a cloche lifted off… a parcel | fine stationery / black tie | Bodoni Moda | an invitation archive: “No. 7”, hairlines, small caps | the monogram is pressed |
 | **Sibol** — The Plant Keeper | a small balcony with room to grow: a railing, clay pots, a trailing pothos | sage-cream in dappled light / the balcony at night | Alegreya | a garden notebook: pressed leaves, plant-tag dates | a leaf unfurls |
 
-**Rules.** Navigation, labels, actions, shortcuts, the editor, filters, paging and status colours
-are identical in every world; a world changes composition, palette, type, illustration and
-decoration only. Each world's palette passes WCAG AA for text in light and dark, and Muni's
+**Rules.** Navigation, shortcuts, filters, paging and status colours are identical in every world,
+and so is behaviour: drafts, the send queue, encryption, what “submitted” means, editing and
+deleting. Most worlds change composition, palette, type, illustration and decoration only.
+
+**Worlds with their own layout.** A world may compose the writing page itself when restyling Muni's
+journal can't carry it. Guhit is the first (`web/src/worlds/guhit/Studio.tsx`): the sprint is the
+sketchbook's index tab (name, state, one date — `retroShort` — with timing, protection and
+sprint switching in its details), the heading labels one calm field on one sheet, Category (one
+optional choice from a short list; a sheet on phones) and Context fold away behind two named
+controls, a starting point appears one at a time on request, and the one action says what it
+does: **Add to sprint** (⌘/Ctrl-Enter, in its tooltip; no keycaps on screen). Privacy is a plain
+line; the detail lives in the tab's details. Behaviour comes from `useComposer` and `MyThoughts`
+in `ui/capture.tsx`, shared with every other world; `e2e/guhit.mjs` checks both. On wide screens
+the desk holds the barangay master plan (`guhit/MasterPlan.tsx`): each thought adds the next
+unnecessarily ambitious thing, and a pencilled ghost shows what comes next. Each world's palette passes WCAG AA for text in light and dark, and Muni's
 semantic colours (status, categories, ok/warn/danger) are never redeclared (`worlds.test.ts`).
 Art sits beside content, never behind text, and never moves while someone writes: the one moment
 plays after a confirmed save, pauses in hidden tabs, and becomes a static change under reduced
