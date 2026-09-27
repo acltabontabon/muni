@@ -1330,7 +1330,7 @@ p.sbar-name { font-size: clamp(1.25rem, 1.05rem + 0.8vw, 1.6rem); }
 .sort-col-title span { margin-left: 0.35rem; font-family: var(--font-wordmark); font-style: italic; font-size: 15px; font-weight: 400; letter-spacing: 0; text-transform: none; color: var(--ink-soft); }
 .sort-hint { margin-top: 0.35rem; font-size: 14px; color: var(--ink-faint); }
 .sort-empty { margin-top: 1rem; padding-top: 1rem; border-top: 1px solid var(--line); font-family: var(--font-wordmark); font-style: italic; color: var(--ink-soft); }
-@media (min-width: 1024px) { .sort-loose { position: sticky; top: 5rem; align-self: start; max-height: calc(100dvh - 6rem); overflow-y: auto; padding-right: 0.5rem; } }
+@media (min-width: 1024px) { .sort-loose { position: sticky; top: 5rem; align-self: start; max-height: calc(100dvh - 6rem); overflow-y: auto; padding-right: 0.5rem; padding-bottom: 5.5rem; } }
 
 /* A thought: the category a word in the margin, then the words. */
 .sort-list { margin: 0.9rem 0 0; padding: 0; list-style: none; }

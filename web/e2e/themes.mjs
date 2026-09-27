@@ -83,6 +83,9 @@ try {
   await loose(page, 'Staging was down').click()
   await loose(page, 'on-call runbook').click()
   check('Picking up marks the thought (pressed) and shows the tray', (await page.locator('.sort-loose [aria-pressed="true"]').count()) === 2 && /2 picked up/.test(await page.locator('.sort-tray').innerText()))
+  // The loose column scrolls on its own and ends where the tray does, so it leaves room for the tray below its last thought.
+  const room = await page.evaluate(() => ({ pad: parseFloat(getComputedStyle(document.querySelector('.sort-loose')).paddingBottom), tray: document.querySelector('.sort-tray').getBoundingClientRect().height }))
+  check('Desktop: the last loose thought can scroll clear of the tray', room.pad >= room.tray, JSON.stringify(room))
   await page.locator('.sort-tray button:has-text("New theme")').click()
   await page.fill('.sort-tray input[aria-label="New theme title"]', 'Who owns staging?')
   await page.click('.sort-tray button:has-text("Create")')
