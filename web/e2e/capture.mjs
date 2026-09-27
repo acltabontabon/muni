@@ -94,7 +94,10 @@ try {
   await page.keyboard.press('ArrowRight')
   await page.locator('textarea[name="thought"]').focus()
   await page.keyboard.press(process.platform === 'darwin' ? 'Meta+Enter' : 'Control+Enter')
-  await page.waitForSelector('text=Submitted. It stays hidden', { timeout: 10000 })
+  await page.waitForSelector('text=Submitted. It stays hidden', { timeout: 10000 }).catch(async (e) => {
+    console.log('DEBUG notice:', await page.locator('form p[role=status], form [role=alert]').allInnerTexts(), await page.locator('textarea[name="thought"]').inputValue())
+    throw e
+  })
   check('Keyboard shortcut submits; the scene answers once', (await page.locator('.journal-rise').count()) === 1)
   await page.waitForTimeout(2500)
   check('…and nothing stays animated afterwards', (await page.locator('.journal-rise').count()) === 0)

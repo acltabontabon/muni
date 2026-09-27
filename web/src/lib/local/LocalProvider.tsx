@@ -7,6 +7,7 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useRef, use
 import { csrfToken } from '@/api/client'
 import { adoptLegacyKeep, keptAccounts, setKeepsLocal } from '@/lib/prefs'
 import { flush, nextDue, type FlushResult } from './outbox'
+import { serialPasses } from './passes'
 import { keyring } from '@/lib/e2ee/keyring'
 import { deviceStore, destroyDeviceStore, emptyPayload, hasText, memoryStore, RECORD_VERSION, StorageError, type ContextSprint, type Draft, type LocalStore, type OutboxItem, type Payload } from './store'
 
@@ -76,7 +77,6 @@ export function LocalProvider({ accountId, children }: { accountId: string | nul
   const store: LocalStore = keepLocal ? (device ??= deviceStore()) : memory
   const storeRef = useRef(store)
   storeRef.current = store
-  const flushing = useRef(false)
 
   const reload = useCallback(async () => {
     if (!accountId) return setItems([])
@@ -87,29 +87,28 @@ export function LocalProvider({ accountId, children }: { accountId: string | nul
     }
   }, [accountId])
 
-  const run = useCallback(
-    async (force = false): Promise<FlushResult | null> => {
-      if (!accountId || flushing.current) return null
-      flushing.current = true
-      setSync('sending')
-      try {
-        const r = await flush({ store: storeRef.current, fetch: (i, init) => fetch(i, init), csrf: async () => csrfToken() || null, notify: () => { reload(); channel?.postMessage('changed') }, seal: sealThought }, { force })
-        setSync(r.state === 'ok' || r.state === 'locked' ? 'idle' : r.state)
-        if (r.submitted.length) setRecent((prev) => [...prev, ...r.submitted.map((s) => s.id)].slice(-20))
-        if (r.state === 'offline') registerBackgroundSync()
-        return r
-      } catch (e) {
-        setStorageError((e as Error).message)
-        setSync('idle')
-        return null
-      } finally {
-        flushing.current = false
-        await reload()
-        channel?.postMessage('changed')
-      }
-    },
-    [accountId, reload],
-  )
+  const pass = useCallback(async (force: boolean): Promise<FlushResult | null> => {
+    setSync('sending')
+    try {
+      const r = await flush({ store: storeRef.current, fetch: (i, init) => fetch(i, init), csrf: async () => csrfToken() || null, notify: () => { reload(); channel?.postMessage('changed') }, seal: sealThought }, { force })
+      setSync(r.state === 'ok' || r.state === 'locked' ? 'idle' : r.state)
+      if (r.submitted.length) setRecent((prev) => [...prev, ...r.submitted.map((s) => s.id)].slice(-20))
+      if (r.state === 'offline') registerBackgroundSync()
+      return r
+    } catch (e) {
+      setStorageError((e as Error).message)
+      setSync('idle')
+      return null
+    } finally {
+      await reload()
+      channel?.postMessage('changed')
+    }
+  }, [reload])
+
+  const run = useMemo(() => {
+    const serial = serialPasses(pass)
+    return (force = false): Promise<FlushResult | null> => (accountId ? serial(force) : Promise.resolve(null))
+  }, [accountId, pass])
 
   // Send when the app opens, comes back to the foreground, or the connection returns; follow
   // other tabs' changes; wake up when the next backoff is due; and when the worker asks.
