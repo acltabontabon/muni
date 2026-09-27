@@ -34,7 +34,7 @@ export function EntranceShell({ progress = PROGRESS.start, children }: { progres
         </div>
         <div className="entrance-message">
           <p className="entrance-headline">
-            <span>Keep the <em>thought</em>.</span> <span className="soft">Bring it to the conversation.</span>
+            <span className="entrance-keep">Keep the <span className="entrance-word"><em>thought</em>.</span></span> <span className="soft">Bring it to the conversation.</span>
           </p>
           <p className="entrance-lede">Capture what matters during the sprint, while it’s still fresh.</p>
           <p className="entrance-kicker"><i lang="tl">muni-muni</i> · Filipino · to reflect; to ponder.</p>
@@ -56,10 +56,14 @@ export function EntranceShell({ progress = PROGRESS.start, children }: { progres
   )
 }
 
-/** A step's frame: heading and instructions, with the id the step's input points to. */
-export function Step({ title, children, describedBy, lead }: { title: ReactNode; children?: ReactNode; describedBy?: string; lead?: ReactNode }) {
+/**
+ * A step's frame: heading and instructions, with the id the step's input points to. A `greeting`
+ * heading ("Welcome back.") is shown beside the scene on a wide screen; on a phone the headline
+ * already says it, so it's kept for screen readers only.
+ */
+export function Step({ title, children, describedBy, lead, greeting }: { title: ReactNode; children?: ReactNode; describedBy?: string; lead?: ReactNode; greeting?: boolean }) {
   return (
-    <section className="entrance-step" aria-labelledby={`${describedBy}-title`}>
+    <section className="entrance-step" aria-labelledby={`${describedBy}-title`} data-greeting={greeting || undefined}>
       <h1 id={`${describedBy}-title`}>{title}</h1>
       {lead ? <div id={describedBy} className="instructions">{lead}</div> : null}
       {children}
@@ -150,10 +154,10 @@ function PasskeyStart({ intro, onSignedIn, onCreate }: { intro?: Intro; onSigned
     }
   }
   return (
-    <Step describedBy={`${id}-lead`} title={intro?.title ?? 'Welcome back.'} lead={intro?.lead}>
+    <Step describedBy={`${id}-lead`} title={intro?.title ?? 'Welcome back.'} lead={intro?.lead} greeting={!intro}>
       {supported ? (
-        <Button variant="primary" size="lg" className="mt-7 w-full" busy={busy} onClick={signIn}>
-          <KeyRound className="size-4" aria-hidden /> Continue with a passkey
+        <Button variant="primary" size="lg" className="entrance-cta mt-7 w-full" busy={busy} onClick={signIn}>
+          <KeyRound className="size-[1.05em]" strokeWidth={1.75} aria-hidden /> Continue with a passkey
         </Button>
       ) : (
         <p role="status" className="entrance-unsupported mt-7">

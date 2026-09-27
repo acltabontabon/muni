@@ -80,6 +80,21 @@ Categories are muted earth tones, each ≥ 5:1 on paper: ochre (Proud of), moss 
 (Improve), brick (Stop), plum (Try). The scene is dusk: a haze that warms to apricot only at the
 horizon, pewter water, palms in ink; at night, a pale moon and a few stars.
 
+## The entrance on a phone
+
+Not the wide page stacked up: one evening from the top of the screen to the bottom, set like the
+opening of a book. A quiet running head (the wordmark, and *muni-muni* in Baybayin on the same line,
+smaller and quieter); the line — “Keep the / *thought*.” with the second sentence as its subtitle;
+then the scene in its own upright composition (`UPRIGHT` in `ui/scene.tsx`): the palms stand whole
+and frame the page, the sun (the moon at night) sets behind the duyan so the person resting is the
+silhouette at the centre, and the water below dissolves back into paper where the one action rests.
+No card and no frame; “Welcome back.” stays as the heading for screen readers only, because the
+headline already says it. Help, the footer links and “Create an account” are quiet, with 44 px
+targets. Heights come from the smallest viewport (`svh`), never from what's below, so Safari's
+toolbars and an opened help or error message move nothing above them; larger text simply scrolls.
+An upright tablet uses the same page on a wider measure; a phone on its side puts the words and
+the evening beside the action.
+
 ## Illustration
 
 The entrance's duyan scene appears at a few deliberate moments, never as a full-height backdrop:

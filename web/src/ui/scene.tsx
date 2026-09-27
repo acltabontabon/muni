@@ -10,7 +10,7 @@
 import { useEffect, useId, useRef, useState, type CSSProperties, type RefObject } from 'react'
 
 export const HORIZON = 272
-const SHORE = 1.3
+const SHORE_SCALE = 1.3
 
 /** A palm frond: a drooping crescent from the crown. */
 function frond(cx: number, cy: number, deg: number, len: number, droop: number, width: number) {
@@ -105,18 +105,72 @@ const GLINTS: [number, number][] = [
   [284, 44], [292, 30], [301, 52], [310, 24], [319, 38], [328, 18], [338, 30], [349, 14], [361, 22],
 ]
 
-/** A phone gets its own framing (the hammock, the sun and the kept lights), not a blind crop. */
-function useCompact() {
-  const q = '(max-width: 899px)'
-  const [compact, setCompact] = useState(() => typeof window !== 'undefined' && window.matchMedia(q).matches)
+/** How the evening is framed: where the sun sets, where kept thoughts come to rest, what is in view. */
+type Composition = {
+  viewBox: string
+  sun: [number, number]
+  kept: [number, number][]
+  stars: [number, number, number][]
+  /** Where the sun's path of light starts on the water (the glints are drawn from here). */
+  glints: number
+  /** Alitaptap, at night: along the shore, never across the moon. */
+  fireflies: [number, number][]
+  /** Where the sky's glow begins, and the bottom of the frame (the water ends there, upright). */
+  skyTop: number
+  bottom: number
+}
+
+/** Beside the words on a wide screen: the shore at the left, the sun over open water to the right. */
+const WIDE: Composition = { viewBox: '0 0 640 400', sun: [470, 196], kept: KEPT, stars: STARS, fireflies: FIREFLIES, glints: 170, skyTop: -400, bottom: 400 }
+
+/**
+ * Held upright (a phone, a tablet in portrait): its own composition, not a crop of the wide one.
+ * The palms stand whole and frame the page; the sun sets behind the duyan, between the trunks, so
+ * the person resting is the silhouette at the centre; kept thoughts gather in the gap in the
+ * canopy; the water below dissolves back into paper, where the actions are.
+ */
+const UPRIGHT: Composition = {
+  viewBox: '34 -44 432 406',
+  sun: [300, 228],
+  kept: [
+    [262, 132],
+    [306, 150],
+    [224, 118],
+    [286, 104],
+  ],
+  stars: [
+    [58, -18, 1], [150, -34, 0.8], [252, -26, 1.1], [352, -38, 0.8], [446, -6, 1],
+    [236, 60, 0.9], [270, 92, 0.7], [214, 150, 0.8], [330, 128, 0.9], [446, 150, 0.7], [44, 196, 0.8], [454, 232, 0.9],
+  ],
+  fireflies: [
+    [62, 224], [150, 196], [418, 238], [48, 254], [446, 190], [110, 252],
+  ],
+  glints: -22,
+  skyTop: -44,
+  bottom: 362,
+}
+
+/** Matches the stylesheet's compact entrance (styles.css): phones, upright tablets, phones on their side. */
+const COMPACT = '(max-width: 899px), (max-height: 560px) and (orientation: landscape)'
+
+function useUpright() {
+  const [upright, setUpright] = useState(() => typeof window !== 'undefined' && window.matchMedia(COMPACT).matches)
   useEffect(() => {
-    const m = window.matchMedia(q)
-    const on = () => setCompact(m.matches)
+    const m = window.matchMedia(COMPACT)
+    const on = () => setUpright(m.matches)
     m.addEventListener('change', on)
     return () => m.removeEventListener('change', on)
   }, [])
-  return compact
+  return upright
 }
+
+/**
+ * The water's surface, drawn still: the reflection is cut into bands that lean alternately, each a
+ * little more with depth. It reads as ripples the way the animated filter did on the wide scene,
+ * but it is painted once — nothing re-rasterises while the duyan rocks.
+ */
+const BANDS = [0, 3, 7, 12, 18, 25, 33, 42, 52, 63, 75, 88, 102, 118]
+const LEAN = 1.7
 
 /** Whether a scene should hold still: the tab is hidden, or the scene is scrolled out of view. */
 export function useStill(ref: RefObject<Element | null>) {
@@ -139,10 +193,11 @@ export function useStill(ref: RefObject<Element | null>) {
 
 /** `frame` crops the same drawing for the app's small postcards (a viewBox in scene units). */
 export function DuyanScene({ progress, className, frame }: { progress: number; className?: string; frame?: string }) {
-  const compact = useCompact() && !frame
+  const upright = useUpright() && !frame
+  const c = upright ? UPRIGHT : WIDE
   // 0 → 1 across the steps: the sun (or moon) settles, and one light is kept per finished step.
   const kept = progress >= 1 ? 4 : progress >= 0.8 ? 2 : progress >= 0.5 ? 1 : 0
-  const sunY = 196 + progress * 52
+  const [sunX, sunY] = c.sun
   // Ids are per instance, so the scene can appear more than once on a page.
   const u = useId().replace(/:/g, '')
   const id = (n: string) => `${u}-${n}`
@@ -158,8 +213,11 @@ export function DuyanScene({ progress, className, frame }: { progress: number; c
       a.play()
     }
   }, [progress])
+  const mirror = `translate(0 ${HORIZON * 2}) scale(1 -1)`
+  // The shore, drawn at 1:1 and shown 1.3× larger, anchored on the waterline.
+  const shore = `translate(0 ${-HORIZON * (SHORE_SCALE - 1)}) scale(${SHORE_SCALE})`
   return (
-    <svg ref={svg} className={`scene ${className ?? ''}`} viewBox={frame ?? (compact ? '100 138 540 196' : '0 0 640 400')} preserveAspectRatio={frame || compact ? 'xMidYMid slice' : 'xMidYMax meet'} aria-hidden focusable="false">
+    <svg ref={svg} className={`scene${upright ? ' scene--upright' : ''} ${className ?? ''}`} viewBox={frame ?? c.viewBox} preserveAspectRatio={frame ? 'xMidYMid slice' : 'xMidYMax meet'} aria-hidden focusable="false">
       <defs>
         <linearGradient id={id("glow")} x1="0" y1="0" x2="0" y2="1">
           <stop offset="0" style={{ stopColor: 'var(--sky-top)', stopOpacity: 0 }} />
@@ -184,50 +242,98 @@ export function DuyanScene({ progress, className, frame }: { progress: number; c
         <clipPath id={id("water")}>
           <rect x="-960" y={HORIZON} width="2560" height={400 - HORIZON + 200} />
         </clipPath>
-        <filter id={id("ripple")} x="-5%" y="-5%" width="110%" height="110%">
-          <feTurbulence type="fractalNoise" baseFrequency="0.01 0.16" numOctaves="2" seed="7" result="n" />
-          <feDisplacementMap in="SourceGraphic" in2="n" scale="9" xChannelSelector="R" yChannelSelector="G" />
-        </filter>
-        {/* The shore, drawn at 1:1 and shown 1.3× larger, anchored on the waterline. */}
-        <g id={id("shore")} transform={`translate(0 ${-HORIZON * (SHORE - 1)}) scale(${SHORE})`}>
-          <Land />
-        </g>
+        {upright ? (
+          <>
+            {/* Alternate bands of the water, for the still reflection. */}
+            {[0, 1].map((side) => (
+              <clipPath key={side} id={id(`band${side}`)}>
+                {BANDS.slice(0, -1).map((top, i) => (i % 2 === side ? <rect key={i} x="-960" y={HORIZON + top} width="2560" height={BANDS[i + 1] - top} /> : null))}
+              </clipPath>
+            ))}
+            {/* The water gives way to the page. */}
+            <linearGradient id={id("calm")} x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0" style={{ stopColor: 'var(--e-bg)', stopOpacity: 0 }} />
+              <stop offset="1" style={{ stopColor: 'var(--e-bg)' }} />
+            </linearGradient>
+          </>
+        ) : (
+          <filter id={id("ripple")} x="-5%" y="-5%" width="110%" height="110%">
+            <feTurbulence type="fractalNoise" baseFrequency="0.01 0.16" numOctaves="2" seed="7" result="n" />
+            <feDisplacementMap in="SourceGraphic" in2="n" scale="9" xChannelSelector="R" yChannelSelector="G" />
+          </filter>
+        )}
+        {upright ? null : (
+          <g id={id("shore")} transform={shore}>
+            <Land />
+          </g>
+        )}
       </defs>
 
-      {/* Sky: the glow gathers at the horizon; stars at night, birds by day. */}
-      <rect x="-960" y="-400" width="2560" height={HORIZON + 400} fill={`url(#${id("glow")})`} />
+      {/* Sky: the glow gathers at the horizon; stars at night, birds by day. Upright, the glow
+          starts clear at the top of the frame, so the page's own sky runs on into it. */}
+      <rect x="-960" y={c.skyTop} width="2560" height={HORIZON - c.skyTop} fill={`url(#${id("glow")})`} />
       <g className="scene-stars">
-        {STARS.map(([x, y, r], i) => (
+        {c.stars.map(([x, y, r], i) => (
           <circle key={i} cx={x} cy={y} r={r} style={{ animationDelay: `${(i * 0.73) % 5}s` } as CSSProperties} />
         ))}
       </g>
-      <g className="scene-birds" fill="none" strokeWidth="1.6" strokeLinecap="round">
-        <path d="M430 118 q6 -6 12 0 q6 -6 12 0" />
-        <path d="M468 100 q4 -4 8 0 q4 -4 8 0" />
-      </g>
+      {upright ? null : (
+        <g className="scene-birds" fill="none" strokeWidth="1.6" strokeLinecap="round">
+          <path d="M430 118 q6 -6 12 0 q6 -6 12 0" />
+          <path d="M468 100 q4 -4 8 0 q4 -4 8 0" />
+        </g>
+      )}
 
       {/* The sun (moon at night), settling as steps are done, and its path of light on the water. */}
       <g clipPath={`url(#${id("sky")})`}>
-        <g className="scene-sun" style={{ transform: `translateY(${sunY - 196}px)` }}>
-          <circle cx="470" cy="196" r="80" fill={`url(#${id("halo")})`} />
-          <circle cx="470" cy="196" r="34" style={{ fill: 'var(--sun-disc)' }} />
+        <g className="scene-sun" style={{ transform: `translateY(${progress * 52}px)` }}>
+          <circle cx={sunX} cy={sunY} r="80" fill={`url(#${id("halo")})`} />
+          <circle cx={sunX} cy={sunY} r="34" style={{ fill: 'var(--sun-disc)' }} />
         </g>
       </g>
       <rect x="-960" y={HORIZON} width="2560" height={400 - HORIZON + 200} fill={`url(#${id("sea")})`} />
-      <g className="scene-glints" transform={`translate(170 ${HORIZON})`}>
+      <g className="scene-glints" transform={`translate(${c.glints} ${HORIZON})`}>
         {GLINTS.map(([x, w], i) => (
           <rect key={i} x={x - w / 2} y={6 + i * 11} width={w * (1 + i * 0.12)} height="1.6" rx="0.8" style={{ animationDelay: `${i * 0.37}s` } as CSSProperties} />
         ))}
       </g>
 
-      {/* The shore and its reflection. */}
-      <use href={`#${id("shore")}`} className="scene-shore" />
-      <g clipPath={`url(#${id("water")})`}>
-        <g transform={`translate(0 ${HORIZON * 2}) scale(1 -1)`} className="scene-mirror" filter={`url(#${id("ripple")})`}>
-          <use href={`#${id("shore")}`} />
+      {/* The shore and its reflection. Upright, the shore is drawn in place, not through <use>: a
+          <use> copy is a shadow tree the upright motion rules can't reach, so its palms and
+          tsinelas would go on moving for twenty seconds. */}
+      {upright ? (
+        <g transform={shore} className="scene-shore">
+          <Land />
         </g>
-      </g>
+      ) : (
+        <use href={`#${id("shore")}`} className="scene-shore" />
+      )}
+      {upright ? (
+        <g className="scene-mirror scene-still">
+          {[1, -1].map((dir, side) => (
+            <g key={side} clipPath={`url(#${id(`band${side}`)})`}>
+              <g transform={`translate(0 ${HORIZON}) skewX(${dir * LEAN}) translate(0 ${-HORIZON}) ${mirror}`}>
+                <g transform={shore}>
+                  <Land />
+                </g>
+              </g>
+            </g>
+          ))}
+        </g>
+      ) : (
+        <g clipPath={`url(#${id("water")})`}>
+          <g transform={mirror} className="scene-mirror" filter={`url(#${id("ripple")})`}>
+            <use href={`#${id("shore")}`} />
+          </g>
+        </g>
+      )}
       <line x1="-960" x2="1600" y1={HORIZON} y2={HORIZON} className="scene-horizon" />
+      {upright ? (
+        <>
+          <rect x="-960" y={HORIZON + 16} width="2560" height={c.bottom - HORIZON - 16} fill={`url(#${id("calm")})`} />
+          <rect x="-960" y={c.bottom - 0.5} width="2560" height="400" style={{ fill: 'var(--e-bg)' }} />
+        </>
+      ) : null}
 
       {/* Thoughts, drifting up from the duyan. */}
       <g className="scene-thought">
@@ -243,7 +349,7 @@ export function DuyanScene({ progress, className, frame }: { progress: number; c
 
       {/* Alitaptap: fireflies along the shore at night. */}
       <g className="scene-fireflies">
-        {FIREFLIES.map(([x, y], i) => (
+        {c.fireflies.map(([x, y], i) => (
           <g key={i} style={{ animationDelay: `${i * 1.3}s`, animationDuration: `${7 + (i % 3) * 2}s` } as CSSProperties}>
             <circle cx={x} cy={y} r="5" className="scene-firefly-glow" />
             <circle cx={x} cy={y} r="2" />
@@ -253,7 +359,7 @@ export function DuyanScene({ progress, className, frame }: { progress: number; c
 
       {/* Kept thoughts: each finished step lifts one from the bubble to its place in the sky. */}
       <g className="scene-kept">
-        {KEPT.slice(0, kept).map(([x, y], i) => (
+        {c.kept.slice(0, kept).map(([x, y], i) => (
           <g key={i} className="scene-keep" style={{ '--from-x': `${BUBBLE.x - x}px`, '--from-y': `${BUBBLE.y - y}px` } as CSSProperties}>
             <circle cx={x} cy={y} r="11" fill={`url(#${id("light")})`} />
             <circle cx={x} cy={y} r="2.2" className="scene-keep-core" />

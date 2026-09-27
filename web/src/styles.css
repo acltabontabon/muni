@@ -678,6 +678,23 @@ body {
 .scene-keep { animation: keep 1500ms var(--ease-out-soft) both; }
 .scene-keep-core { fill: var(--light); }
 .scene-keep circle:first-child { animation: glow 3.2s ease-in-out 1.5s 3.5 alternate forwards; transform-box: fill-box; transform-origin: center; }
+/* Upright (phones, tablets): one small gesture. The duyan rocks once and settles as the thought
+   appears; nothing else moves, and the reflection is drawn once, still (scene.tsx). */
+.scene--upright .scene-glints rect,
+.scene--upright .scene-crown,
+.scene--upright .scene-tsinelas,
+.scene--upright .scene-dot,
+.scene--upright .scene-keep circle:first-child,
+.dark .scene--upright .scene-stars circle,
+.dark .scene--upright .scene-fireflies g { animation: none; }
+.scene--upright .scene-duyan { animation: rock 7s ease-in-out 0.3s 1 both; }
+.scene--upright .scene-thought { animation: thought-in 1.4s var(--ease-out-soft) 0.8s 1 both; }
+.scene--upright .scene-dot { opacity: 0.8; }
+.scene--upright .scene-mirror { opacity: 0.16; }
+.dark .scene--upright .scene-mirror { opacity: 0.5; }
+.dark .scene--upright .scene-stars circle { opacity: 0.7; }
+.dark .scene--upright .scene-fireflies g { opacity: 0.7; }
+.scene-still * { animation: none !important; }
 
 @keyframes glint { from { opacity: 0.2; } to { opacity: 0.75; } }
 @keyframes twinkle { 0%, 100% { opacity: 0.25; } 50% { opacity: 0.95; } }
@@ -706,6 +723,8 @@ body {
   100% { opacity: 1; transform: none; }
 }
 @keyframes glow { from { opacity: 0.55; transform: scale(0.85); } to { opacity: 1; transform: scale(1.15); } }
+@keyframes rock { 0%, 100% { transform: rotate(0); } 35% { transform: rotate(-2deg); } 72% { transform: rotate(1.3deg); } }
+@keyframes thought-in { from { opacity: 0; transform: translate(-3px, 6px); } to { opacity: 1; transform: none; } }
 
 .entrance[data-paused] .scene *, .entrance-art[data-paused] .scene * { animation-play-state: paused !important; }
 
@@ -725,6 +744,10 @@ body {
 /* Under the one primary action: the other way in, then help, quieter still. */
 .entrance-new { margin-top: 22px; font-size: 15px; color: var(--e-soft); }
 .entrance-unsupported { border-radius: 16px; padding: 12px 16px; font-size: 15px; line-height: 1.5; background: color-mix(in oklab, var(--warn) 10%, var(--e-panel)); }
+/* While the passkey prompt is open the action keeps its ink (not the pale disabled shape), with a
+   spinner in place of the key. */
+.entrance-cta[aria-busy='true'] { background: var(--action); color: var(--action-ink); opacity: 0.86; }
+.entrance-cta[aria-busy='true'] > svg { display: none; }
 .entrance-help { margin-top: 36px; font-size: 14px; color: var(--e-soft); }
 .entrance-help summary { cursor: pointer; color: var(--e-quiet); text-decoration: underline; text-underline-offset: 3px; text-decoration-color: var(--e-frame); width: fit-content; list-style: none; border-radius: 4px; min-height: 24px; }
 .entrance-help summary:hover { color: var(--e-ink); text-decoration-color: var(--e-field); }
@@ -768,47 +791,124 @@ body {
   .entrance-headline { font-size: min(4.3vw, 7vh, 4rem); }
 }
 
-/* Compact: phones, tablets in portrait. The scene becomes a strip; the form comes right after. */
+/* ── Compact: phones, and tablets held upright ──────────────────────────────────────────────
+   Not the wide page stacked up: one evening from the top of the screen to the bottom, read like
+   the opening of a book. A quiet running head; the line; the palms standing whole with the sun
+   going down behind the duyan; the horizon edge to edge; then the water dissolving back into
+   paper, where the one action rests. No card, no frame.
+   Heights come from the viewport — svh, the smallest one, so Safari's toolbars coming and going
+   never move anything — and never from what's below: opening help or showing an error adds to the
+   page and moves nothing above it. Larger text simply makes the page scroll. */
 @media (max-width: 899px), (max-height: 560px) and (orientation: landscape) {
   .entrance {
+    --gutter: clamp(20px, 6.2vw, 32px);
+    --column: 34rem;
     display: flex;
     flex-direction: column;
-    padding: max(14px, env(safe-area-inset-top)) max(20px, env(safe-area-inset-right)) max(16px, env(safe-area-inset-bottom)) max(20px, env(safe-area-inset-left));
+    min-height: 100vh;
+    min-height: 100svh;
+    padding: 0;
   }
-  .entrance-brand { display: block; min-height: 0; max-height: none; padding: 0; background: transparent; overflow: visible; }
-  .entrance-message { padding: 18px 2px 0; }
-  .entrance-headline { font-size: clamp(1.45rem, 5.8vw, 2rem); max-width: none; letter-spacing: -0.035em; line-height: 1.08; }
-  .entrance-headline > span { display: block; }
+  /* The column: words and actions on a readable measure; the evening runs edge to edge. */
+  .entrance-top, .entrance-message, .entrance-auth, .entrance-footer {
+    box-sizing: border-box;
+    width: 100%;
+    max-width: calc(var(--column) + 2 * var(--gutter));
+    margin-inline: auto;
+    padding-inline: max(var(--gutter), env(safe-area-inset-left)) max(var(--gutter), env(safe-area-inset-right));
+  }
+  .entrance-brand {
+    display: block;
+    flex: none;
+    min-height: 0;
+    max-height: none;
+    padding: max(18px, env(safe-area-inset-top)) 0 0;
+    /* The wide panel's sky, from the top of the screen down to the waterline. */
+    background: linear-gradient(180deg, var(--sky-top) 0%, var(--sky-top) 28%, color-mix(in oklab, var(--sky-top) 70%, var(--sky-glow)) 100%);
+    overflow: visible;
+  }
+
+  /* A running head: the wordmark, and muni-muni in Baybayin on the same line, quieter. */
+  .entrance-top { gap: 12px; min-height: 32px; }
+  .entrance-wordmark { gap: 3px; }
+  .entrance-wordmark svg { width: 26px; height: 26px; }
+  .entrance-wordmark span { font-size: 22px; }
+  .entrance-baybayin { font-size: 15px; letter-spacing: 0.22em; margin-right: -0.22em; opacity: 0.7; }
+
+  /* One line, set large; "thought." on a line of its own. The second sentence is the subtitle. */
+  .entrance-message { padding-top: clamp(22px, 6svh, 64px); padding-bottom: 0; }
+  .entrance-headline {
+    font-size: clamp(2.5rem, min(13.6vw, 7.4svh), 4.75rem);
+    line-height: 0.9;
+    letter-spacing: -0.05em;
+    max-width: none;
+  }
+  .entrance-headline > span, .entrance-word { display: block; }
+  .entrance-headline em { font-size: 1.07em; letter-spacing: -0.035em; }
+  .entrance-headline .soft {
+    margin-top: 0.8rem;
+    font-size: clamp(1.0625rem, 4.9vw, 1.5rem);
+    line-height: 1.3;
+    letter-spacing: -0.018em;
+    font-weight: 450;
+  }
   .entrance-lede, .entrance-kicker { display: none; }
+
+  /* The evening: a share of the screen's height (less on a short one), the palms always whole. */
   .entrance-scene {
-    margin: 14px 0 0;
-    height: 128px;
-    border-radius: 18px;
+    margin: 0;
+    height: clamp(172px, calc(47svh - 46px), 540px);
     overflow: hidden;
-    isolation: isolate;
-    border: 1px solid var(--e-frame);
-    background: linear-gradient(180deg, var(--sky-top), color-mix(in oklab, var(--sky-top) 60%, var(--sky-glow)));
   }
-  .entrance-side { flex: 1; min-height: 0; padding: 0; border: 0; background: transparent; }
-  .entrance-auth { flex: none; display: block; margin-top: 14px; padding: 24px 20px; border: 1px solid var(--e-frame); border-radius: 20px; background: var(--e-panel); }
+  /* Past the first step there's a form to see: the evening steps back. */
+  .entrance:not(:has([data-greeting])) .entrance-scene { height: clamp(150px, calc(34svh - 30px), 420px); }
+
+  .entrance-side { flex: 1 0 auto; display: flex; flex-direction: column; min-height: 0; padding: 0; border: 0; background: none; }
+  .entrance-auth { flex: none; display: block; padding-top: clamp(4px, 1.2svh, 14px); }
   .entrance-auth > .entrance-step { max-width: none; }
-  .entrance-footer { margin-top: auto; padding-top: 20px; }
+  /* The headline already says it; the greeting stays for screen readers. */
+  .entrance-step[data-greeting] > h1 { position: absolute; width: 1px; height: 1px; margin: -1px; padding: 0; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+  .entrance-step[data-greeting] .entrance-cta { margin-top: 0; }
+  /* The one action: never clipped — with larger text or a narrow column the label wraps. */
+  .entrance-cta { height: auto; min-height: 3.375rem; padding: 0.7rem 1.25rem; font-size: 1.0625rem; line-height: 1.25; letter-spacing: -0.01em; gap: 0.6rem; white-space: normal; text-wrap: balance; }
+  .entrance-cta > svg { flex: none; }
+  /* Feedback under the action, on the same centre line. */
+  .entrance-step[data-greeting] > [role='alert'], .entrance-step[data-greeting] > [role='status'] { text-align: center; text-wrap: pretty; margin-top: 0.75rem; }
+  .entrance-step[data-greeting] .entrance-new { margin-top: 1.1rem; text-align: center; }
+  /* Quiet links, full-size targets: the padding reaches past the text without moving the line. */
+  .entrance-new .entrance-link { display: inline-block; padding: 11px 4px; margin: -11px -4px; }
+  .entrance-step[data-greeting] .entrance-help { margin-top: 0.35rem; text-align: center; }
+  .entrance-help summary { display: flex; align-items: center; min-height: 44px; margin-inline: auto; }
+  .entrance-step:not([data-greeting]) .entrance-help summary { margin-inline: 0; }
+  .entrance-help dl { text-align: left; margin-top: 4px; }
+
+  .entrance-footer {
+    margin-top: auto;
+    padding-top: clamp(16px, 3svh, 36px);
+    padding-bottom: max(8px, env(safe-area-inset-bottom));
+    justify-content: center;
+  }
+  .entrance-footer nav { gap: 0 28px; }
+  .entrance-footer .entrance-link { display: inline-flex; align-items: center; min-height: 44px; color: var(--e-quiet); text-decoration-color: color-mix(in oklab, var(--e-quiet) 45%, transparent); }
 }
-@media (max-width: 899px) and (min-width: 600px) {
-  .entrance-brand, .entrance-side { width: 100%; max-width: 560px; margin-left: auto; margin-right: auto; }
-  .entrance-scene { height: 170px; }
+
+/* A tablet held upright: the same page on a wider measure, the evening larger. */
+@media (min-width: 600px) and (max-width: 899px) {
+  .entrance { --gutter: 48px; --column: 32rem; }
+  .entrance-brand { padding-top: max(28px, env(safe-area-inset-top)); }
+  .entrance-headline .soft { font-size: 1.5rem; }
 }
-/* A phone on its side: one line of brand, no scene, the form starts high. */
+
+/* A phone on its side: words and evening on the left, the one action on the right. */
 @media (max-height: 560px) and (orientation: landscape) {
-  .entrance-brand { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 20px; }
-  .entrance-top { flex: none; }
-  .entrance-baybayin { display: none; }
-  .entrance-message { padding: 0; flex: 1; min-width: 16rem; }
-  .entrance-headline { font-size: 1.15rem; }
-  .entrance-headline > span { display: inline; }
-  .entrance-scene { display: none; }
-  .entrance-auth { margin-top: 12px; padding: 18px 20px; }
-  .entrance-step h1 { font-size: 1.4rem; }
+  .entrance { --gutter: max(24px, 4vw); display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
+  .entrance-brand { display: flex; flex-direction: column; min-height: 100svh; }
+  .entrance-message { padding-top: clamp(12px, 5svh, 28px); }
+  .entrance-headline { font-size: clamp(1.75rem, 10svh, 2.75rem); }
+  .entrance-headline .soft { font-size: clamp(0.9375rem, 4.4svh, 1.125rem); margin-top: 0.5rem; }
+  .entrance-scene, .entrance:not(:has([data-greeting])) .entrance-scene { flex: 1 1 auto; height: auto; min-height: 120px; }
+  .entrance-side { min-height: 100svh; padding-top: max(12px, env(safe-area-inset-top)); }
+  .entrance-auth { margin-block: auto 0; padding-top: 16px; }
 }
 
 @media (prefers-reduced-motion: reduce) {

@@ -78,6 +78,13 @@ page. Measured with handle-free waits, nothing is left behind.
   where it began and the page stops drawing. Each finished sign-in step lets it breathe again
   (`DuyanScene` restarts the ambient animations with the Web Animations API). The rest pose is
   the drawing as designed: palms, hammock, the thought bubble, stars and moon at night.
+- **On a phone the entrance makes one gesture** (2026-09-27): the duyan rocks once and the thought
+  appears; nothing else moves, and the upright scene has no filter — its reflection is cut into
+  still bands that are painted once. Its shore is drawn in place rather than through `<use>`: a
+  `<use>` copy is a shadow tree that descendant selectors can't reach, so the phone's motion rules
+  never applied to it and its palms and tsinelas kept moving for ~19 s. Signed-out phone, 3–18 s
+  after load: 34–44 → 0.3–0.4 ms/s main thread, 35–52 → 0.5 paints/s, frames only during the
+  ~7 s rock (`e2e/perf.mjs`, emulation).
 - Scenes pause when **scrolled out of view** as well as when the tab is hidden (`useStill` in
   `ui/scene.tsx`, an IntersectionObserver).
 - Fireflies glow with a second, fainter circle instead of a filter.
@@ -106,7 +113,7 @@ promises about any particular phone.
 | | Budget |
 | --- | --- |
 | Any page left alone (after its first breath) | ≤ 2 frames/s, ≤ 1 paint/s, ≤ 1 timer/s, 0 requests, ≤ 8 ms/s main thread |
-| Scene motion after load or a finished step | finite; at rest by ~20 s |
+| Scene motion after load or a finished step | finite; at rest by ~20 s (a phone's entrance by ~8 s) |
 | Write ⇄ Sprints, per round trip | ≤ 8 API requests |
 | After 12 round trips | ≤ 20 listeners, ≤ 200 DOM nodes left behind |
 | Typing | ≤ 200 ms/s main thread at 4× slowdown |

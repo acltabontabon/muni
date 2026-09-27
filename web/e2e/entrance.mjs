@@ -115,6 +115,61 @@ try {
     await ctx.close()
   }
 
+  // ── The phone page: the line, the evening and the action together on the first screen, from a
+  // small phone to an upright tablet and a phone on its side (emulated viewports, not devices).
+  for (const [w, h] of [[320, 568], [360, 640], [390, 664], [390, 844], [430, 932], [768, 1024], [844, 390], [667, 375]]) {
+    const ctx = await browser.newContext({ viewport: { width: w, height: h }, isMobile: true, hasTouch: true, deviceScaleFactor: 2 })
+    const page = await ctx.newPage()
+    await page.goto(`${BASE}/signin`)
+    const cta = page.getByRole('button', { name: 'Continue with a passkey' })
+    await cta.waitFor()
+    const b = await cta.boundingBox()
+    const line = await page.locator('.entrance-headline').boundingBox()
+    const scene = await page.locator('.entrance-scene').boundingBox()
+    // Upright the evening sits between the line and the action; on its side, beside them.
+    const order = h > w ? scene.y + scene.height <= b.y + 1 : scene.x + scene.width <= b.x + 1
+    check(`${w}×${h}: headline, evening and passkey button all on the first screen`, line.y >= 0 && scene.height >= 120 && scene.y + scene.height <= h + 1 && order && b.y + b.height <= h, `scene ${Math.round(scene.height)} px, button ends at ${Math.round(b.y + b.height)}`)
+    check(`${w}×${h}: no sideways scroll`, (await page.evaluate(() => document.documentElement.scrollWidth)) <= w)
+    await ctx.close()
+  }
+
+  // ── The phone page, closely (390×844): one composition, not a card; full-size targets; nothing
+  // above moves when help opens or feedback appears; the evening comes to rest.
+  {
+    const ctx = await browser.newContext(PHONE)
+    const page = await ctx.newPage()
+    await authenticator(page)
+    await page.goto(`${BASE}/signin`)
+    const cta = page.getByRole('button', { name: 'Continue with a passkey' })
+    await cta.waitFor()
+    const greeting = page.getByRole('heading', { name: 'Welcome back.' })
+    check('Phone: “Welcome back.” is the page’s heading for screen readers, not shown', (await greeting.count()) === 1 && (await greeting.boundingBox()).width <= 1)
+    const panel = await page.locator('.entrance-auth').evaluate((el) => { const s = getComputedStyle(el); return { border: s.borderTopWidth, bg: s.backgroundColor } })
+    check('Phone: no card around the actions', panel.border === '0px' && panel.bg === 'rgba(0, 0, 0, 0)', JSON.stringify(panel))
+    const sizes = await page.evaluate(() => ({ line: parseFloat(getComputedStyle(document.querySelector('.entrance-headline')).fontSize), soft: parseFloat(getComputedStyle(document.querySelector('.entrance-headline .soft')).fontSize) }))
+    check('Phone: one headline, the second sentence as its subtitle', sizes.line >= 2 * sizes.soft, `${sizes.line}px / ${sizes.soft}px`)
+    const targets = await page.evaluate(() => [...document.querySelectorAll('.entrance-new .entrance-link, .entrance-help summary, .entrance-footer a')].map((el) => [el.textContent.trim(), Math.round(el.getBoundingClientRect().height)]))
+    check('Phone: “Create an account”, help and footer links are ≥ 44 px tall targets', targets.length === 4 && targets.every(([, hgt]) => hgt >= 44), targets.map(([t, hgt]) => `${t} ${hgt}`).join(', '))
+    const art = await page.evaluate(() => ({ upright: !!document.querySelector('.entrance svg.scene--upright[aria-hidden]'), filters: document.querySelectorAll('.entrance feTurbulence, .entrance feDisplacementMap').length, uses: document.querySelectorAll('.entrance svg.scene use').length }))
+    check('Phone: its own composition, decorative, with no filters and no <use> copies', art.upright && art.filters === 0 && art.uses === 0, JSON.stringify(art))
+    // Positions on the page, not in the window: clicking may scroll. After the step's own 260 ms rise.
+    await page.waitForTimeout(400)
+    const top = () => cta.evaluate((el) => Math.round(el.getBoundingClientRect().top + window.scrollY))
+    const y0 = await top()
+    await page.locator('summary', { hasText: 'Need help signing in?' }).click()
+    const y1 = await top()
+    await page.locator('summary', { hasText: 'Need help signing in?' }).click()
+    await cta.click()
+    await page.waitForSelector('text=No passkey was used')
+    const y2 = await top()
+    check('Phone: opening help or a message moves nothing above it', y0 === y1 && y0 === y2, `${y0} → ${y1} → ${y2}`)
+    await shot(page, 'signin-phone-cancelled')
+    await page.waitForTimeout(8500)
+    const running = await page.evaluate(() => document.getAnimations().filter((a) => a.playState === 'running').map((a) => a.animationName))
+    check('Phone: the evening comes to rest (one rock of the duyan, then nothing moves)', running.length === 0, running.join(', '))
+    await ctx.close()
+  }
+
   // ── Create an account, then sign out and back in (desktop): loading, cancel, retry, next.
   {
     const ctx = await browser.newContext(DESKTOP)
