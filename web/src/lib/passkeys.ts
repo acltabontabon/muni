@@ -3,6 +3,12 @@
  * password manager do the work — including signing in with a phone by scanning the browser's own
  * QR code — and Muni only exchanges standard WebAuthn options and responses with its server.
  *
+ * Every ceremony also asks the passkey for its PRF output (WebAuthn's `prf` extension). Where the
+ * passkey and browser support it, that output unlocks the account's encryption key in this browser
+ * in the same step as signing in (lib/e2ee/wrap.ts). It is taken out of the response before
+ * anything is sent: requests to Muni carry no extension results at all. General passkey support
+ * says nothing about PRF — only an actual result does.
+ *
  * Nothing here stores a credential: the only thing kept on the device is a hint that a passkey was
  * used here before (to put the passkey button first), and it's never taken as proof of anything.
  */
@@ -18,9 +24,11 @@ import {
   type PublicKeyCredentialCreationOptionsJSON,
   type PublicKeyCredentialRequestOptionsJSON,
 } from '@simplewebauthn/browser'
-import { api, ApiError } from '@/api/client'
+import { api, ApiError, setExpectedAccount } from '@/api/client'
 import type { Me, PasskeyInfo } from '@/api/types'
 import { readPrefs, writePrefs } from '@/lib/prefs'
+import { keyring } from '@/lib/e2ee/keyring'
+import { PRF_INPUT } from '@/lib/e2ee/wrap'
 
 export const supportsPasskeys = () => typeof window !== 'undefined' && browserSupportsWebAuthn()
 export const supportsAutofill = () => (supportsPasskeys() ? browserSupportsWebAuthnAutofill().catch(() => false) : Promise.resolve(false))
@@ -35,6 +43,49 @@ export const hasPasskeyHint = () => !!readPrefs().passkeyHint
 export const rememberPasskeyHint = (on: boolean) => writePrefs({ passkeyHint: on || undefined })
 
 const post = <T,>(path: string, json: unknown) => api<T>(path, { method: 'POST', json, plain: true })
+
+/** Ask for the passkey's PRF output (for unlocking encrypted content), on every ceremony. */
+function withPrf<T extends object>(options: T): T {
+  const o = options as T & { extensions?: Record<string, unknown> }
+  return { ...o, extensions: { ...(o.extensions ?? {}), prf: { eval: { first: new Uint8Array(PRF_INPUT) } } } }
+}
+
+/**
+ * The PRF output, copied out of the browser's response (the original is zeroed), and a response
+ * that is safe to send: no extension results at all. Built fresh rather than edited in place, so
+ * nothing a browser or password manager attached — some return the output as a Uint8Array, which
+ * JSON would write out byte by byte — can reach the request.
+ */
+export function takePrf<R extends { clientExtensionResults?: unknown }>(response: R): { prf: Uint8Array | null; enabled: boolean | null; safe: R } {
+  const ext = response.clientExtensionResults as { prf?: { enabled?: unknown; results?: { first?: unknown } } } | undefined
+  const first = ext?.prf?.results?.first
+  let prf: Uint8Array | null = null
+  if (first instanceof ArrayBuffer) {
+    prf = new Uint8Array(first.slice(0))
+    new Uint8Array(first).fill(0)
+  } else if (first && ArrayBuffer.isView(first)) {
+    const view = new Uint8Array(first.buffer, first.byteOffset, first.byteLength)
+    prf = new Uint8Array(view)
+    view.fill(0)
+  }
+  if (prf && prf.length < 32) prf = null
+  const enabled = typeof ext?.prf?.enabled === 'boolean' ? ext.prf.enabled : null
+  return { prf, enabled, safe: { ...response, clientExtensionResults: {} } }
+}
+
+/** After a ceremony the person chose to do: ask the browser to keep this site's storage (Firefox may ask them). */
+function keepStorage() {
+  void navigator.storage?.persist?.().catch(() => false)
+}
+
+/** Hands the PRF output to the keyring for the account that just proved itself. Never throws. */
+async function handOff(accountId: string, credentialId: string, prf: Uint8Array | null, rowId: string | null = null) {
+  try {
+    await keyring.acceptPasskeyUnlock(accountId, credentialId, prf, rowId)
+  } catch {
+    prf?.fill(0)
+  }
+}
 
 /** Why a ceremony didn't finish, in words for people. Cancelling is ordinary, never an alarm. */
 export type PasskeyProblem = { kind: 'cancelled' | 'unsupported' | 'exists' | 'expired' | 'unknown' | 'offline' | 'reauth' | 'failed'; message: string }
@@ -93,14 +144,18 @@ async function forgetUnknown(credentialID: string) {
  * shows saved passkeys there); otherwise the browser's own passkey sheet opens now.
  */
 export async function signInWithPasskey(opts: { conditional?: boolean } = {}): Promise<Me> {
-  const optionsJSON = await post<PublicKeyCredentialRequestOptionsJSON>('/api/auth/passkey/login/options', {})
+  const optionsJSON = withPrf(await post<PublicKeyCredentialRequestOptionsJSON>('/api/auth/passkey/login/options', {}))
   lastRpId = optionsJSON.rpId ?? null
-  const response = await startAuthentication({ optionsJSON, useBrowserAutofill: !!opts.conditional })
+  const { prf, safe: response } = takePrf(await startAuthentication({ optionsJSON, useBrowserAutofill: !!opts.conditional }))
   try {
     const me = await post<Me>('/api/auth/passkey/login/verify', { response, installed: isInstalled() })
+    setExpectedAccount(me.account_id)
+    await handOff(me.account_id, response.id, prf)
     rememberPasskeyHint(true)
+    keepStorage()
     return me
   } catch (e) {
+    prf?.fill(0)
     if (e instanceof ApiError && e.code === 'passkey_unknown') void forgetUnknown(response.id)
     throw e
   }
@@ -111,31 +166,97 @@ export async function signInWithPasskey(opts: { conditional?: boolean } = {}): P
  * choice calls this; the entrance asks existing users to continue with their passkey instead.
  */
 export async function signUpWithPasskey(displayName: string): Promise<Me> {
-  const optionsJSON = await post<PublicKeyCredentialCreationOptionsJSON>('/api/auth/passkey/signup/options', { display_name: displayName })
-  const response = await startRegistration({ optionsJSON })
-  const me = await post<Me>('/api/auth/passkey/signup/verify', { response, name: suggestedPasskeyName(), installed: isInstalled() })
-  rememberPasskeyHint(true)
-  return me
+  const optionsJSON = withPrf(await post<PublicKeyCredentialCreationOptionsJSON>('/api/auth/passkey/signup/options', { display_name: displayName }))
+  const { prf, safe: response } = takePrf(await startRegistration({ optionsJSON }))
+  try {
+    const me = await post<Me>('/api/auth/passkey/signup/verify', { response, name: suggestedPasskeyName(), installed: isInstalled() })
+    setExpectedAccount(me.account_id)
+    // Some passkeys answer PRF only when used, not when made: the key is still set up now, and this
+    // passkey learns to unlock it the next time it's used here.
+    await handOff(me.account_id, response.id, prf)
+    rememberPasskeyHint(true)
+    keepStorage()
+    return me
+  } catch (e) {
+    prf?.fill(0)
+    throw e
+  }
 }
 
 /** Stop any passkey request this page started (leaving the page, or switching to the button). */
 export const cancelPasskey = () => WebAuthnAbortService.cancelCeremony()
 
+/**
+ * Whether a passkey can unlock encrypted writing once added. `confirm`: it supports it but only
+ * answers when used — one confirmation with it finishes the job. `unsupported`: sign-in only.
+ * `later`: this device can't read the writing right now, so nothing could be shared with it (a new
+ * passkey never gets access on its own — only from a device that's already unlocked).
+ */
+export type PasskeyUnlock = 'ready' | 'confirm' | 'unsupported' | 'later'
+
 /** Add a passkey to the signed-in account (needs a recent sign-in; the server checks). */
-export async function addPasskey(name: string): Promise<PasskeyInfo> {
-  const optionsJSON = await post<PublicKeyCredentialCreationOptionsJSON>('/api/auth/passkey/register/options', {})
-  const response = await startRegistration({ optionsJSON })
-  const info = await post<PasskeyInfo>('/api/auth/passkey/register/verify', { response, name })
+export async function addPasskey(name: string): Promise<PasskeyInfo & { unlock: PasskeyUnlock }> {
+  const optionsJSON = withPrf(await post<PublicKeyCredentialCreationOptionsJSON>('/api/auth/passkey/register/options', {}))
+  const { prf, enabled, safe: response } = takePrf(await startRegistration({ optionsJSON }))
+  let info: PasskeyInfo
+  try {
+    info = await post<PasskeyInfo>('/api/auth/passkey/register/verify', { response, name })
+  } catch (e) {
+    prf?.fill(0)
+    throw e
+  }
   rememberPasskeyHint(true)
-  return info
+  const id = keyring.accountId()
+  const open = keyring.state().kind === 'ready'
+  if (prf && id) await handOff(id, response.id, prf, info.id)
+  else prf?.fill(0)
+  return { ...info, unlock: unlockOf(response.id, !!prf, enabled, open) }
 }
 
-/** Confirm it's you with one of this account's passkeys (a fresh, recently authenticated session). */
-export async function confirmWithPasskey(): Promise<Me> {
-  const optionsJSON = await post<PublicKeyCredentialRequestOptionsJSON>('/api/auth/passkey/reauth/options', {})
-  const response = await startAuthentication({ optionsJSON })
-  return post<Me>('/api/auth/passkey/reauth/verify', { response, installed: isInstalled() })
+function unlockOf(webauthnId: string, gotPrf: boolean, enabled: boolean | null, open: boolean): PasskeyUnlock {
+  if (!open) return 'later'
+  if (gotPrf) return keyring.canUnlockWith(webauthnId) ? 'ready' : 'confirm'
+  return enabled === false ? 'unsupported' : 'confirm'
 }
+
+/**
+ * One confirmation with a particular passkey (`credential`: our id), so it can unlock: its PRF
+ * output wraps the key this device already has open.
+ */
+export async function enablePasskeyUnlock(credential: string): Promise<PasskeyUnlock> {
+  const optionsJSON = withPrf(await post<PublicKeyCredentialRequestOptionsJSON>('/api/auth/passkey/reauth/options', { credential }))
+  const { prf, safe: response } = takePrf(await startAuthentication({ optionsJSON }))
+  try {
+    const me = await post<Me>('/api/auth/passkey/reauth/verify', { response, installed: isInstalled() })
+    await handOff(me.account_id, response.id, prf, credential)
+  } catch (e) {
+    prf?.fill(0)
+    throw e
+  }
+  if (keyring.state().kind !== 'ready') return 'later'
+  return keyring.canUnlockWith(response.id) ? 'ready' : prf ? 'confirm' : 'unsupported'
+}
+
+/**
+ * Confirm it's you with one of this account's passkeys (a fresh, recently authenticated session).
+ * A passkey that can unlock also unlocks this device, in the same step.
+ */
+export async function confirmWithPasskey(): Promise<Me> {
+  const optionsJSON = withPrf(await post<PublicKeyCredentialRequestOptionsJSON>('/api/auth/passkey/reauth/options', {}))
+  const { prf, safe: response } = takePrf(await startAuthentication({ optionsJSON }))
+  try {
+    const me = await post<Me>('/api/auth/passkey/reauth/verify', { response, installed: isInstalled() })
+    await handOff(me.account_id, response.id, prf)
+    keepStorage()
+    return me
+  } catch (e) {
+    prf?.fill(0)
+    throw e
+  }
+}
+
+/** "Unlock with your passkey": the same confirmation, asked for because this device needs it. */
+export const unlockWithPasskey = () => confirmWithPasskey()
 
 /** A starting label the person can change. Coarse on purpose: a passkey may sync to other devices. */
 export function suggestedPasskeyName(): string {

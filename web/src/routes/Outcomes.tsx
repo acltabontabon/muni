@@ -5,6 +5,7 @@ import { ApiError, get, patch, post, put } from '@/api/client'
 import type { Experiment, Recap, SprintDetail } from '@/api/types'
 import { OUTCOME_LABEL } from '@/lib/categories'
 import { useLive } from '@/lib/live'
+import { useKeysEpoch } from '@/lib/e2ee/E2eeProvider'
 import { Badge, Button, EmptyState, Help, SectionTitle, Select, Spinner, Textarea, useDocumentTitle, useToast } from '@/ui'
 import { AppShell, PageTitle } from '@/ui/shell'
 import { ExperimentEditor } from '@/ui/experiments'
@@ -34,9 +35,10 @@ export function Outcomes() {
       setError(err instanceof ApiError ? err.message : 'Couldn’t load')
     }
   }, [sprintId])
+  const keysEpoch = useKeysEpoch()
   useEffect(() => {
     load()
-  }, [load])
+  }, [load, keysEpoch])
   useLive(sprintId, () => load())
   if (error)
     return (

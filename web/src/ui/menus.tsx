@@ -249,8 +249,12 @@ export function AccountMenu() {
  * and the reason is shown; the person may then sign out on this device only, which forgets the
  * account here now and ends the server session the next time the device is online (lib/signout.ts).
  * `stay` keeps the current page (the invitation page signs in again in place).
+ *
+ * Signing out takes the encryption key out of memory (in every tab) but keeps this device able to
+ * unlock again — only after signing in again. "Forget this device" also removes that, and
+ * everything else Muni keeps here for the account; passkeys stay wherever the person keeps them.
  */
-export function LeaveDialog({ kind, onClose, stay }: { kind: 'signout' | 'clear' | null; onClose: () => void; stay?: boolean }) {
+export function LeaveDialog({ kind, onClose, stay, forget: forgetByDefault = false }: { kind: 'signout' | 'clear' | null; onClose: () => void; stay?: boolean; forget?: boolean }) {
   const { signOutLocal } = useAuth()
   const local = useLocal()
   const toast = useToast()
@@ -260,19 +264,28 @@ export function LeaveDialog({ kind, onClose, stay }: { kind: 'signout' | 'clear'
   /** Set when the server couldn't end the session: offers signing out on this device only. */
   const [serverFailed, setServerFailed] = useState<null | 'offline' | 'refused'>(null)
   const [drafts, setDrafts] = useState(0)
+  const [forget, setForget] = useState(forgetByDefault)
+  /** Signing out (or forgetting) would leave no way to unlock the encrypted writing. */
+  const [risk, setRisk] = useState<'none' | 'only-copy'>('none')
   useEffect(() => {
     if (kind) local.draftCount().then(setDrafts, () => setDrafts(0))
+    if (kind === 'signout') keyring.signOutRisk().then(setRisk, () => setRisk('none'))
+    setForget(forgetByDefault)
     setError('')
     setServerFailed(null)
-  }, [kind, local])
+  }, [kind, local, forgetByDefault])
   const queued = local.items.length
   const unsent = queued + drafts
   const { state: keys } = useDeviceKeys()
-  // Signing out removes this device's key. If the recovery key was never saved, that may be the only copy.
-  const onlyCopy = kind === 'signout' && keys.kind === 'ready' && !keys.recoverySaved
-  const forgetHere = async () => {
+  // Forgetting this device when it's the only way to unlock loses the writing for good.
+  const onlyWay = kind === 'signout' && keys.kind === 'ready' && !keys.methods.passkeys && !keys.methods.recovery
+  const forgetHere = async (opts: { forgetDevice: boolean }) => {
     await local.clearLocal()
-    await keyring.forget()
+    if (opts.forgetDevice) await keyring.forgetDevice({ serverToo: false })
+    else {
+      await keyring.dropLegacy()
+      keyring.lock()
+    }
     forgetSignedInState()
     announceSignOut()
     signOutLocal()
@@ -283,6 +296,8 @@ export function LeaveDialog({ kind, onClose, stay }: { kind: 'signout' | 'clear'
     setError('')
     try {
       if (kind === 'signout') {
+        // While the session still works, the server forgets this device's half of its key too.
+        if (forget) await keyring.forgetDevice({ serverToo: true, keepSignedIn: true })
         try {
           await post('/api/auth/logout')
         } catch (e) {
@@ -294,7 +309,7 @@ export function LeaveDialog({ kind, onClose, stay }: { kind: 'signout' | 'clear'
             return
           }
         }
-        await forgetHere()
+        await forgetHere({ forgetDevice: forget })
       } else {
         await local.clearLocal()
         toast('Cleared from this device. Nothing was deleted from Muni.')
@@ -308,7 +323,8 @@ export function LeaveDialog({ kind, onClose, stay }: { kind: 'signout' | 'clear'
     setBusy(true)
     try {
       markSignedOutLocally()
-      await forgetHere()
+      // The session can't be ended right now, so what would reopen the key here goes too.
+      await forgetHere({ forgetDevice: true })
       onClose()
     } finally {
       setBusy(false)
@@ -330,9 +346,26 @@ export function LeaveDialog({ kind, onClose, stay }: { kind: 'signout' | 'clear'
   return (
     <Dialog open={!!kind} onOpenChange={(o) => !o && onClose()} title={title}>
       {body}
-      {onlyCopy ? (
+      {kind === 'signout' ? (
+        <>
+          <p className="mt-3 text-sm text-ink-soft">This signs you out in every tab on this device. Your encrypted writing locks; signing in again here unlocks it.</p>
+          <label className="mt-4 flex cursor-pointer items-start gap-3 text-[15px]">
+            <input type="checkbox" className="mt-1 size-4 accent-[var(--accent)]" checked={forget} onChange={(e) => setForget(e.target.checked)} />
+            <span>
+              Also forget this device
+              <span className="block text-sm text-ink-soft">Removes everything Muni keeps in this browser for your account, including what lets it unlock your encrypted writing after you sign in. Next time here, you’ll need a passkey that unlocks your writing, or your recovery key. Your passkeys aren’t touched — they stay in your password manager or on your device.</span>
+            </span>
+          </label>
+        </>
+      ) : null}
+      {kind === 'signout' && ((forget && onlyWay) || risk === 'only-copy') ? (
         <p className="mt-3 rounded-2xl bg-warn/10 px-3.5 py-2.5 text-sm">
-          <strong className="font-medium">You haven’t saved your recovery key.</strong> Signing out removes your encryption key from this device. If no other device has it, you’ll lose access to encrypted content. <Link to="/account#encryption" className="underline underline-offset-2" onClick={onClose}>Save your recovery key first</Link>.
+          <strong className="font-medium">This device is the only way to unlock your encrypted writing.</strong> {risk === 'only-copy' ? 'Muni couldn’t keep it safely for your next sign-in, so signing out removes it.' : 'Forgetting it removes that.'} Without a passkey that unlocks or a recovery key, the writing can’t be opened again. <Link to="/account#encryption" className="underline underline-offset-2" onClick={onClose}>Add a way back in first</Link>.
+        </p>
+      ) : null}
+      {serverFailed && onlyWay ? (
+        <p className="mt-3 rounded-2xl bg-warn/10 px-3.5 py-2.5 text-sm">
+          <strong className="font-medium">Signing out on this device only also removes its unlock</strong> — the session can’t be ended right now, so leaving it would let anyone with this browser reopen your writing. This device is your only way to unlock it.
         </p>
       ) : null}
       <ErrorText>{error}</ErrorText>

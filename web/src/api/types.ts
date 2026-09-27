@@ -20,6 +20,8 @@ export type {
   Me,
   MemberInfo,
   MyKeys,
+  PasskeyKeyWrap,
+  DeviceInfo,
   SprintKeyView,
   MyEntry,
   Participant,

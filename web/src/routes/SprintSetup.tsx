@@ -368,7 +368,7 @@ export function SprintSetup() {
         {!existing ? (
           <Section n={4} title="Privacy" lead="What Muni’s servers can read.">
             <Switch id="f-encrypt" checked={f.encrypt} onCheckedChange={(v) => set('encrypt', v)} label="Encrypt this sprint’s content" description="Thoughts, themes, notes, experiments and the recap are encrypted on participants’ devices before they reach Muni’s servers. The sprint’s name, goal, dates, people and categories stay readable — keep sensitive detail out of them. AI theme drafts aren’t available for encrypted sprints." />
-            {f.encrypt && facilitatorIsYou && deviceKeys.kind !== 'ready' ? <DeviceKeyNotice need="write" /> : null}
+            {f.encrypt && facilitatorIsYou ? <DeviceKeyNotice need="write" /> : null}
           </Section>
         ) : existing.encryption === 'e1' ? (
           <p className="text-sm text-ink-soft">This sprint is encrypted: its content is sealed on participants’ devices.</p>

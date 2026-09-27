@@ -36,6 +36,8 @@ export interface Auth {
   authMethod: AuthMethod
   /** When this session last proved control of the account (a code or a passkey). */
   authenticatedAt: number
+  /** The passkey (webauthn_credentials.id) that started this session, for passkey sessions. */
+  credentialRef: string | null
 }
 export type Role = 'owner' | 'member'
 export interface Member {
@@ -148,6 +150,7 @@ interface SessionRow {
   auth_method: AuthMethod
   authenticated_at: number | null
   created_at: number
+  credential_ref: string | null
   aid: string
   email: string | null
   display_name: string
@@ -157,14 +160,14 @@ export async function loadSession(db: D1Database, rawToken: string | null): Prom
   if (!rawToken || rawToken.length > 128) return null
   const row = await one<SessionRow>(
     db,
-    `SELECT s.id, s.csrf_token, s.expires_at, s.last_seen_at, s.auth_method, s.authenticated_at, s.created_at, a.id AS aid, ae.email, a.display_name
+    `SELECT s.id, s.csrf_token, s.expires_at, s.last_seen_at, s.auth_method, s.authenticated_at, s.created_at, s.credential_ref, a.id AS aid, ae.email, a.display_name
      FROM sessions s JOIN accounts a ON a.id = s.account_id LEFT JOIN account_emails ae ON ae.account_id = a.id WHERE s.token_hash = ? AND s.revoked_at IS NULL`,
     await sha256Hex(rawToken),
   )
   if (!row || row.expires_at < Date.now()) return null
   if (Date.now() - row.last_seen_at > 5 * 60_000) await run(db, 'UPDATE sessions SET last_seen_at = ? WHERE id = ?', Date.now(), row.id)
   return {
-    auth: { account: { id: row.aid, email: row.email, display_name: row.display_name }, sessionId: row.id, authMethod: row.auth_method, authenticatedAt: row.authenticated_at ?? row.created_at },
+    auth: { account: { id: row.aid, email: row.email, display_name: row.display_name }, sessionId: row.id, authMethod: row.auth_method, authenticatedAt: row.authenticated_at ?? row.created_at, credentialRef: row.credential_ref ?? null },
     csrf: row.csrf_token,
   }
 }
@@ -196,10 +199,22 @@ function originAllowed(origin: string, cfg: Config): boolean {
 
 const SAFE = new Set(['GET', 'HEAD', 'OPTIONS'])
 
+/**
+ * The account a tab believes it is acting for. A tab left open while another tab signed in as
+ * someone else still holds the first account's keys and content: it names that account on every
+ * request, and anything sent under a different session is refused rather than mixed across accounts.
+ * Reading who is signed in and signing out don't ask (they are how a tab finds out, or leaves).
+ */
+export const ACCOUNT_HEADER = 'x-muni-account'
+const accountExempt = (method: string, path: string) => path === '/api/auth/logout' || (path === '/api/auth/me' && method === 'GET')
+
 /** A valid session; for unsafe methods also a matching CSRF token and an allowed origin. */
 export async function requireAuth(c: Context, cfg: Config, db: D1Database): Promise<Auth> {
   const s = await loadSession(db, readCookie(c.req.raw, sessionCookie(cfg)))
   if (!s) throw unauthorized()
+  const expected = c.req.header(ACCOUNT_HEADER)
+  if (expected && expected !== s.auth.account.id && !accountExempt(c.req.method.toUpperCase(), new URL(c.req.url).pathname))
+    throw new AppError(409, 'account_changed', 'you’re signed in as someone else in another tab — reload to continue')
   if (!SAFE.has(c.req.method.toUpperCase())) {
     checkOrigin(c.req.raw, cfg)
     const header = c.req.header(CSRF_HEADER) ?? ''

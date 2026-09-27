@@ -16,11 +16,20 @@ a software authenticator; **not yet tested on physical devices or in installed-a
 | --- | --- | --- | --- |
 | **Authentication** | control of an account credential: a passkey, or (if the account has one) a verified mailbox | `sessions` (token hash), `webauthn_credentials` (public key), `account_emails` | `/api/auth/passkey/login/verify`, `/api/auth/passkey/signup/verify`, `/api/auth/verify` |
 | **Membership** | permission to reach a workspace or sprint | `memberships`, `sprint_participants` | an email invitation accepted for its address, a manager approving a team-QR request, or redeeming a personal link |
-| **Content access** | possession of decryption keys | device IndexedDB; the server holds only public keys and wraps | the person's devices and recovery key; teammates' devices ([ENCRYPTION.md](ENCRYPTION.md)) |
+| **Content access** | possession of decryption keys | in memory only; the server holds public keys and wraps it can't open; the device holds an envelope it can't open alone | a passkey's PRF output (in the browser), this device's envelope after signing in, or the recovery key; teammates' devices ([ENCRYPTION.md](ENCRYPTION.md) §4) |
 
 Signing in never grants membership. An invitation is permission to join, never a sign-in: every
-invitation path needs a signed-in account first. Membership never grants keys. A passkey is not
-a content key: nothing is derived from it and no WebAuthn extension (PRF, largeBlob) is used.
+invitation path needs a signed-in account first. Membership never grants keys.
+
+**Passkeys and encryption (since 2026-09-27).** A passkey's *signature* proves who you are; it is
+never a key. Separately, every ceremony asks the passkey for its PRF output (WebAuthn `prf`
+extension, input SHA-256(`muni:prf:account-key:v1`)). Where the passkey and browser return one,
+the browser derives a wrapping key from it and unwraps the account's encryption key in the same
+step as signing in. The PRF output stays in the browser: requests carry no extension results, and
+the server refuses any that do (`prf_not_allowed`). A passkey only unlocks once it's been
+provisioned from a device where the key is already open (automatically, the next time it's used
+there); adding a passkey from a locked device gives it sign-in only. General passkey support says
+nothing about PRF: only an actual result counts.
 
 ## 2. Relying party
 
@@ -106,8 +115,13 @@ needed to sign in. Changing or removing scrubs the old address from the legacy c
 ### Devices, sessions, sign-out
 Add/rename/remove passkeys (removal needs a recent sign-in; the last passkey of an account without
 email can't be removed). Sessions list with per-session sign-out and "Sign out everywhere else".
-Sign-out revokes the server session and clears local drafts, queue and the device's encryption
-key (with the existing warnings); offline sign-out is remembered and finished when back online.
+Sign-out revokes the server session, clears local drafts and queue, and takes the encryption key
+out of memory in every tab. It **keeps** the device envelope, which can't be opened until the
+person signs in again (ENCRYPTION.md §4), so signing back in unlocks without the recovery key.
+"Also forget this device" (in the sign-out dialog, and Account → Encryption) removes that too, and
+the server's half of it; passkeys stay in the person's password manager. Offline sign-out is
+remembered and finished when back online, and — because the session can't be ended yet — also
+forgets the device's envelope, with a warning when it's the only way to unlock.
 
 ## 4. Security model
 
@@ -128,6 +142,10 @@ key (with the existing warnings); offline sign-out is remembered and finished wh
 
 - **Account with a recovery email:** sign in with a code ("Used Muni before?") and add a new
   passkey.
+- **Account access is not content access.** A recovery email gets you back into the account, not
+  into encrypted writing. On a device that never had the key, that needs a passkey that unlocks
+  (PRF, provisioned earlier), a device that's still unlocked, or the recovery key. The UI says so
+  after an email sign-in or when a passkey added then can only sign in.
 - **Account with no email and no remaining passkey:** **the account cannot be recovered.** Muni
   has nothing it can use to tell it's you, and there is no support or operator reset — any such
   shortcut would let anyone who can convince the operator take over an account. What remains:
@@ -198,14 +216,31 @@ Automated (2026-09-27, all passing):
   `web/e2e-artifacts/passkeys/`.
 - Existing browser suites still pass: entrance 34, capture 26, offline 29, encryption 17.
 
-**Not verified here:** Safari/iOS and macOS iCloud Keychain, Android/Google Password Manager,
+Passkey-unlocked encryption (2026-09-27): worker `unlock.test.ts` (12) and `encryption.test.ts`
+(+1, author binding); web `keyring.test.ts` (34), `wrap.test.ts` (5), `passkeys.test.ts` (2); and
+`web/e2e/unlock.mjs` (27: with and without the virtual authenticator's PRF — new account writes
+without setup, sign out → sign in reads old thoughts and sends new ones with no banner, reload,
+cleared storage → one passkey confirmation, cleared storage and cookies → passkey sign-in, no-PRF
+cleared storage honestly locked, two tabs, no secrets or PRF output in any request, an older
+build's plaintext key migrated). Run against `wrangler dev` over plain `http://localhost`
+(WebAuthn allows it); the `__Host-` legacy-cookie check in `passkeys.mjs` needs HTTPS and wasn't
+re-run over it.
+
+**Not verified here:** whether real authenticators return PRF at registration or only at
+sign-in (both paths are handled), and PRF itself on every platform below — including iOS 18+
+Safari with iCloud Keychain, the installed iOS app (separate storage from Safari: it's its own
+device and unlocks with the passkey, or asks once), Google Password Manager, Windows Hello,
+1Password/Bitwarden, security keys (hmac-secret), and PRF over the cross-device (QR/hybrid) flow;
+Safari's 7-day storage eviction (expected: one passkey confirmation). Also: Safari/iOS and macOS iCloud Keychain, Android/Google Password Manager,
 Windows Hello, Firefox, third-party password managers, security keys, the browser's real
 cross-device (QR/hybrid) flow, installed-PWA mode on iOS/Android (the iOS home-screen app may keep
 cookies separate from Safari, so someone who joins in Safari signs in again in the app — with a
 passkey that's one tap), camera scanning of the QR. Suggested matrix: {iPhone Safari, iPhone
 installed app, Android Chrome, Android installed app, macOS Safari/Chrome, Windows Chrome/Edge,
 Firefox} × {create account, sign in, sign in via phone QR, cancel, sign out then switch account,
-add email, legacy email → passkey, scan team QR, open personal link}.
+add email, legacy email → passkey, scan team QR, open personal link, **writing unlocks after sign
+out → sign in, unlocks after clearing site data (PRF), add a second passkey and unlock with it on
+another device, forget this device**}.
 
 ## 9. Rollout and rollback
 

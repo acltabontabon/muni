@@ -2,7 +2,9 @@
  * Passkeys: standard WebAuthn through @simplewebauthn/server (docs/PASSKEYS.md).
  *
  * What a passkey proves is the same thing an email code proves — control of this account — and
- * nothing more: it grants no membership and unlocks no encryption key. It is added only by a
+ * nothing more: it grants no membership. Separately, and only in the browser, a passkey that
+ * supports the PRF extension can unlock the account's encryption key (routes/keys.ts); its PRF
+ * output never reaches the server, which refuses any request that carries one. A passkey is added only by a
  * signed-in person who recently proved control of the account, never because a request names an
  * email address.
  *
@@ -88,9 +90,18 @@ async function readJson(c: Context<HonoEnv>): Promise<Record<string, unknown>> {
 
 const b64url = /^[A-Za-z0-9_-]+$/
 const str = (v: unknown, max: number) => typeof v === 'string' && v.length > 0 && v.length <= max
+/**
+ * The passkey's PRF output unlocks the account key in the browser and must never reach Muni. The
+ * client sends no extension results at all; a body carrying PRF results is refused, not stored.
+ */
+function noPrfResults(r: { clientExtensionResults?: unknown }) {
+  const prf = (r.clientExtensionResults as { prf?: { results?: unknown } } | undefined)?.prf
+  if (prf && typeof prf === 'object' && 'results' in prf) throw failed('prf_not_allowed', 'that request carried a passkey secret Muni must never receive — nothing was sent on. Reload and try again.')
+}
 /** Shape checks before the library parses anything: bounded, well-typed, base64url where it must be. */
 function assertionShape(v: unknown): AuthenticationResponseJSON {
   const r = v as AuthenticationResponseJSON
+  if (r && typeof r === 'object') noPrfResults(r)
   if (!r || typeof r !== 'object' || r.type !== 'public-key' || !str(r.id, 1400) || !b64url.test(r.id) || r.rawId !== r.id || !r.response) throw notVerified()
   const x = r.response
   if (!str(x.clientDataJSON, 4096) || !str(x.authenticatorData, 8192) || !str(x.signature, 2048)) throw notVerified()
@@ -99,6 +110,7 @@ function assertionShape(v: unknown): AuthenticationResponseJSON {
 }
 function attestationShape(v: unknown): RegistrationResponseJSON {
   const r = v as RegistrationResponseJSON
+  if (r && typeof r === 'object') noPrfResults(r)
   if (!r || typeof r !== 'object' || r.type !== 'public-key' || !str(r.id, 1400) || !b64url.test(r.id) || r.rawId !== r.id || !r.response) throw notVerified()
   if (!str(r.response.clientDataJSON, 4096) || !str(r.response.attestationObject, 24_000)) throw notVerified()
   return r
@@ -271,12 +283,18 @@ async function verifyAssertion(db: D1Database, cfg: Config, response: Authentica
 
 // ------------------------------------------------------------------ confirm it's you (step-up)
 
-/** Options to re-confirm the signed-in account with one of its own passkeys. */
+/**
+ * Options to re-confirm the signed-in account with one of its own passkeys. `credential` (our id)
+ * asks for one particular passkey — to let a just-added passkey unlock the account key.
+ */
 passkeys.post('/api/auth/passkey/reauth/options', async (c) => {
   const cfg = config(c.env)
   const a = await requireAuth(c, cfg, c.env.DB)
   await limit(c.env.DB, `pk-reauth:${a.account.id}`, 30, 10 * 60_000)
-  const creds = await all<CredentialRow>(c.env.DB, 'SELECT * FROM webauthn_credentials WHERE account_id = ?', a.account.id)
+  const body = await readJson(c)
+  const owned = await all<CredentialRow>(c.env.DB, 'SELECT * FROM webauthn_credentials WHERE account_id = ?', a.account.id)
+  const creds = typeof body.credential === 'string' ? owned.filter((k) => k.id === body.credential) : owned
+  if (typeof body.credential === 'string' && !creds.length) throw notFound('passkey not found')
   if (!creds.length) throw failed('no_passkeys', 'this account has no passkey yet — confirm with an email code', 409)
   const options = await generateAuthenticationOptions({
     rpID: cfg.webauthn.rpId,
@@ -513,6 +531,8 @@ passkeys.delete('/api/auth/passkeys/:id', async (c) => {
       throw failed('last_method', 'this is your only way to sign in — add another passkey or a recovery email first', 409)
     throw notFound('passkey not found')
   }
+  // Its wrap of the account key goes with it (also by the foreign key), so it can't unlock anything.
+  await run(c.env.DB, 'DELETE FROM passkey_key_wraps WHERE credential_id = ? AND account_id = ?', id, a.account.id)
   let ended = 0
   if (body.revoke_sessions === true) {
     const s = await run(c.env.DB, 'UPDATE sessions SET revoked_at = ? WHERE account_id = ? AND credential_ref = ? AND id <> ? AND revoked_at IS NULL', Date.now(), a.account.id, id, a.sessionId)

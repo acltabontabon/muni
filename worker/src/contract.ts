@@ -465,6 +465,27 @@ export interface MyKeys {
   recovery_confirmed_at: string | null
   key_version: number
   created_at: string | null
+  /** Passkeys that can unlock the current key: its wrap under each one's PRF-derived key. */
+  passkeys: PasskeyKeyWrap[]
+  /** The passkey this session signed in (or last confirmed) with, if it did. */
+  session_passkey: { id: string; webauthn_id: string } | null
+}
+export interface PasskeyKeyWrap {
+  /** Our id for the passkey (PasskeyInfo.id). */
+  credential: string
+  /** The WebAuthn credential id (base64url), as the browser reports it. */
+  webauthn_id: string
+  key_version: number
+  wrapped: string
+}
+/** A device that can reopen this account's key after signing in again. Never includes its share. */
+export interface DeviceInfo {
+  id: string
+  label: string | null
+  created_at: string | null
+  last_used_at: string | null
+  key_version: number
+  requires_passkey: boolean
 }
 export interface SprintKeyView {
   encryption: 'e1' | null

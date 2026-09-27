@@ -18,7 +18,7 @@ const SECRET = `Synthetic-${tag}: the staging database fell over on Wednesday`
 async function api(page, method, path, body) {
   return page.evaluate(async ([m, p, b]) => {
     const csrf = document.cookie.match(/muni_csrf=([^;]+)/)?.[1] ?? ''
-    const r = await fetch(p, { method: m, headers: { 'content-type': 'application/json', 'x-csrf-token': csrf, 'x-muni-client': '3' }, body: b ? JSON.stringify(b) : undefined })
+    const r = await fetch(p, { method: m, headers: { 'content-type': 'application/json', 'x-csrf-token': csrf, 'x-muni-client': '4' }, body: b ? JSON.stringify(b) : undefined })
     return { status: r.status, body: await r.json().catch(() => null) }
   }, [method, path, body])
 }
@@ -41,14 +41,16 @@ async function signIn(ctx, email, name) {
   await page.waitForURL((u) => !u.pathname.startsWith('/signin'))
   return page
 }
+/** Keys are set up without asking; a recovery key is optional (made here for the new-device step). */
 async function setUpKeys(page) {
   await page.goto(`${BASE}/account#encryption`)
-  await page.click('button:has-text("Set up this device")')
-  await page.click('[role=dialog] button:has-text("Set up this device")')
+  await page.waitForSelector('text=Your encrypted writing is unlocked on this device.', { timeout: 10000 })
+  await page.click('button:has-text("Make a recovery key")')
+  await page.click('[role=dialog] button:has-text("Make a recovery key")')
   const key = (await page.locator('[aria-label="Your recovery key"]').innerText()).trim()
   await page.check('text=I’ve saved it somewhere safe')
   await page.click('[role=dialog] button:has-text("Done")')
-  await page.waitForSelector('text=This device can access your team’s encrypted content.')
+  await page.waitForSelector('text=Recovery key: saved.', { timeout: 10000 }).catch(() => page.waitForSelector('text=saved.'))
   return key
 }
 
@@ -60,7 +62,7 @@ try {
   await api(owner, 'POST', `/api/workspaces/${ws.id}/invitations`, { email: addr('maya') })
   await owner.waitForTimeout(1200)
   await setUpKeys(owner)
-  check('Owner sets up encryption from Account', true)
+  check('Owner’s key was set up without any setup step', true)
 
   const mayaCtx = await browser.newContext()
   const maya = await signIn(mayaCtx, addr('maya'), 'Maya Member')
@@ -90,7 +92,7 @@ try {
   await maya.click('button:has-text("Save thought")')
   await maya.waitForSelector('text=Submitted', { timeout: 10000 })
   check('No request body contains the thought’s text', sent.length > 0 && sent.every((b) => !b.includes('staging database')), `${sent.length} requests`)
-  const raw = await maya.evaluate(async (id) => (await fetch(`/api/sprints/${id}/entries/mine`, { headers: { 'x-muni-client': '3' } }).then((r) => r.json())), sprintId)
+  const raw = await maya.evaluate(async (id) => (await fetch(`/api/sprints/${id}/entries/mine`, { headers: { 'x-muni-client': '4' } }).then((r) => r.json())), sprintId)
   check('The server returns only an envelope', raw.length === 1 && raw[0].body.startsWith('e1.') && !raw[0].body.includes('staging') && raw[0].impact === null)
   check('Maya sees her own thought, decrypted', (await maya.locator(`text=${SECRET}`).count()) === 1)
 
@@ -113,7 +115,7 @@ try {
   await owner.fill('input[aria-label="New theme title"]', `Synthetic-${tag} staging ownership`)
   await owner.click('button:has-text("Add")')
   await owner.waitForTimeout(800)
-  const themes = (await owner.evaluate(async (id) => (await fetch(`/api/sprints/${id}/themes`, { headers: { 'x-muni-client': '3' } }).then((r) => r.json())), sprintId)).themes
+  const themes = (await owner.evaluate(async (id) => (await fetch(`/api/sprints/${id}/themes`, { headers: { 'x-muni-client': '4' } }).then((r) => r.json())), sprintId)).themes
   check('Theme titles are stored as envelopes', themes.length === 1 && themes[0].title.startsWith('e1.'))
   check('…and shown decrypted', (await owner.locator(`input[value="Synthetic-${tag} staging ownership"]`).count()) === 1)
 
@@ -133,9 +135,9 @@ try {
   await maya2.click('button:has-text("Not now")')
   await maya2.waitForURL((u) => !u.pathname.startsWith('/signin'))
   await maya2.goto(`${BASE}/sprints/${sprintId}`)
-  await maya2.waitForSelector('text=This device doesn’t have the required key.', { timeout: 10000 })
+  await maya2.waitForSelector('text=this device can’t unlock it yet', { timeout: 10000 })
   check('New device: email sign-in alone doesn’t unlock content', (await maya2.locator(`text=${SECRET}`).count()) === 0)
-  await maya2.click('button:has-text("Unlock")')
+  await maya2.click('button:has-text("Use recovery key")')
   await maya2.fill('[role=dialog] input', mayaRecovery)
   await maya2.click('[role=dialog] button[type=submit]')
   await maya2.waitForSelector(`text=${SECRET}`, { timeout: 10000 })

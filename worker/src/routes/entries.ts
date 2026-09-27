@@ -12,7 +12,7 @@ import { uuid } from '../lib/crypto'
 import { all, count, one, run } from '../lib/db'
 import { AppError, bad, conflict, notFound } from '../lib/errors'
 import { nonempty, optional } from '../lib/util'
-import { content, isEncrypted } from '../lib/sealed'
+import { content, encryptionRequired, entryBinding, isEncrypted } from '../lib/sealed'
 
 export const entries = new Hono<HonoEnv>()
 export const CATEGORIES = ['proud', 'keep', 'improve', 'stop', 'try']
@@ -56,6 +56,13 @@ function validate(maxChars: number, b: Record<string, unknown>, encrypted = fals
 }
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/
 
+/** An encrypted thought must declare this sprint, this record and the signed-in account as its author. */
+function requireOwnEnvelope(envelope: string, sprintId: string, recordId: string, accountId: string) {
+  const b = entryBinding(envelope)
+  if (!b || b.s !== sprintId || b.r !== recordId) throw encryptionRequired('The observation')
+  if (b.a !== accountId) throw new AppError(409, 'account_mismatch', 'this thought was sealed while signed in as someone else — it wasn’t saved')
+}
+
 export async function sharedEntries(db: D1Database, sprintId: string): Promise<SharedEntry[]> {
   return all<SharedEntry>(db, `${SHARED_SELECT} WHERE e.sprint_id = ? ORDER BY e.reveal_order, e.id LIMIT 2000`, sprintId)
 }
@@ -78,6 +85,7 @@ entries.post('/api/sprints/:sprintId/entries', async (c) => {
   // A thought queued on a device names the account that wrote it. It never lands under another one.
   if (typeof body.author_account_id === 'string' && body.author_account_id !== me)
     throw new AppError(409, 'account_mismatch', 'this thought was written while signed in as someone else — it wasn’t saved')
+  if (encrypted) requireOwnEnvelope(v.body, ctx.sprint.id, key!, me)
   if (key) {
     const existing = await one<MyRow>(db, `SELECT ${MY_COLS} FROM entries WHERE sprint_id = ? AND author_account_id = ? AND idempotency_key = ?`, ctx.sprint.id, me, key)
     if (existing) return c.json(myEntry(existing, true))
@@ -119,6 +127,7 @@ entries.patch('/api/sprints/:sprintId/entries/:entryId', async (c) => {
   const ctx = await requireSprint(c, cfg, c.env.DB, c.req.param('sprintId'))
   requireParticipant(ctx)
   const v = validate(cfg.entryMaxChars, (await c.req.json().catch(() => ({}))) as Record<string, unknown>, isEncrypted(ctx.sprint))
+  if (isEncrypted(ctx.sprint)) requireOwnEnvelope(v.body, ctx.sprint.id, c.req.param('entryId'), ctx.auth.account.id)
   // Ownership and phase are enforced in the WHERE clause: a non-owner gets 404, a closed sprint 409.
   const res = await run(
     c.env.DB,

@@ -10,7 +10,9 @@ import * as Popover from '@radix-ui/react-popover'
 import { ApiError, del, get, patch, post } from '@/api/client'
 import type { PasskeyInfo, SecurityEventInfo, SessionInfo } from '@/api/types'
 import { useAuth } from '@/lib/auth'
-import { addPasskey, describePasskeyError, suggestedPasskeyName, supportsPasskeys } from '@/lib/passkeys'
+import { addPasskey, describePasskeyError, enablePasskeyUnlock, suggestedPasskeyName, supportsPasskeys, type PasskeyUnlock } from '@/lib/passkeys'
+import { keyring } from '@/lib/e2ee/keyring'
+import { useDeviceKeys } from '@/lib/e2ee/E2eeProvider'
 import { Button, Dialog, ErrorText, Input, Label, useToast } from '@/ui'
 import { useReauth } from '@/ui/reauth'
 import { EmailSetup } from '@/ui/email-setup'
@@ -35,6 +37,11 @@ export function SignInMethods() {
   const [adding, setAdding] = useState(false)
   const [renaming, setRenaming] = useState<PasskeyInfo | null>(null)
   const [removing, setRemoving] = useState<PasskeyInfo | null>(null)
+  /** A passkey just added that supports unlocking but needs one use to do it. */
+  const [confirming, setConfirming] = useState<PasskeyInfo | null>(null)
+  const { state: deviceKeys } = useDeviceKeys()
+  const unlocking = new Set(keyring.unlockingPasskeys())
+  const open = deviceKeys.kind === 'ready'
   const load = useCallback(async () => {
     try {
       setKeys(await get<PasskeyInfo[]>('/api/auth/passkeys'))
@@ -52,8 +59,9 @@ export function SignInMethods() {
     try {
       const made = await reauth.run(() => addPasskey(suggestedPasskeyName()))
       if (made) {
-        toast('Passkey added. Next time, continue with a passkey.')
-        setRenaming(made)
+        toast(ADDED[made.unlock])
+        if (made.unlock === 'confirm') setConfirming(made)
+        else setRenaming(made)
       }
     } catch (e) {
       const p = describePasskeyError(e, 'add')
@@ -84,6 +92,7 @@ export function SignInMethods() {
                       Added {day(k.created_at)} · {k.last_used_at ? `last used ${when(k.last_used_at)}` : 'not used to sign in yet'}
                       {k.synced ? ' · can sync' : ' · stays on one device or key'}
                     </span>
+                    {open ? <span className="block text-ink-soft">{unlocking.has(k.id) ? 'Signs in and unlocks your encrypted writing' : 'Signs in only — doesn’t unlock encrypted writing'}</span> : null}
                   </span>
                   <Popover.Root>
                     <Popover.Trigger asChild>
@@ -94,6 +103,11 @@ export function SignInMethods() {
                         <Popover.Close asChild>
                           <button className="block w-full rounded-xl px-3 py-2 text-left text-sm hover:bg-ink/5" onClick={() => setRenaming(k)}>Rename</button>
                         </Popover.Close>
+                        {open && !unlocking.has(k.id) ? (
+                          <Popover.Close asChild>
+                            <button className="block w-full rounded-xl px-3 py-2 text-left text-sm hover:bg-ink/5" onClick={() => setConfirming(k)}>Let it unlock…</button>
+                          </Popover.Close>
+                        ) : null}
                         <Popover.Close asChild>
                           <button className="block w-full rounded-xl px-3 py-2 text-left text-sm text-danger hover:bg-danger/10" onClick={() => setRemoving(k)}>Remove…</button>
                         </Popover.Close>
@@ -125,11 +139,12 @@ export function SignInMethods() {
 
       <div className="rounded-2xl bg-ink/[0.04] px-4 py-3 text-sm text-ink-soft">
         <p><strong className="font-medium text-ink">If you lose every passkey.</strong> {me.email ? <>Sign in with a code to {me.email} (“Used Muni before?” on the sign-in page) and add a new passkey. Anyone who can read that inbox could do the same, so keep your email account secure.</> : <>With no recovery email, Muni has nothing it can use to tell it’s you, so it can’t restore the account — there is no support reset. Your team can invite a new account; thoughts you already shared stay in their sprints, without your name.</>}</p>
-        <p className="mt-2">Signing in never unlocks encrypted sprints: on a new device you’ll still need your recovery key (see Encryption below). Muni has no way to recover content for you.</p>
+        <p className="mt-2">Getting back into your account isn’t the same as getting back your encrypted writing. A passkey marked “unlocks your encrypted writing” does both, on any device where you can use it. A recovery email, or a passkey that only signs in, gets you into the account — then you’ll need a passkey that unlocks, a device that’s still unlocked, or your recovery key (see Encryption below). Muni has no way to recover encrypted content for you.</p>
       </div>
 
       <RenameDialog passkey={renaming} onClose={() => setRenaming(null)} onSaved={load} />
-      <RemoveDialog passkey={removing} onClose={() => setRemoving(null)} onRemoved={async (ended) => { toast(ended ? `Passkey removed · ${ended} ${ended === 1 ? 'session' : 'sessions'} signed out` : 'Passkey removed'); await load(); await refresh() }} run={reauth.run} />
+      <ConfirmUnlockDialog passkey={confirming} onClose={() => setConfirming(null)} onDone={load} />
+      <RemoveDialog passkey={removing} lastUnlock={!!removing && unlocking.has(removing.id) && unlocking.size === 1 && deviceKeys.kind === 'ready' && !deviceKeys.methods.recovery} onClose={() => setRemoving(null)} onRemoved={async (ended) => { toast(ended ? `Passkey removed · ${ended} ${ended === 1 ? 'session' : 'sessions'} signed out` : 'Passkey removed'); await load(); await refresh() }} run={reauth.run} />
       {reauth.dialog}
     </div>
   )
@@ -174,7 +189,55 @@ function RenameDialog({ passkey, onClose, onSaved }: { passkey: PasskeyInfo | nu
   )
 }
 
-function RemoveDialog({ passkey, onClose, onRemoved, run }: { passkey: PasskeyInfo | null; onClose: () => void; onRemoved: (ended: number) => Promise<void>; run: ReturnType<typeof useReauth>['run'] }) {
+const ADDED: Record<PasskeyUnlock, string> = {
+  ready: 'Passkey added. It signs you in and unlocks your encrypted writing.',
+  confirm: 'Passkey added. Confirm once with it so it can unlock your writing too.',
+  unsupported: 'Passkey added. It signs you in; this passkey or browser can’t unlock encrypted writing.',
+  later: 'Passkey added. It signs you in. To let it unlock your writing, use it once on a device where your writing is unlocked.',
+}
+
+/** One use of a particular passkey, so it can unlock too (only from a device that's unlocked). */
+function ConfirmUnlockDialog({ passkey, onClose, onDone }: { passkey: PasskeyInfo | null; onClose: () => void; onDone: () => Promise<void> }) {
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState('')
+  const toast = useToast()
+  useEffect(() => setError(''), [passkey])
+  return (
+    <Dialog open={!!passkey} onOpenChange={(o) => !o && onClose()} title="Let this passkey unlock your writing?" description={`Confirm once with “${passkey?.name ?? ''}”. This device, which is already unlocked, then lets that passkey open your encrypted writing when you sign in with it — here or on another device.`}>
+      <ErrorText>{error}</ErrorText>
+      <div className="mt-6 flex justify-end gap-2">
+        <Button variant="ghost" onClick={onClose}>Not now</Button>
+        <Button
+          variant="primary"
+          busy={busy}
+          onClick={async () => {
+            if (!passkey) return
+            setBusy(true)
+            setError('')
+            try {
+              const r = await enablePasskeyUnlock(passkey.id)
+              if (r === 'ready') {
+                toast('That passkey now unlocks your writing.')
+                onClose()
+              } else setError(r === 'unsupported' || r === 'confirm' ? 'That passkey (or this browser) can’t unlock encrypted writing. It still signs you in.' : 'This device isn’t unlocked right now, so it can’t share access with that passkey.')
+              await onDone()
+            } catch (e) {
+              const p = describePasskeyError(e, 'confirm')
+              if (p.kind !== 'cancelled') setError(p.message)
+              else setError('Not confirmed. The passkey still signs you in; try again whenever you like.')
+            } finally {
+              setBusy(false)
+            }
+          }}
+        >
+          Confirm with the passkey
+        </Button>
+      </div>
+    </Dialog>
+  )
+}
+
+function RemoveDialog({ passkey, lastUnlock, onClose, onRemoved, run }: { passkey: PasskeyInfo | null; lastUnlock: boolean; onClose: () => void; onRemoved: (ended: number) => Promise<void>; run: ReturnType<typeof useReauth>['run'] }) {
   const [endSessions, setEndSessions] = useState(true)
   const [error, setError] = useState('')
   const [busy, setBusy] = useState(false)
@@ -188,6 +251,11 @@ function RemoveDialog({ passkey, onClose, onRemoved, run }: { passkey: PasskeyIn
         <input type="checkbox" className="mt-1 size-4 accent-[var(--accent)]" checked={endSessions} onChange={(e) => setEndSessions(e.target.checked)} />
         <span>Also sign out other sessions that signed in with this passkey<span className="block text-sm text-ink-soft">Removing a passkey doesn’t end sessions by itself. This one stays signed in.</span></span>
       </label>
+      {lastUnlock ? (
+        <p className="mt-4 rounded-2xl bg-warn/10 px-3.5 py-2.5 text-sm">
+          <strong className="font-medium">It’s the only passkey that unlocks your encrypted writing,</strong> and you have no recovery key. After removing it, only devices that are unlocked now can open your writing. Save a recovery key first (Encryption, below), or let another passkey unlock.
+        </p>
+      ) : null}
       <ErrorText>{error}</ErrorText>
       <div className="mt-6 flex justify-end gap-2">
         <Button variant="ghost" onClick={onClose}>Cancel</Button>

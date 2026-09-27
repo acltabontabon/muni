@@ -50,6 +50,22 @@ export function onUnauthorized(fn: Listener) {
   unauthorizedListeners.add(fn)
   return () => unauthorizedListeners.delete(fn)
 }
+const accountChangedListeners = new Set<Listener>()
+/** Another tab signed in as someone else (409 account_changed): this tab must find out who it is now. */
+export function onAccountChanged(fn: Listener) {
+  accountChangedListeners.add(fn)
+  return () => accountChangedListeners.delete(fn)
+}
+/**
+ * The account this tab is acting for, sent as `x-muni-account`. If the browser's session now
+ * belongs to someone else (signed in as them in another tab), the server refuses rather than mixing
+ * one account's keys or content with another's.
+ */
+let expectedAccount: string | null = null
+export function setExpectedAccount(id: string | null) {
+  expectedAccount = id
+}
+export const expectedAccountId = () => expectedAccount
 const upgradeListeners = new Set<Listener>()
 /** The server no longer accepts this build (426): offer a reload rather than retrying. */
 export function onUpgradeRequired(fn: Listener) {
@@ -80,6 +96,7 @@ export async function api<T>(path: string, init: RequestInit & { json?: unknown;
   if (init.json !== undefined) headers.set('content-type', 'application/json')
   if (method !== 'GET' && method !== 'HEAD') headers.set('x-csrf-token', csrfToken())
   headers.set('x-muni-client', String(CLIENT_REVISION))
+  if (expectedAccount) headers.set('x-muni-account', expectedAccount)
   let res: Response
   try {
     res = await fetch(path, { ...init, method, headers, credentials: 'same-origin', body: init.json !== undefined ? JSON.stringify(init.json) : init.body })
@@ -101,6 +118,7 @@ export async function api<T>(path: string, init: RequestInit & { json?: unknown;
     } catch {
       /* not json */
     }
+    if (res.status === 409 && body.code === 'account_changed') accountChangedListeners.forEach((l) => l())
     const { error, code, ...details } = body
     throw new ApiError(res.status, code ?? 'error', error ?? `Something went wrong (${res.status}).`, details)
   }
@@ -109,6 +127,8 @@ export async function api<T>(path: string, init: RequestInit & { json?: unknown;
   if (init.raw) return (await res.text()) as unknown as T
   if (res.status === 204) return undefined as T
   const data = await res.json()
+  // Signed in (by any method): this tab acts for that account from now on.
+  if (SIGN_IN_PATHS.has(path) && typeof data?.account_id === 'string') expectedAccount = data.account_id
   return (hooks && !init.plain ? await hooks.open(data, path) : data) as T
 }
 

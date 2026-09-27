@@ -140,6 +140,28 @@ describe('encrypted sprints', () => {
     expect(() => unwrapWithRecovery(blob, newRecoveryKey(), maya.user.account_id)).toThrow()
   })
 
+  it('refuse a thought sealed as someone else, or for another record (a tab still holding another account’s key)', async () => {
+    const t = await team(2)
+    const fac = await withKeys(t.owner)
+    const [maya, priya] = await Promise.all(t.members.map(withKeys))
+    const s = await encryptedSprint(fac, [maya, priya], t.ws)
+    expect((await go(fac.user, s.id, 'collecting')).status).toBe(200)
+    const id = crypto.randomUUID()
+    // Sealed with Priya as the author, sent by Maya's session.
+    const asPriya = sealEntry({ sprintId: s.id, recordId: id, version: 1, sprintPk: s.keys.pk, authorId: priya.user.account_id, authorPk: priya.keys.pk }, { body: 'Synthetic-7f3a wrong author', impact: null, might_help: null })
+    const r = await post(`/api/sprints/${s.id}/entries`, maya.user, { id, idempotency_key: id, body: asPriya, category: 'improve' })
+    expect(r.status).toBe(409)
+    expect(r.body.code).toBe('account_mismatch')
+    // Bound to another record id.
+    const other = crypto.randomUUID()
+    const elsewhere = sealEntry({ sprintId: s.id, recordId: other, version: 1, sprintPk: s.keys.pk, authorId: maya.user.account_id, authorPk: maya.keys.pk }, { body: 'Synthetic-7f3a wrong record', impact: null, might_help: null })
+    expect((await post(`/api/sprints/${s.id}/entries`, maya.user, { id, idempotency_key: id, body: elsewhere, category: 'improve' })).body.code).toBe('encryption_required')
+    // Editing is held to the same rule.
+    const mine = await writeThought(maya, s.id, s.keys.pk, 1, 'Synthetic-7f3a mine')
+    const swap = sealEntry({ sprintId: s.id, recordId: mine, version: 1, sprintPk: s.keys.pk, authorId: priya.user.account_id, authorPk: priya.keys.pk }, { body: 'Synthetic-7f3a swapped', impact: null, might_help: null })
+    expect((await patch(`/api/sprints/${s.id}/entries/${mine}`, maya.user, { body: swap })).body.code).toBe('account_mismatch')
+  })
+
   it('detect tampering and substitution by the server', async () => {
     const t = await team(1)
     const fac = await withKeys(t.owner)

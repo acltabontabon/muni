@@ -47,3 +47,25 @@ export function recoveryBlob(v: unknown): string {
   if (typeof v !== 'string' || !RECOVERY_RE.test(v) || v.length > 2000) throw bad('not a recovery blob')
   return v
 }
+const PASSKEY_WRAP_RE = /^p1\.[A-Za-z0-9_-]+$/
+/** The account key wrapped under a passkey's PRF-derived key (opened only in the browser). */
+export function passkeyWrap(v: unknown): string {
+  if (typeof v !== 'string' || !PASSKEY_WRAP_RE.test(v) || v.length > 1000) throw bad('not a wrapped key')
+  return v
+}
+
+/**
+ * The binding a thought's envelope declares (sprint, record, author). The server can't check the
+ * encryption, but it can refuse an envelope that names someone else as its author — one sealed by
+ * a tab still holding another account's key — before it's stored under this account.
+ */
+export function entryBinding(v: string): { s: string; r: string; a: string } | null {
+  try {
+    const b64 = v.slice(3).replace(/-/g, '+').replace(/_/g, '/')
+    const json = JSON.parse(new TextDecoder().decode(Uint8Array.from(atob(b64 + '==='.slice((b64.length + 3) % 4)), (ch) => ch.charCodeAt(0))))
+    if (json && json.t === 'e' && typeof json.s === 'string' && typeof json.r === 'string' && typeof json.a === 'string') return { s: json.s, r: json.r, a: json.a }
+  } catch {
+    /* not parseable: refused by the caller */
+  }
+  return null
+}

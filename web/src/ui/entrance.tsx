@@ -281,8 +281,8 @@ function ProtectStep({ account, onDone }: { account: Me; onDone: () => void | Pr
     setBusy(true)
     setNote(null)
     try {
-      await addPasskey(suggestedPasskeyName())
-      setProtectedBy('A second passkey was added.')
+      const made = await addPasskey(suggestedPasskeyName())
+      setProtectedBy(made.unlock === 'ready' ? 'A second passkey was added, and it unlocks your encrypted writing too.' : 'A second passkey was added. It signs you in; to let it unlock your encrypted writing as well, confirm with it once in Account → Signing in.')
     } catch (e) {
       const p = describePasskeyError(e, 'add')
       setNote({ text: p.kind === 'exists' ? 'This device already has your passkey. Use another device, a security key or a different password manager — for example, choose the phone option in the prompt.' : p.message, error: p.kind !== 'cancelled' })
@@ -312,7 +312,7 @@ function ProtectStep({ account, onDone }: { account: Me; onDone: () => void | Pr
         </div>
       )}
       <Note note={note} />
-      <p className="quiet mt-4">A second passkey can live on another device, a security key or another password manager. An email is optional: it can also receive team invitations and sprint reminders.</p>
+      <p className="quiet mt-4">A second passkey can live on another device, a security key or another password manager, and can unlock your encrypted writing as well. An email is optional: it gets you back into your account (not into encrypted writing), and can receive team invitations and sprint reminders.</p>
     </Step>
   )
 }

@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { ApiError, get, post } from '@/api/client'
 import type { Command, Experiment, GroupingView, SprintDetail, StageSnapshot, VotingState } from '@/api/types'
 import { useLive } from './live'
+import { useKeysEpoch } from './e2ee/E2eeProvider'
 
 /**
  * Everything the stage and the companion need, refreshed by SSE hints.
@@ -29,9 +30,11 @@ export function useStage(sprintId: string) {
       setError(e instanceof ApiError ? e.message : 'Couldn’t load the retro')
     }
   }, [loadSprint, loadStage, loadThemes, loadVotes, loadExperiments])
+  // Read again when this device unlocks (content opened before that showed as "can't be shown").
+  const keysEpoch = useKeysEpoch()
   useEffect(() => {
     loadAll()
-  }, [loadAll])
+  }, [loadAll, keysEpoch])
   const live = useLive(
     sprintId,
     (r) => {

@@ -85,7 +85,9 @@ describe('offline submissions', () => {
     expect((r.body as { code: string }).code).toBe('upgrade_required')
     expect((await req('GET', '/api/auth/me', u, undefined, { 'x-muni-client': '1' })).status).toBe(426)
     expect((await req('GET', '/api/auth/me', u, undefined, { 'x-muni-client': '2' })).status).toBe(426)
-    expect((await req('GET', '/api/auth/me', u, undefined, { 'x-muni-client': '3' })).status).toBe(200)
+    // 3 still kept the account key in plaintext on the device and deleted it on sign-out.
+    expect((await req('GET', '/api/auth/me', u, undefined, { 'x-muni-client': '3' })).status).toBe(426)
+    expect((await req('GET', '/api/auth/me', u, undefined, { 'x-muni-client': '4' })).status).toBe(200)
     expect((await req('GET', '/api/auth/me', u)).status).toBe(200) // no header: browsers, curl, tests
   })
 })

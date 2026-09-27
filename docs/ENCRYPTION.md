@@ -1,7 +1,9 @@
 # Encryption in Muni
 
 Status: implemented for **new sprints** (`sprints.encryption = 'e1'`), tested (below), **not
-independently reviewed**. Not deployed by this change. Legacy sprints are unchanged and labelled.
+independently reviewed**. Legacy sprints are unchanged and labelled. Since 2026-09-27 the account
+key unlocks with a passkey (PRF) or on a device after signing in again (§4); physical devices are
+not yet verified (PASSKEYS.md §8).
 
 ## 1. The protection, precisely
 
@@ -22,7 +24,7 @@ upload and decrypted only in authorized browsers.
 - Participant devices are not compromised. No protection against malicious extensions,
   screenshots, or authorized participants sharing what they read.
 
-**Out of scope.** Email addresses and account metadata (sign-in is unchanged: email codes).
+**Out of scope.** Email addresses and account metadata.
 Authorship: the server still records which account submitted each record — encryption hides what
 was written, not who wrote it.
 
@@ -88,33 +90,84 @@ version. **Rescheduling** has no key effect.
 
 ## 4. Keys: authentication and encryption are separate
 
-- **Account key.** X25519, generated in the browser on first setup. The public key is published
-  (`account_keys`); the private key stays in IndexedDB (`muni-keys`). Nothing is derived from the
-  email address or sign-in codes.
+- **Account key.** X25519, the root of everything a person can read (sprint secrets are sealed to
+  it). Generated in the browser the first time an account needs one — automatically, with no
+  setup step, and only when the server confirms the account has none. A missing key on a device is
+  never taken to mean the account is new. The public key is published (`account_keys`). The
+  private key is held **only in memory**; it reaches a tab by being reopened, never read from
+  storage in plaintext. Nothing is derived from the email address, sign-in codes, a passkey's
+  signature or credential id, the account id or a session token.
+- **Passkey unlock (PRF).** Every passkey ceremony asks for the passkey's PRF output (WebAuthn
+  `prf`, input SHA-256(`muni:prf:account-key:v1`) — constant, so discoverable sign-in can ask; the
+  output differs per passkey). In the browser: HKDF-SHA256(PRF output, salt = account‖credential,
+  info `muni passkey kek v1`) → non-extractable AES-256-GCM key → wraps the account key (`p1.`,
+  AAD binds account, credential, key version, public key). The server stores one wrap per passkey
+  (`passkey_key_wraps`) and can't open it; the PRF output never leaves the browser (requests carry
+  no extension results; the server refuses any). Signing in with such a passkey unlocks the key in
+  the same step, on any device where that passkey can be used. A passkey gets a wrap only from a
+  device where the key is already open — at sign-up, when added from an unlocked device, or the
+  next time it's used on one. Passkeys without PRF (or browsers that don't return it) sign in only.
+- **This device (the fallback, and every reload).** Once the key is open, the device keeps an
+  envelope (`d1.`): the account key under AES-256-GCM with a key from HKDF(`ds`‖`share`), where `ds`
+  is 32 random bytes kept only on the device (IndexedDB `muni-unlock`) and `share` is 32 random
+  bytes the server keeps (`device_unlocks`) and releases only to the account's own sessions. Neither
+  half opens anything; the server never sees the envelope or `ds`. After signing out, the envelope
+  can't be opened until the person signs in again. **Release rule:** for a device bound while the
+  account had passkeys, only to a session started with a passkey that existed when the device was
+  bound (so an email code — or a passkey added through one — never unlocks it); for accounts
+  without passkeys, to any of its sessions. The binding is renewed whenever the device unlocks by
+  passkey or recovery key. A new key is kept on the device *before* it's published, and an
+  interrupted setup is finished (the same key) on the next load.
 - **Recovery key.** 160 random bits + 16-bit checksum, shown once as nine groups of four
-  (Crockford base32). The server stores the private key sealed under HKDF(recovery key) — it
-  cannot open it. "Show a new recovery key" rewraps and invalidates the old one. People confirm
-  they saved it; sign-out warns if they haven't.
-- **Another device.** Sign in by email (account access), then unlock with the recovery key
-  (content access). The unwrapped key must match the published public key.
+  (Crockford base32); the server stores the private key sealed under HKDF(recovery key). Optional
+  now: made in Account; nudged only when nothing else could unlock (no passkey that unlocks, no
+  recovery key). Existing recovery keys keep working.
+- **Sign-out** drops the key and everything opened with it from memory in every tab (a
+  BroadcastChannel message, plus a counter in localStorage checked when a frozen or cached tab
+  returns, and before anything is sealed or opened); every reopening step checks an epoch, so a
+  late response can't unlock a signed-out tab. It keeps the envelope. **Forget this device** also
+  deletes the envelope, the server's share, pins and drafts; it doesn't touch passkeys. **Offline
+  sign-out** forgets the envelope too (the session can't be ended yet). **Session expiry** drops
+  the key from memory (drafts stay); signing in again reopens it.
+- **Account isolation.** Tabs name the account they act for (`x-muni-account`); the server refuses
+  a request for another account (409 `account_changed`), and a thought's envelope must name the
+  signed-in account as its author. Envelopes, shares and wraps are all bound to the account.
+- **Another device.** Sign in with a passkey that unlocks: done. Otherwise use the recovery key
+  (the unwrapped key must match the published public key), or a device that's still unlocked
+  (which can let your passkey unlock). A trusted-device transfer (ephemeral X25519, a code compared
+  on both screens, 10-minute expiry, `sealTo`) is a possible follow-up, not built.
 - **All keys lost.** "Start over" publishes a new key (server bumps `key_version`, audits
-  `keys.replaced`). Content sealed only to the old key (their own unrevealed thoughts) is gone;
-  teammates can reshare revealed sprints after confirming the new key.
-- **Account recovery ≠ content recovery.** Email sign-in never unlocks content (tested).
+  `keys.replaced`, drops old wraps and device shares). It's refused while this device can read
+  (confirming it's you with a passkey may have just unlocked it). Content sealed only to the old key
+  (their own unrevealed thoughts) is gone; teammates can reshare revealed sprints after confirming
+  the new key. A new passkey can't reconstruct a lost old key.
+- **Account recovery ≠ content recovery.** Email sign-in never unlocks content on a device that
+  didn't already have it, and never for a passkey account's device envelope (tested).
 - **Revocation.** Removing a member or participant stops the server serving them anything new, and
   devices only share keys with current participants. Nothing can erase keys or content already
-  received. Signing out deletes the device's key; "Remove the key from this device" too.
+  received. Removing a device in Account (or forgetting it) stops it reopening the key by itself.
 - **Substitution and added recipients.** Devices pin each teammate's public key on first use
   (TOFU). A later change is never used: sharing to that person stops and the facilitator sees
   "X's encryption key changed" with the new fingerprint until they confirm. The server also only
   accepts wraps for current participants, to their current key. **Not prevented:** a malicious
   server showing a fake key on first sight, or adding a fake participant whom devices then share
   with — both visible to people (participant list, fingerprints) but not blocked.
+- **Limits.** Browser storage is not a vault: someone who can use this browser profile *and* sign
+  in with a qualifying passkey can unlock here — the same bar as signing in. A tab reloaded in the
+  instant between a passkey sign-in and the envelope being saved asks for the passkey once more.
 
 ## 5. Formats and primitives
 
 Audited `@noble/curves` (X25519), `@noble/ciphers` (XChaCha20-Poly1305), `@noble/hashes`
-(HKDF-SHA256, SHA-256). All code in `web/src/lib/e2ee/crypto.ts` (~300 lines).
+(HKDF-SHA256, SHA-256) in `web/src/lib/e2ee/crypto.ts` (~300 lines); Web Crypto (HKDF-SHA256,
+AES-256-GCM, non-extractable keys) for unlocking the account key in `web/src/lib/e2ee/wrap.ts`.
+
+- **Passkey wrap** `p1.` + base64url(JSON `{v:1, n, c}`): AES-256-GCM, random 96-bit IV, AAD
+  `muni:passkey-wrap:v1|account|credential|version|publicKey`. Key: HKDF-SHA256(PRF output, salt
+  `muni|account|credential`, info `muni passkey kek v1`).
+- **Device envelope** `d1.`: same shape, AAD `muni:device-wrap:v1|account|device|version|publicKey`,
+  key HKDF-SHA256(`ds`‖`share`, salt `muni|account|device`, info `muni device kek v1`). Each
+  wrapping key encrypts a handful of times, far below AES-GCM's random-IV limits.
 
 - **Sealed box:** ephemeral X25519 → HKDF(shared, salt = eph‖recipient, "muni sealed box v1") →
   XChaCha20-Poly1305, context string as AAD. Low-order keys refused.
@@ -141,14 +194,28 @@ Audited `@noble/curves` (X25519), `@noble/ciphers` (XChaCha20-Poly1305), `@noble
 - `web/src/lib/e2ee/crypto.test.ts` (15): round trips, wrong recipient/context, tamper, cross
   sprint/record/field substitution, relabelling, low-order keys, nonce uniqueness, recovery typos
   and wrong account, malformed envelopes.
-- `web/src/lib/e2ee/keyring.test.ts` (10): decrypt at the API boundary, explicit locked marker,
-  refusal to send plaintext without keys, TOFU key-change detection, sealed-version sharing.
+- `web/src/lib/e2ee/keyring.test.ts` (34): decrypt at the API boundary, explicit locked marker,
+  refusal to send plaintext without keys, TOFU key-change detection, sealed-version sharing; and
+  the lifecycle — **the original bug** (sign out → sign in unlocks with no recovery key, old
+  content reads, new content seals), reload, no plaintext key in storage, email sessions refused,
+  forget this device, PRF restore after cleared storage, no-PRF fallback, provisioning only from an
+  unlocked device, offline, never a second key, keep-before-publish, sign-out during restoration,
+  account switching, stale tabs, waiting instead of "can't be shown", migration (verified,
+  interrupted, refused, mismatched, concurrent), and no secret in any request body.
+- `web/src/lib/e2ee/wrap.test.ts` (5) and `web/src/lib/passkeys.test.ts` (2): wrap binding and
+  tampering, non-extractable keys, IV uniqueness, both device halves required; PRF output removed
+  from every request body (including as a `Uint8Array`).
+- `worker/test/unlock.test.ts` (12): wraps only for own passkeys and current key, removed with the
+  passkey and on key replacement, the share release rule (email code, later passkey, deleted
+  passkeys, other accounts), keep-before-publish, pruning, nothing secret in D1, PRF results
+  refused, `x-muni-account` isolation.
 - `worker/test/encryption.test.ts` (6): envelopes only, plaintext refused, sealing policy through
   reveal, reopen versioning, late participants, recovery vs email sign-in, key replacement, legacy
   untouched, AI/export/recap refused, **every D1 table and the room's storage scanned for the
   synthetic text, private keys and sprint secrets**.
 - `web/e2e/encryption.mjs` (17): the real UI end to end, including request bodies captured in the
   browser, reveal, preparation, and a new device unlocked with the recovery key.
+- `web/e2e/unlock.mjs` (27): with and without the virtual authenticator's PRF — see PASSKEYS.md §8.
 
 **What testing doesn't establish:** the correctness of the construction against a cryptographer's
 review; side channels; behaviour under a malicious frontend; browser storage security; resistance
@@ -156,6 +223,16 @@ of the recovery flow to phishing; completeness of the inventory against future c
 cryptographic and application-security review is required before claiming more than this document.**
 
 ## 7. Migration and rollback
+
+- **Passkey unlock (`0007_passkey_unlock.sql`, client revision 4).** Additive: two tables. Existing
+  devices kept the account key in plaintext in IndexedDB `muni-keys`; on first load the new client
+  moves it into a device envelope, reopens the envelope with a share the server released under the
+  normal rule, and only then deletes the plaintext copy. Interrupted or refused (an email session
+  on a passkey account), the old copy stays and the move finishes later; a copy that doesn't match
+  the account's key is never deleted. The passkey wrap is added the next time a PRF-capable passkey
+  is used. Recovery blobs are untouched. The server refuses revision-3 clients (426), which would
+  still store plaintext keys and delete them on sign-out. Rolling back the Worker below this leaves
+  wraps and shares unused (harmless); rolling back the client brings the original bug back.
 
 - **Schema:** `0003_encryption.sql` is additive (a column, three tables). Existing rows are not
   touched; every existing sprint has `encryption = NULL` and is labelled "Not encrypted".

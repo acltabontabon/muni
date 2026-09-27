@@ -80,7 +80,7 @@ export function useActionRunner(s: Pick<SprintDetail, 'id'> & Partial<Pick<Sprin
 async function encryptedTransition(sprintId: string, from: string, to: string): Promise<Record<string, unknown>> {
   if (from === 'collecting' && to === 'preparing') {
     const k = await keyring.sprint(sprintId, true)
-    if (!k?.view.sealed_version || !k.keys.has(k.view.sealed_version)) throw new Error('This device doesn’t have the sprint’s key, so it can’t reveal the thoughts. Unlock this device with your recovery key first.')
+    if (!k?.view.sealed_version || !k.keys.has(k.view.sealed_version)) throw new Error('This device doesn’t have the sprint’s key, so it can’t reveal the thoughts. Unlock your writing on this device first (with your passkey, or your recovery key), then try again.')
     return { key_wraps: await keyring.missingWraps(sprintId, { reveal: true }) }
   }
   if (from === 'preparing' && to === 'collecting') {

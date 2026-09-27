@@ -34,7 +34,9 @@ export { MeetingRoom } from './room'
 // 2: invitation tokens moved to request bodies and production cookies gained the __Host- prefix
 // (a revision-1 client can't read the renamed CSRF cookie).
 // 3: encrypted sprints (content fields carry client envelopes; older clients can't read or write them).
-const MIN_CLIENT_REVISION = 3
+// 4: passkey-unlocked encryption (the account key is never kept in plaintext on a device, and signing
+// out no longer deletes it; a revision-3 tab would still do both).
+const MIN_CLIENT_REVISION = 4
 
 const app = new Hono<HonoEnv>()
 

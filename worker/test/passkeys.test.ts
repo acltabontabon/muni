@@ -365,9 +365,11 @@ describe('passkeys and encryption stay separate', () => {
     await addPasskeyTo(u, auth)
     const back = await passkeyLogin(auth)
     const keys = await get('/api/me/keys', back.user)
-    // What a new device gets after a passkey sign-in is exactly what an email sign-in gets:
-    // the public key and the blob only the recovery key opens. Never a private or content key.
-    expect(Object.keys(keys.body).sort()).toEqual(['created_at', 'key_version', 'public_key', 'recovery_blob', 'recovery_confirmed_at'])
+    // What a new device gets after a passkey sign-in: the public key, the blob only the recovery key
+    // opens, and wraps only a passkey's PRF output opens (in the browser — none here, since this
+    // passkey was never enrolled for unlocking). Never a private or content key.
+    expect(Object.keys(keys.body).sort()).toEqual(['created_at', 'key_version', 'passkeys', 'public_key', 'recovery_blob', 'recovery_confirmed_at', 'session_passkey'])
+    expect(keys.body.passkeys).toEqual([])
     expect(keys.body.public_key).toBe(b64u(kp.pk))
     // The private key appears nowhere on the server, in any form we can recognise.
     const all = JSON.stringify((await env.DB.prepare('SELECT * FROM account_keys WHERE account_id = ?').bind(u.account_id).all()).results)

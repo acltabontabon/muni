@@ -52,10 +52,11 @@ export function SprintHome() {
       setError(err instanceof ApiError ? err.message : 'Couldn’t load this sprint')
     }
   }, [sprintId])
-  const keyKind = useDeviceKeys().state.kind
+  // Read again when this device unlocks (or locks): what can be shown changed.
+  const { keysEpoch, state: { kind: keyKind } } = useDeviceKeys()
   useEffect(() => {
     load()
-  }, [load, keyKind])
+  }, [load, keyKind, keysEpoch])
   useLive(sprintId, (r) => { if (r === 'sprint' || r === 'commitments' || r === 'all') load() }, () => nav('/'))
   const { state: keys, changes } = useDeviceKeys()
   const [access, setAccess] = useState<SprintKeyView | null>(null)

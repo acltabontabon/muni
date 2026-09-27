@@ -113,8 +113,10 @@ Last checked 2026-09-28, against `main` plus the encryption changes (docs/ENCRYP
 | The server refuses plaintext for encrypted sprints | Test | `encryption.test.ts` (`encryption_required`), `lib/sealed.ts` |
 | While collecting, the revealing key is held only by the facilitator's devices; other participants can't decrypt early | Test | `encryption.test.ts` “…follow the sealing policy through reveal” (no wraps for participants; early wraps refused) |
 | The facilitator isn't given thoughts before close — server rule, not cryptography | Test | `privacy.test.ts` (unchanged sealing tests); stated as a limitation on the page |
-| Email sign-in alone doesn't unlock content; the recovery key does | Test | `encryption.test.ts` “recovery…”; `web/e2e/encryption.mjs` new-device steps |
-| Muni can't recover a lost key | Code | Server holds only the recovery-wrapped blob (`routes/keys.ts`); no other copy |
+| Email sign-in alone doesn't unlock content on a device that didn't have it (or a passkey account's device envelope); a passkey that unlocks, or the recovery key, does | Test | `encryption.test.ts` “recovery…”; `unlock.test.ts` release rule; `web/e2e/encryption.mjs` new-device steps |
+| Signing in with a passkey (PRF) unlocks your writing; its PRF output never reaches Muni | Test | `keyring.test.ts`, `passkeys.test.ts` (web), `unlock.test.ts` (PRF results refused, D1 scan); `web/e2e/unlock.mjs` (captured bodies, PRF output compared) |
+| Signing out keeps this device able to unlock only after signing in again; no plaintext key is stored | Test | `keyring.test.ts` “the original bug…”, “what stays on the device”; `web/e2e/unlock.mjs` |
+| Muni can't recover a lost key | Code | Server holds only wraps it can't open (recovery blob, passkey wraps) and device shares that open nothing alone (`routes/keys.ts`) |
 | Devices won't share a key with a teammate whose key changed until confirmed | Test | `keyring.test.ts` “pins teammates’ keys on first use…” |
 | Encrypted sprints never use AI; exports and recap drafts are made in the browser | Test | `encryption.test.ts` (AI grouping, export, server recap → 409); `lib/e2ee/local-export.ts` |
 | What stays readable: names, goal, dates, people, categories, authorship, timing, counts | Code | `docs/ENCRYPTION.md` §2; `routes/*` store these as plain columns |

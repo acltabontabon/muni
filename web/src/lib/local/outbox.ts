@@ -10,7 +10,7 @@
 import type { LocalStore, OutboxItem, AttentionReason } from './store'
 
 /** Sent as `x-muni-client`. Raise together with the server's MIN_CLIENT_REVISION. */
-export const CLIENT_REVISION = 3
+export const CLIENT_REVISION = 4
 /** A queued thought for an encrypted sprint that this device can't seal yet (no key here). */
 export const WAITING_KEY = 'waiting_key'
 /** A send that has been "in flight" this long was interrupted (tab closed, device slept). */
@@ -45,7 +45,7 @@ export function webLock<T>(fn: () => Promise<T>): Promise<T | 'locked'> {
   return locks.request('muni-outbox', { ifAvailable: true }, async (l) => (l ? fn() : 'locked')) as Promise<T | 'locked'>
 }
 
-const headers = (csrf: string | null): HeadersInit => ({ 'content-type': 'application/json', 'x-muni-client': String(CLIENT_REVISION), ...(csrf ? { 'x-csrf-token': csrf } : {}) })
+const headers = (csrf: string | null, accountId: string): HeadersInit => ({ 'content-type': 'application/json', 'x-muni-client': String(CLIENT_REVISION), 'x-muni-account': accountId, ...(csrf ? { 'x-csrf-token': csrf } : {}) })
 
 function classify(status: number, code: string | undefined): { kind: 'done' } | { kind: 'retry' } | { kind: 'stop'; state: FlushState } | { kind: 'attention'; reason: AttentionReason } {
   if (status >= 200 && status < 300) return { kind: 'done' }
@@ -53,6 +53,8 @@ function classify(status: number, code: string | undefined): { kind: 'done' } | 
   if (status === 426) return { kind: 'stop', state: 'upgrade' }
   if (status === 409 && code === 'collection_closed') return { kind: 'attention', reason: 'closed' }
   if (status === 409 && code === 'account_mismatch') return { kind: 'attention', reason: 'account' }
+  // Signed in as someone else in another tab between checking and sending: stop; it stays queued.
+  if (status === 409 && code === 'account_changed') return { kind: 'stop', state: 'signed_out' }
   if (status === 409) return { kind: 'attention', reason: 'limit' }
   if (status === 403 || status === 404) return { kind: 'attention', reason: 'no_access' }
   if (status === 400 || status === 422) return { kind: 'attention', reason: 'invalid' }
@@ -130,7 +132,7 @@ async function flushLocked(deps: SyncDeps, opts: { force?: boolean }): Promise<F
       const r = await deps.fetch(`/api/sprints/${claimed.sprintId}/entries`, {
         method: 'POST',
         credentials: 'same-origin',
-        headers: headers(csrf),
+        headers: headers(csrf, claimed.accountId),
         body: JSON.stringify(payload),
       })
       status = r.status

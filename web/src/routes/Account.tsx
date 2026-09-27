@@ -5,7 +5,7 @@ import type { CaptureTarget, SprintSummary } from '@/api/types'
 import { useAuth } from '@/lib/auth'
 import { applyAppearance, readPrefs, writePrefs } from '@/lib/prefs'
 import { Button, ErrorText, Help, Input, Label, Switch, useDocumentTitle, useToast } from '@/ui'
-import { DeviceControls } from '@/ui/menus'
+import { DeviceControls, LeaveDialog } from '@/ui/menus'
 import { AppShell, PageTitle } from '@/ui/shell'
 import { EncryptionSettings } from '@/ui/keys'
 import { SecurityActivity, Sessions, SignInMethods } from '@/ui/security'
@@ -28,6 +28,7 @@ function Block({ id, title, lead, children }: { id: string; title: string; lead?
 export function Account() {
   useDocumentTitle('Account')
   const { me, refresh } = useAuth()
+  const [forgetting, setForgetting] = useState(false)
   const toast = useToast()
   const [name, setName] = useState(me?.display_name ?? '')
   const [nameError, setNameError] = useState('')
@@ -70,8 +71,9 @@ export function Account() {
           <SignInMethods />
         </Block>
 
-        <Block id="encryption" title="Encryption" lead="Encrypted sprints are sealed on your team’s devices. Your key lives on your devices and, locked with your recovery key, nowhere else.">
-          <EncryptionSettings />
+        <Block id="encryption" title="Encryption" lead="Encrypted sprints are sealed on your team’s devices. Your passkey unlocks your key when you sign in; Muni’s servers only ever hold it locked.">
+          <EncryptionSettings onForget={() => setForgetting(true)} />
+          <LeaveDialog kind={forgetting ? 'signout' : null} forget onClose={() => setForgetting(false)} />
         </Block>
 
         <Block id="notifications" title="Notifications" lead={me.email ? 'Muni emails you only for codes, invitations and these reminders — never marketing.' : 'Reminder emails need a recovery email on your account. Muni never sends marketing.'}>

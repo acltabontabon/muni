@@ -24,7 +24,7 @@ import { localGeneration, useLocal, type Destination } from '@/lib/local/LocalPr
 import { emptyPayload, hasText, StorageError, type OutboxItem, type Payload } from '@/lib/local/store'
 import { WAITING_KEY } from '@/lib/local/outbox'
 import { isLocked } from '@/lib/e2ee/keyring'
-import { useDeviceKeys } from '@/lib/e2ee/E2eeProvider'
+import { useKeysEpoch } from '@/lib/e2ee/E2eeProvider'
 import { splitLinks } from '@/lib/text'
 import { Button, ErrorText, Kbd, useToast } from '@/ui'
 import { StatusLabel, type ThoughtState } from '@/ui/status'
@@ -751,8 +751,8 @@ export function MyThoughts({ sprintId, editable, moveChoices, online, className,
   const [filter, setFilter] = useState<string | null>(null)
   const seen = useRef<Set<string> | null>(null)
   const [fresh, setFresh] = useState<Set<string>>(new Set())
-  // Unlocking (or setting up) this device changes what can be shown: read the list again.
-  const keyState = useDeviceKeys().state.kind
+  // Unlocking this device changes what can be shown: read the list again (quietly, keeping it on screen).
+  const keysEpoch = useKeysEpoch()
   const load = useCallback(async () => {
     try {
       const list = await get<MyEntry[]>(`/api/sprints/${sprintId}/entries/mine`)
@@ -769,7 +769,13 @@ export function MyThoughts({ sprintId, editable, moveChoices, online, className,
     seen.current = null
     setEntries(null)
     load()
-  }, [load, keyState])
+  }, [load])
+  const unlockedAt = useRef(keysEpoch)
+  useEffect(() => {
+    if (keysEpoch === unlockedAt.current) return
+    unlockedAt.current = keysEpoch
+    void load()
+  }, [keysEpoch, load])
   // Something was accepted (or the queue changed): show the confirmed list.
   useEffect(() => {
     if (local.recentlySubmitted.length) load()

@@ -132,6 +132,17 @@ export function LocalProvider({ accountId, children }: { accountId: string | nul
     }
   }, [accountId, keepLocal, reload, run])
 
+  // The encryption key just became usable here: thoughts waiting for it go now, not at the next retry.
+  useEffect(() => {
+    if (!accountId) return
+    let seen = keyring.keysEpoch()
+    return keyring.subscribe(() => {
+      if (keyring.keysEpoch() === seen || keyring.state().kind !== 'ready') return
+      seen = keyring.keysEpoch()
+      void run(true)
+    })
+  }, [accountId, run])
+
   useEffect(() => {
     const due = nextDue(items)
     if (due === null || sync === 'signed_out' || sync === 'upgrade') return
@@ -275,13 +286,14 @@ async function sealThought(item: OutboxItem, plain: Record<string, unknown>): Pr
     try {
       encrypted = await keyring.isEncrypted(item.sprintId)
     } catch (e) {
-      // Can't tell (offline, no access): don't guess. The send itself reports what's wrong.
-      if ((e as { status?: number }).status === 0) throw e
+      // Can't tell (offline, signed out, no access): don't guess. Unreachable or no key yet: it waits.
+      // Anything else: the send itself reports what's wrong (and the server refuses plaintext anyway).
+      if ((e as { status?: number }).status === 0 || (e as { code?: string }).code === 'no-key') throw e
       return null
     }
   }
   if (!encrypted) return null
-  const body = await keyring.sealThought(item.sprintId, item.id, { body: item.payload.body, impact: item.payload.impact || null, might_help: item.payload.might_help || null })
+  const body = await keyring.sealThought(item.sprintId, item.id, { body: item.payload.body, impact: item.payload.impact || null, might_help: item.payload.might_help || null }, item.accountId)
   return { id: item.id, body, category: plain.category, period: plain.period, idempotency_key: item.id, author_account_id: item.accountId }
 }
 

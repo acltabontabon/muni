@@ -5,6 +5,7 @@ import { ArrowRight, ChevronDown, FolderInput, GitMerge, Sparkles, Trash2 } from
 import { ApiError, del, get, patch, post } from '@/api/client'
 import type { AiStatus, GroupingView, SharedEntry, SprintDetail, ThemeView } from '@/api/types'
 import { useLive } from '@/lib/live'
+import { useKeysEpoch } from '@/lib/e2ee/E2eeProvider'
 import { Badge, Button, Dialog, EmptyState, ErrorText, Help, Input, Spinner, Textarea, useDocumentTitle, useToast } from '@/ui'
 import { AppShell, PageTitle } from '@/ui/shell'
 import { CategoryMix, EntryCard } from '@/ui/entries'
@@ -42,9 +43,10 @@ export function Prepare() {
       setError(err instanceof ApiError ? err.message : 'Couldn’t load')
     }
   }, [sprintId])
+  const keysEpoch = useKeysEpoch()
   useEffect(() => {
     load()
-  }, [load])
+  }, [load, keysEpoch])
   useLive(sprintId, () => load())
 
   /** Runs a structural change; if the server needs a vote-reset reason, asks for one and retries. */

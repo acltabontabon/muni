@@ -205,6 +205,8 @@ let firstCredential
   await page.click('button:has-text("Sign in")')
   await page.click('button:has-text("Continue with a passkey")')
   await out(page)
+  // The composer restores the draft once it knows the sprint (a moment after landing): wait for it.
+  await page.waitForFunction(() => document.querySelector('textarea')?.value.includes('pairing on refunds'), null, { timeout: 5000 }).catch(() => {})
   const kept = await page.locator('textarea').first().inputValue()
   check('a draft survives the session ending and a passkey sign-in', kept.includes('pairing on refunds'), kept.slice(0, 40))
   await Promise.all([ctx.close(), other.close()])
