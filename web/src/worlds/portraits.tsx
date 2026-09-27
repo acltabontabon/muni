@@ -149,7 +149,7 @@ function Grain({ k }: { k: K }) {
 
 // ── The eight ────────────────────────────────────────────────────────────────────────────────
 
-function Kape({ k }: { k: K }) {
+function Kape({ k, bare }: { k: K; bare?: boolean }) {
   return (
     <>
       {/* Chin-length, wavy, not recently negotiated with. */}
@@ -160,19 +160,25 @@ function Kape({ k }: { k: K }) {
       <path d="M43.4 75.2L50 83L56.6 75.2" fill={k.p.skin} />
       <Neck k={k} />
       <Head k={k} />
-      <Brows k={k} d={BROWS.level} />
+      <g className="kape-fig-brows">
+        <Brows k={k} d={BROWS.level} />
+      </g>
       <Eyes k={k} kind="calm" />
       <Nose k={k} />
       <Cheeks k={k} o={0.14} />
       <Mouth k={k} d="M46 59.8Q49.6 61.2 54 59.2" />
       <path d="M33.2 45.6C33 33.6 40.4 26.4 50 26.4C60 26.4 67.2 33 67 43.4C64.4 40.6 61.8 38.2 58.2 37.2C58.8 40 58 42 56 43.2C55.2 39.6 52.4 37.4 48.4 37.2C47.6 40.2 44.8 42.2 41.4 42.2C42.2 40.4 42.2 38.6 41.4 37.4C37.8 39.2 35.2 42 33.2 45.6Z" fill={k.p.hair} />
       <path d="M48.6 26.8C49.4 22 53.8 20.4 56.8 21.8C53.8 22.8 52.6 24.6 52.4 27.2Z" fill={k.p.hair} />
-      {/* Waves that have given up on being combed. */}
-      <path d="M33.4 50c-2.6 3.4-2.2 7.2.4 10.4M36 52.4c-1.8 3-1 6 1.2 8.2M66.6 50c2.6 3.4 2.2 7.2-.4 10.4M64 52.4c1.8 3 1 6-1.2 8.2" fill="none" stroke={k.p.hair} strokeWidth={w(k, 2.6)} strokeLinecap="round" />
+      {/* Waves that have given up on being combed. Drawn large (the scene), they fall as locks over the ears instead. */}
+      {bare ? (
+        <path d="M33.6 37.6C29.8 44 29.4 52.4 31.4 60.4C32.8 63.2 35.8 62.6 36.6 60C35.6 54.2 36 47.4 38 41ZM66.4 37.6C70.2 44 70.6 52.4 68.6 60.4C67.2 63.2 64.2 62.6 63.4 60C64.4 54.2 64 47.4 62 41Z" fill={k.p.hair} />
+      ) : (
+        <path d="M33.4 50c-2.6 3.4-2.2 7.2.4 10.4M36 52.4c-1.8 3-1 6 1.2 8.2M66.6 50c2.6 3.4 2.2 7.2-.4 10.4M64 52.4c1.8 3 1 6-1.2 8.2" fill="none" stroke={k.p.hair} strokeWidth={w(k, 2.6)} strokeLinecap="round" />
+      )}
       <path d="M45.6 37.6c-1.6 2.8-.8 5.6 1.6 6.8" fill="none" stroke={k.p.hair} strokeWidth={w(k, 2.2)} strokeLinecap="round" />
       {k.icon ? null : <path d="M44 31.6C47 30.2 52 30 55 31.4M38.2 36C40 34 42 33 44 32.6M60 34.4c2.2 1.4 3.8 3.4 4.6 5.6" stroke={k.p.hairShade} strokeWidth="1.1" fill="none" strokeLinecap="round" />}
       {/* The mug, held close, going nowhere. */}
-      <g>
+      {bare ? null : <g>
         <path d="M55.2 76.4h17.4v14.2c0 3.6-2.8 6.2-6.2 6.2h-5c-3.4 0-6.2-2.6-6.2-6.2Z" fill="#f6f1e8" stroke={INK} strokeWidth={w(k, 1.1)} />
         <path d="M72.6 79.4c4.4 0 6.2 2.2 6.2 5s-2 5-6.2 5" fill="none" stroke={INK} strokeWidth={w(k, 1.6)} />
         <path d="M55.2 81.6h17.4" stroke="#b5652f" strokeWidth={w(k, 2.2)} />
@@ -180,7 +186,7 @@ function Kape({ k }: { k: K }) {
         <path d="M51.6 84.6c2.4-2.2 5-2.4 6.4-.8 1 1.4.4 3.4-1.2 4.6-2.4 1.6-5 1.4-6.6.2Z" fill={k.p.skin} />
         <path d="M76.6 90.4c-1.6-2.2-3.8-2.6-5.2-1.4-1.2 1-1 3.2.6 4.4 1.8 1.4 3.8 1.2 4.8.2Z" fill={k.p.skin} />
         {k.icon ? null : <path d="M61.4 72.6c-1.6-2 1.4-3.4-.2-5.4M66.2 72.8c-1.6-2 1.4-3.4-.2-5.4" fill="none" stroke="#fff" strokeWidth="1.2" strokeLinecap="round" opacity="0.85" />}
-      </g>
+      </g>}
     </>
   )
 }
@@ -430,6 +436,15 @@ function Sibol({ k }: { k: K }) {
 }
 
 const DRAW: Record<AvatarId, (p: { k: K }) => ReactNode> = { kape: Kape, guhit: Guhit, biyahe: Biyahe, bola: Bola, pahina: Pahina, himig: Himig, porma: Porma, sibol: Sibol }
+
+/**
+ * Kape with both hands free — the portrait's drawing without the mug — for the café scene
+ * (worlds/kape/Stir.tsx), in the portrait's 100×100 units. The brows are one group, for the pause.
+ */
+export function KapeFigure() {
+  const k: K = { icon: false, p: PAL.kape, u: 'kape-fig' }
+  return <Kape k={k} bare />
+}
 
 /**
  * A character's portrait in its round frame. `size` in CSS pixels picks the cut: under 56px, the

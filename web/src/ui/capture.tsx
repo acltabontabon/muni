@@ -777,6 +777,11 @@ function EntryThought({ e, n, sprintId, editable, online, fresh, onRemove, onSav
 }
 
 const PAGE = 12
+/**
+ * The category someone is viewing in each sprint's collection, for this visit. Changing character
+ * can swap the whole page (a world with its own layout), which remounts the list; the filter stays.
+ */
+const filters = new Map<string, string | null>()
 
 /**
  * Your thoughts for one sprint: what's still on this device first, then what reached the sprint.
@@ -789,7 +794,11 @@ export function MyThoughts({ sprintId, editable, moveChoices, online, className,
   const [entries, setEntries] = useState<MyEntry[] | null>(null)
   const [failed, setFailed] = useState(false)
   const [shown, setShown] = useState(PAGE)
-  const [filter, setFilter] = useState<string | null>(null)
+  const [filter, setFilterState] = useState<string | null>(() => filters.get(sprintId) ?? null)
+  const setFilter = (v: string | null) => {
+    filters.set(sprintId, v)
+    setFilterState(v)
+  }
   const seen = useRef<Set<string> | null>(null)
   const [fresh, setFresh] = useState<Set<string>>(new Set())
   // Unlocking this device changes what can be shown: read the list again (quietly, keeping it on screen).

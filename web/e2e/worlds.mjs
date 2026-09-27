@@ -108,7 +108,7 @@ try {
             if (kind === 'full' && theme === 'light') {
               check(`${w} ${label}: world applied`, (await world(page)) === w)
               check(`${w} ${label}: no horizontal overflow`, facts.overflow <= 0, `${facts.overflow}px`)
-              check(`${w} ${label}: heading still labels the field`, facts.label === 'What’s worth remembering?')
+              check(`${w} ${label}: heading still labels the field`, facts.label === (w === 'kape' ? 'What’s on your mind?' : 'What’s worth remembering?'))
               if (label === '390') check(`${w} 390: the field and Save are in the first screen`, facts.fieldTop < facts.vh && facts.saveBottom <= facts.vh, `field ${Math.round(facts.fieldTop)}, save ${Math.round(facts.saveBottom)} of ${facts.vh}`)
               const fontOk = await page.evaluate(async (f) => {
                 await document.fonts.load(`16px "${f}"`)

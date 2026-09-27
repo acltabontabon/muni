@@ -124,7 +124,12 @@ and so is behaviour: drafts, the send queue, encryption, what “submitted” me
 deleting. Most worlds change composition, palette, type, illustration and decoration only.
 
 **Worlds with their own layout.** A world may compose the writing page itself when restyling Muni's
-journal can't carry it. Guhit is the first (`web/src/worlds/guhit/Studio.tsx`): the sprint is the
+journal can't carry it: Guhit (`worlds/guhit/`) and Kape (`worlds/kape/`), listed in
+`worlds/pages.tsx`. The shared parts live in `worlds/desk.tsx` — the sprint label and its details
+(other sprints grouped by team), the category picker, the composer's layout, the state sheet and
+the page grid — each rendered with classes in the world's namespace (`<ns>-sheet`…) so a world
+styles them in its own `@scope`. A world supplies only composition, surfaces, art and motion.
+Guhit was first: the sprint is the
 sketchbook's index tab (name, state, one date — `retroShort` — with timing, protection and
 sprint switching in its details), the heading labels one calm field on one sheet, Category (one
 optional choice from a short list; a sheet on phones) and Context fold away behind two named
@@ -133,7 +138,15 @@ does: **Add to sprint** (⌘/Ctrl-Enter, in its tooltip; no keycaps on screen). 
 line; the detail lives in the tab's details. Behaviour comes from `useComposer` and `MyThoughts`
 in `ui/capture.tsx`, shared with every other world; `e2e/guhit.mjs` checks both. On wide screens
 the desk holds the barangay master plan (`guhit/MasterPlan.tsx`): each thought adds the next
-unnecessarily ambitious thing, and a pencilled ghost shows what comes next. Each world's palette passes WCAG AA for text in light and dark, and Muni's
+unnecessarily ambitious thing, and a pencilled ghost shows what comes next.
+Kape (`kape/Cafe.tsx`, `kape/Stir.tsx`) asks “What’s on your mind?” on café stationery; its
+reservation card says “Writing for” and the real sprint name. The 40-minute stir draws Kape from the
+portrait (`KapeFigure`, head only, on a body drawn for the scene) at a café table: the clock says
+7:42, the receipt 07:02, a tent card says “Coffee: ready. Kape: processing.”, the first shift's
+spoon sleeps on a folded sugar packet, the table is reserved until further notice. It plays once
+per visit when first seen (IntersectionObserver, then disconnected), never under reduced motion,
+and on phones is framed on Kape, the cup and the tent card, after the collection. Nothing in it is
+real status. `e2e/desk.mjs` covers both worlds. Each world's palette passes WCAG AA for text in light and dark, and Muni's
 semantic colours (status, categories, ok/warn/danger) are never redeclared (`worlds.test.ts`).
 Art sits beside content, never behind text, and never moves while someone writes: the one moment
 plays after a confirmed save, pauses in hidden tabs, and becomes a static change under reduced

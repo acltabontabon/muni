@@ -154,7 +154,7 @@
 :root[data-world='kape'], .w-scope[data-world='kape'] {
   /* Morning light on warm paper; espresso ink; caramel for the one thing that matters. */
   --paper: #f3e9dc;
-  --card: #fbf6ee;
+  --card: #fdf9f2;
   --card-2: #eadcc9;
   --ink: #2a1d15;
   --ink-soft: #5b4535;
@@ -192,12 +192,32 @@
   --k-receipt-line: #e6d9c6;
   --k-receipt-ink: #7d6754;
   --k-light: #f6d6a8;
+  --k-edge: #e3d3bd;
+  --k-rule: #eadcc8;
+  --k-docket: #fffaf2;
+  --k-slip: #fffcf6;
+  --k-wall: #f1e4d1;
+  --k-floor: #e4cfb3;
+  --k-wood: #9a6a45;
+  --k-iron: #3a2a20;
+  --k-green: #3f5b47;
+  --k-shirt: #ece2cf;
+  --k-skin: #a86b45;
+  --k-trouser: #4a3a30;
+  --k-slipper: #3f5b47;
+  --k-chair: #6b4a33;
+  --k-sun: rgb(255 238 204 / 0.6);
+  --k-pool: rgb(255 200 120 / 0);
+  --k-bulb: #f6d6a8;
+  --k-lift: rgb(70 38 12 / 0.4);
+  --k-wainscot: #4a6552;
+  --k-rail: #e7d6bd;
 }
 :root.dark[data-world='kape'], .dark .w-scope[data-world='kape'] {
   /* The café stayed open just for you: roasted dark, lamp caramel. */
   --paper: #16100c;
-  --card: #1f1712;
-  --card-2: #2a1f18;
+  --card: #2a2019;
+  --card-2: #33271f;
   --ink: #f1e5d4;
   --ink-soft: #c9b49c;
   --ink-faint: #a08a73;
@@ -234,20 +254,361 @@
   --k-receipt-line: #3a2d23;
   --k-receipt-ink: #a58f78;
   --k-light: #d68a45;
+  --k-edge: #45372b;
+  --k-rule: #362a21;
+  --k-docket: #3a2e24;
+  --k-slip: #261d17;
+  --k-wall: #1e1611;
+  --k-floor: #130d0a;
+  --k-wood: #6e4a30;
+  --k-iron: #0b0705;
+  --k-green: #56765f;
+  --k-shirt: #dcd0bb;
+  --k-skin: #9a6240;
+  --k-trouser: #33281f;
+  --k-slipper: #56765f;
+  --k-chair: #4e3828;
+  --k-sun: rgb(255 200 140 / 0.04);
+  --k-pool: rgb(226 163 106 / 0.26);
+  --k-bulb: #ffd08a;
+  --k-lift: rgb(0 0 0 / 0.65);
+  --k-wainscot: #1c2620;
+  --k-rail: #3b2e24;
 }
 
 @scope ([data-world='kape']) to ([data-world]:not([data-world='kape'])) {
-  /* Warm paper, and morning light falling across the table from the left. */
+  /*
+   * Kape's page is its own layout (worlds/kape/Cafe.tsx): café stationery on a tabletop, a
+   * reservation card over its top edge, a cup at its corner, slips for the collection, and the
+   * 40-minute stir under the writing. Morning light falls across the table from the top left; at
+   * night, a lamp keeps a small pool of amber. All static.
+   */
+  .app-bg { background: linear-gradient(118deg, color-mix(in oklab, var(--k-light) 46%, transparent) 0%, transparent 32%), var(--paper); }
+  :scope:where(.dark, .dark *) .app-bg { background: radial-gradient(760px 460px at 34% 12%, color-mix(in oklab, var(--k-light) 13%, transparent), transparent 72%), var(--paper); }
+
+  /* ── The page ── */
+  .kape-studio { display: grid; gap: 2.5rem; }
+  @media (min-width: 1024px) {
+    .kape-studio { grid-template-columns: minmax(0, 1fr) minmax(0, 20.5rem); grid-template-areas: 'desk shelf' 'scene shelf'; grid-template-rows: auto 1fr; gap: 3rem 3.5rem; align-items: start; }
+    .kape-desk { grid-area: desk; }
+    .kape-shelf { grid-area: shelf; padding-top: 1.1rem; }
+    .kape-scene { grid-area: scene; }
+  }
+  @media (min-width: 1280px) { .kape-studio { grid-template-columns: minmax(0, 46rem) minmax(0, 23rem); column-gap: 5rem; justify-content: center; } }
+  .kape-desk, .kape-shelf, .kape-scene { min-width: 0; }
+  .kape-notices:empty { display: none; }
+  .kape-notices { margin-bottom: 1.25rem; }
+
+  /* ── The stationery, the reservation card, the cup ── */
+  .kape-book { position: relative; isolation: isolate; padding-top: 0.35rem; }
+  .kape-book-top { display: flex; align-items: flex-end; justify-content: space-between; gap: 0.75rem; padding-left: 1.1rem; }
+  @media (min-width: 640px) { .kape-book-top { padding-left: 2rem; } }
+
+  .kape-tab {
+    position: relative; z-index: 2;
+    display: flex; flex-direction: column; align-items: flex-start; gap: 0.12rem;
+    min-width: 0; max-width: min(30rem, calc(100% - 4.5rem));
+    margin-bottom: -1.75rem;
+    padding: 0.7rem 2.6rem 0.75rem 1.5rem;
+    background: var(--k-docket);
+    border: 1px solid var(--k-edge); border-radius: 7px;
+    box-shadow: 0 12px 20px -16px var(--k-lift);
+    text-align: left;
+    transition: background 140ms;
+  }
+  /* A ticket's stub: a perforated line near its left edge. */
+  .kape-tab::before { content: ''; position: absolute; top: 7px; bottom: 7px; left: 0.6rem; border-left: 1.5px dotted var(--line-strong); }
+  .kape-tab[data-static] { padding-right: 1.2rem; }
+  button.kape-tab:hover, .kape-tab[data-state='open'] { background: color-mix(in oklab, var(--k-docket) 90%, var(--accent-soft)); }
+  .kape-tab:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+  .kape-tab-kicker { font-family: var(--font-world-meta); font-size: 10px; font-weight: 500; letter-spacing: 0.16em; text-transform: uppercase; color: var(--accent-ink); }
+  .kape-tab-name {
+    display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden;
+    font-family: var(--font-world-display); font-size: 17px; line-height: 1.25; letter-spacing: -0.01em; color: var(--ink); overflow-wrap: anywhere;
+  }
+  .kape-tab-meta { font-size: 13px; line-height: 1.35; color: var(--ink-soft); }
+  .kape-tab-state { display: inline-flex; align-items: center; gap: 0.35rem; font-weight: 550; }
+  .kape-tab-dot { width: 7px; height: 7px; border-radius: 999px; box-shadow: inset 0 0 0 1.5px var(--ink-faint); }
+  .kape-tab-state[data-state='collecting'] { color: var(--status-ink); }
+  .kape-tab-state[data-state='collecting'] .kape-tab-dot { background: var(--status); box-shadow: none; }
+  .kape-tab-state[data-state='closed-now'] { color: var(--warn); }
+  .kape-tab-state[data-state='closed-now'] .kape-tab-dot { background: var(--warn); box-shadow: none; }
+  .kape-tab-chev { position: absolute; right: 0.85rem; top: 50%; width: 16px; height: 16px; margin-top: -8px; color: var(--ink-faint); transition: transform 160ms; }
+  .kape-tab[data-state='open'] .kape-tab-chev { transform: rotate(180deg); }
+
+  .kape-cup { position: relative; z-index: 3; flex: none; width: 4.25rem; height: 4.25rem; margin: 0 -0.35rem -2.4rem 0; overflow: visible; filter: none; }
+  @media (min-width: 640px) { .kape-cup { width: 6.25rem; height: 6.25rem; margin: 0 -2.4rem -3.1rem 0; } }
+  .kape-cup-saucer { fill: var(--k-ceramic); stroke: var(--k-ink); stroke-width: 1; }
+  .kape-cup-well { fill: none; stroke: var(--k-ceramic-line); stroke-width: 1; }
+  .kape-cup-handle, .kape-cup-rim { fill: var(--k-cup); stroke: var(--k-ink); stroke-width: 1; }
+  .kape-cup-coffee { fill: var(--k-coffee); }
+  .kape-cup-crema { fill: none; stroke: var(--k-crema); stroke-width: 2.6; stroke-linecap: round; opacity: 0.8; }
+  .kape-cup-spoon { fill: var(--k-metal); stroke: var(--k-ink); stroke-width: 0.7; }
+  .kape-ring { position: absolute; z-index: -1; right: -4.4rem; top: 7.5rem; width: 4.6rem; height: 4.6rem; fill: none; stroke: var(--k-ring); stroke-width: 2.6; stroke-linecap: round; opacity: 0.4; transform: rotate(-20deg); }
+  .kape-ring-inner { stroke-width: 1.2; opacity: 0.6; }
+  @media (max-width: 1279px) { .kape-ring { display: none; } }
+
+  .kape-sheet {
+    position: relative;
+    padding: 2.75rem 1.2rem 3.1rem;
+    background: var(--card);
+    border: 1px solid var(--k-edge);
+    border-radius: 16px;
+    /* A printed hairline just inside the edge, like good café stationery; lifted off the table. */
+    box-shadow: inset 0 0 0 7px var(--card), inset 0 0 0 8px var(--k-rule), 0 1px 0 var(--k-edge), 0 30px 54px -40px var(--k-lift);
+  }
+  @media (min-width: 640px) { .kape-sheet { padding: 3.2rem 2.7rem 3.3rem; } }
+  .kape-letterhead {
+    position: absolute; left: 1rem; right: 1rem; bottom: 1.05rem;
+    display: flex; flex-wrap: wrap; justify-content: center; gap: 0 0.55rem;
+    font-family: var(--font-world-meta); font-size: 10px; letter-spacing: 0.16em; text-transform: uppercase; color: var(--ink-faint);
+    pointer-events: none;
+  }
+  .kape-letterhead-sep { color: var(--accent); }
+  @media (max-width: 400px) { .kape-letterhead span:nth-child(n + 4) { display: none; } }
+
+  .kape-title { max-width: 22ch; font-family: var(--font-world-display); font-weight: 400; font-size: clamp(1.85rem, 1.35rem + 1.5vw, 2.6rem); line-height: 1.08; letter-spacing: -0.022em; text-wrap: balance; overflow-wrap: anywhere; }
+  .kape-title label { cursor: text; }
+  .kape-title em { font-style: normal; color: var(--accent-ink); }
+  .kape-invite { margin-top: 0.65rem; font-family: var(--font-world-meta); font-size: 13.5px; line-height: 1.4; color: var(--ink-soft); }
+  .kape-invite::before { content: '— '; color: var(--accent); }
+
+  .kape-field {
+    display: block; width: 100%;
+    margin-top: 1.35rem; padding: 0.3rem 0 0.6rem;
+    resize: none; field-sizing: content; min-height: 8.5rem; max-height: 55vh;
+    border: 0; border-radius: 0; background: transparent;
+    font-size: 1.1875rem; line-height: 1.62; color: var(--ink);
+    box-shadow: inset 0 -1px 0 var(--line-strong);
+    transition: box-shadow 140ms;
+    scroll-margin-bottom: 8rem;
+  }
+  .kape-field::placeholder { color: var(--ink-faint); }
+  .kape-field:hover { box-shadow: inset 0 -1px 0 var(--ink-faint); }
+  .kape-field:focus, .kape-field:focus-visible { outline: none; box-shadow: inset 0 -2px 0 var(--accent); }
+  @media (max-width: 639px) { .kape-field { font-size: 1.0625rem; min-height: 6.5rem; } }
+  .kape-field--small { margin-top: 0.3rem; padding: 0.5rem 0.7rem; min-height: 3.4rem; font-size: 15px; line-height: 1.55; border-radius: 9px; background: color-mix(in oklab, var(--paper) 35%, var(--card)); box-shadow: inset 0 0 0 1px var(--line); scroll-margin-bottom: 6rem; }
+  .kape-field--small:hover { box-shadow: inset 0 0 0 1px var(--line-strong); }
+  .kape-field--small:focus, .kape-field--small:focus-visible { box-shadow: inset 0 0 0 1.5px var(--accent); }
+
+  .kape-under { display: flex; align-items: center; justify-content: space-between; gap: 1rem; min-height: 1.9rem; margin-top: 0.2rem; }
+  .kape-draft { font-size: 12.5px; color: var(--ink-faint); text-align: right; }
+  .kape-link { padding: 0.15rem 0; font-size: 13.5px; color: var(--ink-soft); text-decoration: underline dotted; text-decoration-color: var(--line-strong); text-underline-offset: 3px; border-radius: 3px; }
+  .kape-link:hover { color: var(--ink); text-decoration-color: var(--accent); }
+  .kape-prompt { display: flex; align-items: flex-start; gap: 0.5rem; margin-top: 1rem; padding: 0.5rem 0.25rem 0.5rem 0.85rem; border-left: 2px solid var(--accent); background: color-mix(in oklab, var(--accent-soft) 50%, transparent); border-radius: 0 8px 8px 0; }
+  .kape-prompt p { flex: 1; min-width: 0; padding-top: 0.25rem; font-size: 15.5px; line-height: 1.45; color: var(--ink); }
+  .kape-prompt-lead { color: var(--ink-faint); }
+  .kape-prompt-tools { display: flex; align-items: center; gap: 0.15rem; flex: none; }
+  .kape-prompt-x { width: 32px; height: 32px; }
+
+  .kape-context { display: grid; gap: 0.9rem; margin-top: 0.9rem; animation: rise 200ms var(--ease-out-soft) both; }
+  @media (min-width: 640px) { .kape-context { grid-template-columns: 1fr 1fr; } }
+  .kape-context label, .kape-context-label { display: block; font-size: 13px; font-weight: 550; color: var(--ink-soft); }
+  .kape-context-wide { grid-column: 1 / -1; }
+  .kape-context .cat-choices { margin-top: 0.2rem; }
+
+  .kape-actions { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 0.6rem 1rem; margin-top: 1rem; }
+  .kape-opts { display: flex; flex-wrap: wrap; align-items: center; gap: 0.1rem 0.25rem; min-width: 0; margin-left: -0.6rem; }
+  .kape-opt { display: inline-flex; align-items: center; gap: 0.4rem; min-width: 0; max-width: 100%; height: 2.25rem; padding: 0 0.65rem; border-radius: 999px; font-size: 14px; color: var(--ink-soft); white-space: nowrap; transition: background 140ms, color 140ms; }
+  .kape-opt:hover, .kape-opt[data-state='open'], .kape-opt[aria-expanded='true'] { color: var(--ink); background: color-mix(in oklab, var(--ink) 5.5%, transparent); }
+  .kape-opt[data-set] { color: var(--ink); font-weight: 550; }
+  .kape-opt > span:last-child { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+  .kape-opt-dot { flex: none; width: 8px; height: 8px; border-radius: 999px; background: var(--c, var(--accent)); }
+  .kape-opt-dot--ink { background: var(--ink-faint); }
+  .kape-opt-sum { font-weight: 400; color: var(--ink-soft); }
+  @media (max-width: 420px) { .kape-opt-sum { display: none; } }
+  .kape-save { min-width: 9.75rem; margin-left: auto; }
+  @media (max-width: 639px) { .kape-actions { gap: 0.5rem; } .kape-save { min-width: 8.5rem; } }
+
+  .kape-fine { max-width: 40rem; margin-top: 0.9rem; font-size: 13px; line-height: 1.45; color: var(--ink-faint); }
+  .kape-note { display: flex; align-items: flex-start; gap: 0.55rem; margin-top: 0.8rem; font-size: 14px; line-height: 1.45; color: var(--ink); animation: fade 160ms ease-out both; }
+  .kape-note strong { font-weight: 600; overflow-wrap: anywhere; }
+  .kape-note[data-tone='warn'] { padding: 0.5rem 0.7rem; border-radius: 8px; background: color-mix(in oklab, var(--warn) 11%, transparent); color: var(--warn); }
+  .kape-okmark { flex: none; width: 20px; height: 20px; transform: rotate(-10deg); fill: none; stroke: var(--accent); stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; }
+  .kape-closed { margin-top: 1rem; padding: 0.6rem 0.8rem; border-radius: 8px; background: color-mix(in oklab, var(--warn) 10%, transparent); font-size: 14px; line-height: 1.45; }
+  .kape-state-body { margin-top: 1.1rem; }
+
+  /* ── Panels ── */
+  .kape-pop {
+    z-index: 50; width: min(21rem, calc(100vw - 24px)); padding: 0.4rem;
+    border: 1px solid var(--k-edge); border-radius: 12px; background: var(--card);
+    box-shadow: 0 22px 40px -22px var(--k-lift), 0 1px 0 var(--k-edge);
+    animation: rise 160ms var(--ease-out-soft) both;
+  }
+  .kape-pop:has(.kape-details) { width: min(25rem, calc(100vw - 24px)); }
+  .kape-veil { position: fixed; inset: 0; z-index: 50; background: rgb(28 18 10 / 0.38); animation: fade 160ms ease-out both; }
+  .kape-drawer {
+    position: fixed; z-index: 51; left: 0; right: 0; bottom: 0;
+    max-height: 86dvh; overflow-y: auto; overscroll-behavior: contain;
+    padding: 0.6rem 0.75rem max(0.9rem, env(safe-area-inset-bottom));
+    border-top: 1px solid var(--k-edge); border-radius: 18px 18px 0 0; background: var(--card);
+    box-shadow: 0 -14px 30px -20px var(--k-lift);
+    animation: kape-up 220ms var(--ease-out-soft) both;
+  }
+  .kape-drawer:focus { outline: none; }
+  .kape-drawer-head { display: flex; align-items: center; justify-content: space-between; gap: 1rem; padding: 0.1rem 0 0.35rem 0.55rem; }
+  .kape-panel-title { font-size: 15px; font-weight: 650; color: var(--ink); }
+  .kape-cats { list-style: none; margin: 0; padding: 0; }
+  .kape-cat { display: grid; grid-template-columns: 10px auto minmax(0, 1fr); align-items: baseline; column-gap: 0.6rem; width: 100%; min-height: 2.5rem; padding: 0.55rem 0.65rem; border-radius: 8px; text-align: left; font-size: 14.5px; color: var(--ink); }
+  .kape-cat:hover { background: color-mix(in oklab, var(--ink) 5%, transparent); }
+  .kape-cat:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+  .kape-cat[aria-pressed='true'] { background: color-mix(in oklab, var(--c) 13%, transparent); }
+  .kape-cat-dot { align-self: center; width: 9px; height: 9px; border-radius: 999px; box-shadow: inset 0 0 0 1.5px var(--c); }
+  .kape-cat[aria-pressed='true'] .kape-cat-dot { background: var(--c); }
+  .kape-cat-dot--none { box-shadow: inset 0 0 0 1.5px var(--ink-faint); }
+  .kape-cat-label { font-weight: 560; white-space: nowrap; }
+  .kape-cat-hint { font-size: 13px; color: var(--ink-faint); }
+  .kape-cats-clear { margin-top: 0.25rem; padding-top: 0.25rem; border-top: 1px dashed var(--line-strong); }
+  @media (max-width: 639px) { .kape-cat { min-height: 3rem; align-items: center; } }
+  .kape-details { padding: 0.55rem 0.6rem 0.45rem; }
+  .kape-kicker { font-family: var(--font-world-meta); font-size: 10.5px; font-weight: 500; letter-spacing: 0.14em; text-transform: uppercase; color: var(--ink-faint); }
+  .kape-details-name { margin-top: 0.25rem; font-family: var(--font-world-display); font-size: 18px; line-height: 1.25; overflow-wrap: anywhere; }
+  .kape-details-sub { font-size: 13px; color: var(--ink-faint); }
+  .kape-details-list { margin-top: 0.75rem; font-size: 13.5px; line-height: 1.5; }
+  .kape-details-list div + div { margin-top: 0.55rem; }
+  .kape-details-list dt { font-weight: 600; color: var(--ink); }
+  .kape-details-list dd { margin: 0.05rem 0 0; color: var(--ink-soft); }
+  .kape-details-links { display: flex; flex-wrap: wrap; gap: 0.3rem 1rem; margin-top: 0.8rem; font-size: 13.5px; }
+  .kape-details-links a { font-weight: 550; color: var(--accent-ink); text-decoration: underline; text-decoration-color: color-mix(in oklab, var(--accent) 40%, transparent); text-underline-offset: 3px; }
+  .kape-details-more { margin-top: 0.8rem; padding-top: 0.65rem; border-top: 1px dashed var(--line-strong); }
+  .kape-details-more ul { list-style: none; margin: 0.25rem 0 0.2rem -0.45rem; padding: 0; }
+  .kape-details-team + .kape-details-team { margin-top: 0.35rem; }
+  .kape-details-team-name { margin-top: 0.45rem; font-size: 12.5px; color: var(--ink-faint); }
+  .kape-row { display: block; width: 100%; padding: 0.5rem 0.45rem; border-radius: 8px; text-align: left; font-size: 14px; font-weight: 550; color: var(--ink); overflow-wrap: anywhere; }
+  .kape-row:hover { background: color-mix(in oklab, var(--ink) 5%, transparent); }
+  .kape-tip { z-index: 60; display: flex; align-items: center; gap: 0.3rem; padding: 0.35rem 0.55rem; border-radius: 8px; background: var(--ink); color: var(--card); font-size: 12.5px; animation: fade 120ms ease-out both; }
+
+  /* ── The collection: café slips, one thought each ── */
+  .kape-shelf .mark-indent { padding-left: 0; }
+  .kape-shelf .mark-outdent { margin-left: 0; }
+  .mine-title { font-family: var(--font-world-display); font-weight: 400; font-size: 1.35rem; letter-spacing: -0.01em; }
+  .kape-shelf .passages { display: grid; gap: 1rem; margin-top: 1.2rem; }
+  .passage, .passage:first-child {
+    grid-template-columns: minmax(0, 1fr) auto; column-gap: 0.5rem; row-gap: 0.35rem;
+    margin: 0; padding: 0.95rem 0.55rem 1.05rem 1.1rem;
+    border: 0; border-radius: 0 0 4px 4px;
+    background: var(--k-slip);
+    box-shadow: 0 1px 0 var(--k-edge), 0 12px 20px -18px var(--k-lift);
+  }
+  /* The slip's torn top edge. */
+  .passage::before {
+    content: ''; position: absolute; left: 0; right: 0; top: -5px; height: 5px; background: var(--k-slip);
+    -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='5'%3E%3Cpath d='M0 5h10L5 0z'/%3E%3C/svg%3E") 0 0 / 10px 5px repeat-x;
+    mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='5'%3E%3Cpath d='M0 5h10L5 0z'/%3E%3C/svg%3E") 0 0 / 10px 5px repeat-x;
+  }
+  .passage-mark { grid-column: 1; grid-row: 1; flex-direction: row; align-items: center; gap: 0.65rem; min-height: 1.5rem; padding-top: 0; font-family: var(--font-world-meta); font-size: 11.5px; letter-spacing: 0.02em; text-align: left; }
+  .passage-mark .cat { font-family: var(--font-world-meta); font-style: normal; font-size: 10.5px; font-weight: 500; letter-spacing: 0.12em; text-transform: uppercase; line-height: 1; }
+  .passage-mark .cat::before { display: inline-block; width: 6px; height: 6px; margin: 0 0.4rem 0 0; vertical-align: 0.08em; border-radius: 999px; }
+  .passage-mark .period { color: var(--ink-faint); }
+  .passage-stamp { display: none; }
+  .passage-body { grid-column: 1 / -1; grid-row: 2; }
+  .passage-menu { grid-column: 2; grid-row: 1; align-self: center; margin: -0.4rem -0.1rem -0.4rem 0; }
+  .passage-text { max-width: none; font-size: 1rem; line-height: 1.62; }
+  .passage-text[data-short] { font-size: 1.08rem; line-height: 1.5; }
+  .passage-context { max-width: none; border-left: 1.5px dashed var(--line-strong); }
+  .passage[data-state='queued'], .passage[data-state='sending'] { padding-left: 1.1rem; background: linear-gradient(90deg, color-mix(in oklab, var(--status) 7%, var(--k-slip)), var(--k-slip) 70%); box-shadow: inset 3px 0 0 color-mix(in oklab, var(--status) 60%, transparent), 0 1px 0 var(--k-edge); border-radius: 0 0 4px 4px; }
+  .passage[data-state='attention'] { padding-left: 1.1rem; background: linear-gradient(90deg, color-mix(in oklab, var(--warn) 8%, var(--k-slip)), var(--k-slip) 75%); box-shadow: inset 3px 0 0 var(--warn), 0 1px 0 var(--k-edge); border-radius: 0 0 4px 4px; }
+  .passage[data-editing] { padding-right: 1rem; }
+  /* A confirmed thought: its slip settles into the pile. */
+  .passage.anim-reflect { animation: kape-settle 560ms var(--ease-out-soft) both; }
+  .passage-gone, .passage-gone:first-child { padding: 0.7rem 0.6rem 0.7rem 1.1rem; border: 1px dashed var(--line-strong); border-radius: 6px; }
+  @media (min-width: 1280px) {
+    .passage { grid-template-columns: minmax(0, 1fr) auto; column-gap: 0.5rem; }
+    .passage-mark { grid-column: 1; grid-row: 1; flex-direction: row; align-items: center; gap: 0.65rem; padding-top: 0; text-align: left; }
+    .passage-mark .cat::before { display: inline-block; margin: 0 0.4rem 0 0; }
+    .passage-body { grid-column: 1 / -1; }
+    .passage-menu { grid-column: 2; }
+  }
+  .passage .journal-field--edit { margin-top: 0.1rem; padding: 0.6rem 0.75rem; min-height: 5rem; border-radius: 8px; background: color-mix(in oklab, var(--paper) 35%, var(--card)); box-shadow: inset 0 0 0 1px var(--line); font-size: 1rem; line-height: 1.6; }
+  .passage .journal-field--edit:focus, .passage .journal-field--edit:focus-visible { outline: none; box-shadow: inset 0 0 0 1.5px var(--accent); }
+  .passage .journal-field--small { border-radius: 8px; background: color-mix(in oklab, var(--paper) 35%, var(--card)); box-shadow: inset 0 0 0 1px var(--line); padding: 0.5rem 0.65rem; }
+  .journal-edit-opts { display: flex; flex-wrap: wrap; align-items: center; gap: 0.1rem 0.25rem; margin: 0.5rem 0 0 -0.6rem; }
+  .journal-edit-opts .journal-tool { height: 2.25rem; margin: 0; padding: 0 0.65rem; border-radius: 999px; font-size: 14px; }
+
+  :scope .kape-shelf .mine-empty { display: block; padding: 0; text-align: left; }
+  .kape-quiet { display: flex; flex-direction: column; gap: 0.7rem; margin-top: 1.2rem; padding: 1.1rem 1.1rem 1.2rem; background: var(--k-slip); border-radius: 0 0 4px 4px; box-shadow: 0 1px 0 var(--k-edge), 0 12px 20px -18px var(--k-lift); position: relative; }
+  .kape-quiet-art { display: flex; align-items: center; gap: 0.75rem; }
+  .kape-quiet-slip { width: 120px; height: 64px; overflow: visible; }
+  .kape-quiet-slip path { fill: var(--k-receipt); stroke: var(--k-edge); stroke-width: 1; }
+  .kape-quiet-slip text { fill: var(--k-receipt-ink); letter-spacing: 0.08em; }
+  .kape-quiet-text { font-size: 15px; line-height: 1.5; color: var(--ink-soft); text-wrap: pretty; }
+  .kape-quiet-sub { display: block; margin-top: 0.15rem; font-size: 13.5px; color: var(--ink-faint); }
+
+  /* ── The 40-minute stir ── */
+  .kape-stir { display: block; width: 100%; height: auto; border-radius: 16px; box-shadow: 0 0 0 1px var(--k-edge), 0 24px 40px -34px var(--k-lift); }
+  @media (max-width: 1023px) { .kape-scene { margin-top: 0.5rem; } }
+  .kape-s-wall { fill: var(--k-wall); }
+  .kape-stir[data-narrow] .kape-s-wide { display: none; }
+  .kape-s-sun path { fill: var(--k-sun); }
+  .kape-s-floor { fill: var(--k-floor); }
+  .kape-s-line { fill: none; stroke: var(--k-edge); stroke-width: 1.2; }
+  .kape-s-pool-a { stop-color: var(--k-pool); }
+  .kape-s-pool-b { stop-color: var(--k-pool); stop-opacity: 0; }
+  .kape-s-shade { fill: var(--k-green); }
+  .kape-s-bulb { fill: var(--k-bulb); }
+  .kape-s-clock { fill: var(--k-ceramic); stroke: var(--k-ink); stroke-width: 1.4; }
+  .kape-s-tick { stroke: var(--k-ink); stroke-width: 1.2; stroke-linecap: round; }
+  .kape-s-hand { stroke: var(--k-ink); stroke-width: 2.4; stroke-linecap: round; }
+  .kape-s-hand--min { stroke-width: 1.6; }
+  .kape-s-pin { fill: var(--k-ink); }
+  .kape-s-notice { fill: var(--k-docket); stroke: var(--k-edge); stroke-width: 1; }
+  .kape-s-tack { fill: var(--accent); }
+  .kape-s-notice-k { fill: var(--k-receipt-ink); letter-spacing: 0.1em; }
+  .kape-s-notice-h { fill: var(--ink); font-family: var(--font-world-display); }
+  .kape-s-chair { fill: none; stroke: var(--k-chair); stroke-width: 4; stroke-linecap: round; }
+  .kape-s-shirt { fill: var(--k-shirt); stroke: var(--k-ink); stroke-width: 1.3; stroke-linejoin: round; }
+  .kape-s-collar { fill: none; stroke: var(--k-ink); stroke-width: 1.1; stroke-linecap: round; opacity: 0.55; }
+  .kape-s-crease { fill: none; stroke: var(--k-ink); stroke-width: 0.9; stroke-linecap: round; opacity: 0.5; }
+  .kape-s-wainscot { fill: var(--k-wainscot); }
+  .kape-s-rail { fill: none; stroke: var(--k-rail); stroke-width: 4; }
+  .kape-s-leg { fill: var(--k-trouser); }
+  .kape-s-slipper { fill: var(--k-slipper); }
+  .kape-s-note { fill: var(--k-receipt); stroke: var(--k-edge); stroke-width: 1; }
+  .kape-s-sleeve-o { fill: none; stroke: var(--k-ink); stroke-width: 17; stroke-linecap: round; stroke-linejoin: round; }
+  .kape-s-sleeve { fill: none; stroke: var(--k-shirt); stroke-width: 14.6; stroke-linecap: round; stroke-linejoin: round; }
+  .kape-s-skin { fill: var(--k-skin); stroke: var(--k-ink); stroke-width: 1.2; stroke-linejoin: round; }
+  .kape-s-top { fill: var(--k-wood); }
+  .kape-s-stand { fill: var(--k-iron); stroke: var(--k-iron); stroke-width: 5; stroke-linecap: round; }
+  .kape-s-receipt { fill: var(--k-receipt); stroke: var(--k-edge); stroke-width: 0.8; }
+  .kape-s-receipt-t { fill: var(--k-receipt-ink); white-space: pre; }
+  .kape-s-saucer, .kape-s-cup { fill: var(--k-ceramic); stroke: var(--k-ink); stroke-width: 1.2; }
+  .kape-s-handle { fill: none; stroke: var(--k-ink); stroke-width: 2.6; stroke-linecap: round; }
+  .kape-s-coffee { fill: var(--k-coffee); }
+  .kape-s-band { stroke: var(--accent); stroke-width: 2.2; }
+  .kape-s-steam { fill: none; stroke: var(--k-steam); stroke-width: 2.2; stroke-linecap: round; stroke-dasharray: 1; stroke-dashoffset: 0; opacity: 0.75; }
+  .kape-s-q { opacity: 0; }
+  .kape-s-q path { fill: none; stroke: var(--k-steam); stroke-width: 2.4; stroke-linecap: round; }
+  .kape-s-q circle { fill: var(--k-steam); }
+  .kape-s-spoon { fill: none; stroke: var(--k-metal); stroke-width: 3.2; stroke-linecap: round; }
+  .kape-s-spoon-bowl { fill: var(--k-metal); stroke: var(--k-ink); stroke-width: 0.7; }
+  .kape-s-tent { fill: var(--k-docket); stroke: var(--k-edge); stroke-width: 1; }
+  .kape-s-tent-t { fill: var(--ink); letter-spacing: 0.04em; }
+  .kape-s-sugar { fill: var(--k-sugar); stroke: var(--k-sachet-line); stroke-width: 0.9; }
+  .kape-s-sugar-line { stroke: var(--accent); stroke-width: 0.9; }
+  .kape-s-z { fill: var(--k-rail); }
+
+  /* Once, the first time it's seen: two slow stirs, a curl that briefly asks, eyebrows up. */
+  .kape-stir[data-play] .kape-arm { transform-box: view-box; transform-origin: 392px 200px; animation: kape-stir 2600ms 250ms ease-in-out both; }
+  .kape-stir[data-play] .kape-s-steam { animation: kape-steam 3800ms 300ms ease-out both; }
+  .kape-stir[data-play] .kape-s-q { animation: kape-q 3800ms 300ms ease-out both; }
+  .kape-stir[data-play] .kape-fig-brows { animation: kape-brows 3800ms 300ms ease-in-out both; }
+
+  /* The chooser's miniature of the café. */
+  .kape-preview { display: grid; grid-template-columns: minmax(0, 1.35fr) minmax(0, 1fr); gap: 22px; align-items: start; padding: 26px 22px 26px; }
+  .kape-preview .kape-sheet { padding: 2.2rem 1.3rem 1.2rem; }
+  .kape-preview .kape-title { font-size: 1.75rem; }
+  .kape-preview .kape-field { min-height: 4.5rem; color: var(--ink-faint); }
+  .kape-preview .mine { padding-top: 0.5rem; }
+  .kape-preview .passage-text { font-size: 0.95rem; }
+
+  /* ── Muni's journal classes, still used by the welcome page ── */
   .journal-sky {
     background:
       linear-gradient(112deg, transparent 18%, color-mix(in oklab, var(--k-light) 30%, transparent) 38%, transparent 62%),
       linear-gradient(180deg, transparent, color-mix(in oklab, var(--k-light) 16%, transparent));
     box-shadow: inset 0 -1px 0 var(--line-strong);
   }
-  :scope:where(.dark, .dark *) .journal-sky {
-    background: radial-gradient(520px 200px at 88% 78%, color-mix(in oklab, var(--k-light) 20%, transparent), transparent 70%);
-  }
-  /* A café menu's double rule under the band. */
+  :scope:where(.dark, .dark *) .journal-sky { background: radial-gradient(520px 200px at 88% 78%, color-mix(in oklab, var(--k-light) 20%, transparent), transparent 70%); }
   .journal-water { background: linear-gradient(var(--line-strong), var(--line-strong)) 0 3px / 100% 1px no-repeat; }
   .journal-scene[data-scene] .journal-sky { --art-w: calc(var(--art-h) * 1.6); }
   .kape-head--wide { display: none; }
@@ -261,72 +622,18 @@
   .w-invite { font-family: var(--font-world-meta); font-size: 13px; letter-spacing: 0.01em; }
   .w-invite::before { content: '— '; color: var(--accent); }
 
-  /* The page you write on: a sheet laid on the table. */
-  .journal-field {
-    background: var(--k-receipt);
-    border-radius: 3px;
-    box-shadow: 0 1px 0 var(--line-strong), 0 16px 30px -24px rgb(70 38 12 / 0.5);
+  @media (prefers-reduced-motion: reduce) {
+    .kape-stir[data-play] .kape-arm, .kape-stir[data-play] .kape-s-steam, .kape-stir[data-play] .kape-s-q, .kape-stir[data-play] .kape-fig-brows { animation: none; }
+    .kape-context, .kape-pop, .kape-drawer, .kape-note, .kape-veil, .kape-tip { animation: fade 120ms ease-out both; }
+    .passage.anim-reflect { animation: fade 160ms ease-out both; }
   }
-  .journal-field:hover { box-shadow: 0 1px 0 var(--ink-faint), 0 16px 30px -24px rgb(70 38 12 / 0.5); }
-  .journal-field:focus, .journal-field:focus-visible {
-    background: var(--k-receipt);
-    box-shadow: inset 0 -2px 0 var(--accent), 0 0 0 4px color-mix(in oklab, var(--accent) 13%, transparent), 0 16px 30px -24px rgb(70 38 12 / 0.5);
-  }
-  :scope:where(.dark, .dark *) .journal-field { box-shadow: 0 1px 0 var(--line-strong), 0 16px 30px -22px rgb(0 0 0 / 0.7); }
-
-  /* The collection: a receipt roll, torn at both ends. */
-  .mine {
-    position: relative;
-    margin-top: 0.5rem;
-    padding: 1.4rem 1.25rem 1.5rem;
-    background: var(--k-receipt);
-    box-shadow: 0 22px 36px -30px rgb(70 38 12 / 0.55);
-  }
-  .mine::before, .mine::after {
-    content: '';
-    position: absolute;
-    left: 0;
-    right: 0;
-    height: 7px;
-    background: var(--k-receipt);
-    -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='7'%3E%3Cpath d='M0 7h12L6 0z'/%3E%3C/svg%3E") 0 0 / 12px 7px repeat-x;
-    mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='7'%3E%3Cpath d='M0 7h12L6 0z'/%3E%3C/svg%3E") 0 0 / 12px 7px repeat-x;
-  }
-  .mine::before { top: -7px; }
-  .mine::after { bottom: -7px; transform: scaleY(-1); }
-  .mine-head { padding-bottom: 0.9rem; border-bottom: 1px dashed var(--line-strong); }
-  .mine-title { font-family: var(--font-world-display); font-weight: 400; font-size: 1.3rem; letter-spacing: -0.01em; }
-  .passage { border-top: 1px dashed var(--line-strong); }
-  .passage:first-child { border-top: 0; }
-  .passage-mark { font-family: var(--font-world-meta); font-size: 11.5px; letter-spacing: 0.02em; }
-  /* The category as a rubber stamp. */
-  .passage-mark .cat {
-    font-style: normal;
-    font-size: 10px;
-    font-weight: 500;
-    letter-spacing: 0.1em;
-    text-transform: uppercase;
-    padding: 0.05em 0.6em;
-    border: 1.4px solid color-mix(in oklab, var(--tone, var(--ink-faint)) 80%, transparent);
-    border-radius: 999px;
-  }
-  .passage-mark .cat::before { display: none; }
-  /* Order numbers, as on any receipt. */
-  .passage-stamp[data-n] { display: inline; color: var(--ink-faint); }
-  .passage-stamp[data-n]::before { content: '#' attr(data-n); }
-  .mine-empty-text { font-size: 15px; }
-
-  /* The table beside the writing, on wide screens; the cup moves up to the header on narrow ones. */
-  @media (min-width: 1024px) {
-    .w-slot--compose { display: block; margin: 2.75rem 0 0 -0.5rem; max-width: 24rem; aspect-ratio: 320 / 150; }
-  }
-  .kape-empty { display: flex; align-items: flex-end; gap: 0.25rem; }
-  .kape-empty svg:first-child { border-radius: 999px; }
-  .kape-steam path { stroke-dasharray: 1; animation: w-draw 1700ms var(--ease-out-soft) both; }
 }
-@media (prefers-reduced-motion: reduce) {
-  .kape-steam path { stroke-dasharray: none; animation: w-appear 1500ms ease-out both; }
-}
+@keyframes kape-stir { 0% { rotate: 0deg; } 14% { rotate: -5deg; } 30% { rotate: 3deg; } 46% { rotate: -5deg; } 62% { rotate: 3deg; } 80%, 100% { rotate: 0deg; } }
+@keyframes kape-steam { 0% { stroke-dashoffset: 1; opacity: 0; } 12% { opacity: 0.8; } 38% { stroke-dashoffset: 0; opacity: 0.8; } 48% { opacity: 0; } 82% { opacity: 0; } 100% { stroke-dashoffset: 0; opacity: 0.75; } }
+@keyframes kape-q { 0%, 40% { opacity: 0; transform: translateY(6px); } 52% { opacity: 1; transform: none; } 78% { opacity: 1; transform: none; } 92%, 100% { opacity: 0; transform: translateY(-4px); } }
+@keyframes kape-brows { 0%, 46% { transform: none; } 54%, 84% { transform: translateY(-1.5px); } 100% { transform: none; } }
+@keyframes kape-settle { from { opacity: 0; transform: translateY(-14px) rotate(-1.4deg); } to { opacity: 1; transform: none; } }
+@keyframes kape-up { from { transform: translateY(24px); opacity: 0.4; } to { transform: none; opacity: 1; } }
 
 /* ── Guhit: the gloriously unfinished studio ─────────────────────────────────────────────── */
 /*
@@ -428,12 +735,17 @@
   /* ── The studio page ── */
   .guhit-studio { display: grid; gap: 2.75rem; }
   @media (min-width: 1024px) {
-    .guhit-studio { grid-template-columns: minmax(0, 1fr) minmax(0, 20rem); gap: 3rem; align-items: start; }
+    /* The collection spans both rows, so the master plan sits right under the sketchbook. */
+    .guhit-studio { grid-template-columns: minmax(0, 1fr) minmax(0, 20rem); grid-template-areas: 'desk shelf' 'scene shelf'; grid-template-rows: auto 1fr; gap: 3rem; align-items: start; }
+    .guhit-desk { grid-area: desk; }
+    .guhit-shelf { grid-area: shelf; }
+    .guhit-scene { grid-area: scene; }
   }
   @media (min-width: 1280px) {
-    .guhit-studio { grid-template-columns: minmax(0, 45rem) minmax(0, 24rem); gap: 4.5rem; justify-content: center; }
+    .guhit-studio { grid-template-columns: minmax(0, 45rem) minmax(0, 24rem); column-gap: 4.5rem; justify-content: center; }
   }
-  .guhit-desk, .guhit-shelf { min-width: 0; }
+  .guhit-desk, .guhit-shelf, .guhit-scene { min-width: 0; }
+  @media (max-width: 1023px) { .guhit-scene { display: none; } }
   .guhit-notices:empty { display: none; }
   .guhit-notices { margin-bottom: 1.25rem; }
   @media (min-width: 1024px) { .guhit-shelf { padding-top: 3.35rem; } }
@@ -627,6 +939,8 @@
   .guhit-row { display: block; width: 100%; padding: 0.5rem 0.45rem; border-radius: 6px; text-align: left; font-size: 14px; font-weight: 550; color: var(--ink); overflow-wrap: anywhere; }
   .guhit-row:hover { background: color-mix(in oklab, var(--ink) 5%, transparent); }
   .guhit-row .guhit-details-sub { font-weight: 400; }
+  .guhit-details-team + .guhit-details-team { margin-top: 0.35rem; }
+  .guhit-details-team-name { margin-top: 0.4rem; font-size: 12.5px; color: var(--ink-faint); }
 
   .guhit-tip { z-index: 60; display: flex; align-items: center; gap: 0.3rem; padding: 0.35rem 0.55rem; border-radius: 6px; background: var(--ink); color: var(--card); font-size: 12.5px; animation: fade 120ms ease-out both; }
 
@@ -688,7 +1002,7 @@
 
   /* ── The master plan on the desk (wide screens): one feeling, escalating ── */
   .guhit-plan { display: none; }
-  @media (min-width: 1024px) { .guhit-plan { display: block; margin: 3.5rem 0 0 0.5rem; } }
+  @media (min-width: 1024px) { .guhit-plan { display: block; margin: 0.5rem 0 0 0.5rem; } }
   .guhit-plan svg { display: block; width: 100%; height: auto; overflow: visible; }
   .guhit-p-paper { fill: var(--g-plan); stroke: var(--g-edge); stroke-width: 1; }
   .guhit-p-grid { fill: none; stroke: var(--g-plan-grid); stroke-width: 0.7; }

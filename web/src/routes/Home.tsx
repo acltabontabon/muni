@@ -18,7 +18,8 @@ import { NewWorkspaceDialog } from '@/ui/menus'
 import { AppShell } from '@/ui/shell'
 import { WorldScene, WorldSlot } from '@/worlds/WorldScene'
 import { useWorld } from '@/worlds/world'
-import { GuhitComposer, GuhitEmpty, GuhitSheet, GuhitStudio, SprintTab, type TabState } from '@/worlds/guhit/Studio'
+import { OWN_PAGES } from '@/worlds/pages'
+import { SprintTab, type TabState } from '@/worlds/desk'
 import { CharacterNote } from '@/worlds/Character'
 import { RetroWhen } from '@/ui/when'
 import { DeviceKeyNotice } from '@/ui/keys'
@@ -37,6 +38,7 @@ export function Home() {
   useDocumentTitle('')
   const { me, offline: authOffline } = useAuth()
   const { world } = useWorld()
+  const own = world ? OWN_PAGES[world] ?? null : null
   const local = useLocal()
   const [params] = useSearchParams()
   const [data, setData] = useState<Loaded | null>(null)
@@ -169,11 +171,11 @@ export function Home() {
   if (composerFor) {
     const empty = collected === 0
     const closedNote = !dest ? <>This sprint stopped collecting. Your text is still here — copy it{choices.length ? ', or choose another sprint' : ''}.</> : undefined
-    // Guhit's world is its own layout: the sprint as the sketchbook's index tab, one writing sheet.
-    if (world === 'guhit')
+    // A world with its own page (Guhit's sketchbook, Kape's café table) lays it out itself.
+    if (own)
       return (
         <AppShell workspace={ws} wide>
-          <GuhitStudio
+          <own.Page
             empty={empty}
             count={collected}
             notices={
@@ -185,16 +187,16 @@ export function Home() {
               </>
             }
             book={
-              <GuhitComposer
+              <own.Composer
                 key={`${composerFor.id}:${local.cleared}`}
                 dest={dest ? toDest(dest) : null}
                 choices={choices}
                 onChoose={choose}
                 closed={closedNote}
-                tab={(onSwitch) => <SprintTab s={composerFor} state={dest ? 'collecting' : 'closed-now'} me={me} choices={choices} onSwitch={onSwitch} elsewhere={elsewhere} />}
+                tab={(onSwitch) => <SprintTab s={composerFor} state={dest ? 'collecting' : 'closed-now'} me={me} choices={choices} onSwitch={onSwitch} elsewhere={elsewhere} kicker={own.kicker} />}
               />
             }
-            collection={<MyThoughts sprintId={composerFor.id} editable={!!dest && !offline} moveChoices={moveChoices} online={!offline} onCount={setCollected} empty={<GuhitEmpty />} />}
+            collection={<MyThoughts sprintId={composerFor.id} editable={!!dest && !offline} moveChoices={moveChoices} online={!offline} onCount={setCollected} empty={<own.Empty />} />}
             extras={extras}
           />
         </AppShell>
@@ -254,13 +256,13 @@ export function Home() {
     kicker = <>{sprintLink(live)} · retro live</>
     title = <>The retro is <em>happening</em> now</>
     body = <State body="Collection is closed. Follow the conversation and take part from this device." action={<Link to={`/sprints/${live.id}/room`}><Button variant="primary">Join the retro <ArrowRight className="size-4" /></Button></Link>} />
-    mine = <MyThoughts sprintId={live.id} editable={false} moveChoices={moveChoices} online={!offline} onCount={setCollected} empty={world === 'guhit' ? <GuhitEmpty /> : undefined} />
+    mine = <MyThoughts sprintId={live.id} editable={false} moveChoices={moveChoices} online={!offline} onCount={setCollected} empty={own ? <own.Empty /> : undefined} />
   } else if (closed) {
     about = { s: closed, state: 'closed' }
     kicker = <>{sprintLink(closed)} · <RetroWhen s={closed as { retro_at: string; timezone: string }} icon={false} /></>
     title = <>Collection is <em>closed</em></>
     body = <State body={closed.status === 'ready' ? 'Thoughts are read-only now. The retro starts when the facilitator begins it.' : 'Thoughts are read-only now while the facilitator prepares the discussion.'} action={<Link to={`/sprints/${closed.id}`} className="inline-flex items-center gap-1 text-sm font-medium text-accent-ink hover:underline">Sprint guide <ArrowRight className="size-4" /></Link>} />
-    mine = <MyThoughts sprintId={closed.id} editable={false} moveChoices={moveChoices} online={!offline} onCount={setCollected} empty={world === 'guhit' ? <GuhitEmpty /> : undefined} />
+    mine = <MyThoughts sprintId={closed.id} editable={false} moveChoices={moveChoices} online={!offline} onCount={setCollected} empty={own ? <own.Empty /> : undefined} />
   } else if (recentDone) {
     about = { s: recentDone, state: 'done' }
     kicker = <>{sprintLink(recentDone)} · retro complete</>
@@ -287,10 +289,10 @@ export function Home() {
       </div>
     )
   }
-  if (world === 'guhit')
+  if (own)
     return (
       <AppShell workspace={ws} wide>
-        <GuhitStudio
+        <own.Page
           count={mine ? collected : null}
           notices={
             <>
@@ -299,9 +301,9 @@ export function Home() {
             </>
           }
           book={
-            <GuhitSheet tab={<SprintTab s={about.s} state={about.state} title={about.label} me={me} />} title={title}>
+            <own.Sheet tab={<SprintTab s={about.s} state={about.state} title={about.label} me={me} />} title={title}>
               {body}
-            </GuhitSheet>
+            </own.Sheet>
           }
           collection={mine}
           extras={extras}
