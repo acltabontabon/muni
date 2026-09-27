@@ -16,6 +16,8 @@ those as highlights. The app's About → What's new and each GitHub release are 
 
 ## [Unreleased]
 
+## [1.0.0-rc.3] - 2026-09-28
+
 ### Changed
 
 - **Your character's room, with the sprint in it.** The sprint's name, where it is and the
@@ -68,6 +70,7 @@ those as highlights. The app's About → What's new and each GitHub release are 
 - **A page that feels like yours.** Choose one of eight characters to give your writing page a calm
   room of its own. Only you see it.
 
-[unreleased]: https://github.com/acltabontabon/muni/compare/v1.0.0-rc.2...HEAD
+[unreleased]: https://github.com/acltabontabon/muni/compare/v1.0.0-rc.3...HEAD
+[1.0.0-rc.3]: https://github.com/acltabontabon/muni/compare/v1.0.0-rc.2...v1.0.0-rc.3
 [1.0.0-rc.2]: https://github.com/acltabontabon/muni/compare/v1.0.0-rc.1...v1.0.0-rc.2
 [1.0.0-rc.1]: https://github.com/acltabontabon/muni/releases/tag/v1.0.0-rc.1
