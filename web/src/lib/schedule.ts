@@ -116,3 +116,21 @@ export function retroShort(retroAt: string | number | null | undefined, tz: stri
   if (days === -1) return 'retro was yesterday'
   return r.past ? `retro was ${r.date}` : `retro ${r.date}`
 }
+
+/** The reader's calendar day of an instant, as "2026-09-27" (for grouping, in the device's timezone). */
+export function dayKey(t: string | number): string {
+  const d = new Date(t)
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+}
+
+/** A heading for one day of someone's own thoughts: "Today", "Yesterday", "Monday", then "12 Sep". */
+export function dayLabel(t: string | number, opts: { now?: number; locale?: string } = {}): string {
+  const d = new Date(t)
+  const now = new Date(opts.now ?? Date.now())
+  const start = (x: Date) => new Date(x.getFullYear(), x.getMonth(), x.getDate()).getTime()
+  const days = Math.round((start(now) - start(d)) / 86_400_000)
+  if (days <= 0) return 'Today'
+  if (days === 1) return 'Yesterday'
+  if (days < 7) return d.toLocaleDateString(opts.locale, { weekday: 'long' })
+  return d.toLocaleDateString(opts.locale, { day: 'numeric', month: 'short', ...(d.getFullYear() !== now.getFullYear() ? { year: 'numeric' } : {}) })
+}

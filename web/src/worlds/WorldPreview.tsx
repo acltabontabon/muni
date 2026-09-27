@@ -14,6 +14,7 @@ const VIRTUAL = 640
 const OWN_PREVIEW = {
   guhit: { heading: <>What’s worth <em>remembering</em>?</>, subline: null as string | null, kicker: null as string | null },
   kape: { heading: <>What’s on your mind?</>, subline: 'The coffee’s ready. Take your time.', kicker: 'Writing for' },
+  biyahe: { heading: <>What stayed with you today?</>, subline: 'Some thoughts need a little room.', kicker: 'Writing for' },
 }
 const SAMPLES = [
   { cat: 'keep', body: 'Pairing on the release checklist saved us a whole day.', n: 2, day: 14, mon: 'Sep', hm: '09:40' },

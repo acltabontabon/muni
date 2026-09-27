@@ -10,39 +10,17 @@
  * motion it is simply the finished picture. Decoration only (aria-hidden): no real status here.
  * On a phone, the same drawing framed on Kape, the cup and the tent card (the side jokes stay on wide screens).
  */
-import { useEffect, useRef, useState } from 'react'
+import { useRef } from 'react'
 import { KapeFigure } from '../portraits'
-import { useNarrow } from '../desk'
+import { useNarrow, useOncePlay } from '../desk'
 
 const MONO = "'DM Mono', ui-monospace, monospace"
-// Once per page load: coming back to the page shows the finished picture.
-let played = false
-
 export function StirScene() {
   const ref = useRef<SVGSVGElement>(null)
-  const [play, setPlay] = useState(false)
+  const { phase, paused } = useOncePlay(ref, 'kape')
   const narrow = useNarrow()
-  useEffect(() => {
-    const el = ref.current
-    if (played || !el) return
-    if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
-      played = true
-      return
-    }
-    const io = new IntersectionObserver(
-      ([e]) => {
-        if (!e.isIntersecting) return
-        played = true
-        setPlay(true)
-        io.disconnect()
-      },
-      { threshold: 0.45 },
-    )
-    io.observe(el)
-    return () => io.disconnect()
-  }, [])
   return (
-    <svg ref={ref} className="kape-stir" data-play={play || undefined} data-narrow={narrow || undefined} viewBox={narrow ? '250 34 352 276' : '0 0 720 330'} aria-hidden focusable="false">
+    <svg ref={ref} className="kape-stir" data-play={phase === 'play' || undefined} data-paused={paused || undefined} data-narrow={narrow || undefined} viewBox={narrow ? '250 34 352 276' : '0 0 720 330'} aria-hidden focusable="false">
       <defs>
         <radialGradient id="kape-lamp-pool" cx="0.5" cy="0.5" r="0.5">
           <stop offset="0" className="kape-s-pool-a" />

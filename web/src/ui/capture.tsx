@@ -8,7 +8,7 @@
  * thought, and the UI never says "submitted" until the server has it. Drafts belong to the sprint
  * they were started for (lib/drafts.ts).
  */
-import { createContext, useCallback, useContext, useEffect, useId, useLayoutEffect, useMemo, useRef, useState, type FormEvent, type ReactNode } from 'react'
+import { createContext, Fragment, useCallback, useContext, useEffect, useId, useLayoutEffect, useMemo, useRef, useState, type FormEvent, type ReactNode } from 'react'
 import { Link } from 'react-router'
 import { clsx } from 'clsx'
 import * as Popover from '@radix-ui/react-popover'
@@ -26,6 +26,7 @@ import { WAITING_KEY } from '@/lib/local/outbox'
 import { isLocked } from '@/lib/e2ee/keyring'
 import { useKeysEpoch } from '@/lib/e2ee/E2eeProvider'
 import { splitLinks } from '@/lib/text'
+import { dayKey, dayLabel } from '@/lib/schedule'
 import { Button, ErrorText, Kbd, useToast } from '@/ui'
 import { StatusLabel, type ThoughtState } from '@/ui/status'
 import { Hammock } from '@/ui/journal'
@@ -378,8 +379,15 @@ export function Composer({
 
 // ------------------------------------------------------------------ one thought
 
+/**
+ * How a world shows the collection. `byDay`: thoughts sit under a heading per day, and each shows
+ * only its time (Biyahe); otherwise each carries its own "Yesterday" or date.
+ */
+export const CollectionLook = createContext<{ byDay: boolean }>({ byDay: false })
+
 /** "14:05" today, "Yesterday", "Mon", then "12 Sep". Personal views only. */
-function when(t: string | number) {
+function when(t: string | number, timeOnly = false) {
+  if (timeOnly) return new Date(t).toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' })
   const d = new Date(t)
   const now = new Date()
   const day = (x: Date) => new Date(x.getFullYear(), x.getMonth(), x.getDate()).getTime()
@@ -453,6 +461,7 @@ function Body({ p }: { p: { body: string; impact: string | null; might_help: str
 function Mark({ category, period, at, submitted, n }: { category: string | null; period: string | null; at: string | number; submitted?: boolean; n?: number }) {
   const meta = categoryMeta(category)
   const d = new Date(at)
+  const { byDay } = useContext(CollectionLook)
   return (
     <div className="passage-mark">
       {category ? <span className="cat">{meta.label}</span> : null}
@@ -460,7 +469,7 @@ function Mark({ category, period, at, submitted, n }: { category: string | null;
       {/* Submitted is the quiet, normal state: said out loud for screen readers, shown as the time. */}
       <span className="passage-when" title={submitted ? 'Submitted — the sprint has it' : undefined}>
         {submitted ? <span className="sr-only">Submitted, </span> : null}
-        <time dateTime={d.toISOString()} title={full(at)}>{when(at)}</time>
+        <time dateTime={d.toISOString()} title={full(at)}>{when(at, byDay)}</time>
       </span>
       <span
         className="passage-stamp"
@@ -791,6 +800,7 @@ export function MyThoughts({ sprintId, editable, moveChoices, online, className,
   const local = useLocal()
   const toast = useToast()
   const { voice } = useWorld()
+  const { byDay } = useContext(CollectionLook)
   const [entries, setEntries] = useState<MyEntry[] | null>(null)
   const [failed, setFailed] = useState(false)
   const [shown, setShown] = useState(PAGE)
@@ -905,13 +915,21 @@ export function MyThoughts({ sprintId, editable, moveChoices, online, className,
               <LocalThought key={i.id} item={i} moveChoices={moveChoices} onRemove={localRemoval.remove} />
             ),
           )}
-          {visible.slice(0, shown).map((e) =>
-            entryRemoval.pending.has(e.id) ? (
-              <Removed key={e.id} what="Deleted from the sprint." onUndo={() => entryRemoval.undo(e.id)} />
-            ) : (
-              <EntryThought key={e.id} e={e} n={place.get(e.id) ?? 0} sprintId={sprintId} editable={editable} online={online} fresh={fresh.has(e.id)} onRemove={entryRemoval.remove} onSaved={load} />
-            ),
-          )}
+          {visible.slice(0, shown).map((e, i, list) => (
+            <Fragment key={e.id}>
+              {/* A day's heading, when this world groups by day (the order is unchanged: newest first). */}
+              {byDay && (i === 0 || dayKey(list[i - 1].created_at) !== dayKey(e.created_at)) ? (
+                <li className="passages-day" role="presentation">
+                  <h3>{dayLabel(e.created_at)}</h3>
+                </li>
+              ) : null}
+              {entryRemoval.pending.has(e.id) ? (
+                <Removed what="Deleted from the sprint." onUndo={() => entryRemoval.undo(e.id)} />
+              ) : (
+                <EntryThought e={e} n={place.get(e.id) ?? 0} sprintId={sprintId} editable={editable} online={online} fresh={fresh.has(e.id)} onRemove={entryRemoval.remove} onSaved={load} />
+              )}
+            </Fragment>
+          ))}
         </ul>
       ) : null}
       {visible.length > shown ? (

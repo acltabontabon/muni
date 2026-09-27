@@ -51,15 +51,17 @@ async function open(a, wsId, opts = {}) {
   const errors = []
   page.on('pageerror', (e) => errors.push(e.message))
   await page.goto(`${BASE}/`)
-  await page.locator('.guhit-sheet, .kape-sheet').first().waitFor({ timeout: 15000 })
+  await page.locator('.guhit-sheet, .kape-sheet, .biyahe-sheet').first().waitFor({ timeout: 15000 })
   return { ctx, page, errors }
 }
 const field = (page) => page.locator('textarea[name="thought"]')
 const mine = (a, sprintId) => a.req('GET', `/api/sprints/${sprintId}/entries/mine`)
 
-const HEADING = { guhit: 'What’s worth remembering?', kape: 'What’s on your mind?' }
-const NAME = { guhit: 'Guhit', kape: 'Kape', bola: 'Bola' }
-const WORLDS = (process.env.WORLDS ?? 'guhit,kape').split(',')
+const HEADING = { guhit: 'What’s worth remembering?', kape: 'What’s on your mind?', biyahe: 'What stayed with you today?' }
+const NAME = { guhit: 'Guhit', kape: 'Kape', biyahe: 'Biyahe', bola: 'Bola' }
+/** Each world's scene that plays once, and the part of it kept off a phone. */
+const SCENE = { kape: ['.kape-stir', '.kape-s-wide'], biyahe: ['.biyahe-ride', '.biyahe-r-wide'] }
+const WORLDS = (process.env.WORLDS ?? 'guhit,kape,biyahe').split(',')
 
 for (const W of WORLDS) try {
   console.log(`\n── ${NAME[W]}`)
@@ -89,22 +91,23 @@ for (const W of WORLDS) try {
     check('One primary action, named for what it does', (await page.locator(`.${W}-save`).innerText()).trim() === 'Add to sprint' && (await page.locator(`.${W}-save`).isDisabled()))
     check('An empty collection: one character moment and one line', (await page.locator('.mine-empty .w-empty-art').count()) === 1 && (await page.locator('.mine-empty .w-joke').count()) === 1)
     if (W === 'guhit') check('The master plan starts at one feeling', /rev\. 0/.test(await page.locator('.guhit-plan').textContent()))
-    if (W === 'kape') {
-      check('The label says literally where it goes', (await page.locator('.kape-tab-kicker').innerText()).toLowerCase() === 'writing for')
-      await page.locator('.kape-stir').scrollIntoViewIfNeeded()
-      const played = await page.waitForFunction(() => document.querySelector('.kape-stir')?.hasAttribute('data-play'), null, { timeout: 5000 }).then(() => true).catch(() => false)
-      check('The 40-minute stir plays when it’s seen', played)
-      await page.waitForTimeout(4800)
+    if (SCENE[W]) {
+      const [sc] = SCENE[W]
+      check('The label says literally where it goes', (await page.locator(`.${W}-tab-kicker`).innerText()).toLowerCase() === 'writing for')
+      await page.locator(sc).scrollIntoViewIfNeeded()
+      const played = await page.waitForFunction((q) => document.querySelector(q)?.hasAttribute('data-play'), sc, { timeout: 5000 }).then(() => true).catch(() => false)
+      check('The scene plays when it’s seen', played)
+      await page.waitForTimeout(5400)
       const still = await page.evaluate(() => document.getAnimations().filter((a) => a.playState === 'running').length)
       check('…then the scene is still', still === 0, `${still} running`)
       await page.evaluate(() => (window.__sameDocument = true))
       await page.locator('a', { hasText: 'Sprints' }).first().click()
       await page.waitForURL((u) => u.pathname !== '/')
       await page.locator('a', { hasText: 'Write' }).first().click()
-      await page.locator('.kape-stir').waitFor()
-      await page.locator('.kape-stir').scrollIntoViewIfNeeded()
+      await page.locator(sc).waitFor()
+      await page.locator(sc).scrollIntoViewIfNeeded()
       await page.waitForTimeout(800)
-      check('…and doesn’t replay when you come back', (await page.evaluate(() => window.__sameDocument === true)) && !(await page.locator('.kape-stir').evaluate((el) => el.hasAttribute('data-play'))))
+      check('…and doesn’t replay when you come back', (await page.evaluate(() => window.__sameDocument === true)) && !(await page.locator(sc).evaluate((el) => el.hasAttribute('data-play') || el.hasAttribute('data-armed'))))
       await page.evaluate(() => window.scrollTo(0, 0))
       await field(page).focus()
     }
@@ -161,6 +164,10 @@ for (const W of WORLDS) try {
     check('The options reset for the next thought', (await page.locator(`.${W}-opt[data-set]`).count()) === 0)
     if (W === 'guhit') check('The master plan gains a room, drawn once', /rev\. 1/.test(await page.locator('.guhit-plan').textContent()) && (await page.locator('.guhit-plan .guhit-p-new').count()) === 1)
     check('The new thought settles into the collection', (await page.locator('.passage.anim-reflect').count()) === 1)
+    if (W === 'biyahe') {
+      check('Thoughts sit under a heading per day', (await page.locator('.passages-day h3').allTextContents()).join('|') === 'Today')
+      check('…each keeping only its time', /^\d{1,2}:\d{2}/.test((await page.locator('.passage time').first().innerText()).trim()))
+    }
     await page.waitForTimeout(1800)
     const running = await page.evaluate(() => document.getAnimations().filter((a) => a.playState === 'running').length)
     check('After the moment, nothing keeps moving', running === 0, `${running} running`)
@@ -232,10 +239,11 @@ for (const W of WORLDS) try {
     const { ctx, page } = await open(ana, ws.id, { reducedMotion: 'reduce' })
     const anim = W === 'guhit' ? await page.locator('.guhit-title em').evaluate((el) => getComputedStyle(el, '::after').animationName) : 'none'
     if (W === 'guhit') check('Reduced motion: no drawn underline', anim === 'none', anim)
-    if (W === 'kape') {
-      await page.locator('.kape-stir').scrollIntoViewIfNeeded()
+    if (SCENE[W]) {
+      const [sc] = SCENE[W]
+      await page.locator(sc).scrollIntoViewIfNeeded()
       await page.waitForTimeout(800)
-      check('Reduced motion: the scene is the finished picture, never played', !(await page.locator('.kape-stir').evaluate((el) => el.hasAttribute('data-play'))))
+      check('Reduced motion: the scene is the finished picture, never played', !(await page.locator(sc).evaluate((el) => el.hasAttribute('data-play') || el.hasAttribute('data-armed'))))
     }
     await ctx.close()
   }
@@ -248,10 +256,11 @@ for (const W of WORLDS) try {
     check(`Phone (${theme}): Add to sprint in the first screen`, f.save <= f.vh, `${Math.round(f.save)} of ${f.vh}`)
     check(`Phone (${theme}): the field doesn't take focus by itself`, !(await field(page).evaluate((el) => el === document.activeElement)))
     if (W === 'guhit') check(`Phone (${theme}): the master plan stays off the small screen`, !(await page.locator('.guhit-plan').isVisible()))
-    if (W === 'kape') {
-      const pos = await page.evaluate(() => ({ scene: document.querySelector('.kape-scene').getBoundingClientRect().top, mine: document.querySelector('.mine').getBoundingClientRect().top }))
+    if (SCENE[W]) {
+      const [sc, wide] = SCENE[W]
+      const pos = await page.evaluate((w) => ({ scene: document.querySelector(`.${w}-scene`).getBoundingClientRect().top, mine: document.querySelector('.mine').getBoundingClientRect().top }), W)
       check(`Phone (${theme}): the scene comes after your thoughts`, pos.scene > pos.mine)
-      check(`Phone (${theme}): the scene is framed for a phone`, (await page.locator('.kape-stir[data-narrow]').count()) === 1 && !(await page.locator('.kape-s-wide').first().isVisible()))
+      check(`Phone (${theme}): the scene is framed for a phone`, (await page.locator(`${sc}[data-narrow]`).count()) === 1 && !(await page.locator(wide).first().isVisible()))
     }
     await page.locator(`.${W}-opt`, { hasText: 'Category' }).click()
     const sheet = page.locator(`.${W}-drawer[role=dialog]`)

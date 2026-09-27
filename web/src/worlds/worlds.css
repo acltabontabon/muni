@@ -592,6 +592,7 @@
   .kape-stir[data-play] .kape-s-steam { animation: kape-steam 3800ms 300ms ease-out both; }
   .kape-stir[data-play] .kape-s-q { animation: kape-q 3800ms 300ms ease-out both; }
   .kape-stir[data-play] .kape-fig-brows { animation: kape-brows 3800ms 300ms ease-in-out both; }
+  .kape-stir[data-paused] .kape-arm, .kape-stir[data-paused] .kape-s-steam, .kape-stir[data-paused] .kape-s-q, .kape-stir[data-paused] .kape-fig-brows { animation-play-state: paused; }
 
   /* The chooser's miniature of the café. */
   .kape-preview { display: grid; grid-template-columns: minmax(0, 1.35fr) minmax(0, 1fr); gap: 22px; align-items: start; padding: 26px 22px 26px; }
@@ -1077,7 +1078,7 @@
   --paper: #eef0ec;
   --card: #fbfcfa;
   --card-2: #e0e5df;
-  --ink: #17212a;
+  --ink: #1c2833;
   --ink-soft: #3d4b56;
   --ink-faint: #56646f;
   --line: #d6dcd5;
@@ -1085,7 +1086,7 @@
   --accent: #1f6f78;
   --accent-soft: #d3e7e7;
   --accent-ink: #175a62;
-  --action: #17212a;
+  --action: #1d5f68;
   --action-ink: #fbfcfa;
   --glow: color-mix(in oklab, #f2cf96 26%, transparent);
   --font-world-display: 'Barlow Condensed', var(--font-display);
@@ -1113,21 +1114,70 @@
   --b-ticket: #f7e7c1;
   --b-ticket-ink: #7a5a1c;
   --b-stop: #fbfcfa;
+  --b-livery-a: #c0643a;
+  --b-livery-b: #e0a23a;
+  --b-livery-c: #1f6f78;
+  --b-board: #22303b;
+  --b-board-ink: #f3efe6;
+  --b-board-soft: #b9c4cc;
+  --b-board-amber: #f0b35a;
+  --b-board-warn: #f2a37f;
+  --b-frame-band: #d7ddd8;
+  --b-frame-edge: #bfc8c2;
+  --b-lift: rgb(20 40 50 / 0.3);
+  --b-sky-a: #c9dce3;
+  --b-sky-b: #efe2c9;
+  --b-sky-c: #f5d0a4;
+  --b-sun-disc: #f4c37e;
+  --b-city-near: #98a9b1;
+  --b-city-far: #b6c4c8;
+  --b-lit-win: #eef3f4;
+  --b-curb: #c9cdc5;
+  --b-road-top: #66737a;
+  --b-shelter: #56646f;
+  --b-sign-bg: #1f6f78;
+  --b-sign-edge: #175a62;
+  --b-sign-text: #f4f1e8;
+  --b-shadow: rgb(20 30 40 / 0.18);
+  --b-jeep: #ece6d8;
+  --b-jeep-roof: #cfc6b2;
+  --b-jeep-line: #3a4650;
+  --b-chrome: #c3cad0;
+  --b-inside: #2a3440;
+  --b-other: #3b4753;
+  --b-skin: #d7a47c;
+  --b-placard: #fbfaf4;
+  --b-placard-ink: #1c2833;
+  --b-route-ink: #1f6f78;
+  --b-arc: #d48a24;
+  --b-arc-ink: #9c5f12;
+  --b-glass: #a9c1c9;
+  --b-lamp-on: #f7efd8;
+  --b-well: #3a3f44;
+  --b-tire: #22262a;
+  --b-hub: #c9cfd3;
+  --b-note-paper: #fbf3dc;
+  --b-note-edge: #cdbf98;
+  --b-note-ink: #5a4a2a;
+  --b-bubble-bg: #fbfcfa;
+  --b-bubble-edge: #8e9aa2;
+  --b-bubble-ink: #1c2833;
+  --b-caption: #f3efe6;
 }
 :root.dark[data-world='biyahe'], .dark .w-scope[data-world='biyahe'] {
   /* The late ride home: navy dark, the city lit, sodium lamps. */
   --paper: #0e1320;
-  --card: #151b2b;
-  --card-2: #1b2234;
-  --ink: #e8ecf2;
-  --ink-soft: #b2bccb;
-  --ink-faint: #8792a5;
-  --line: #222a3d;
-  --line-strong: #35405a;
-  --accent: #f0b35a;
-  --accent-soft: #2a2416;
-  --accent-ink: #f6cb86;
-  --action: #e8ecf2;
+  --card: #1a2233;
+  --card-2: #212a3d;
+  --ink: #eef1f5;
+  --ink-soft: #b9c3d1;
+  --ink-faint: #8e99ab;
+  --line: #28314a;
+  --line-strong: #3a4662;
+  --accent: #7fc4ca;
+  --accent-soft: #16303a;
+  --accent-ink: #a3d7db;
+  --action: #7fc4ca;
   --action-ink: #0e1320;
   --glow: color-mix(in oklab, #3a3a52 45%, transparent);
   --font-world-display: 'Barlow Condensed', var(--font-display);
@@ -1155,12 +1205,374 @@
   --b-ticket: #2b2718;
   --b-ticket-ink: #d9b56e;
   --b-stop: #0e1320;
+  --b-livery-a: #d27a52;
+  --b-livery-b: #e8b05a;
+  --b-livery-c: #5fb0b8;
+  --b-board: #070b13;
+  --b-board-ink: #eef1f5;
+  --b-board-soft: #9aa6b8;
+  --b-board-amber: #f0b35a;
+  --b-board-warn: #f2a37f;
+  --b-frame-band: #253047;
+  --b-frame-edge: #34415c;
+  --b-lift: rgb(0 0 0 / 0.6);
+  --b-sky-a: #0c1326;
+  --b-sky-b: #3a2e4c;
+  --b-sky-c: #c9836a;
+  --b-sun-disc: #efe0c8;
+  --b-city-near: #10172a;
+  --b-city-far: #1a2340;
+  --b-lit-win: #f0b35a;
+  --b-curb: #1a2130;
+  --b-road-top: #0b0f18;
+  --b-shelter: #3a4660;
+  --b-sign-bg: #1f5f69;
+  --b-sign-edge: #5fb0b8;
+  --b-sign-text: #f4f1e8;
+  --b-shadow: rgb(0 0 0 / 0.5);
+  --b-jeep: #b4ad9d;
+  --b-jeep-roof: #8a8474;
+  --b-jeep-line: #0b0f18;
+  --b-chrome: #8f99a6;
+  --b-inside: #070a12;
+  --b-other: #161c2a;
+  --b-skin: #d7a47c;
+  --b-placard: #ece7da;
+  --b-placard-ink: #1c2833;
+  --b-route-ink: #1f6f78;
+  --b-arc: #d48a24;
+  --b-arc-ink: #8a520f;
+  --b-glass: #2e4058;
+  --b-lamp-on: #ffd88f;
+  --b-well: #0b0e14;
+  --b-tire: #05070b;
+  --b-hub: #6b7480;
+  --b-note-paper: #e8dcc0;
+  --b-note-edge: #b8a57a;
+  --b-note-ink: #4a3c20;
+  --b-bubble-bg: #eef1f5;
+  --b-bubble-edge: #9aa6b8;
+  --b-bubble-ink: #0e1320;
+  --b-caption: #e9e4d6;
 }
 
 @scope ([data-world='biyahe']) to ([data-world]:not([data-world='biyahe'])) {
+  /*
+   * Biyahe's page is its own layout (worlds/biyahe/Ride.tsx): the writing sheet framed like a
+   * vehicle window, a destination board mounted on the frame, a livery stripe along its foot,
+   * saved thoughts as stops on a quiet route, and the missed stop under the writing. The editor
+   * itself stays plain and opaque: no scenery behind words.
+   */
+  .app-bg { background: linear-gradient(180deg, color-mix(in oklab, var(--b-sky-c) 22%, var(--paper)) 0, var(--paper) 22rem); }
+  :scope:where(.dark, .dark *) .app-bg { background: linear-gradient(180deg, color-mix(in oklab, var(--b-sky-b) 22%, var(--paper)) 0, var(--paper) 24rem); }
+
+  /* ── The page ── */
+  .biyahe-studio { display: grid; gap: 2.5rem; }
+  @media (min-width: 1024px) {
+    .biyahe-studio { grid-template-columns: minmax(0, 1fr) minmax(0, 21rem); grid-template-areas: 'desk shelf' 'scene shelf'; grid-template-rows: auto 1fr; gap: 3.25rem 3.5rem; align-items: start; }
+    .biyahe-desk { grid-area: desk; }
+    .biyahe-shelf { grid-area: shelf; padding-top: 1.25rem; }
+    .biyahe-scene { grid-area: scene; }
+  }
+  @media (min-width: 1280px) { .biyahe-studio { grid-template-columns: minmax(0, 46rem) minmax(0, 23rem); column-gap: 5rem; justify-content: center; } }
+  .biyahe-desk, .biyahe-shelf, .biyahe-scene { min-width: 0; }
+  .biyahe-notices:empty { display: none; }
+  .biyahe-notices { margin-bottom: 1.25rem; }
+
+  /* ── The window: a destination board on the frame, the frame, the livery ── */
+  .biyahe-book { position: relative; padding-top: 0.25rem; padding-bottom: 1.4rem; }
+  .biyahe-book-top { position: relative; z-index: 2; display: flex; align-items: flex-end; padding-left: 1.25rem; }
+  @media (min-width: 640px) { .biyahe-book-top { padding-left: 2.25rem; } }
+
+  .biyahe-tab {
+    position: relative;
+    display: flex; flex-direction: column; align-items: flex-start; gap: 0.1rem;
+    min-width: 0; max-width: min(30rem, 100%);
+    margin-bottom: -1.5rem;
+    padding: 0.6rem 2.6rem 0.8rem 1rem;
+    border-radius: 9px;
+    background: linear-gradient(90deg, var(--b-livery-a) 0 60%, var(--b-livery-b) 0 78%, var(--b-livery-c) 0) 0 100% / 100% 4px no-repeat, var(--b-board);
+    color: var(--b-board-ink);
+    box-shadow: 0 12px 22px -16px var(--b-lift);
+    text-align: left;
+    transition: background-color 140ms;
+  }
+  .biyahe-tab[data-static] { padding-right: 1.2rem; }
+  button.biyahe-tab:hover, .biyahe-tab[data-state='open'] { background-color: color-mix(in oklab, var(--b-board) 88%, var(--b-board-ink)); }
+  .biyahe-tab:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
+  .biyahe-tab-kicker { font-family: var(--font-world-meta); font-size: 11.5px; font-weight: 600; letter-spacing: 0.16em; text-transform: uppercase; color: var(--b-board-amber); }
+  .biyahe-tab-name {
+    display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden;
+    font-family: var(--font-world-display); font-weight: 600; font-size: 21px; line-height: 1.12; letter-spacing: 0.005em; overflow-wrap: anywhere;
+  }
+  .biyahe-tab-meta { font-size: 13px; line-height: 1.35; color: var(--b-board-soft); }
+  .biyahe-tab-state { display: inline-flex; align-items: center; gap: 0.35rem; font-weight: 550; color: var(--b-board-ink); }
+  .biyahe-tab-dot { width: 7px; height: 7px; border-radius: 999px; box-shadow: inset 0 0 0 1.5px var(--b-board-soft); }
+  .biyahe-tab-state[data-state='collecting'] .biyahe-tab-dot { background: var(--b-board-amber); box-shadow: none; }
+  .biyahe-tab-state[data-state='closed-now'] { color: var(--b-board-warn); }
+  .biyahe-tab-state[data-state='closed-now'] .biyahe-tab-dot { background: var(--b-board-warn); box-shadow: none; }
+  .biyahe-tab-chev { position: absolute; right: 0.85rem; top: 50%; width: 16px; height: 16px; margin-top: -10px; color: var(--b-board-soft); transition: transform 160ms; }
+  .biyahe-tab[data-state='open'] .biyahe-tab-chev { transform: rotate(180deg); }
+
+  .biyahe-sheet {
+    position: relative;
+    padding: 2.6rem 1.15rem 1.3rem;
+    background: var(--card);
+    border: 6px solid var(--b-frame-band);
+    border-radius: 24px;
+    box-shadow: inset 0 0 0 1px var(--b-frame-edge), 0 0 0 1px var(--b-frame-edge), 0 34px 56px -40px var(--b-lift);
+  }
+  @media (min-width: 640px) { .biyahe-sheet { padding: 3rem 2.5rem 1.6rem; border-width: 10px; border-radius: 34px; } }
+  /* The livery: one stripe along the foot of the window, the way a jeepney wears its colours. */
+  .biyahe-sheet::after {
+    content: ''; position: absolute; left: 1.75rem; right: 1.75rem; bottom: -1.5rem; height: 5px; border-radius: 3px;
+    background: linear-gradient(90deg, var(--b-livery-a) 0 58%, var(--b-livery-b) 0 74%, var(--b-livery-c) 0);
+    pointer-events: none;
+  }
+  @media (min-width: 640px) { .biyahe-sheet::after { bottom: -1.85rem; } }
+
+  .biyahe-title { max-width: 20ch; font-family: var(--font-world-display); font-weight: 600; font-size: clamp(2.05rem, 1.5rem + 1.8vw, 3.05rem); line-height: 1; letter-spacing: -0.005em; text-wrap: balance; overflow-wrap: anywhere; }
+  .biyahe-title label { cursor: text; }
+  .biyahe-title em { font-style: italic; color: var(--accent-ink); }
+  .biyahe-invite { margin-top: 0.55rem; font-size: 16px; line-height: 1.45; color: var(--ink-soft); }
+
+  .biyahe-field {
+    display: block; width: 100%;
+    margin-top: 1.35rem; padding: 0.3rem 0 0.6rem;
+    resize: none; field-sizing: content; min-height: 8.5rem; max-height: 55vh;
+    border: 0; border-radius: 0; background: transparent;
+    font-size: 1.1875rem; line-height: 1.62; color: var(--ink);
+    box-shadow: inset 0 -1px 0 var(--line-strong);
+    transition: box-shadow 140ms;
+    scroll-margin-bottom: 8rem;
+  }
+  .biyahe-field::placeholder { color: var(--ink-faint); }
+  .biyahe-field:hover { box-shadow: inset 0 -1px 0 var(--ink-faint); }
+  .biyahe-field:focus, .biyahe-field:focus-visible { outline: none; box-shadow: inset 0 -2px 0 var(--accent); }
+  @media (max-width: 639px) { .biyahe-field { font-size: 1.0625rem; min-height: 6.5rem; } }
+  .biyahe-field--small { margin-top: 0.3rem; padding: 0.5rem 0.7rem; min-height: 3.4rem; font-size: 15px; line-height: 1.55; border-radius: 12px; background: color-mix(in oklab, var(--paper) 40%, var(--card)); box-shadow: inset 0 0 0 1px var(--line); scroll-margin-bottom: 6rem; }
+  .biyahe-field--small:hover { box-shadow: inset 0 0 0 1px var(--line-strong); }
+  .biyahe-field--small:focus, .biyahe-field--small:focus-visible { box-shadow: inset 0 0 0 1.5px var(--accent); }
+
+  .biyahe-under { display: flex; align-items: center; justify-content: space-between; gap: 1rem; min-height: 1.9rem; margin-top: 0.2rem; }
+  .biyahe-draft { font-size: 12.5px; color: var(--ink-faint); text-align: right; }
+  .biyahe-link { padding: 0.15rem 0; font-size: 13.5px; color: var(--ink-soft); text-decoration: underline dotted; text-decoration-color: var(--line-strong); text-underline-offset: 3px; border-radius: 3px; }
+  .biyahe-link:hover { color: var(--ink); text-decoration-color: var(--accent); }
+  .biyahe-prompt { display: flex; align-items: flex-start; gap: 0.5rem; margin-top: 1rem; padding: 0.5rem 0.25rem 0.5rem 0.85rem; border-left: 3px solid var(--b-livery-b); background: color-mix(in oklab, var(--accent-soft) 55%, transparent); border-radius: 0 12px 12px 0; }
+  .biyahe-prompt p { flex: 1; min-width: 0; padding-top: 0.25rem; font-size: 15.5px; line-height: 1.45; color: var(--ink); }
+  .biyahe-prompt-lead { color: var(--ink-faint); }
+  .biyahe-prompt-tools { display: flex; align-items: center; gap: 0.15rem; flex: none; }
+  .biyahe-prompt-x { width: 32px; height: 32px; }
+
+  .biyahe-context { display: grid; gap: 0.9rem; margin-top: 0.9rem; animation: rise 200ms var(--ease-out-soft) both; }
+  @media (min-width: 640px) { .biyahe-context { grid-template-columns: 1fr 1fr; } }
+  .biyahe-context label, .biyahe-context-label { display: block; font-size: 13px; font-weight: 550; color: var(--ink-soft); }
+  .biyahe-context-wide { grid-column: 1 / -1; }
+  .biyahe-context .cat-choices { margin-top: 0.2rem; }
+
+  .biyahe-actions { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 0.6rem 1rem; margin-top: 1rem; }
+  .biyahe-opts { display: flex; flex-wrap: wrap; align-items: center; gap: 0.1rem 0.25rem; min-width: 0; margin-left: -0.6rem; }
+  .biyahe-opt { display: inline-flex; align-items: center; gap: 0.4rem; min-width: 0; max-width: 100%; height: 2.25rem; padding: 0 0.7rem; border-radius: 999px; font-size: 14px; color: var(--ink-soft); white-space: nowrap; transition: background 140ms, color 140ms; }
+  .biyahe-opt:hover, .biyahe-opt[data-state='open'], .biyahe-opt[aria-expanded='true'] { color: var(--ink); background: color-mix(in oklab, var(--ink) 6%, transparent); }
+  .biyahe-opt[data-set] { color: var(--ink); font-weight: 550; }
+  .biyahe-opt > span:last-child { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+  .biyahe-opt-dot { flex: none; width: 8px; height: 8px; border-radius: 999px; background: var(--c, var(--accent)); }
+  .biyahe-opt-dot--ink { background: var(--ink-faint); }
+  .biyahe-opt-sum { font-weight: 400; color: var(--ink-soft); }
+  @media (max-width: 420px) { .biyahe-opt-sum { display: none; } }
+  .biyahe-save { min-width: 9.75rem; margin-left: auto; }
+  @media (max-width: 639px) { .biyahe-actions { gap: 0.5rem; } .biyahe-save { min-width: 8.5rem; } }
+
+  .biyahe-fine { max-width: 40rem; margin-top: 0.9rem; font-size: 13px; line-height: 1.45; color: var(--ink-faint); }
+  .biyahe-note { display: flex; align-items: flex-start; gap: 0.55rem; margin-top: 0.8rem; font-size: 14px; line-height: 1.45; color: var(--ink); animation: fade 160ms ease-out both; }
+  .biyahe-note strong { font-weight: 600; overflow-wrap: anywhere; }
+  .biyahe-note[data-tone='warn'] { padding: 0.5rem 0.7rem; border-radius: 10px; background: color-mix(in oklab, var(--warn) 11%, transparent); color: var(--warn); }
+  .biyahe-okmark { flex: none; width: 22px; height: 20px; overflow: visible; }
+  .biyahe-okmark circle { fill: var(--card); stroke: var(--accent); stroke-width: 2.6; }
+  .biyahe-okmark-line { stroke: var(--b-livery-b); stroke-width: 2.4; stroke-linecap: round; }
+  .biyahe-closed { margin-top: 1rem; padding: 0.6rem 0.8rem; border-radius: 10px; background: color-mix(in oklab, var(--warn) 10%, transparent); font-size: 14px; line-height: 1.45; }
+  .biyahe-state-body { margin-top: 1.1rem; }
+
+  /* ── Panels ── */
+  .biyahe-pop { z-index: 50; width: min(21rem, calc(100vw - 24px)); padding: 0.4rem; border: 1px solid var(--b-frame-edge); border-radius: 14px; background: var(--card); box-shadow: 0 22px 40px -22px var(--b-lift); animation: rise 160ms var(--ease-out-soft) both; }
+  .biyahe-pop:has(.biyahe-details) { width: min(25rem, calc(100vw - 24px)); }
+  .biyahe-veil { position: fixed; inset: 0; z-index: 50; background: rgb(10 16 26 / 0.4); animation: fade 160ms ease-out both; }
+  .biyahe-drawer { position: fixed; z-index: 51; left: 0; right: 0; bottom: 0; max-height: 86dvh; overflow-y: auto; overscroll-behavior: contain; padding: 0.6rem 0.75rem max(0.9rem, env(safe-area-inset-bottom)); border-top: 1px solid var(--b-frame-edge); border-radius: 20px 20px 0 0; background: var(--card); box-shadow: 0 -14px 30px -20px var(--b-lift); animation: biyahe-up 220ms var(--ease-out-soft) both; }
+  .biyahe-drawer:focus { outline: none; }
+  .biyahe-drawer-head { display: flex; align-items: center; justify-content: space-between; gap: 1rem; padding: 0.1rem 0 0.35rem 0.55rem; }
+  .biyahe-panel-title { font-size: 15px; font-weight: 650; color: var(--ink); }
+  .biyahe-cats { list-style: none; margin: 0; padding: 0; }
+  .biyahe-cat { display: grid; grid-template-columns: 10px auto minmax(0, 1fr); align-items: baseline; column-gap: 0.6rem; width: 100%; min-height: 2.5rem; padding: 0.55rem 0.65rem; border-radius: 10px; text-align: left; font-size: 14.5px; color: var(--ink); }
+  .biyahe-cat:hover { background: color-mix(in oklab, var(--ink) 5%, transparent); }
+  .biyahe-cat:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+  .biyahe-cat[aria-pressed='true'] { background: color-mix(in oklab, var(--c) 13%, transparent); }
+  .biyahe-cat-dot { align-self: center; width: 9px; height: 9px; border-radius: 999px; box-shadow: inset 0 0 0 1.5px var(--c); }
+  .biyahe-cat[aria-pressed='true'] .biyahe-cat-dot { background: var(--c); }
+  .biyahe-cat-dot--none { box-shadow: inset 0 0 0 1.5px var(--ink-faint); }
+  .biyahe-cat-label { font-weight: 560; white-space: nowrap; }
+  .biyahe-cat-hint { font-size: 13px; color: var(--ink-faint); }
+  .biyahe-cats-clear { margin-top: 0.25rem; padding-top: 0.25rem; border-top: 1px solid var(--line); }
+  @media (max-width: 639px) { .biyahe-cat { min-height: 3rem; align-items: center; } }
+  .biyahe-details { padding: 0.55rem 0.6rem 0.45rem; }
+  .biyahe-kicker { font-family: var(--font-world-meta); font-size: 12px; font-weight: 600; letter-spacing: 0.14em; text-transform: uppercase; color: var(--ink-faint); }
+  .biyahe-details-name { margin-top: 0.2rem; font-family: var(--font-world-display); font-weight: 600; font-size: 21px; line-height: 1.15; overflow-wrap: anywhere; }
+  .biyahe-details-sub { font-size: 13px; color: var(--ink-faint); }
+  .biyahe-details-list { margin-top: 0.75rem; font-size: 13.5px; line-height: 1.5; }
+  .biyahe-details-list div + div { margin-top: 0.55rem; }
+  .biyahe-details-list dt { font-weight: 600; color: var(--ink); }
+  .biyahe-details-list dd { margin: 0.05rem 0 0; color: var(--ink-soft); }
+  .biyahe-details-links { display: flex; flex-wrap: wrap; gap: 0.3rem 1rem; margin-top: 0.8rem; font-size: 13.5px; }
+  .biyahe-details-links a { font-weight: 550; color: var(--accent-ink); text-decoration: underline; text-decoration-color: color-mix(in oklab, var(--accent) 40%, transparent); text-underline-offset: 3px; }
+  .biyahe-details-more { margin-top: 0.8rem; padding-top: 0.65rem; border-top: 1px solid var(--line); }
+  .biyahe-details-more ul { list-style: none; margin: 0.25rem 0 0.2rem -0.45rem; padding: 0; }
+  .biyahe-details-team + .biyahe-details-team { margin-top: 0.35rem; }
+  .biyahe-details-team-name { margin-top: 0.45rem; font-size: 12.5px; color: var(--ink-faint); }
+  .biyahe-row { display: block; width: 100%; padding: 0.5rem 0.45rem; border-radius: 10px; text-align: left; font-size: 14px; font-weight: 550; color: var(--ink); overflow-wrap: anywhere; }
+  .biyahe-row:hover { background: color-mix(in oklab, var(--ink) 5%, transparent); }
+  .biyahe-tip { z-index: 60; display: flex; align-items: center; gap: 0.3rem; padding: 0.35rem 0.55rem; border-radius: 8px; background: var(--ink); color: var(--card); font-size: 12.5px; animation: fade 120ms ease-out both; }
+
+  /* ── The collection: stops on a quiet route, a heading per day, newest first ── */
+  .biyahe-shelf .mark-indent { padding-left: 0; }
+  .biyahe-shelf .mark-outdent { margin-left: 0; }
+  .mine-title { font-family: var(--font-world-display); font-weight: 600; font-size: 1.55rem; letter-spacing: 0.005em; }
+  .biyahe-shelf .passages { position: relative; display: grid; gap: 0.7rem; margin-top: 0.9rem; padding-left: 1.5rem; }
+  @media (max-width: 639px) { .biyahe-shelf .passages { padding-left: 1.1rem; } }
+  .biyahe-shelf .passages::before { content: ''; position: absolute; left: 0.4rem; top: 0.9rem; bottom: 1.4rem; width: 2px; border-radius: 2px; background: color-mix(in oklab, var(--accent) 30%, var(--line)); }
+  @media (max-width: 639px) { .biyahe-shelf .passages::before { left: 0.25rem; } }
+  .passages-day { position: relative; list-style: none; padding-top: 0.45rem; }
+  .passages-day:first-child { padding-top: 0; }
+  .passages-day h3 { font-family: var(--font-world-meta); font-size: 13.5px; font-weight: 600; letter-spacing: 0.1em; text-transform: uppercase; color: var(--ink-soft); }
+  .passages-day::before { content: ''; position: absolute; left: calc(-1.1rem - 2px); bottom: 0.35rem; width: 10px; height: 4px; border-radius: 2px; background: var(--ink-faint); }
+  .passage, .passage:first-child {
+    grid-template-columns: minmax(0, 1fr) auto; column-gap: 0.5rem; row-gap: 0.3rem;
+    margin: 0; padding: 0.8rem 0.55rem 0.95rem 1rem;
+    border: 1px solid var(--line); border-radius: 14px;
+    background: var(--card);
+  }
+  /* One marker per thought, on the route. */
+  .passage::after { content: ''; position: absolute; left: calc(-1.1rem - 5px); top: 1.05rem; width: 12px; height: 12px; border-radius: 999px; background: var(--paper); box-shadow: inset 0 0 0 2.5px var(--tone, var(--line-strong)); }
+  @media (max-width: 639px) { .passage::after { left: calc(-0.85rem - 5px); } .passages-day::before { left: calc(-0.85rem - 2px); } }
+  .passage-mark { grid-column: 1; grid-row: 1; flex-direction: row; align-items: center; gap: 0.6rem; min-height: 1.5rem; padding-top: 0; font-size: 12.5px; text-align: left; }
+  .passage-mark .cat { font-family: var(--font-sans); font-style: normal; font-size: 12.5px; font-weight: 600; letter-spacing: 0; line-height: 1; }
+  .passage-mark .cat::before { display: none; }
+  .passage-mark .period { color: var(--ink-faint); }
+  .passage-stamp { display: none; }
+  .passage-body { grid-column: 1 / -1; grid-row: 2; }
+  .passage-menu { grid-column: 2; grid-row: 1; align-self: center; margin: -0.4rem -0.1rem -0.4rem 0; }
+  .passage-text { max-width: none; font-size: 1rem; line-height: 1.6; }
+  .passage-text[data-short] { font-size: 1.08rem; line-height: 1.5; }
+  .passage-context { max-width: none; border-left: 2px solid color-mix(in oklab, var(--accent) 30%, var(--line)); }
+  .passage[data-state='queued'], .passage[data-state='sending'] { padding-left: 1rem; background: linear-gradient(90deg, color-mix(in oklab, var(--status) 7%, var(--card)), var(--card) 70%); box-shadow: inset 3px 0 0 color-mix(in oklab, var(--status) 60%, transparent); border-radius: 14px; }
+  .passage[data-state='attention'] { padding-left: 1rem; background: linear-gradient(90deg, color-mix(in oklab, var(--warn) 8%, var(--card)), var(--card) 75%); box-shadow: inset 3px 0 0 var(--warn); border-radius: 14px; }
+  .passage[data-editing] { padding-right: 1rem; }
+  /* A confirmed thought: its stop appears on the route. */
+  .passage.anim-reflect { animation: fade 220ms ease-out both; }
+  .passage.anim-reflect::after { background: var(--b-livery-b); box-shadow: 0 0 0 3px var(--paper), inset 0 0 0 2.5px var(--tone, var(--b-livery-b)); animation: biyahe-stop 620ms 160ms var(--ease-out-soft) both; }
+  .passage-gone, .passage-gone:first-child { padding: 0.7rem 0.6rem 0.7rem 1rem; border: 1px dashed var(--line-strong); border-radius: 14px; }
+  @media (min-width: 1280px) {
+    .passage { grid-template-columns: minmax(0, 1fr) auto; column-gap: 0.5rem; }
+    .passage-mark { grid-column: 1; grid-row: 1; flex-direction: row; align-items: center; gap: 0.6rem; padding-top: 0; text-align: left; }
+    .passage-body { grid-column: 1 / -1; }
+    .passage-menu { grid-column: 2; }
+  }
+  .passage .journal-field--edit { margin-top: 0.1rem; padding: 0.6rem 0.75rem; min-height: 5rem; border-radius: 12px; background: color-mix(in oklab, var(--paper) 40%, var(--card)); box-shadow: inset 0 0 0 1px var(--line); font-size: 1rem; line-height: 1.6; }
+  .passage .journal-field--edit:focus, .passage .journal-field--edit:focus-visible { outline: none; box-shadow: inset 0 0 0 1.5px var(--accent); }
+  .passage .journal-field--small { border-radius: 12px; background: color-mix(in oklab, var(--paper) 40%, var(--card)); box-shadow: inset 0 0 0 1px var(--line); padding: 0.5rem 0.65rem; }
+  .journal-edit-opts { display: flex; flex-wrap: wrap; align-items: center; gap: 0.1rem 0.25rem; margin: 0.5rem 0 0 -0.6rem; }
+  .journal-edit-opts .journal-tool { height: 2.25rem; margin: 0; padding: 0 0.7rem; border-radius: 999px; font-size: 14px; }
+
+  :scope .biyahe-shelf .mine-empty { display: block; padding: 0; text-align: left; }
+  .biyahe-quiet { display: flex; flex-direction: column; gap: 0.75rem; margin-top: 1rem; padding: 1.1rem 1.1rem 1.2rem; border: 1px solid var(--line); border-radius: 16px; background: var(--card); }
+  .biyahe-quiet-art svg { display: block; width: 132px; height: 84px; }
+  .biyahe-quiet-frame { fill: var(--b-frame-band); stroke: var(--b-frame-edge); stroke-width: 1; }
+  .biyahe-quiet-sky { fill: var(--b-sky-b); }
+  .biyahe-quiet-horizon { stroke: var(--b-livery-b); stroke-width: 1.4; }
+  .biyahe-quiet-city { fill: var(--b-city-near); stroke: none; }
+  .biyahe-quiet-seat { fill: var(--b-livery-c); }
+  .biyahe-quiet-stitch { stroke: var(--card); stroke-width: 1; stroke-dasharray: 3 3; opacity: 0.6; }
+  .biyahe-quiet-text { font-size: 15px; line-height: 1.5; color: var(--ink-soft); text-wrap: pretty; }
+  .biyahe-quiet-sub { display: block; margin-top: 0.15rem; font-size: 13.5px; color: var(--ink-faint); }
+
+  /* ── The missed stop ── */
+  .biyahe-ride { display: block; width: 100%; height: auto; border-radius: 22px; box-shadow: 0 0 0 1px var(--b-frame-edge), 0 24px 40px -34px var(--b-lift); }
+  @media (max-width: 1023px) { .biyahe-scene { margin-top: 0.5rem; } }
+  .biyahe-ride[data-narrow] .biyahe-r-wide { display: none; }
+  .biyahe-r-sky-a { stop-color: var(--b-sky-a); }
+  .biyahe-r-sky-b { stop-color: var(--b-sky-b); }
+  .biyahe-r-sky-c { stop-color: var(--b-sky-c); }
+  .biyahe-r-sun { fill: var(--b-sun-disc); }
+  .biyahe-r-wire { fill: none; stroke: var(--b-wire); stroke-width: 1; }
+  .biyahe-r-pole { fill: none; stroke: var(--b-post); stroke-width: 3.5; stroke-linecap: round; }
+  .biyahe-r-city { fill: var(--b-city-near); }
+  .biyahe-r-city--far { fill: var(--b-city-far); }
+  .biyahe-r-lit { fill: var(--b-lit-win); }
+  .biyahe-r-curb { fill: var(--b-curb); }
+  .biyahe-r-road { fill: var(--b-road-top); }
+  .biyahe-r-lane { fill: none; stroke: var(--b-road-line); stroke-width: 2.4; }
+  .biyahe-r-shelter-roof { fill: var(--b-shelter); }
+  .biyahe-r-shelter-post { fill: none; stroke: var(--b-shelter); stroke-width: 4; stroke-linecap: round; }
+  .biyahe-r-shelter-post--thin { stroke-width: 2.4; }
+  .biyahe-r-shelter-bench { fill: var(--b-shelter); }
+  .biyahe-r-sign { fill: var(--b-sign-bg); stroke: var(--b-sign-edge); stroke-width: 1.4; }
+  .biyahe-r-sign-t, .biyahe-r-sign-s { fill: var(--b-sign-text); letter-spacing: 0.06em; }
+  .biyahe-r-shadow { fill: var(--b-shadow); }
+  .biyahe-r-roof { fill: var(--b-jeep-roof); stroke: var(--b-jeep-line); stroke-width: 1.2; }
+  .biyahe-r-rack { fill: none; stroke: var(--b-chrome); stroke-width: 2; stroke-linecap: round; }
+  .biyahe-r-body { fill: var(--b-jeep); stroke: var(--b-jeep-line); stroke-width: 1.2; stroke-linejoin: round; }
+  .biyahe-r-inside { fill: var(--b-inside); }
+  .biyahe-r-rail { fill: none; stroke: var(--b-chrome); stroke-width: 1.6; opacity: 0.55; }
+  .biyahe-r-other { fill: var(--b-other); }
+  .biyahe-r-skin { fill: var(--b-skin); stroke: #231a14; stroke-width: 0.8; stroke-linejoin: round; }
+  .biyahe-r-ledge { stroke: var(--b-chrome); stroke-width: 3; stroke-linecap: round; }
+  .biyahe-r-chrome { stroke: var(--b-chrome); stroke-width: 2.4; }
+  .biyahe-r-chrome-fill { fill: var(--b-chrome); stroke: var(--b-jeep-line); stroke-width: 0.8; }
+  .biyahe-r-stripe-a { fill: var(--b-livery-a); }
+  .biyahe-r-stripe-b { fill: var(--b-livery-b); }
+  .biyahe-r-stripe-c { fill: var(--b-livery-c); }
+  .biyahe-r-placard { fill: var(--b-placard); stroke: var(--b-jeep-line); stroke-width: 1; }
+  .biyahe-r-route { fill: none; stroke: var(--b-route-ink); stroke-width: 2.6; stroke-linecap: round; }
+  .biyahe-r-route--plan { stroke-dasharray: 2 5; opacity: 0.55; }
+  .biyahe-r-route--arc { stroke: var(--b-arc); }
+  .biyahe-r-stopdot { fill: var(--b-placard); stroke: var(--b-route-ink); stroke-width: 2; }
+  .biyahe-r-stopdot--missed { stroke: var(--b-livery-a); }
+  .biyahe-r-here { fill: var(--b-arc); stroke: var(--b-placard); stroke-width: 1.6; }
+  .biyahe-r-placard-t { fill: var(--b-placard-ink); letter-spacing: 0.08em; }
+  .biyahe-r-placard-t--faint { opacity: 0.5; }
+  .biyahe-r-placard-arc { fill: var(--b-arc-ink); letter-spacing: 0.06em; }
+  .biyahe-r-glass { fill: var(--b-glass); stroke: var(--b-jeep-line); stroke-width: 1.2; }
+  .biyahe-r-lamp { fill: var(--b-lamp-on); stroke: var(--b-jeep-line); stroke-width: 1.2; }
+  .biyahe-r-bumper { fill: var(--b-chrome); stroke: var(--b-jeep-line); stroke-width: 1; }
+  .biyahe-r-well { fill: var(--b-well); }
+  .biyahe-r-fender { fill: none; stroke: var(--b-jeep-line); stroke-width: 1.4; }
+  .biyahe-r-grille { stroke: var(--b-jeep-line); stroke-width: 1; opacity: 0.6; }
+  .biyahe-r-fingers { fill: none; stroke: #231a14; stroke-width: 0.5; stroke-linecap: round; opacity: 0.55; }
+  .biyahe-r-tire { fill: var(--b-tire); }
+  .biyahe-r-hub { fill: var(--b-hub); }
+  .biyahe-r-note { fill: var(--b-note-paper); stroke: var(--b-note-edge); stroke-width: 0.8; }
+  .biyahe-r-note-fold { stroke: var(--b-note-edge); stroke-width: 0.6; }
+  .biyahe-r-note-t { fill: var(--b-note-ink); letter-spacing: 0.03em; }
+  .biyahe-r-bubble circle, .biyahe-r-bubble rect { fill: var(--b-bubble-bg); stroke: var(--b-bubble-edge); stroke-width: 1.2; }
+  .biyahe-r-bubble text { fill: var(--b-bubble-ink); letter-spacing: 0.03em; }
+  .biyahe-r-caption { fill: var(--b-caption); letter-spacing: 0.04em; }
+  .biyahe-r-caption--en { opacity: 0.75; }
+  /* At rest: Biyahe has looked back at the stop. */
+  .biyahe-ride .biyahe-fig-eyes { transform: translateX(-2.4px); }
+
+  /* The moment, once: the hand rises, "para…", the stop slides past above the roof, a glance back. */
+  .biyahe-r-arm { transform-box: fill-box; transform-origin: 72% 100%; }
+  .biyahe-ride[data-armed] .biyahe-r-arm { transform: rotate(78deg); }
+  .biyahe-ride[data-armed] .biyahe-r-bubble { opacity: 0; }
+  .biyahe-ride[data-armed] .biyahe-r-stop { transform: translateX(300px); }
+  .biyahe-ride[data-armed] .biyahe-fig-eyes { transform: none; }
+  .biyahe-ride[data-play] .biyahe-r-arm { animation: biyahe-arm 4600ms 250ms both; }
+  .biyahe-ride[data-play] .biyahe-r-bubble { transform-box: fill-box; transform-origin: 100% 100%; animation: biyahe-para 4600ms 250ms both; }
+  .biyahe-ride[data-play] .biyahe-r-stop { animation: biyahe-pass 4600ms 250ms both; }
+  .biyahe-ride[data-play] .biyahe-fig-eyes { animation: biyahe-glance 4600ms 250ms both; }
+  .biyahe-ride[data-paused] .biyahe-r-arm, .biyahe-ride[data-paused] .biyahe-r-bubble, .biyahe-ride[data-paused] .biyahe-r-stop, .biyahe-ride[data-paused] .biyahe-fig-eyes { animation-play-state: paused; }
+
+  /* ── Muni's journal classes, still used by the welcome page ── */
   .journal-scene[data-scene] .journal-sky { --art-w: calc(var(--art-h) * 1.7); }
   @media (min-width: 1024px) { .journal-scene[data-scene] .journal-sky { --art-w: calc(var(--art-h) * 2.4); } }
-  /* A route under the window: the dashes of a road, a stop every so often. */
   .journal-water {
     background:
       radial-gradient(circle, var(--accent) 3.2px, var(--paper) 3.4px, var(--paper) 5px, transparent 5.4px) 40px 50% / 140px 12px repeat-x,
@@ -1169,46 +1581,28 @@
   .journal-title { font-weight: 600; font-size: clamp(2rem, 1.4rem + 2.6vw, 3.4rem); line-height: 0.98; letter-spacing: -0.01em; }
   .journal-title em { font-style: italic; font-weight: 600; letter-spacing: -0.005em; color: var(--accent-ink); }
   .w-invite { font-family: var(--font-world-meta); font-weight: 500; font-size: 15.5px; letter-spacing: 0.06em; text-transform: uppercase; color: var(--ink-soft); }
-
-  .journal-field { border-radius: 16px; background: var(--card); box-shadow: 0 0 0 1px var(--line), 0 1px 0 1px var(--line); }
-  .journal-field:hover { box-shadow: 0 0 0 1px var(--line-strong), 0 1px 0 1px var(--line-strong); }
-  .journal-field:focus, .journal-field:focus-visible { box-shadow: 0 0 0 1.5px var(--accent), 0 0 0 5px color-mix(in oklab, var(--accent) 14%, transparent); }
-
-  /* The collection: a route, one stop per thought, in the order they happened. */
-  .mine-title { font-family: var(--font-world-display); font-weight: 600; font-size: 1.45rem; letter-spacing: 0; }
-  .passages { position: relative; padding-left: 1.5rem; }
-  .passages::before { content: ''; position: absolute; left: 6px; top: 1.1rem; bottom: 1.1rem; border-left: 2px dashed var(--line-strong); }
-  .passage::after { content: ''; position: absolute; left: -1.5rem; top: 1.35rem; width: 14px; height: 14px; border-radius: 999px; background: var(--b-stop); box-shadow: inset 0 0 0 3px var(--tone, var(--line-strong)); }
-  .passage:first-child::after { top: 0.7rem; }
-  .passage-gone { margin-left: 0; }
-  .passage-mark { font-family: var(--font-world-meta); font-size: 14px; letter-spacing: 0.04em; text-transform: uppercase; }
-  .passage-mark .cat { font-family: var(--font-world-meta); font-style: normal; font-weight: 600; font-size: 14px; letter-spacing: 0.06em; }
-  .passage-mark .cat::before { display: none; }
-  /* The date as a ticket stub, perforated on one side. */
-  .passage-stamp {
-    position: relative;
-    display: inline-block;
-    padding: 1px 12px 1px 9px;
-    border-radius: 3px;
-    background: var(--b-ticket);
-    color: var(--b-ticket-ink);
-    font-weight: 600;
-    letter-spacing: 0.08em;
-    -webkit-mask: radial-gradient(circle at 0 50%, transparent 3px, #000 3.5px) 0 0 / 100% 100%;
-    mask: radial-gradient(circle at 0 50%, transparent 3px, #000 3.5px) 0 0 / 100% 100%;
-  }
-  .passage-stamp::before { content: attr(data-day) ' ' attr(data-mon); }
-  /* A new thought's ticket is punched, once. */
-  .passage.anim-reflect .passage-stamp::after { content: ''; position: absolute; right: 4px; top: 50%; width: 5px; height: 5px; margin-top: -2.5px; border-radius: 999px; background: var(--paper); animation: b-punch 420ms 280ms var(--ease-out-soft) both; }
-  @media (min-width: 1280px) {
-    .mine .mark-indent { padding-left: calc(var(--mark-col) + var(--mark-gap) + 1.5rem); }
-    .passage-mark { gap: 0.3rem; }
-  }
-  @media (min-width: 1024px) { .w-slot--compose { display: block; margin: 2.5rem 0 0 -0.5rem; max-width: 25rem; aspect-ratio: 320 / 150; } }
   .biyahe-empty { display: flex; align-items: flex-end; gap: 0.3rem; }
+
+  /* The chooser's miniature of the window. */
+  .biyahe-preview { display: grid; grid-template-columns: minmax(0, 1.35fr) minmax(0, 1fr); gap: 22px; align-items: start; padding: 26px 22px 30px; }
+  .biyahe-preview .biyahe-sheet { padding: 2.2rem 1.3rem 1.2rem; border-width: 7px; border-radius: 26px; }
+  .biyahe-preview .biyahe-title { font-size: 1.9rem; }
+  .biyahe-preview .biyahe-field { min-height: 4.5rem; color: var(--ink-faint); }
+  .biyahe-preview .mine { padding-top: 0.5rem; }
+  .biyahe-preview .passage-text { font-size: 0.95rem; }
+
+  @media (prefers-reduced-motion: reduce) {
+    .biyahe-ride[data-play] .biyahe-r-arm, .biyahe-ride[data-play] .biyahe-r-bubble, .biyahe-ride[data-play] .biyahe-r-stop, .biyahe-ride[data-play] .biyahe-fig-eyes { animation: none; }
+    .biyahe-context, .biyahe-pop, .biyahe-drawer, .biyahe-note, .biyahe-veil, .biyahe-tip { animation: fade 120ms ease-out both; }
+    .passage.anim-reflect, .passage.anim-reflect::after { animation: fade 160ms ease-out both; }
+  }
 }
-@keyframes b-punch { from { transform: scale(0); } to { transform: scale(1); } }
-@media (prefers-reduced-motion: reduce) { .passage.anim-reflect .passage-stamp::after { animation: none; } }
+@keyframes biyahe-arm { 0% { transform: rotate(78deg); } 18%, 100% { transform: rotate(0deg); } }
+@keyframes biyahe-para { 0%, 16% { opacity: 0; transform: scale(0.6); } 26%, 100% { opacity: 1; transform: none; } }
+@keyframes biyahe-pass { 0%, 24% { transform: translateX(300px); } 70%, 100% { transform: translateX(0); } }
+@keyframes biyahe-glance { 0%, 70% { transform: none; } 78%, 100% { transform: translateX(-2.4px); } }
+@keyframes biyahe-stop { 0% { transform: scale(0); } 60% { transform: scale(1.35); } 100% { transform: scale(1); } }
+@keyframes biyahe-up { from { transform: translateY(24px); opacity: 0.4; } to { transform: none; opacity: 1; } }
 
 /* ── Bola: the court after the noise settles ─────────────────────────────────────────────── */
 

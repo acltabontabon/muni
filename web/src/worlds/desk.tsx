@@ -22,7 +22,7 @@ import { describeRetro, retroShort } from '@/lib/schedule'
 import { writePrefs } from '@/lib/prefs'
 import { chooseWorkspace } from '@/lib/workspace'
 import { Button, ErrorText, Kbd } from '@/ui'
-import { CategoryField, Choices, useComposer, type Notice } from '@/ui/capture'
+import { CategoryField, Choices, CollectionLook, useComposer, type Notice } from '@/ui/capture'
 
 const MOD = typeof navigator !== 'undefined' && /Mac|iPhone|iPad/.test(navigator.platform) ? '⌘' : 'Ctrl'
 const finePointer = () => typeof window !== 'undefined' && window.matchMedia('(pointer: fine)').matches
@@ -45,6 +45,41 @@ export function useNarrow() {
     return () => m.removeEventListener('change', on)
   }, [])
   return narrow
+}
+
+/**
+ * A world's scene plays its moment once per visit, the first time it's seen, and then rests.
+ * `armed`: waiting to be seen (drawn in its first pose, so nothing jumps when it starts); `play`:
+ * running; `rest`: the finished picture — always, under reduced motion. `paused` while the tab is
+ * hidden. Observers and listeners are cleaned up; nothing runs once it has played.
+ */
+const playedScenes = new Set<string>()
+export function useOncePlay(ref: React.RefObject<Element | null>, id: string) {
+  const reduce = typeof window !== 'undefined' && window.matchMedia('(prefers-reduced-motion: reduce)').matches
+  const [phase, setPhase] = useState<'armed' | 'play' | 'rest'>(() => (playedScenes.has(id) || reduce || typeof IntersectionObserver === 'undefined' ? 'rest' : 'armed'))
+  const [paused, setPaused] = useState(false)
+  useEffect(() => {
+    const el = ref.current
+    if (phase !== 'armed' || !el) return
+    const io = new IntersectionObserver(
+      ([e]) => {
+        if (!e.isIntersecting) return
+        playedScenes.add(id)
+        setPhase('play')
+        io.disconnect()
+      },
+      { threshold: 0.35 },
+    )
+    io.observe(el)
+    return () => io.disconnect()
+  }, [phase, ref, id])
+  useEffect(() => {
+    if (phase !== 'play') return
+    const on = () => setPaused(document.hidden)
+    document.addEventListener('visibilitychange', on)
+    return () => document.removeEventListener('visibilitychange', on)
+  }, [phase])
+  return { phase, paused }
 }
 
 /** A small panel beside its control; on a phone, a sheet from the bottom of the screen. */
@@ -341,6 +376,8 @@ export function CategoryPicker({ value, onChange }: { value: Category | null; on
   )
 }
 
+const BY_DAY = { byDay: true }
+const BY_THOUGHT = { byDay: false }
 const categoryField = (f: { value: Category | null; onChange: (c: Category | null) => void }) => <CategoryPicker {...f} />
 
 /** "impact, mid sprint": what the folded context holds, in words. */
@@ -547,9 +584,10 @@ export function DeskSheet({ tab, title, children, topDecor, decor }: { tab: Reac
  * it on a narrow one; and the world's scene — under the writing on a wide screen, after the
  * collection on a narrow one, so nobody scrolls past a picture to reach their thoughts.
  */
-export function Desk({ ns, notices, book, collection, extras, empty, scene }: { ns: string; notices?: ReactNode; book: ReactNode; collection: ReactNode; extras?: ReactNode; empty?: boolean; scene?: ReactNode }) {
+export function Desk({ ns, notices, book, collection, extras, empty, scene, byDay = false }: { ns: string; notices?: ReactNode; book: ReactNode; collection: ReactNode; extras?: ReactNode; empty?: boolean; scene?: ReactNode; /** Group the collection under a heading per day. */ byDay?: boolean }) {
   return (
     <Ns.Provider value={ns}>
+      <CollectionLook.Provider value={byDay ? BY_DAY : BY_THOUGHT}>
       <CategoryField.Provider value={categoryField}>
         <div className={`${ns}-studio`} data-empty={empty || undefined}>
           <div className={`${ns}-desk`}>
@@ -563,6 +601,7 @@ export function Desk({ ns, notices, book, collection, extras, empty, scene }: { 
           {scene ? <div className={`${ns}-scene`}>{scene}</div> : null}
         </div>
       </CategoryField.Provider>
+      </CollectionLook.Provider>
     </Ns.Provider>
   )
 }

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { dateRange, describeRetro, relativeTime, retroShort, zoneName } from './schedule'
+import { dateRange, dayKey, dayLabel, describeRetro, relativeTime, retroShort, zoneName } from './schedule'
 
 const retro = Date.parse('2026-09-29T06:00:00Z') // 14:00 in Manila
 
@@ -69,5 +69,22 @@ describe('retroShort', () => {
     expect(retroShort(null, 'Asia/Manila')).toBeNull()
     expect(retroShort('', 'Asia/Manila')).toBeNull()
     expect(retroShort('not a date', 'Asia/Manila')).toBeNull()
+  })
+})
+
+describe('dayLabel', () => {
+  // Local-time instants, so the test reads the same in any timezone.
+  const now = new Date(2026, 8, 27, 10, 0).getTime()
+  const at = (d: number, h = 9) => new Date(2026, 8, d, h, 0).getTime()
+  it('names recent days, then dates', () => {
+    expect(dayLabel(at(27), { now, locale: 'en-GB' })).toBe('Today')
+    expect(dayLabel(at(26, 23), { now, locale: 'en-GB' })).toBe('Yesterday')
+    expect(dayLabel(at(22), { now, locale: 'en-GB' })).toBe('Tuesday')
+    expect(dayLabel(at(12), { now, locale: 'en-GB' })).toBe('12 Sept')
+    expect(dayLabel(new Date(2025, 11, 30).getTime(), { now, locale: 'en-GB' })).toBe('30 Dec 2025')
+  })
+  it('groups by the reader’s calendar day', () => {
+    expect(dayKey(at(27, 0))).toBe(dayKey(at(27, 23)))
+    expect(dayKey(at(27, 23))).not.toBe(dayKey(at(28, 0)))
   })
 })

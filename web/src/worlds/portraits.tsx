@@ -241,7 +241,9 @@ function Biyahe({ k }: { k: K }) {
       <Neck k={k} />
       <Head k={k} square />
       <Brows k={k} d={BROWS.soft} />
-      <Eyes k={k} kind="side" />
+      <g className="biyahe-fig-eyes">
+        <Eyes k={k} kind="side" />
+      </g>
       <Nose k={k} />
       <Cheeks k={k} o={0.18} />
       <Mouth k={k} d="M46.6 60.2Q50 59.4 53.6 60" />
@@ -444,6 +446,15 @@ const DRAW: Record<AvatarId, (p: { k: K }) => ReactNode> = { kape: Kape, guhit: 
 export function KapeFigure() {
   const k: K = { icon: false, p: PAL.kape, u: 'kape-fig' }
   return <Kape k={k} bare />
+}
+
+/**
+ * Biyahe as in the portrait, in its 100×100 units, for the jeepney scene (worlds/biyahe/MissedStop.tsx):
+ * the eyes are one group, for the glance back at the stop.
+ */
+export function BiyaheFigure() {
+  const k: K = { icon: false, p: PAL.biyahe, u: 'biyahe-fig' }
+  return <Biyahe k={k} />
 }
 
 /**
