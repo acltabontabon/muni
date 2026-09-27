@@ -13,13 +13,13 @@ import { readPrefs, writePrefs } from '@/lib/prefs'
 import { shortDate } from '@/lib/schedule'
 import { chooseWorkspace, useCurrentWorkspace } from '@/lib/workspace'
 import { Button, Spinner, useDocumentTitle } from '@/ui'
-import { Composer, LocalThoughtList, MyThoughts } from '@/ui/capture'
+import { Composer, LocalThoughtList, MyThoughts, WritingHost } from '@/ui/capture'
+import { JournalScene } from '@/ui/journal'
 import { NewWorkspaceDialog } from '@/ui/menus'
 import { AppShell } from '@/ui/shell'
-import { WorldScene, WorldSlot } from '@/worlds/WorldScene'
 import { useWorld } from '@/worlds/world'
-import { OWN_PAGES } from '@/worlds/pages'
-import { SprintTab, type TabState } from '@/worlds/desk'
+import { Room } from '@/worlds/rooms'
+import { RoomEmpty, SprintTab, StateWriter, Writer, type TabState } from '@/worlds/room'
 import { CharacterNote } from '@/worlds/Character'
 import { RetroWhen } from '@/ui/when'
 import { DeviceKeyNotice } from '@/ui/keys'
@@ -38,7 +38,6 @@ export function Home() {
   useDocumentTitle('')
   const { me, offline: authOffline } = useAuth()
   const { world } = useWorld()
-  const own = world ? OWN_PAGES[world] ?? null : null
   const local = useLocal()
   const [params] = useSearchParams()
   const [data, setData] = useState<Loaded | null>(null)
@@ -167,78 +166,62 @@ export function Home() {
     </>
   )
 
-  // ── Collecting: one scene — the heading on the horizon, writing and the collection beneath it.
+  // ── Collecting. The writing lives in one host above the page, so changing character (or turning
+  // the character theme off) redraws the page around the words without touching them.
   if (composerFor) {
     const empty = collected === 0
     const closedNote = !dest ? <>This sprint stopped collecting. Your text is still here — copy it{choices.length ? ', or choose another sprint' : ''}.</> : undefined
-    // A world with its own page (Guhit's sketchbook, Kape's café table) lays it out itself.
-    if (own)
-      return (
-        <AppShell workspace={ws} wide>
-          <own.Page
-            empty={empty}
-            count={collected}
-            notices={
-              <>
-                <CharacterNote />
-                {offlineNote}
-                {live ? <LiveBanner s={live} /> : null}
-                {composerFor.encryption === 'e1' ? <div className="mb-4"><DeviceKeyNotice need="write" /></div> : null}
-              </>
-            }
-            book={
-              <own.Composer
-                key={`${composerFor.id}:${local.cleared}`}
-                dest={dest ? toDest(dest) : null}
-                choices={choices}
-                onChoose={choose}
-                closed={closedNote}
-                tab={(onSwitch) => <SprintTab s={composerFor} state={dest ? 'collecting' : 'closed-now'} me={me} choices={choices} onSwitch={onSwitch} elsewhere={elsewhere} kicker={own.kicker} />}
-              />
-            }
-            collection={<MyThoughts sprintId={composerFor.id} editable={!!dest && !offline} moveChoices={moveChoices} online={!offline} onCount={setCollected} empty={<own.Empty />} />}
-            extras={extras}
-          />
-        </AppShell>
-      )
+    const notices = (
+      <>
+        <CharacterNote />
+        {offlineNote}
+        {live ? <LiveBanner s={live} /> : null}
+        {composerFor.encryption === 'e1' ? <div className="mb-4"><DeviceKeyNotice need="write" /></div> : null}
+      </>
+    )
+    const thoughts = (roomEmpty?: ReactNode) => <MyThoughts sprintId={composerFor.id} editable={!!dest && !offline} moveChoices={moveChoices} online={!offline} onCount={setCollected} empty={roomEmpty} />
     return (
       <AppShell workspace={ws} wide>
-        <WorldScene bubble={empty} respond invite={collected !== null && !empty}>
-          <Context s={composerFor} status={dest ? 'collecting' : 'closed-now'} elsewhere={elsewhere} me={me} several={collectingHere.length > 1} chosen={!!dest} />
-          <h1 className="journal-title mt-3">
-            <label htmlFor="thought-field">What’s worth <em>remembering</em>?</label>
-          </h1>
-        </WorldScene>
-        <div className="journal-body" data-empty={empty || undefined}>
-          <div className="home-compose min-w-0 self-start">
-            <CharacterNote />
-            {offlineNote}
-            {live ? <LiveBanner s={live} /> : null}
-            {composerFor.encryption === 'e1' ? <div className="mb-4"><DeviceKeyNotice need="write" /></div> : null}
-            <Composer
-              key={`${composerFor.id}:${local.cleared}`}
-              fieldId="thought-field"
-              dest={dest ? toDest(dest) : null}
-              choices={choices}
-              onChoose={choose}
-              closed={closedNote}
+        <WritingHost key={`${composerFor.id}:${local.cleared}`} dest={dest ? toDest(dest) : null} choices={choices} onChoose={choose}>
+          {world ? (
+            <Room
+              world={world}
+              mode="write"
+              empty={empty}
+              notices={notices}
+              context={<SprintTab s={composerFor} state={dest ? 'collecting' : 'closed-now'} me={me} choices={choices} elsewhere={elsewhere} />}
+              writing={<Writer closed={closedNote} />}
+              collection={thoughts(<RoomEmpty />)}
+              extras={extras}
             />
-            <WorldSlot part="Compose" />
-          </div>
-          <div className="home-collection min-w-0 pt-1">
-            <MyThoughts sprintId={composerFor.id} editable={!!dest && !offline} moveChoices={moveChoices} online={!offline} onCount={setCollected} />
-            {extras}
-            <WorldSlot part="Collection" />
-          </div>
-          <WorldSlot part="Page" />
-        </div>
+          ) : (
+            <>
+              <JournalScene bubble={empty} respond>
+                <Context s={composerFor} status={dest ? 'collecting' : 'closed-now'} elsewhere={elsewhere} me={me} several={collectingHere.length > 1} chosen={!!dest} />
+                <h1 className="journal-title mt-3">
+                  <label htmlFor="thought-field">What’s worth <em>remembering</em>?</label>
+                </h1>
+              </JournalScene>
+              <div className="journal-body" data-empty={empty || undefined}>
+                <div className="home-compose min-w-0 self-start">
+                  {notices}
+                  <Composer fieldId="thought-field" dest={dest ? toDest(dest) : null} choices={choices} onChoose={choose} closed={closedNote} />
+                </div>
+                <div className="home-collection min-w-0 pt-1">
+                  {thoughts()}
+                  {extras}
+                </div>
+              </div>
+            </>
+          )}
+        </WritingHost>
       </AppShell>
     )
   }
 
   // ── Everything else: the same scene with the state as its heading, then one readable column.
   const sprintLink = (s: Sprintish) => <Link to={`/sprints/${s.id}`} className="font-medium text-ink [overflow-wrap:anywhere] hover:underline">{s.name}</Link>
-  // Each state: what it's about (for Guhit's tab), a kicker and heading, what to do, and the thoughts.
+  // Each state: what it's about (the room's sprint label), a kicker and heading, what to do, and the thoughts.
   let kicker: ReactNode
   let title: ReactNode
   let body: ReactNode
@@ -256,13 +239,13 @@ export function Home() {
     kicker = <>{sprintLink(live)} · retro live</>
     title = <>The retro is <em>happening</em> now</>
     body = <State body="Collection is closed. Follow the conversation and take part from this device." action={<Link to={`/sprints/${live.id}/room`}><Button variant="primary">Join the retro <ArrowRight className="size-4" /></Button></Link>} />
-    mine = <MyThoughts sprintId={live.id} editable={false} moveChoices={moveChoices} online={!offline} onCount={setCollected} empty={own ? <own.Empty /> : undefined} />
+    mine = <MyThoughts sprintId={live.id} editable={false} moveChoices={moveChoices} online={!offline} onCount={setCollected} empty={world ? <RoomEmpty /> : undefined} />
   } else if (closed) {
     about = { s: closed, state: 'closed' }
     kicker = <>{sprintLink(closed)} · <RetroWhen s={closed as { retro_at: string; timezone: string }} icon={false} /></>
     title = <>Collection is <em>closed</em></>
     body = <State body={closed.status === 'ready' ? 'Thoughts are read-only now. The retro starts when the facilitator begins it.' : 'Thoughts are read-only now while the facilitator prepares the discussion.'} action={<Link to={`/sprints/${closed.id}`} className="inline-flex items-center gap-1 text-sm font-medium text-accent-ink hover:underline">Sprint guide <ArrowRight className="size-4" /></Link>} />
-    mine = <MyThoughts sprintId={closed.id} editable={false} moveChoices={moveChoices} online={!offline} onCount={setCollected} empty={own ? <own.Empty /> : undefined} />
+    mine = <MyThoughts sprintId={closed.id} editable={false} moveChoices={moveChoices} online={!offline} onCount={setCollected} empty={world ? <RoomEmpty /> : undefined} />
   } else if (recentDone) {
     about = { s: recentDone, state: 'done' }
     kicker = <>{sprintLink(recentDone)} · retro complete</>
@@ -289,32 +272,31 @@ export function Home() {
       </div>
     )
   }
-  if (own)
+  if (world)
     return (
       <AppShell workspace={ws} wide>
-        <own.Page
-          count={mine ? collected : null}
+        <Room
+          world={world}
+          mode="state"
+          empty={!!mine && collected === 0}
           notices={
             <>
               <CharacterNote />
               {offlineNote}
             </>
           }
-          book={
-            <own.Sheet tab={<SprintTab s={about.s} state={about.state} title={about.label} me={me} />} title={title}>
-              {body}
-            </own.Sheet>
-          }
+          context={<SprintTab s={about.s} state={about.state} title={about.label} me={me} />}
+          writing={<StateWriter title={title}>{body}</StateWriter>}
           collection={mine}
           extras={extras}
         />
       </AppShell>
     )
   const head = (
-    <WorldScene lights={lights} bubble={bubble}>
+    <JournalScene lights={lights} bubble={bubble}>
       <p className="text-sm text-ink-soft">{kicker}</p>
       <h1 className="journal-title mt-2">{title}</h1>
-    </WorldScene>
+    </JournalScene>
   )
   if (mine) body = <>{body}<div className="mt-12">{mine}</div></>
   return (
@@ -472,23 +454,35 @@ function PendingJoins() {
 }
 
 function Welcome() {
-  const { refresh } = useAuth()
+  const { me, refresh } = useAuth()
+  const { world } = useWorld()
   const nav = useNavigate()
   const [creating, setCreating] = useState(false)
+  const body = (
+    <>
+      <PendingJoins />
+      <p className="mt-2 max-w-prose text-lg text-ink-soft">If you were invited to a team, open your invite link or scan the team’s QR code — it brings you straight to your sprint.</p>
+      <p className="mt-6 text-sm text-ink-soft">
+        Starting a team yourself? <button className="font-medium text-ink underline underline-offset-4 hover:decoration-accent" onClick={() => setCreating(true)}>Create a workspace</button>
+      </p>
+    </>
+  )
   return (
     <AppShell workspace={null} wide>
-      <WorldScene bubble>
-        <p className="text-sm text-ink-soft">A moment to reflect</p>
-        <h1 className="journal-title mt-2">Welcome to <em>Muni</em></h1>
-      </WorldScene>
-      <div className="mt-4 max-w-2xl">
-        <CharacterNote />
-        <PendingJoins />
-        <p className="mt-6 max-w-prose text-lg text-ink-soft">If you were invited to a team, open your invite link or scan the team’s QR code — it brings you straight to your sprint.</p>
-        <p className="mt-6 text-sm text-ink-soft">
-          Starting a team yourself? <button className="font-medium text-ink underline underline-offset-4 hover:decoration-accent" onClick={() => setCreating(true)}>Create a workspace</button>
-        </p>
-      </div>
+      {world && me ? (
+        <Room world={world} mode="state" notices={<CharacterNote />} context={<SprintTab s={null} state="none" title="No team yet" me={me} />} writing={<StateWriter title="Welcome to Muni">{body}</StateWriter>} collection={null} />
+      ) : (
+        <>
+          <JournalScene bubble>
+            <p className="text-sm text-ink-soft">A moment to reflect</p>
+            <h1 className="journal-title mt-2">Welcome to <em>Muni</em></h1>
+          </JournalScene>
+          <div className="mt-4 max-w-2xl">
+            <CharacterNote />
+            {body}
+          </div>
+        </>
+      )}
       <NewWorkspaceDialog open={creating} onClose={() => setCreating(false)} onCreated={async (w: Workspace) => { setCreating(false); await refresh(); chooseWorkspace(w.id); nav(`/workspaces/${w.id}`) }} />
     </AppShell>
   )

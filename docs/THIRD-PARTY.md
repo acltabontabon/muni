@@ -11,7 +11,7 @@ of every bundled package to `third-party-licenses.txt` (see `web/scripts/third-p
 | Geist (variable font, via Fontsource) | SIL OFL 1.1 | The Geist Project Authors |
 | Fraunces (variable font, via Fontsource) | SIL OFL 1.1 | The Fraunces Project Authors |
 | Noto Sans Tagalog (via Fontsource) — renders the Baybayin next to the wordmark | SIL OFL 1.1 | The Noto Project Authors |
-| Character-world display faces (via Fontsource): Young Serif, DM Mono, Bricolage Grotesque, Caveat, Barlow Condensed, Archivo, Newsreader, Unbounded, Bodoni Moda, Alegreya. Only the chosen world's Latin files are downloaded and cached | SIL OFL 1.1 | Their respective project authors (see each package's `LICENSE` in `third-party-licenses.txt`) |
+| Character-world display faces (via Fontsource): Young Serif, DM Mono, Bricolage Grotesque, Caveat, Source Sans 3, Archivo, Newsreader, Unbounded, Bodoni Moda, Alegreya. Only the chosen world's Latin files are downloaded and cached | SIL OFL 1.1 | Their respective project authors (see each package's `LICENSE` in `third-party-licenses.txt`) |
 | React, React DOM, scheduler | MIT | Meta Platforms, Inc. and affiliates |
 | React Router | MIT | React Training LLC 2015-2019; Remix Software Inc. 2020-2021; Shopify Inc. 2022-2023 |
 | Radix UI primitives, Floating UI | MIT | WorkOS; Floating UI contributors |
@@ -49,10 +49,10 @@ the fictional demo data were made for this project and are covered by its licens
 logo are additionally covered by [`../TRADEMARKS.md`](../TRADEMARKS.md).
 
 The eight characters (Kape, Guhit, Biyahe, Bola, Pahina, Himig, Porma, Sibol) — their portraits
-(`web/src/worlds/portraits.tsx`), their worlds' illustrations (`web/src/worlds/art/*.tsx`), the
+(`web/src/worlds/portraits.tsx`), their rooms and motifs (`web/src/worlds/rooms/*.tsx`), the
 worlds' styling (`web/src/worlds/worlds.css`) and their words (`web/src/worlds/characters.ts`) —
 are original work made for Muni in 2026 and covered by the project license (Apache-2.0). They
 are hand-authored vector drawings written as SVG in code: no image-generation model, stock art,
 clip art or third-party illustration was used, and none depicts an existing person or character.
 Porma's shirt is *inspired by* the barong Tagalog; its embroidery pattern is invented and carries
-no meaning. The cultural notes shown in the app credit their references (see `docs/DESIGN.md`).
+no meaning, and Porma's room shows only an abstract hint of fine woven cloth. The cultural notes shown in the app credit their references (see `docs/DESIGN.md`).

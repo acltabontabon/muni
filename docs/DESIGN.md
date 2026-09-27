@@ -101,83 +101,61 @@ Category accents are restrained and always paired with an icon and a label:
 
 *Choose a character. Step into their world. Make room for your own thoughts.*
 
-Eight original characters — nicknames, not diagnoses — each with an art-directed world for the
+Eight original characters — nicknames, not diagnoses — each with a room of its own for the
 person's **own** pages: the writing page and their collection (Home, in every state) and Account.
 Shared team pages (workspace, sprint guide, prepare, stage, companion, outcomes) always keep
 Muni's shared presentation; the stage is projected and anonymous thoughts stay visually neutral.
 A character is private to its owner: it is returned only by `/api/auth/me` and never appears in
 anything a teammate sees (tested in `worker/test/avatars.test.ts`).
 
-| world | place | light / dark | display type | the collection | its one moment |
+**Direction (since the calm reset).** Elegant, artistic, calm, professional, personal, subtly
+Filipino: a well-designed place to pause and write, carried over from the entrance — one opaque
+working surface, readable UI type, an ink primary action, underlined text for quieter ways, one
+still motif, short literal words. Culture comes through places, light, material and rhythm, never
+labels. The lore lives in the chooser and settings; the writing page doesn't reenact it. Earlier
+comic scenes (the master plan, the 40-minute stir, the missed stop, the last game) are retired.
+
+| room | composition | sprint | collection | motif (still) | type |
 | --- | --- | --- | --- | --- | --- |
-| **Kape** — The Morning Thinker | the café corner outside of time: a tabletop, pandesal, sugar sachets, a café stamp | morning light on warm paper / the café stayed open for you | Young Serif, DM Mono | a receipt roll: torn ends, perforations, order numbers, stamp labels | a curl of steam rises from the cup |
-| **Guhit** — The Creative | the gloriously unfinished studio, as its own layout: a working sketchbook on a desk, the sprint as its index tab, a pencil on the sheet, the barangay master plan taped below | warm desk and sketchbook stock / charcoal paper on a darker desk | Bricolage Grotesque, Caveat | numbered pages (“p. 5”) in the same book | the underline inks once on entry; a save draws a tick and adds the next ambitious thing to the master plan |
-| **Biyahe** — The Commuter | one stop past the plan, as its own layout: the writing sheet framed like a vehicle window with a livery stripe, the sprint on a destination board, and the missed stop under the writing | pale stone and petrol by day / midnight navy, amber city lights | Barlow Condensed | stops on a quiet route line, a heading per day, each thought keeping only its time | the missed stop plays once when first seen; a saved thought's stop appears on the route |
-| **Bola** — The Neighborhood Athlete | last game, extended indefinitely, as its own layout: the page opens on the court at sunrise edge to edge, LAST GAME painted on the wall, and the writing panel is set down on the court floor | chalk concrete, terracotta and court green / asphalt at dawn, amber paint | Archivo (expanded and condensed) | plain panels with an accent edge, under jersey-style date numerals (real dates only) | the sunrise plays once when first seen (one bounce, the rooster steps in, one finger up); a saved thought gets a painted accent |
-| **Pahina** — The Reader | a private reading room: a stack of books, folded glasses, a lamp | afternoon by a window / a reading lamp | Newsreader | a table of contents: chapter numerals, dotted leaders | a ribbon bookmark glides to where you are |
-| **Himig** — The Music Lover | the listening room for imaginary music videos: a sleeve, a record half out | sleeve paper / black vinyl | Unbounded, DM Mono | tracks (A1, A2…) divided by grooves | the record turns once |
-| **Porma** — The Dressed-Up Dreamer | everyday life, unnecessarily well dressed: a cloche lifted off… a parcel | fine stationery / black tie | Bodoni Moda | an invitation archive: “No. 7”, hairlines, small caps | the monogram is pressed |
-| **Sibol** — The Plant Keeper | a small balcony with room to grow: a railing, clay pots, a trailing pothos | sage-cream in dappled light / the balcony at night | Alegreya | a garden notebook: pressed leaves, plant-tag dates | a leaf unfurls |
+| **Kape** — The Morning Thinker · *a quiet café table* | the writing surface is the table, dominant; a narrower column beside it, a soft rule between | on the table's top edge | an editorial list, hairline dividers, a dotted rule as the only receipt | a ceramic contour at the table's far corner | Young Serif |
+| **Guhit** — The Creative · *an artist's working folio* | asymmetric: a slim margin, a broad chalk sheet with one layer under it | the margin, under a rule | a two-column folio in the sheet's columns, its label in the margin | one vermilion ink stroke under the question, two registration marks; the day's line in Caveat | Bricolage Grotesque |
+| **Biyahe** — The Commuter · *a moment by the window* | one broad window: a band along the top, a narrow pane of the view, the writing on the wide pane | the band | by day on a fine rule aligned with the view, each thought keeping its time | mist, a thin horizon, the city's first lights, a small dusk sun (a moon at night) | Source Sans 3 |
+| **Bola** — The Neighborhood Athlete · *the court after everyone leaves* | strong horizontals: a weighted rule, the sprint and question on the left, the composer on the right | in the opening block | an even two-to-three-column grid under weighted rules | a cropped corner of the court (the key, the three-point arc) in clay | Archivo, wide |
+| **Pahina** — The Reader · *a private reading room* | a book's measure, centred | a chapter line between fine rules | a small anthology: serif entries, short centred rules, dates in the margin | a ribbon bookmark; the collection's label as a bookplate | Newsreader (the field too) |
+| **Himig** — The Music Lover · *a listening room in print* | liner notes: a credits rail, the writing offset beside it | the rail | a steady list with a column of small credits (category, time) | half a record at the rail's edge, a brass rule | Unbounded, DM Mono |
+| **Porma** — The Dressed-Up Dreamer · *a small sense of occasion* | precise and symmetric: a centred caption, one surface in fine double hairlines | the caption | filed as correspondence, two columns | a faint warp-and-weft strip along the frame's top edge (abstract; no motif with a meaning) | Bodoni Moda |
+| **Sibol** — The Plant Keeper · *a sheltered balcony* | an airy writing column; the collection further along, on a limestone ledge set lower | above the question | a calm list on the ledge | one calamansi sprig in line at the outer edge; still light through leaves | Alegreya |
 
-**Rules.** Navigation, shortcuts, filters, paging and status colours are identical in every world,
-and so is behaviour: drafts, the send queue, encryption, what “submitted” means, editing and
-deleting. Most worlds change composition, palette, type, illustration and decoration only.
+**Rules.** Navigation, words, shortcuts, filters, paging and status colours are identical in every
+room, and so is behaviour: drafts, the send queue, encryption, what “submitted” means, editing and
+deleting. The same action has the same name everywhere — **Add to sprint**, in Muni's journal too.
+Every room keeps one order: where the thought goes, the question (it labels the field), one calm
+opaque field, *Need a starting point?* (one deterministic prompt at a time), **Category** (one
+optional choice from a short list; a sheet on phones) and **Context** (folds to a summary), the one
+action (⌘/Ctrl-Enter in its tooltip; no keycaps on screen), the privacy line as plain text. On a
+phone every room collapses to that order, then the collection. Focus on the field is ink, not the
+accent (a red edge reads as an error). Categories are always words. Nothing loops: the only motion
+is a 260 ms fade when the character changes, a disclosure rising, and a new thought settling into
+the list — none under reduced motion.
 
-**Worlds with their own layout.** A world may compose the writing page itself when restyling Muni's
-journal can't carry it: Guhit (`worlds/guhit/`), Kape (`worlds/kape/`), Biyahe (`worlds/biyahe/`) and Bola (`worlds/bola/`), listed in
-`worlds/pages.tsx`. The shared parts live in `worlds/desk.tsx` — the sprint label and its details
-(other sprints grouped by team), the category picker, the composer's layout, the state sheet and
-the page grid — each rendered with classes in the world's namespace (`<ns>-sheet`…) so a world
-styles them in its own `@scope`. A world supplies only composition, surfaces, art and motion.
-Guhit was first: the sprint is the
-sketchbook's index tab (name, state, one date — `retroShort` — with timing, protection and
-sprint switching in its details), the heading labels one calm field on one sheet, Category (one
-optional choice from a short list; a sheet on phones) and Context fold away behind two named
-controls, a starting point appears one at a time on request, and the one action says what it
-does: **Add to sprint** (⌘/Ctrl-Enter, in its tooltip; no keycaps on screen). Privacy is a plain
-line; the detail lives in the tab's details. Behaviour comes from `useComposer` and `MyThoughts`
-in `ui/capture.tsx`, shared with every other world; `e2e/guhit.mjs` checks both. On wide screens
-the desk holds the barangay master plan (`guhit/MasterPlan.tsx`): each thought adds the next
-unnecessarily ambitious thing, and a pencilled ghost shows what comes next.
-Kape (`kape/Cafe.tsx`, `kape/Stir.tsx`) asks “What’s on your mind?” on café stationery; its
-reservation card says “Writing for” and the real sprint name. The 40-minute stir draws Kape from the
-portrait (`KapeFigure`, head only, on a body drawn for the scene) at a café table: the clock says
-7:42, the receipt 07:02, a tent card says “Coffee: ready. Kape: processing.”, the first shift's
-spoon sleeps on a folded sugar packet, the table is reserved until further notice. It plays once
-per visit when first seen (IntersectionObserver, then disconnected), never under reduced motion,
-and on phones is framed on Kape, the cup and the tent card, after the collection. Nothing in it is
-real status.
-Biyahe (`biyahe/Ride.tsx`, `biyahe/MissedStop.tsx`) asks “What stayed with you today?” inside a
-window frame; its collection groups thoughts under a heading per day (`CollectionLook.byDay`,
-`dayLabel`), order unchanged. The missed stop: Biyahe in a jeepney window, hand up, “para…”
-prepared; the “Dito sana” sign slides past above the roof; the route placard branches to a new
-character arc; the rehearsal note is final_final_v7; the subtitle reads “Nakapag-practice. Hindi
-nakababa.” Scenes share `useOncePlay` (desk.tsx): armed in their first pose until seen, played once
-per visit, paused in hidden tabs, the finished picture under reduced motion. `e2e/desk.mjs` covers
-all four worlds.
-Bola breaks the usual grid (`DeskProviders` lets a world compose freely): the court at sunrise runs
-edge to edge across the top (`bola/Court.tsx`) — LAST GAME painted on the wall behind the fence,
-“extended (basta)” under it, the referee asleep on the bench with the whistle on the lanyard, a rooster
-reporting for the morning shift, Bola in front of the lettering with the ball at the hip and one
-finger up — and the writing panel is set down on the court's floor (on a phone, just below it, so
-no one in the picture is covered). Nothing on Bola's page keeps score. Each world's palette passes WCAG AA for text in light and dark, and Muni's
-semantic colours (status, categories, ok/warn/danger) are never redeclared (`worlds.test.ts`).
-Art sits beside content, never behind text, and never moves while someone writes: the one moment
-plays after a confirmed save, pauses in hidden tabs, and becomes a static change under reduced
-motion. One joke per page: the empty collection's line, or (when there are thoughts) the day's
-invitation, chosen once a day. Character words never enter the field, its placeholder, status,
-errors or anything that leaves the device.
+**How it's built.** `worlds/room.tsx` holds the shared room — the sprint label and its details
+(other sprints grouped by team), the writer, the state sheet, the category picker, the empty
+collection — styled once in `worlds.css` (“The room”) from a few properties
+(`--room-heading-*`, `--room-field-*`). `worlds/rooms.tsx` maps each character to its composition
+(`worlds/rooms/<id>.tsx`: layout and one motif, nothing else) and renders it. The writing lives in a
+`WritingHost` (`ui/capture.tsx`) above the room, so changing character — or switching the theme off
+to Muni's journal — redraws the page around the words: text, category, open context and starting
+point stay. Layout answers the room's own width (container queries), so the chooser's miniature
+(`WorldPreview.tsx`) is the real composition at a fixed virtual width. Each world's palette passes
+WCAG AA for text in light and dark, and Muni's semantic colours (status, categories, ok/warn/danger)
+are never redeclared (`worlds.test.ts`). `e2e/rooms.mjs` covers all eight rooms end to end;
+`e2e/worlds.mjs` covers the chooser, the theme switch, shared pages and offline.
 
-**How it's built.** `web/src/worlds/`: `characters.ts` (ids, lore, world copy, cultural notes),
-`portraits.tsx` (eight portraits on one face kit; a heavier icon cut under 56px), `art/<id>.tsx`
-(each world's pictures, loaded only when shown and precached for offline — 3–7 KB each),
-`worlds.css` (tokens on `:root[data-world]`, composition in `@scope` blocks that stop at any
-other world so a preview renders correctly inside another world's page), `world.tsx` (the
-controller that sets `data-world` on `<html>` for personal paths only), `Chooser.tsx`,
-`WorldPreview.tsx` (a miniature built from the real classes), `Character.tsx` (first-visit gate,
-dialog, settings, the note for older accounts). `public/boot.js` applies the scheme and world
-before first paint. Each world's fonts are cached by the service worker only when that world is
-chosen (`vite.config.ts` → `sw.ts`).
+`characters.ts` holds ids, lore, each world's name, question, three daily lines, the empty
+collection's one line of wit, and the cultural notes; `portraits.tsx` the eight portraits (chooser,
+settings, the account button). `public/boot.js` applies the scheme and world before first paint.
+Each world's fonts are cached by the service worker only when that world is chosen
+(`vite.config.ts` → `sw.ts`).
 
 **Cultural grounding.** The characters show contemporary everyday Filipino life — kapeng
 barako (Liberica coffee grown mainly in Batangas and Cavite), the barangay and its basketball
@@ -185,7 +163,8 @@ court, *para po* on a jeepney, the plantito/plantita balcony gardens of 2020 —
 identity, region, accent, skin tone or traditional dress as a punchline. Porma's shirt is only
 *inspired by* the barong Tagalog (the national formal shirt, traditionally sheer piña or jusi and
 embroidered by hand; Lumban, Laguna is known as the embroidery capital, and Aklan's piña handloom
-weaving is on UNESCO's intangible heritage list, 2023); its pattern is invented. Skin tones range
+weaving is on UNESCO's intangible heritage list, 2023); its pattern is invented, and Porma's room
+uses only an abstract hint of fine cloth. Skin tones range
 from light to deep brown; hair is straight, wavy, curly, braided and silver; presentations are
 femme, masc and androgynous, from early twenties to sixties. UI chrome stays English; Filipino
 words appear only in the characters' lore, with meanings in the chooser's note.

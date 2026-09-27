@@ -1,5 +1,5 @@
 /**
- * Character worlds, end to end: every world on desktop and phone, light and dark, populated and
+ * Character worlds, end to end: every world's room on desktop and phone, light and dark, populated and
  * empty; worlds only on personal pages; a live switch that keeps what someone is writing; the
  * theme switch; fallbacks; reduced motion; the first-visit chooser; offline (production build).
  * Synthetic accounts and text only.
@@ -15,7 +15,8 @@ const SHOTS = process.env.SHOTS ?? null
 const OFFLINE = !!process.env.OFFLINE
 if (SHOTS) mkdirSync(SHOTS, { recursive: true })
 const WORLDS = ['kape', 'guhit', 'biyahe', 'bola', 'pahina', 'himig', 'porma', 'sibol']
-const FONT = { kape: 'Young Serif', guhit: 'Bricolage Grotesque Variable', biyahe: 'Barlow Condensed', bola: 'Archivo Variable', pahina: 'Newsreader Variable', himig: 'Unbounded Variable', porma: 'Bodoni Moda Variable', sibol: 'Alegreya Variable' }
+const HEADING = { kape: 'What’s on your mind?', guhit: 'What caught your eye?', biyahe: 'What stayed with you today?', bola: 'What’s worth talking about?', pahina: 'What would you underline?', himig: 'What’s still playing in your head?', porma: 'What’s worth noting?', sibol: 'What’s worth tending to?' }
+const FONT = { kape: 'Young Serif', guhit: 'Bricolage Grotesque Variable', biyahe: 'Source Sans 3 Variable', bola: 'Archivo Variable', pahina: 'Newsreader Variable', himig: 'Unbounded Variable', porma: 'Bodoni Moda Variable', sibol: 'Alegreya Variable' }
 const results = []
 const check = (name, ok, detail = '') => {
   results.push({ name, ok })
@@ -95,28 +96,27 @@ try {
             await page.goto(`${BASE}/`)
             await page.waitForSelector('textarea[name="thought"]')
             await page.waitForSelector(kind === 'full' ? '.passage' : '.mine-empty', { timeout: 15000 })
-            await page.waitForFunction(() => document.querySelector('.journal-art svg') !== null, null, { timeout: 8000 }).catch(() => {})
             await page.evaluate(() => document.fonts.ready)
             const facts = await page.evaluate(() => {
               const vw = document.documentElement.clientWidth
               const field = document.querySelector('textarea[name="thought"]').getBoundingClientRect()
-              // Guhit's studio names the action for what it does ("Add to sprint"); the other worlds keep Muni's composer.
-              const save = [...document.querySelectorAll('button')].find((b) => ['Save thought', 'Add to sprint'].includes(b.textContent.trim())).getBoundingClientRect()
+              const save = [...document.querySelectorAll('button')].find((b) => b.textContent.trim() === 'Add to sprint').getBoundingClientRect()
               return { overflow: document.documentElement.scrollWidth - vw, fieldTop: field.top, saveBottom: save.bottom, vh: innerHeight, label: document.querySelector('label[for="thought-field"]')?.textContent }
             })
             const at = `${w} ${label} ${theme} ${kind}`
             if (kind === 'full' && theme === 'light') {
               check(`${w} ${label}: world applied`, (await world(page)) === w)
               check(`${w} ${label}: no horizontal overflow`, facts.overflow <= 0, `${facts.overflow}px`)
-              check(`${w} ${label}: heading still labels the field`, facts.label === ({ kape: 'What’s on your mind?', biyahe: 'What stayed with you today?', bola: 'What stayed with you?' }[w] ?? 'What’s worth remembering?'))
-              if (label === '390') check(`${w} 390: the field and Save are in the first screen`, facts.fieldTop < facts.vh && facts.saveBottom <= facts.vh, `field ${Math.round(facts.fieldTop)}, save ${Math.round(facts.saveBottom)} of ${facts.vh}`)
+              check(`${w} ${label}: heading still labels the field`, facts.label === HEADING[w])
+              check(`${w} ${label}: its own room`, (await page.locator(`.room[data-room="${w}"] .${w}-room`).count()) === 1)
+              if (label === '390') check(`${w} 390: the field and Add to sprint are in the first screen`, facts.fieldTop < facts.vh && facts.saveBottom <= facts.vh, `field ${Math.round(facts.fieldTop)}, save ${Math.round(facts.saveBottom)} of ${facts.vh}`)
               const fontOk = await page.evaluate(async (f) => {
                 await document.fonts.load(`16px "${f}"`)
                 return document.fonts.check(`16px "${f}"`)
               }, FONT[w])
               check(`${w}: its display face is loaded`, fontOk)
             }
-            if (kind === 'empty' && theme === 'light' && label === '1440') check(`${w}: an illustrated, written empty state`, (await page.locator('.w-empty-art svg').count()) > 0 && (await page.locator('.w-joke').count()) === 1)
+            if (kind === 'empty' && theme === 'light' && label === '1440') check(`${w}: a quiet, written empty state`, (await page.locator('.room-empty-line').count()) === 1)
             if (errors.length) check(`${at}: no page errors`, false, errors[0])
             await shot(page, `${w}-${kind}-${label}-${theme}`)
             await ctx.close()
@@ -140,7 +140,7 @@ try {
           return s.outlineStyle !== 'none' && parseFloat(s.outlineWidth) >= 2 ? s.outlineColor : s.boxShadow !== 'none' ? 'shadow' : null
         })
       }
-      check('Focus is visible on Save', !!(await outline('button:has-text("Save thought")')))
+      check('Focus is visible on Add to sprint', !!(await outline('button:has-text("Add to sprint")')))
       check('Focus is visible on a thought’s ⋯ menu', !!(await outline('.passage-menu')))
       await ctx.close()
     }
@@ -177,7 +177,7 @@ try {
       const before = await page.locator('.passage').count()
       await page.locator('[data-account-trigger]').click()
       await page.locator('button:has-text("Change character")').click()
-      await page.waitForSelector('[role=dialog] .w-tile')
+      await page.locator('[role=dialog] .w-tile').first().waitFor()
       await page.locator('[role=dialog] [role=radio][aria-label^="Himig"]').click()
       await page.locator('[role=dialog] button:has-text("Choose Himig")').click()
       await page.waitForSelector('[role=dialog]', { state: 'detached' })
@@ -201,9 +201,9 @@ try {
       check('Theme off: Muni’s look on Account', (await world(page)) === null)
       await page.goto(`${BASE}/`)
       await page.waitForSelector('.mine-empty')
-      check('Theme off: neutral words in the empty collection', (await page.locator('text=Nothing kept yet').count()) === 1 && (await page.locator('.w-joke').count()) === 0)
+      check('Theme off: neutral words in the empty collection', (await page.locator('text=Nothing kept yet').count()) === 1 && (await page.locator('.room').count()) === 0)
       check('Theme off: the character is still yours', (await page.locator('[data-account-trigger] [data-portrait="sibol"]').count()) === 1)
-      check('Theme off: the duyan evening is back', (await page.locator('.journal-scene:not([data-scene]) .journal-sun').count()) === 1)
+      check('Theme off: the duyan evening is back', (await page.locator('.journal-scene .journal-sun').count()) === 1)
       await ctx.close()
       await ana.req('PATCH', '/api/auth/me', { avatar_theme: true })
     }
@@ -225,8 +225,8 @@ try {
       await page.goto(`${BASE}/`)
       await page.waitForSelector('.passage')
       await page.locator('textarea[name="thought"]').fill('Synthetic: reduced motion in a world')
-      await page.locator('button:has-text("Save thought")').click()
-      await page.waitForSelector('text=Submitted. It stays hidden')
+      await page.locator('button:has-text("Add to sprint")').click()
+      await page.locator('.room-note', { hasText: 'Added to' }).waitFor()
       await page.waitForTimeout(2500)
       const running = await page.evaluate(() => document.getAnimations().filter((a) => a.playState === 'running').length)
       check('Reduced motion: nothing is still animating after a save', running === 0, `${running} running`)
@@ -291,8 +291,7 @@ try {
     await page.reload()
     await page.waitForSelector('textarea[name="thought"]')
     check('Offline: the world is still on', (await world(page)) === 'pahina')
-    await page.waitForFunction(() => document.querySelector('.journal-art svg') !== null, null, { timeout: 8000 }).catch(() => {})
-    check('Offline: its art is there', (await page.locator('.journal-art svg.pahina-head').count()) === 1)
+    check('Offline: its room is there', (await page.locator('.pahina-room .pahina-ribbon').count()) === 1)
     const face = await page.evaluate(async () => {
       await document.fonts.load('16px "Newsreader Variable"')
       return document.fonts.check('16px "Newsreader Variable"')

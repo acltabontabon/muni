@@ -19,6 +19,7 @@ import type { Category, MyEntry, Period } from '@/api/types'
 import { CATEGORIES, categoryMeta, MEMORY_PROMPTS, PERIODS } from '@/lib/categories'
 import { setComposerDirty } from '@/lib/dirty'
 import { draftKeeper } from '@/lib/drafts'
+import { useAuth } from '@/lib/auth'
 import { announceKept } from '@/lib/kept'
 import { localGeneration, useLocal, type Destination } from '@/lib/local/LocalProvider'
 import { emptyPayload, hasText, StorageError, type OutboxItem, type Payload } from '@/lib/local/store'
@@ -31,8 +32,6 @@ import { Button, ErrorText, Kbd, useToast } from '@/ui'
 import { StatusLabel, type ThoughtState } from '@/ui/status'
 import { Hammock } from '@/ui/journal'
 import { MUNI_WORDS } from '@/worlds/characters'
-import { useWorld } from '@/worlds/world'
-import { WorldEmptyArt } from '@/worlds/WorldScene'
 
 const isFinePointer = () => window.matchMedia('(pointer: fine)').matches
 const periodOptions = PERIODS.map((p) => ({ id: p.id, label: p.label, color: 'var(--ink-faint)' }))
@@ -231,25 +230,50 @@ export function useComposer({ dest, choices, onChoose, onSaved }: { dest: Destin
     }
   }
 
-  return { uid, p, set, submit, onKey, busy, error, notice, restored, typing: hasText(p), more, setMore, area, choose, storage: local.kind }
+  return { uid, p, set, submit, onKey, busy, error, notice, restored, typing: hasText(p), more, setMore, area, choose, storage: local.kind, dest }
+}
+
+export type ComposerState = ReturnType<typeof useComposer> & {
+  /** The starting point on show (an index into MEMORY_PROMPTS), or null. Cleared by a save. */
+  prompt: number | null
+  setPrompt: (i: number | null | ((i: number | null) => number | null)) => void
+}
+
+/** The composer's state, held above whatever draws it (see WritingHost). */
+export const Writing = createContext<ComposerState | null>(null)
+export function useWriting(): ComposerState {
+  const s = useContext(Writing)
+  if (!s) throw new Error('useWriting outside WritingHost')
+  return s
+}
+
+/**
+ * Holds one destination's composer — the text, its draft, the open context, the starting point —
+ * above the page that draws it. A person can change character (a different composition) or switch
+ * the character theme off (Muni's journal) mid-sentence: the drawing is replaced, the writing isn't.
+ * Mount it with `key={sprintId}`, like the composer itself.
+ */
+export function WritingHost({ dest, choices, onChoose, children }: { dest: Destination | null; choices: Destination[]; onChoose: (d: Destination) => void; children: ReactNode }) {
+  const [prompt, setPrompt] = useState<number | null>(null)
+  const state = useComposer({ dest, choices, onChoose, onSaved: () => setPrompt(null) })
+  return <Writing.Provider value={{ ...state, prompt, setPrompt }}>{children}</Writing.Provider>
 }
 
 /**
  * The composer. Mount it with `key={sprintId}`: each destination has its own text, so switching
  * workspace or sprint never carries words somewhere else. Choosing another destination from the
- * composer's own "Saving to" list is the one explicit way to move them.
+ * composer's own "Saving to" list is the one explicit way to move them. Inside a WritingHost it
+ * draws the host's state instead of keeping its own.
  *
  * `fieldId` lets a page put the field's label (the heading) elsewhere, such as on the scene's
  * horizon; without it, the composer shows its own heading.
  */
-export function Composer({
-  dest,
-  choices,
-  onChoose,
-  headingLevel = 1,
-  fieldId,
-  closed,
-}: {
+export function Composer(props: ComposerProps) {
+  const hosted = useContext(Writing)
+  return hosted ? <ComposerView {...props} s={hosted} /> : <OwnComposer {...props} />
+}
+
+type ComposerProps = {
   dest: Destination | null
   choices: Destination[]
   onChoose: (d: Destination) => void
@@ -257,9 +281,18 @@ export function Composer({
   fieldId?: string
   /** Shown when the destination stopped collecting while text was still here. */
   closed?: ReactNode
-}) {
-  const [nudge, setNudge] = useState<string | null>(null)
-  const { uid, p, set, submit, onKey, busy, error, notice, restored, typing, more, setMore, area, choose, storage } = useComposer({ dest, choices, onChoose, onSaved: () => setNudge(null) })
+}
+
+function OwnComposer(props: ComposerProps) {
+  const [prompt, setPrompt] = useState<number | null>(null)
+  const state = useComposer({ dest: props.dest, choices: props.choices, onChoose: props.onChoose, onSaved: () => setPrompt(null) })
+  return <ComposerView {...props} s={{ ...state, prompt, setPrompt }} />
+}
+
+function ComposerView({ choices, headingLevel = 1, fieldId, closed, s }: ComposerProps & { s: ComposerState }) {
+  const { uid, p, set, submit, onKey, busy, error, notice, restored, typing, more, setMore, area, choose, storage, dest, prompt, setPrompt } = s
+  const nudge = prompt === null ? null : MEMORY_PROMPTS[prompt % MEMORY_PROMPTS.length]
+  const setNudge = (x: string | null) => setPrompt(x === null ? null : MEMORY_PROMPTS.indexOf(x))
   const bodyId = fieldId ?? `${uid}-body`
   const H = headingLevel === 1 ? 'h1' : 'h2'
   return (
@@ -360,7 +393,7 @@ export function Composer({
             <Kbd>{MOD}</Kbd> <Kbd>Enter</Kbd>
           </span>
           <Button type="submit" variant="primary" busy={busy} disabled={!p.body.trim() || !dest} className="min-w-36" aria-keyshortcuts="Meta+Enter Control+Enter">
-            Save thought
+            Add to sprint
           </Button>
         </span>
       </div>
@@ -793,15 +826,36 @@ const PAGE = 12
 const filters = new Map<string, string | null>()
 
 /**
+ * A collection's list, handed from one mount to the next when a change of character redraws the
+ * page, so it doesn't blink empty while it's fetched again. Taken back straight away or dropped
+ * after a moment: a person's thoughts never linger in memory once their list has left the screen.
+ */
+const handoff = new Map<string, { list: MyEntry[]; timer: number }>()
+function takeHandoff(key: string) {
+  const h = handoff.get(key)
+  if (!h) return null
+  window.clearTimeout(h.timer)
+  handoff.delete(key)
+  return h.list
+}
+function giveHandoff(key: string, list: MyEntry[]) {
+  const prev = handoff.get(key)
+  if (prev) window.clearTimeout(prev.timer)
+  handoff.set(key, { list, timer: window.setTimeout(() => handoff.delete(key), 3000) })
+}
+
+/**
  * Your thoughts for one sprint: what's still on this device first, then what reached the sprint.
  * Only you see this view; the times and "yours" here never appear in shared, anonymous views.
  */
-export function MyThoughts({ sprintId, editable, moveChoices, online, className, onCount, empty: emptyArt }: { sprintId: string; editable: boolean; moveChoices: Destination[]; online: boolean; className?: string; onCount?: (n: number | null) => void; /** A world's own empty collection, in place of the picture and line. */ empty?: ReactNode }) {
+export function MyThoughts({ sprintId, editable, moveChoices, online, className, onCount, empty: emptyArt }: { sprintId: string; editable: boolean; moveChoices: Destination[]; online: boolean; className?: string; onCount?: (n: number | null) => void; /** A character's own empty collection, in place of Muni's picture and line. */ empty?: ReactNode }) {
   const local = useLocal()
   const toast = useToast()
-  const { voice } = useWorld()
+  const { me } = useAuth()
   const { byDay } = useContext(CollectionLook)
-  const [entries, setEntries] = useState<MyEntry[] | null>(null)
+  const key = `${me?.account_id ?? ''}:${sprintId}`
+  const handed = useRef<MyEntry[] | null>(null)
+  const [entries, setEntries] = useState<MyEntry[] | null>(() => (handed.current = takeHandoff(key)))
   const [failed, setFailed] = useState(false)
   const [shown, setShown] = useState(PAGE)
   const [filter, setFilterState] = useState<string | null>(() => filters.get(sprintId) ?? null)
@@ -826,10 +880,17 @@ export function MyThoughts({ sprintId, editable, moveChoices, online, className,
     }
   }, [sprintId])
   useEffect(() => {
-    seen.current = null
-    setEntries(null)
+    // A list handed over from the page this one replaced counts as already seen (nothing is "new").
+    seen.current = handed.current ? new Set(handed.current.map((e) => e.id)) : null
+    if (!handed.current) setEntries(null)
+    handed.current = null
     load()
   }, [load])
+  const shownList = useRef(entries)
+  useEffect(() => {
+    shownList.current = entries
+  }, [entries])
+  useEffect(() => () => void (shownList.current && giveHandoff(key, shownList.current)), [key])
   const unlockedAt = useRef(keysEpoch)
   useEffect(() => {
     if (keysEpoch === unlockedAt.current) return
@@ -881,14 +942,8 @@ export function MyThoughts({ sprintId, editable, moveChoices, online, className,
           <div className="mine-empty">{emptyArt}</div>
         ) : (
         <div className="mine-empty mt-3 flex items-end gap-4 mark-indent">
-          <WorldEmptyArt fallback={<Hammock className="block w-24 shrink-0 lg:hidden" />} />
-          {voice ? (
-            <p className="mine-empty-text max-w-[22rem] text-[15px] leading-relaxed text-ink-soft">
-              <span className="w-joke">{voice.world.empty}</span> <span className="block text-sm text-ink-faint">Your thoughts will settle here, in your own words.</span>
-            </p>
-          ) : (
-            <p className="mine-empty-text max-w-[20rem] text-[15px] leading-relaxed text-ink-soft">{MUNI_WORDS.empty}</p>
-          )}
+          <Hammock className="block w-24 shrink-0 lg:hidden" />
+          <p className="mine-empty-text max-w-[20rem] text-[15px] leading-relaxed text-ink-soft">{MUNI_WORDS.empty}</p>
         </div>
         )
       ) : null}

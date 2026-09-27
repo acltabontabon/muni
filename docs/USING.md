@@ -31,7 +31,7 @@ remembers your choice. It never picks one for you silently.
 
 ## Without a connection
 
-- **Writing:** keep writing. Pressing *Save thought* offline stores it and says so: *“Saved on
+- **Writing:** keep writing. Pressing *Add to sprint* offline stores it and says so: *“Saved on
   this device. We’ll send it when you reconnect.”* It is sent when Muni opens, when you come back
   to it, when the connection returns, or when you press the *Offline / waiting* chip in the
   header. Retries never create duplicates.

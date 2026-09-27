@@ -54,7 +54,7 @@ async function openControlled(page) {
 const mine = (page, sprintId) => page.evaluate((s) => fetch(`/api/sprints/${s}/entries/mine`).then((r) => r.json()), sprintId)
 const write = async (page, text) => {
   await page.fill('textarea[name="thought"]', text)
-  await page.click('button:has-text("Save thought")')
+  await page.click('button:has-text("Add to sprint")')
 }
 const statusText = (page) => page.locator('[role=status]').allInnerTexts().then((t) => t.join(' | '))
 

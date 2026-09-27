@@ -58,11 +58,8 @@ function ShoreArt({ bubble, lights, pulse, gradient }: { bubble: boolean; lights
   )
 }
 
-/**
- * `world` (with its `art`) replaces the evening with a character's world: the same structure, so the
- * heading and everything beside it stay in place when the world changes; only the picture differs.
- */
-export function JournalScene({ children, bubble = false, lights = 0, respond = false, className, world, art }: { children: ReactNode; bubble?: boolean; lights?: number; respond?: boolean; className?: string; world?: string | null; art?: ReactNode }) {
+/** Muni's own journal scene (a character's page is a room instead: worlds/rooms.tsx). */
+export function JournalScene({ children, bubble = false, lights = 0, respond = false, className }: { children: ReactNode; bubble?: boolean; lights?: number; respond?: boolean; className?: string }) {
   const u = useId().replace(/:/g, '')
   const gradient = `${u}-light`
   const [pulse, setPulse] = useState(0)
@@ -73,9 +70,9 @@ export function JournalScene({ children, bubble = false, lights = 0, respond = f
     return () => document.removeEventListener('visibilitychange', on)
   }, [])
   useEffect(() => {
-    if (!respond || world) return
+    if (!respond) return
     return onKept(() => setPulse((n) => n + 1))
-  }, [respond, world])
+  }, [respond])
   // The light is gone after its moment; nothing stays animated.
   useEffect(() => {
     if (!pulse) return
@@ -101,29 +98,23 @@ export function JournalScene({ children, bubble = false, lights = 0, respond = f
   )
 
   return (
-    <div className={clsx('journal-scene entrance-art', className)} data-paused={hidden || undefined} data-scene={world || undefined}>
+    <div className={clsx('journal-scene entrance-art', className)} data-paused={hidden || undefined}>
       <div className="journal-sky">
         <div className="journal-inner">
           <div className="journal-head">{children}</div>
           <div className="journal-art" aria-hidden>
-            {world ? art : (
-              <>
-                <span className="journal-sun" />
-                {shore(false)}
-              </>
-            )}
+            <span className="journal-sun" />
+            {shore(false)}
           </div>
         </div>
       </div>
       <div className="journal-water" aria-hidden>
-        {world ? null : (
-          <div className="journal-inner">
-            <div className="journal-art journal-art--reflection">
-              <span className="journal-glints" />
-              {shore(true)}
-            </div>
+        <div className="journal-inner">
+          <div className="journal-art journal-art--reflection">
+            <span className="journal-glints" />
+            {shore(true)}
           </div>
-        )}
+        </div>
       </div>
     </div>
   )

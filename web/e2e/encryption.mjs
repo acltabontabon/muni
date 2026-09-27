@@ -96,7 +96,7 @@ try {
   await maya.waitForSelector('textarea[name="thought"]')
   check('Composer says it encrypts on the device', (await maya.locator('button.privacy-mark', { hasText: 'encrypted' }).count()) === 1)
   await maya.fill('textarea[name="thought"]', SECRET)
-  await maya.click('button:has-text("Save thought")')
+  await maya.click('button:has-text("Add to sprint")')
   await maya.waitForSelector('text=Submitted', { timeout: 10000 })
   check('No request body contains the thought’s text', sent.length > 0 && sent.every((b) => !b.includes('staging database')), `${sent.length} requests`)
   const raw = await maya.evaluate(async (id) => (await fetch(`/api/sprints/${id}/entries/mine`, { headers: { 'x-muni-client': '5' } }).then((r) => r.json())), sprintId)

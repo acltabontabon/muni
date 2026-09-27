@@ -15,7 +15,15 @@ import { Button } from '@/ui'
 import { ABOUT_CHARACTERS, AVATAR_IDS, CHARACTERS, type AvatarId, type Character } from './characters'
 import { Portrait } from './portraits'
 import { WorldPreview } from './WorldPreview'
-import { loadWorldArt } from './art'
+
+/** Starts loading a world's display face for its preview (nothing is cached for later). */
+function peek(id: AvatarId) {
+  try {
+    void document.fonts?.load(`1em "${CHARACTERS[id].world.font}"`).catch(() => {})
+  } catch {
+    /* no font loading API */
+  }
+}
 
 /** "Inspired by everyday Filipino life", with the details a person can open if they want them. */
 export function CultureNote({ character }: { character?: Character | null }) {
@@ -89,7 +97,7 @@ export function Chooser({
   const pick = (id: AvatarId) => {
     setSel(id)
     onPreview?.(id)
-    void loadWorldArt(id)
+    peek(id)
   }
   return (
     <div className="w-chooser">
@@ -98,7 +106,7 @@ export function Chooser({
           {AVATAR_IDS.map((id) => {
             const x = CHARACTERS[id]
             return (
-              <RadioGroup.Item key={id} value={id} className="w-tile" aria-label={`${x.name}, ${x.title}`} onMouseEnter={() => void loadWorldArt(id)} onFocus={() => void loadWorldArt(id)}>
+              <RadioGroup.Item key={id} value={id} className="w-tile" aria-label={`${x.name}, ${x.title}`} onMouseEnter={() => peek(id)} onFocus={() => peek(id)}>
                 <span className="w-tile-portrait">
                   <Portrait id={id} size={72} />
                   <RadioGroup.Indicator className="w-tile-check">

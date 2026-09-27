@@ -15,9 +15,9 @@ const src = fileURLToPath(new URL('./src', import.meta.url))
  * a person downloads only their own world's type.
  */
 const WORLD_FONTS: Record<string, string[]> = {
-  kape: ['young-serif', 'dm-mono'],
+  kape: ['young-serif'],
   guhit: ['bricolage-grotesque', 'caveat'],
-  biyahe: ['barlow-condensed'],
+  biyahe: ['source-sans-3'],
   bola: ['archivo'],
   pahina: ['newsreader'],
   himig: ['unbounded', 'dm-mono'],

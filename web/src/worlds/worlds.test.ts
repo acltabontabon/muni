@@ -77,9 +77,9 @@ describe('the worlds’ composition rules', () => {
     for (const m of scoped) expect(m[2]).toBe(m[1])
   })
   it('style only Muni’s own classes, never Tailwind utilities', () => {
-    const own = /^(journal|passage|passages|mine|w|home|app|cat|period|mark|dark|anim-reflect|kape|guhit|biyahe|bola|pahina|himig|porma|sibol)(-|$)/
+    const own = /^(room|passage|passages|mine|w|app|cat|period|mark|dark|kape|guhit|biyahe|bola|pahina|himig|porma|sibol)(-|$)/
     for (const [, id, , body] of scoped) {
-      const selectors = body.replace(/\{[^{}]*\}/g, '{}').split('{}').map((s: string) => s.replace(/@media[^{]*\{/g, '').trim()).filter(Boolean)
+      const selectors = body.replace(/\{[^{}]*\}/g, '{}').split('{}').map((s: string) => s.replace(/@(media|container|supports)[^{]*\{/g, '').trim()).filter(Boolean)
       for (const sel of selectors) for (const cls of sel.match(/\.[\w-]+/g) ?? []) expect(cls.slice(1), `${id}: ${sel}`).toMatch(own)
     }
   })

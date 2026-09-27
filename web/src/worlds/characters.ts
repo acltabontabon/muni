@@ -28,9 +28,11 @@ export interface Character {
     name: string
     /** One sentence for the chooser's preview. */
     summary: string
-    /** Invitations to write, shown one a day (never per render), above the heading. */
+    /** The writing page's question. It labels the field, so it must stay a plain invitation to write. */
+    heading: string
+    /** One quiet line under the heading, shown one a day (never per render). */
     invitations: [string, string, string]
-    /** The empty collection's line: the page's one joke. */
+    /** The empty collection's line: the page's one trace of wit. */
     empty: string
     /** The display face, loaded early when this world is chosen. */
     font: string
@@ -52,14 +54,15 @@ export const CHARACTERS: Record<AvatarId, Character> = {
     meaning: 'kape — coffee',
     portrait: 'Messy wavy hair, a loose linen shirt, a coffee mug held close, and a very calm expression.',
     world: {
-      name: 'The café corner outside of time',
-      summary: 'Warm paper beside a cup that’s always there, and thoughts kept like receipts.',
-      invitations: ['Set a thought down next to the cup.', 'Something from this sprint, while it’s still warm.', 'No rush. The table’s yours all morning.'],
-      empty: 'No thoughts collected yet. The mug has declined to comment.',
+      name: 'A quiet café table',
+      summary: 'A warm table with room to write, and your thoughts kept close beside it.',
+      heading: 'What’s on your mind?',
+      invitations: ['No rush. The table is yours for as long as you need.', 'Set one thought down while it’s still warm.', 'Start with whatever comes first.'],
+      empty: 'No thoughts yet. The table is yours all morning.',
       font: 'Young Serif',
     },
     context: 'Kapeng barako is coffee from the Liberica species, grown above all in Batangas and Cavite: strong, and a morning fixture in many Filipino homes.',
-    themeColor: { light: '#f3e9dc', dark: '#16100c' },
+    themeColor: { light: '#f4ede3', dark: '#17120e' },
   },
   guhit: {
     id: 'guhit',
@@ -71,14 +74,15 @@ export const CHARACTERS: Record<AvatarId, Character> = {
     meaning: 'guhit — a line; a drawing',
     portrait: 'Curly hair tied up in a bandana, a pencil behind one ear, a paint-flecked overshirt, and a grin mid-idea.',
     world: {
-      name: 'The gloriously unfinished studio',
-      summary: 'A sketchbook with room around every idea, and plans that keep getting bigger.',
-      invitations: ['Rough is fine. Rough is how it starts.', 'One line first. The master plan can wait.', 'Sketch what happened; tidy it later.'],
+      name: 'An artist’s working folio',
+      summary: 'A clean sheet in a working folio, a margin for notes, and an archive of what you’ve kept.',
+      heading: 'What caught your eye?',
+      invitations: ['Rough is fine. Rough is how it starts.', 'One line first. The rest can follow.', 'Sketch what happened; tidy it later.'],
       empty: 'A blank page. Already being considered for a mural.',
       font: 'Bricolage Grotesque Variable',
     },
     context: 'A barangay is the smallest unit of local government in the Philippines: a neighbourhood with its own hall, captain and, often, a basketball court.',
-    themeColor: { light: '#ede7dc', dark: '#121110' },
+    themeColor: { light: '#eeebe5', dark: '#141413' },
   },
   biyahe: {
     id: 'biyahe',
@@ -90,14 +94,15 @@ export const CHARACTERS: Record<AvatarId, Character> = {
     meaning: 'biyahe — a trip; a journey',
     portrait: 'Wind-tousled hair, a bag strap across the chest, and a gaze somewhere past the window.',
     world: {
-      name: 'Thoughts through a moving window',
-      summary: 'A quiet seat by the window, a horizon that holds still, and every thought a stop.',
+      name: 'A moment by the window',
+      summary: 'A window seat on the way home, the city holding still outside, and your day in order.',
+      heading: 'What stayed with you today?',
       invitations: ['Somewhere between two stops, a thought. Keep it.', 'Write it down before the view changes.', 'Look back down the road a little. What stands out?'],
       empty: 'Nothing here yet. Your first thought may be one stop away.',
-      font: 'Barlow Condensed',
+      font: 'Source Sans 3 Variable',
     },
     context: '“Para po” is how a passenger politely asks a jeepney driver to stop. Jeepneys, the open-backed shared minibuses of Philippine streets, stop wherever someone says it.',
-    themeColor: { light: '#eef0ec', dark: '#0e1320' },
+    themeColor: { light: '#eceeec', dark: '#0f1519' },
   },
   bola: {
     id: 'bola',
@@ -109,14 +114,15 @@ export const CHARACTERS: Record<AvatarId, Character> = {
     meaning: 'bola — a ball',
     portrait: 'Braids under a headband, an original jersey, and a wide, completely confident grin.',
     world: {
-      name: 'The court after the noise settles',
-      summary: 'Warm concrete, painted lines, and a quiet court once the game is over.',
-      invitations: ['The game’s over. Replay one moment.', 'No scoreboard here. Just what happened.', 'Call it from the sideline: what did you see?'],
+      name: 'The court after everyone leaves',
+      summary: 'Painted lines, warm concrete, and a quiet court once the game is over.',
+      heading: 'What’s worth talking about?',
+      invitations: ['The game’s over. Replay one moment.', 'No scoreboard here. Just what happened.', 'Say what you saw from the sideline.'],
       empty: 'The court is open. Your first thought has home advantage.',
       font: 'Archivo Variable',
     },
     context: 'Nearly every barangay has a basketball court, and neighbourhood leagues (the liga) fill them with games, often through the summer.',
-    themeColor: { light: '#efe6d8', dark: '#111513' },
+    themeColor: { light: '#f1ebe1', dark: '#121614' },
   },
   pahina: {
     id: 'pahina',
@@ -129,13 +135,14 @@ export const CHARACTERS: Record<AvatarId, Character> = {
     portrait: 'Short silver hair, round glasses, a cardigan over a tee, and a book held close.',
     world: {
       name: 'A private reading room',
-      summary: 'Generous margins, a ribbon to keep your place, and your thoughts set like a book.',
-      invitations: ['A footnote for this sprint, in your own words.', 'Mark the page: what’s worth coming back to?', 'No need for a whole chapter. A sentence will do.'],
+      summary: 'A book-width page, generous margins, and your thoughts set like a small anthology.',
+      heading: 'What would you underline?',
+      invitations: ['A sentence will do.', 'Mark the page you’d come back to.', 'A footnote for this sprint, in your own words.'],
       empty: 'No entries yet. A suspiciously peaceful opening chapter.',
       font: 'Newsreader Variable',
     },
     context: 'Pahina is simply “page”. The reading room is imagined: any corner with a lamp and a chair will do.',
-    themeColor: { light: '#f5efe2', dark: '#13100c' },
+    themeColor: { light: '#f6f1e7', dark: '#15120f' },
   },
   himig: {
     id: 'himig',
@@ -147,14 +154,15 @@ export const CHARACTERS: Record<AvatarId, Character> = {
     meaning: 'himig — a melody; a tune',
     portrait: 'An undercut, big headphones, a relaxed overshirt, and eyes closed mid–music video.',
     world: {
-      name: 'The listening room for imaginary music videos',
-      summary: 'Record sleeves, liner notes, and every thought a track — no sound required.',
-      invitations: ['Liner notes for your sprint. Start anywhere.', 'Which moment deserves the slow-motion replay?', 'Every sprint has a chorus. Write down the line you remember.'],
+      name: 'A listening room in print',
+      summary: 'Liner notes for your sprint: a rail of credits, room to write, and a calm rhythm. No sound.',
+      heading: 'What’s still playing in your head?',
+      invitations: ['Start anywhere. The order can come later.', 'The moment you keep replaying, maybe.', 'Every sprint has a refrain. What was yours?'],
       empty: 'Your collection is quiet. The imaginary soundtrack is not.',
       font: 'Unbounded Variable',
     },
     context: 'Tricycles — a motorbike with a sidecar — are the short-hop rides of Philippine neighbourhoods; you’ll hear one long before you see it.',
-    themeColor: { light: '#f1ebe0', dark: '#0f0e0e' },
+    themeColor: { light: '#ecebe8', dark: '#111015' },
   },
   porma: {
     id: 'porma',
@@ -166,15 +174,16 @@ export const CHARACTERS: Record<AvatarId, Character> = {
     meaning: 'porma — style; looking sharp',
     portrait: 'Immaculately swept hair, a sheer barong-inspired shirt with a fine embroidered panel, and a faraway look.',
     world: {
-      name: 'Everyday life, unnecessarily well dressed',
-      summary: 'Fine stationery, careful proportions, and an occasion that is mostly a parcel.',
-      invitations: ['The pleasure of your thoughts is requested.', 'Dress code: honest. Everything else is optional.', 'Kindly note one thing worth remembering.'],
+      name: 'A small sense of occasion',
+      summary: 'Careful proportions, fine borders, and your thoughts kept like well-filed correspondence.',
+      heading: 'What’s worth noting?',
+      invitations: ['One thing, said well.', 'Take a moment. Say it plainly.', 'Honest is the dress code.'],
       empty: 'The collection is empty. Somehow, still overdressed.',
       font: 'Bodoni Moda Variable',
     },
     context:
       'The barong Tagalog is the Philippines’ national formal shirt, traditionally sheer piña or jusi and embroidered by hand; Lumban, Laguna is known as the country’s embroidery capital, and Aklan’s piña handloom weaving is on UNESCO’s intangible heritage list (2023). Porma’s shirt is only inspired by it: its pattern is invented and carries no meaning.',
-    themeColor: { light: '#f7f4ee', dark: '#0e0e10' },
+    themeColor: { light: '#f7f4ee', dark: '#0f0f10' },
   },
   sibol: {
     id: 'sibol',
@@ -186,14 +195,15 @@ export const CHARACTERS: Record<AvatarId, Character> = {
     meaning: 'sibol — a sprout; to spring up',
     portrait: 'A loose wavy bun with a leaf clip, rolled sleeves, and a little soil on one knuckle.',
     world: {
-      name: 'A small balcony with room to grow',
-      summary: 'Clay pots, soft light through leaves, and room to breathe around every thought.',
-      invitations: ['Plant one small observation. See what grows.', 'What needed a little more light this sprint?', 'Something small is fine. Small things grow.'],
+      name: 'A sheltered balcony',
+      summary: 'Soft light, room to breathe, and a quiet place for what you’ve noticed.',
+      heading: 'What’s worth tending to?',
+      invitations: ['Something small is fine. Small things grow.', 'What needed a little more light this sprint?', 'Plant one observation. See what grows.'],
       empty: 'Nothing planted yet. The pothos believes in you.',
       font: 'Alegreya Variable',
     },
     context: 'Plantito and plantita (plant + tito or tita, uncle or aunt) became everyday words in 2020, when balcony and windowsill gardening took off across the Philippines. Calamansi is the small, sour citrus found in many of those pots.',
-    themeColor: { light: '#eef0e6', dark: '#0f1411' },
+    themeColor: { light: '#eef0e8', dark: '#0f1411' },
   },
 }
 

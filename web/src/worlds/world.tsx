@@ -13,7 +13,6 @@ import { useAuth } from '@/lib/auth'
 import { applyAppearance, rememberWorld } from '@/lib/prefs'
 import { useToast } from '@/ui'
 import { resolveAvatar, type AvatarId, type Character } from './characters'
-import { loadWorldArt } from './art'
 
 /** Pages that belong to the person alone. Everything else is Muni's shared presentation. */
 export const PERSONAL_PATHS = ['/', '/capture', '/account']
@@ -46,15 +45,18 @@ export function useWorld(): WorldCtx {
   return c
 }
 
-/** Starts fetching a world's art and display face, so choosing it doesn't flash a fallback. */
-export function warmWorld(c: Character) {
-  void loadWorldArt(c.id)
-  try {
-    void document.fonts?.load(`1em "${c.world.font}"`).catch(() => {})
-  } catch {
-    /* no font loading API */
-  }
+/**
+ * Starts fetching a world's display face, so choosing it doesn't flash a fallback. Resolves when
+ * the face is ready, or after a short wait at most (the page then swaps it in when it arrives).
+ */
+export function warmWorld(c: Character): Promise<void> {
   navigator.serviceWorker?.controller?.postMessage({ type: 'muni:warm', world: c.id })
+  try {
+    const ready = document.fonts?.load(`1em "${c.world.font}"`).then(() => {}, () => {})
+    return Promise.race([ready ?? Promise.resolve(), new Promise<void>((r) => setTimeout(r, 700))])
+  } catch {
+    return Promise.resolve() /* no font loading API */
+  }
 }
 
 export function WorldProvider({ children }: { children: ReactNode }) {
@@ -82,7 +84,7 @@ export function WorldProvider({ children }: { children: ReactNode }) {
     rememberWorld({ account: me.account_id, avatar: resolveAvatar(me.avatar?.id)?.id ?? null, theme: me.avatar?.theme ?? true })
   }, [me, offline])
   useEffect(() => {
-    if (character && avatar.theme) warmWorld(character)
+    if (character && avatar.theme) void warmWorld(character)
   }, [character, avatar.theme])
 
   const save = useCallback(
@@ -103,14 +105,15 @@ export function WorldProvider({ children }: { children: ReactNode }) {
   )
   const choose = useCallback(
     async (id: AvatarId | null) => {
-      // The art is ready before the page changes, so palette and picture switch together.
-      if (id) await loadWorldArt(id)
+      // The display face is ready before the page changes, so palette and type switch together.
+      const next = resolveAvatar(id)
+      if (next) await warmWorld(next)
       return save({ id, intro: 'done' }, { avatar_id: id })
     },
     [save],
   )
   const setThemeOn = useCallback(async (on: boolean) => {
-    if (on && character) await loadWorldArt(character.id)
+    if (on && character) await warmWorld(character)
     return save({ theme: on }, { avatar_theme: on })
   }, [save, character])
   const finishIntro = useCallback(() => save({ intro: 'done' }, { avatar_intro: 'done' }), [save])

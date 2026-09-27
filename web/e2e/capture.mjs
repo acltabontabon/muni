@@ -143,7 +143,7 @@ try {
   // ── Pending, then failed: saved offline, then collection closes before it's sent.
   await ctx.setOffline(true)
   await page.locator('textarea[name="thought"]').fill('Synthetic: queued before close')
-  await page.locator('button:has-text("Save thought")').click()
+  await page.locator('button:has-text("Add to sprint")').click()
   await page.waitForSelector('.passage[data-state="queued"]')
   check('Pending: prominent “Waiting to send”, honest about where it is', (await page.locator('.passage[data-state="queued"] >> text=Waiting to send').count()) === 1 && (await page.locator('.passage[data-state="queued"] >> text=kept in this tab').count()) === 1)
   await shot(page, 'pending-1440-light')
@@ -189,7 +189,7 @@ try {
   await page.goto(`${BASE}/`)
   await page.waitForSelector('textarea[name="thought"]')
   await page.locator('textarea[name="thought"]').fill('Synthetic: reduced-motion save')
-  await page.locator('button:has-text("Save thought")').click()
+  await page.locator('button:has-text("Add to sprint")').click()
   await page.waitForSelector('text=Submitted. It stays hidden')
   const anim = await page.locator('.journal-rise').evaluate((el) => getComputedStyle(el).animationName).catch(() => '')
   check('Reduced motion: the light fades in place instead of travelling', anim === 'journal-glow', anim)
