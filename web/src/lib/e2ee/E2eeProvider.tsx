@@ -24,6 +24,9 @@ if (typeof window !== 'undefined') {
   })
   // A tab that was frozen or cached may have missed the message: it checks before using the key.
   keyring.setStaleCheck(checkElsewhere)
+  // Leaving the page aborts storage writes: a new key isn't published while that's happening.
+  window.addEventListener('pagehide', () => keyring.pageLeaving(true))
+  window.addEventListener('pageshow', () => keyring.pageLeaving(false))
 }
 
 export function E2eeProvider({ children }: { children: ReactNode }) {

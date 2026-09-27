@@ -4,7 +4,8 @@
  * (the original bug); cleared storage comes back with the same passkey (PRF); a passkey without
  * PRF still works on the same device, and cleared storage then honestly needs the recovery key;
  * signing out in one tab clears decrypted text in another; a key kept in plaintext by an older
- * build is moved into an envelope. Request bodies are captured to check that nothing secret
+ * build is moved into an envelope; leaving the page while a new account's key is set up never
+ * leaves the next page asking for the passkey. Request bodies are captured to check that nothing secret
  * leaves the browser. Real Chromium against a local `wrangler dev` over HTTPS:
  *
  *   cd web && npm run build
@@ -275,6 +276,49 @@ for (const prf of [true, false]) {
     check('[older build] it’s moved into an envelope and the plaintext copy is deleted', !stored.legacy && !!stored.device?.envelope && !JSON.stringify(stored.device).includes(seeded.sk))
   } catch (e) {
     check('[older build] run completed', false, e.message.split('\n')[0])
+  } finally {
+    await ctx.close()
+  }
+}
+
+// ------------------------------------------------------------------ leaving the page mid-setup
+
+{
+  // A new account's key is made just as the page is left (a quick click away, a reload, a closed
+  // tab): the browser aborts the storage write as the page goes. The key must not be published with
+  // nothing on this device to reopen it — the next page would have to ask for the passkey. Here the
+  // first envelope write happens while leaving: the page's own `pagehide`, then the write refused
+  // the way the browser refuses it.
+  const ctx = await newCtx()
+  const sent = await watch(ctx)
+  await ctx.addInitScript(() => {
+    const put = IDBObjectStore.prototype.put
+    IDBObjectStore.prototype.put = function (...args) {
+      if (this.name === 'devices' && !sessionStorage.getItem('muni-e2e-left')) {
+        sessionStorage.setItem('muni-e2e-left', '1')
+        window.dispatchEvent(new PageTransitionEvent('pagehide', { persisted: false }))
+        throw new DOMException('The transaction was aborted, so the request cannot be fulfilled.', 'AbortError')
+      }
+      return put.apply(this, args)
+    }
+  })
+  const page = await ctx.newPage()
+  try {
+    await virtualAuthenticator(page, { prf: true })
+    await createAccount(page, 'Leaving Lou')
+    await page.waitForFunction(() => sessionStorage.getItem('muni-e2e-left') === '1', null, { timeout: 15000 })
+    await page.waitForTimeout(800)
+    // (This page doesn't really go, so a later check here may set the key up again — properly.)
+    const published = sent.filter((r) => /\/api\/me\/keys$/.test(r.url)).map((r) => JSON.parse(r.body || '{}'))
+    check('[leaving mid-setup] a key is only ever published with this device’s copy kept', published.every((b) => typeof b.device === 'string'), JSON.stringify(published.map((b) => !!b.device)))
+    // The next page.
+    await page.goto(`${BASE}/account#encryption`)
+    const unlocked = await page.waitForSelector('text=Your encrypted writing is unlocked on this device.', { timeout: 15000 }).then(() => true, () => false)
+    check('[leaving mid-setup] the next page sets it up and opens unlocked, with no passkey asked', unlocked && (await banners(page)).length === 0, JSON.stringify(await banners(page)))
+    await page.reload()
+    check('[leaving mid-setup] …and stays unlocked after a reload', await page.waitForSelector('text=Your encrypted writing is unlocked on this device.', { timeout: 15000 }).then(() => true, () => false) && (await banners(page)).length === 0)
+  } catch (e) {
+    check('[leaving mid-setup] run completed', false, e.message.split('\n')[0])
   } finally {
     await ctx.close()
   }

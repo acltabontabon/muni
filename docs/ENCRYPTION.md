@@ -116,7 +116,10 @@ version. **Rescheduling** has no key effect.
   added later — say, from a borrowed session — never unlocks it). Passkeys are the only way in, so
   every device is bound this way (migration 0008). The binding is renewed whenever the device unlocks by
   passkey or recovery key. A new key is kept on the device *before* it's published, and an
-  interrupted setup is finished (the same key) on the next load.
+  interrupted setup is finished (the same key) on the next load. A new key is never published while
+  the page is being left (`pagehide`): the browser aborts storage writes then, and a key published
+  without this device's envelope would make the very next page ask for the passkey. The next page
+  sets it up instead.
 - **Recovery key.** 160 random bits + 16-bit checksum, shown once as nine groups of four
   (Crockford base32); the server stores the private key sealed under HKDF(recovery key). Optional
   now: made in Account; nudged only when nothing else could unlock (no passkey that unlocks, no

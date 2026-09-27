@@ -191,6 +191,7 @@ const hex = (b: Uint8Array) => [...b].map((x) => x.toString(16).padStart(2, '0')
 beforeEach(async () => {
   keyring.lock()
   keyring.setStaleCheck(null)
+  keyring.pageLeaving(false)
   store = memoryDeviceStore()
   keyring.useStore(store)
 })
@@ -401,6 +402,39 @@ describe('never a guess', () => {
     expect(keyring.state().kind).toBe('ready')
     expect(b64u(keyring.publicKey()!)).toBe(srv.s.key!.public_key)
     if (published) expect(srv.s.key!.public_key).toBe(published)
+  })
+
+  it('leaving the page mid-setup publishes nothing, and the next page opens with no prompt', async () => {
+    const srv = fakeServer(`acc-${crypto.randomUUID()}`)
+    const p = srv.addPasskey()
+    srv.s.session = { method: 'passkey', credential: p.rowId, alive: true }
+    // The browser aborts storage writes as the page goes: the envelope can't be kept.
+    const leavingStore = { ...store, putDevice: async () => { keyring.pageLeaving(true); throw new Error('The transaction was aborted') } }
+    keyring.useStore(leavingStore)
+    await keyring.use(srv.me, srv.fetcher)
+    expect(srv.s.posts.some((x) => x.method === 'PUT' && x.path === '/api/me/keys')).toBe(false)
+    expect(srv.s.key).toBeNull()
+    // The next page: the same storage, the page not leaving. A key is made, kept and opened here.
+    keyring.lock()
+    keyring.pageLeaving(false)
+    keyring.useStore(store)
+    await keyring.use(srv.me, srv.fetcher)
+    expect(keyring.state()).toMatchObject({ kind: 'ready', persisted: true })
+    expect(JSON.parse(store.dump()).devices).toHaveLength(1)
+    // …and a reload after that opens it from this device, with no passkey asked.
+    keyring.lock()
+    await keyring.use(srv.me, srv.fetcher)
+    expect(keyring.state().kind).toBe('ready')
+  })
+
+  it('a browser that won’t keep anything still gets a key (published, and said not to be kept here)', async () => {
+    const srv = fakeServer(`acc-${crypto.randomUUID()}`)
+    const p = srv.addPasskey()
+    srv.s.session = { method: 'passkey', credential: p.rowId, alive: true }
+    keyring.useStore({ ...store, putDevice: async () => { throw new Error('storage blocked') } })
+    await keyring.use(srv.me, srv.fetcher)
+    expect(srv.s.key?.public_key).toBeTruthy()
+    expect(keyring.state()).toMatchObject({ kind: 'ready', persisted: false })
   })
 
   it('two tabs setting up at once end with one key, opened by both', async () => {

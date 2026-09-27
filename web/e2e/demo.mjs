@@ -237,15 +237,10 @@ async function signUp(name, phone = false) {
   await page.waitForURL((u) => !u.pathname.startsWith('/signin'))
   await page.locator('button:has-text("Decide later")').click({ timeout: 5000 }).catch(() => {})
   // Keys are made without asking; wait until this device holds them (once more after a reload if slow).
-  const unlocked = (ms = 20000) => page.waitForSelector('text=Your encrypted writing is unlocked on this device.', { timeout: ms })
+  const unlocked = () => page.waitForSelector('text=Your encrypted writing is unlocked on this device.', { timeout: 20000 })
   await page.goto(`${BASE}/account#encryption`)
-  // Now and then a new account's device asks to be unlocked with the passkey first: do what a person would.
-  const unlock = page.locator('button:has-text("Unlock with passkey")')
-  await Promise.race([unlocked(), unlock.waitFor({ timeout: 20000 })]).catch(() => {})
-  if (await unlock.isVisible().catch(() => false)) await unlock.click()
   await unlocked().catch(async () => {
     await page.reload()
-    if (await unlock.isVisible({ timeout: 3000 }).catch(() => false)) await unlock.click()
     await unlocked()
   })
   return page

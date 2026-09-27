@@ -64,6 +64,13 @@ let keysEpoch = 0
 let pendingPrf: PendingPrf[] = []
 /** Set by the app: true when another tab signed out or switched account since this one looked. */
 let staleCheck: (() => void) | null = null
+/**
+ * The page is being left (navigating away, reloading, closing: the app reports `pagehide`). While
+ * it goes, the browser aborts storage writes — so a new key that couldn't be kept here for that
+ * reason is never published. The next page sets one up afresh. Published with nothing on this
+ * device to reopen it, it would have to ask for the passkey on the very next page.
+ */
+let leaving = false
 const sprints = new Map<string, SprintState>()
 const listeners = new Set<() => void>()
 const changes = new Map<string, KeyChange>()
@@ -366,6 +373,14 @@ async function setUpNew(my: number, id: string, depth: number) {
   // passkey wrap, if any, still holds it — and the person is told it isn't saved here.)
   const kept = await keepOnDevice(my, id, kp.sk, { publicKey, keyVersion: 1, forVersion: 1 })
   if (my !== epoch) return
+  // Not kept because the page is going away: publish nothing (see `leaving`). If it stays after all
+  // (a navigation that didn't happen), try again in a moment.
+  if (!kept && leaving) {
+    setTimeout(() => {
+      if (my === epoch && !leaving && !sk) void keyring.refresh()
+    }, 2000)
+    return
+  }
   try {
     await timed(fetcher!('PUT', '/api/me/keys', { public_key: publicKey, ...(passkey_wrap ? { passkey_wrap } : {}), ...(kept ? { device: kept.deviceId } : {}) }))
   } catch (e) {
@@ -422,6 +437,10 @@ export const keyring = {
   /** The app checks whether another tab signed out before anything is sealed or opened. */
   setStaleCheck(fn: (() => void) | null) {
     staleCheck = fn
+  },
+  /** The page is being left (`pagehide`), or shown again (`pageshow`, from the back-forward cache). */
+  pageLeaving(on: boolean) {
+    leaving = on
   },
 
   /** The signed-in account changed, signed in again, or signed out (null). */
