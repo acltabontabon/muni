@@ -631,6 +631,22 @@ describe('writing', () => {
     await expect(keyring.isEncrypted(sp.id)).rejects.toMatchObject({ code: 'no-key' })
   })
 
+  it('seals an edited thought as one envelope bound to that record, with its context inside', async () => {
+    const srv = await signedIn()
+    const sp = sprintFor(srv, srv.pk, { holds: false })
+    const edit = { category: 'improve', body: 'Synthetic edited', impact: 'Synthetic impact', might_help: undefined, period: 'middle' }
+    const sealed = (await keyring.sealRequest('PATCH', `/api/sprints/${sp.id}/entries/rec-7`, edit)) as Record<string, unknown>
+    expect(Object.keys(sealed).sort()).toEqual(['body', 'category', 'period'])
+    expect(sealed).toMatchObject({ category: 'improve', period: 'middle' })
+    expect(JSON.stringify(sealed)).not.toContain('Synthetic')
+    expect(await keyring.decryptDeep({ id: 'rec-7', body: sealed.body }, sp.id)).toMatchObject({ body: 'Synthetic edited', impact: 'Synthetic impact', might_help: null })
+    // Moved to another record, it doesn't open.
+    expect((await keyring.decryptDeep({ id: 'rec-8', body: sealed.body }, sp.id)).body).toBe(LOCKED)
+    // A legacy sprint's edit is sent as it is.
+    const legacy = crypto.randomUUID()
+    expect(await keyring.sealRequest('PATCH', `/api/sprints/${legacy}/entries/rec-7`, edit)).toEqual(edit)
+  })
+
   it('seals a thought to the sprint and to its author, readable back by the author', async () => {
     const srv = await signedIn()
     const sp = sprintFor(srv, srv.pk, { holds: false })

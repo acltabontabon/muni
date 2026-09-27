@@ -103,6 +103,33 @@ try {
   check('The server returns only an envelope', raw.length === 1 && raw[0].body.startsWith('e1.') && !raw[0].body.includes('staging') && raw[0].impact === null)
   check('Maya sees her own thought, decrypted', (await maya.locator(`text=${SECRET}`).count()) === 1)
 
+  // Maya edits it — in Muni's journal, then in a character's room. The new words and their context
+  // are sealed on her device like a new thought; nothing readable leaves it.
+  const editIn = async (label, words, impact) => {
+    sent.length = 0
+    await maya.locator('.passage .passage-menu').first().click()
+    await maya.locator('[role=menuitem]', { hasText: 'Edit' }).click()
+    await maya.locator('.passage form textarea').first().fill(words)
+    // A thought that already has context opens with it showing.
+    if (!(await maya.locator('.passage form textarea[id$="-i"]').count())) await maya.locator('.passage form button', { hasText: 'Context' }).click()
+    await maya.locator('.passage form textarea[id$="-i"]').fill(impact)
+    await maya.locator('.passage form button[type=submit]').click()
+    const saved = await maya.locator('.passage form').waitFor({ state: 'detached', timeout: 10000 }).then(() => true).catch(() => false)
+    const error = saved ? null : await maya.locator('.passage form [role=alert]').innerText().catch(() => null)
+    check(`${label}: editing a thought in an encrypted sprint saves`, saved && (await maya.locator(`text=${words}`).count()) === 1, error ?? '')
+    check(`${label}: …and no request carries the edited words`, sent.length > 0 && sent.every((b) => !b.includes(words.slice(-24)) && !b.includes(impact)), `${sent.length} requests`)
+    const stored = await maya.evaluate(async (id) => (await fetch(`/api/sprints/${id}/entries/mine`, { headers: { 'x-muni-client': '5' } }).then((r) => r.json())), sprintId)
+    check(`${label}: …stored as one envelope, the context inside it`, stored.length === 1 && stored[0].body.startsWith('e1.') && stored[0].impact === null && (await maya.locator('.passage .passage-context', { hasText: impact }).count()) === 1)
+  }
+  await editIn('Journal', `Synthetic-${tag}: edited, the staging database recovered on Thursday`, 'Synthetic impact: one lost morning')
+  const SHOWN = `Synthetic-${tag}: edited again, from the balcony`
+  await api(maya, 'PATCH', '/api/auth/me', { avatar_id: 'sibol', avatar_theme: true })
+  await maya.goto(`${BASE}/?sprint=${sprintId}`)
+  await maya.locator('.room-writer').waitFor()
+  await maya.locator('.passage').first().waitFor()
+  await editIn('Sibol’s room', SHOWN, 'Synthetic impact: two lost mornings')
+  await api(maya, 'PATCH', '/api/auth/me', { avatar_id: null })
+
   // Before the reveal, Maya holds no sprint key; the owner can't see her thoughts.
   const mk = (await api(maya, 'GET', `/api/sprints/${sprintId}/keys`)).body
   check('While collecting, Maya can’t open the sprint', mk.my_wraps.length === 0)
@@ -113,7 +140,7 @@ try {
   await owner.click('button:has-text("Close collection")')
   await owner.click('[role=dialog] button:has-text("Close and reveal")')
   await owner.waitForURL(/prepare$/)
-  await owner.waitForSelector(`text=${SECRET}`, { timeout: 10000 })
+  await owner.waitForSelector(`text=${SHOWN}`, { timeout: 10000 })
   check('After the reveal, the facilitator reads the thought', true)
   const mk2 = (await api(maya, 'GET', `/api/sprints/${sprintId}/keys`)).body
   check('After the reveal, Maya can open the sprint', mk2.my_wraps.length === 1)
@@ -137,13 +164,14 @@ try {
   await maya2.waitForURL((u) => !u.pathname.startsWith('/signin'))
   await maya2.goto(`${BASE}/sprints/${sprintId}`)
   await maya2.waitForSelector('text=this device can’t unlock it yet', { timeout: 10000 })
-  check('New device: a passkey that can’t unlock signs in, but the content stays locked', (await maya2.locator(`text=${SECRET}`).count()) === 0)
+  check('New device: a passkey that can’t unlock signs in, but the content stays locked', (await maya2.locator(`text=${SHOWN}`).count()) === 0)
   await maya2.click('button:has-text("Use recovery key")')
   await maya2.fill('[role=dialog] input', mayaRecovery)
   await maya2.click('[role=dialog] button[type=submit]')
-  await maya2.waitForSelector(`text=${SECRET}`, { timeout: 10000 })
+  await maya2.waitForSelector(`text=${SHOWN}`, { timeout: 10000 })
   check('New device: the recovery key unlocks her content', true)
 } catch (e) {
+  if (process.env.SHOTS) for (const [i, pg] of browser.contexts().flatMap((c) => c.pages()).entries()) await pg.screenshot({ path: `${process.env.SHOTS}/encryption-failure-${i}.png` }).catch(() => {})
   check('Run completed', false, e.message.split('\n')[0])
 } finally {
   await browser.close()

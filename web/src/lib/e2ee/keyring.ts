@@ -840,10 +840,24 @@ const SEALED: [RegExp, string[]][] = [
   [/^\/api\/sprints\/[^/]+$/, ['opening_question']],
 ]
 
+/** A submitted thought, edited in place: its whole content travels as one envelope, bound to that record. */
+const ENTRY = /^\/api\/sprints\/([^/]+)\/entries\/([^/]+)$/
+
 async function sealRequest(method: string, path: string, body: unknown): Promise<unknown> {
   if (method === 'GET' || !body || typeof body !== 'object') return body
   const m = path.match(/^\/api\/sprints\/([^/?]+)/)
   if (!m) return body
+  const entry = method === 'PATCH' ? path.split('?')[0].match(ENTRY) : null
+  if (entry) {
+    const [, sprintId, recordId] = entry
+    staleCheck?.()
+    if (!(await keyring.isEncrypted(sprintId))) return body
+    // Sealed like a new thought (the send queue): text and context inside, category and period beside it.
+    const o = body as Record<string, unknown>
+    const text = (v: unknown) => (typeof v === 'string' && v.trim() ? v : null)
+    const sealed = await keyring.sealThought(sprintId, recordId, { body: text(o.body) ?? '', impact: text(o.impact), might_help: text(o.might_help) })
+    return { category: o.category ?? null, period: o.period ?? null, body: sealed }
+  }
   const rule = SEALED.find(([re]) => re.test(path.split('?')[0]))
   if (!rule) return body
   const sprintId = m[1]

@@ -271,6 +271,14 @@ button.room-tab[data-state='open'] { background: color-mix(in oklab, var(--ink) 
 .room .mine-title { font-family: var(--room-heading-font, var(--font-display)); }
 /* In a grid of entries, a shorter entry keeps its lines together at the top of its cell. */
 .room .passage { align-content: start; }
+/* Editing a thought in place: the same field and the same two named controls as writing one. */
+.room .journal-field { border: 1px solid var(--room-field-line, var(--line-strong)); border-radius: calc(var(--room-field-radius, 12px) * 0.8); background: var(--room-field-bg, var(--card)); box-shadow: none; font-family: var(--room-field-font, var(--font-sans)); }
+.room .journal-field:hover { border-color: color-mix(in oklab, var(--ink-faint) 65%, var(--room-field-line, var(--line-strong))); box-shadow: none; }
+.room .journal-field:focus, .room .journal-field:focus-visible { border-color: var(--ink-soft); box-shadow: 0 0 0 1px var(--ink-soft), 0 0 0 5px color-mix(in oklab, var(--ink) 7%, transparent); }
+.room .journal-edit-opts { display: flex; flex-wrap: wrap; align-items: center; gap: 0.5rem; margin-top: 0.6rem; }
+.room .journal-edit-opts .journal-tool, .room .passage form > .journal-tool { gap: 0.4rem; min-height: 2.5rem; height: auto; margin: 0; padding: 0.35rem 0.95rem; border: 1px solid var(--line-strong); border-radius: var(--room-opt-radius, 999px); font-size: 14px; color: var(--ink-soft); }
+.room .journal-edit-opts .journal-tool:hover { color: var(--ink); border-color: var(--ink-faint); background: transparent; }
+.room .journal-edit-opts .journal-tool[aria-expanded='true'] { color: var(--ink); border-color: var(--ink-faint); background: var(--card); }
 .room .mark-indent { padding-left: 0; }
 .room .mark-outdent { margin-left: 0; }
 @media (min-width: 1280px) {
