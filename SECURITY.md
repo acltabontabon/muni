@@ -1,9 +1,5 @@
 # Security policy
 
-> **Maintainer note — remove when publishing:** GitHub's private vulnerability reporting is not
-> available while this repository is private. Enabling it is a prerequisite for making the
-> repository public; until then the reporting route below does not exist yet.
-
 ## Reporting a vulnerability
 
 Please report security problems privately, through GitHub's private vulnerability reporting:
