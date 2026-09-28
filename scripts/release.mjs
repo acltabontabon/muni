@@ -22,7 +22,7 @@ const readJson = (p) => JSON.parse(readFileSync(path(p), 'utf8'))
 /** Files whose version must equal the root package.json's. */
 export const SYNCED = ['web/package.json', 'worker/package.json']
 /** The demo attached to every release (docs/demo/README.md explains how it's made). */
-export const DEMO = { gif: 'docs/demo/muni-demo.gif', mp4: 'docs/demo/muni-demo.mp4' }
+export const DEMO = { gif: 'docs/demo/muni-demo.gif', mp4: 'docs/demo/muni-demo.mp4', journeyGif: 'docs/demo/muni-journey.gif', journeyMp4: 'docs/demo/muni-journey.mp4' }
 const DEMO_MAX_BYTES = 10 * 1024 * 1024
 
 export function project() {
@@ -120,6 +120,8 @@ export function releaseNotes(tag) {
     previous ? `**Full changelog:** [v${previous}...${tag}](${gh}/compare/v${previous}...${tag})` : `**First release.** Everything since the beginning: [${tag}](${gh}/commits/${tag}).`,
     '',
     `<sub>Every app frame in the demo is real Muni with a made-up team; the titles and framing are added. Full quality: [muni-demo.mp4](${asset('muni-demo.mp4')}).</sub>`,
+    '',
+    `<sub>And the retro from both sides, in 30 seconds: [muni-journey.mp4](${asset('muni-journey.mp4')}).</sub>`,
     '',
   ].join('\n')
 }

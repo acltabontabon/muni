@@ -13,6 +13,14 @@ The release workflow uploads these two committed files as they are. It never rec
 it never touches production. To change the demo, rebuild it with the steps below and commit the
 new files.
 
+## The journey, from both sides
+
+`muni-journey.mp4` and `muni-journey.gif` are a separate 30-second film: the retro's steps — Look
+back, Choose, Talk, Agree and the recap — with the stage and a phone side by side and what the
+facilitator and everyone else do at each. It's filmed from the marketing site's own journey section
+(`site/index.html`, `#demo`) by [`web/e2e/journey-film.mjs`](../../web/e2e/journey-film.mjs), which
+also encodes it: `python3 -m http.server 4321 --directory site`, then `cd web && node e2e/journey-film.mjs`.
+
 ## What it shows
 
 | # | Chapter | Footage | Page |

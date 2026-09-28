@@ -167,7 +167,7 @@ jobs:
       # A release that already exists (a re-run) is brought up to date instead of duplicated.
       - name: Create or update the GitHub release
         run: |
-          assets=(docs/demo/muni-demo.gif docs/demo/muni-demo.mp4)
+          assets=(docs/demo/muni-demo.gif docs/demo/muni-demo.mp4 docs/demo/muni-journey.mp4 docs/demo/muni-journey.gif)
           kind=(--latest); [ "$PRERELEASE" = true ] && kind=(--prerelease)
           if gh release view "$TAG" >/dev/null 2>&1; then
             gh release edit "$TAG" --title "Muni $VERSION" --notes-file "$RUNNER_TEMP/notes.md"
