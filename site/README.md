@@ -12,7 +12,10 @@ python3 -m http.server 4321 --directory site
 ## Where it lives
 
 Published at **https://munimuni.app** by GitHub Pages from this repository: every push to `main`
-that touches `site/` runs `.github/workflows/pages.yml`, which uploads this folder as-is. The custom
+that touches `site/` runs `.github/workflows/pages.yml`, which publishes a copy of this folder with
+every stylesheet and script the page links stamped with a hash of its contents
+(`scripts/site-stamp.mjs`: `styles.css` → `styles.css?v=…`). Browsers may keep those files for a
+while; the stamp means a page never gets a cached older stylesheet after a publish. The custom
 domain is set in the repository's Pages settings (not a `CNAME` file).
 
 The app lives at **https://act.munimuni.app**, set as `data-app-url` on `<html>` in `index.html`
