@@ -167,6 +167,8 @@ html {
   transition-timing-function: ease-in-out;
   -webkit-text-size-adjust: 100%;
   scroll-behavior: smooth;
+  /* A link to a section lands below the floating nav, not under it. */
+  scroll-padding-top: 88px;
 }
 
 body {
