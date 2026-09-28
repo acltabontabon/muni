@@ -171,8 +171,8 @@ it, then quiet underlined links for the stage's optional work (*Group into theme
 pause, archive). Changes that reveal, reopen, start or stop say exactly what they do before they
 happen. Participants never see the column; what they do next is the page itself.
 
-**In a character's room** the bar is part of the room: each composition sets it where its sprint
-label used to be and draws it in its own manner (the room table below), in the room's type. The
+**In a character's room** the bar is part of the room: each composition gives it its own place
+and draws it in its own manner (the room table below), in the room's type. The
 words, their order and what each control does never change; the bar lays itself out for the space
 it's given (container queries), so it reads down a margin or a rail and across a band. There is no
 second sprint label in the room. On a phone the rooms drop their boxes — the table, the sheet, the
@@ -226,8 +226,8 @@ topics as numbered lines on rules, never cards.
 The steps do their own housekeeping, so the facilitator never works the machinery. Choosing opens
 the vote; leaving it closes the vote and orders the topics; opening a topic starts its clock and
 counts it as discussed; opening the retro marks you here.
-There's no reveal on the stage — everyone read every thought when collection closed — no quiet
-reading minute, no "mark as discussed", no menu of commands. What's left is where it's used: the
+There's no reveal on the stage — everyone read every thought when collection closed — and no menu
+of commands. What's left is where it's used: the
 next step in the rail's one button, the clock, the ask and the two notes (*We'll remember*, *We
 could try*) in the talk's margin, the verdicts under last time's experiments, the ideas from the
 talk beside Agree.
@@ -282,12 +282,11 @@ and lights up while they're connected. It never travels with anything anonymous 
 votes, additions, check-in answers — and whether someone's pages wear its world is theirs alone
 (tested in `worker/test/avatars.test.ts`).
 
-**Direction (since the calm reset).** Elegant, artistic, calm, professional, personal, subtly
+**Direction.** Elegant, artistic, calm, professional, personal, subtly
 Filipino: a well-designed place to pause and write, carried over from the entrance — one opaque
 working surface, readable UI type, an ink primary action, underlined text for quieter ways, one
 still motif, short literal words. Culture comes through places, light, material and rhythm, never
-labels. The lore lives in the chooser and settings; the writing page doesn't reenact it. Earlier
-comic scenes (the master plan, the 40-minute stir, the missed stop, the last game) are retired.
+labels. The lore lives in the chooser and settings; the writing page doesn't reenact it.
 
 | room | composition | sprint | collection | motif (still) | type |
 | --- | --- | --- | --- | --- | --- |
@@ -367,7 +366,7 @@ No glassmorphism, no gradients on text.
 4. Themes — the sorting table (see *Themes: the sorting table*).
 5. Stage — fullscreen dark, the four steps along the top, one question per screen, large type
    (see *The retro: four steps*).
-6. Companion — each person's phone: follows the stage, private votes, invitations and passing,
+6. Companion — each person's phone: follows the stage, private votes, check-ins,
    adding without a name, saying yes to an experiment.
 7. Outcomes — experiments with owners and review dates, recap, exports.
 8. Settings — account and privacy on Account; the workspace's name, retention and activity in its

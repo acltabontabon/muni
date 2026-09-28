@@ -5,9 +5,9 @@ import { clearPendingSignOut, hasPendingSignOut, markSignedOutLocally } from './
 describe('csrfToken', () => {
   it('over HTTPS uses only the __Host- cookie, never a leftover plain one listed first', () => {
     // A browser signed in before the prefix: the old readable cookie comes first (older cookies are listed first).
-    expect(csrfToken('muni_csrf=LEGACY; __Host-muni_csrf=current', true)).toBe('current')
-    expect(csrfToken('__Host-muni_csrf=current; muni_csrf=LEGACY', true)).toBe('current')
-    expect(csrfToken('muni_csrf=LEGACY', true)).toBe('')
+    expect(csrfToken('muni_csrf=plain; __Host-muni_csrf=current', true)).toBe('current')
+    expect(csrfToken('__Host-muni_csrf=current; muni_csrf=plain', true)).toBe('current')
+    expect(csrfToken('muni_csrf=plain', true)).toBe('')
   })
   it('over plain HTTP (development) uses the plain cookie, which is the server’s there', () => {
     expect(csrfToken('theme=dark; muni_csrf=dev-token', false)).toBe('dev-token')

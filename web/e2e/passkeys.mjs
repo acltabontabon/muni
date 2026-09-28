@@ -312,18 +312,16 @@ let firstCredential
   await Promise.all([owner.close(), joiner.close(), guest.close(), late.close(), ictx.close()])
 }
 
-// ------------------------------------------------------------------ 5. sign-out and sessions (pre-prefix cookies)
+// ------------------------------------------------------------------ 5. sign-out and sessions
 
 {
   const ctx = await newCtx()
-  await ctx.addCookies([{ name: 'muni_csrf', value: 'LEGACYstaleToken', domain: 'localhost', path: '/', secure: true, sameSite: 'Lax', expires: Math.floor(Date.now() / 1000) + 86400 * 20 }])
   const page = await ctx.newPage()
   const va = await virtualAuthenticator(page)
   await page.goto(`${BASE}/signin`)
   await createAccount(page, 'Sam Signout')
   await out(page)
   await page.locator('button:has-text("Decide later")').click({ timeout: 5000 }).catch(() => {})
-  check('legacy cookie is expired by the server on the next response', !(await ctx.cookies()).map((c) => c.name).includes('muni_csrf'))
   // The same synced passkey on another device: a second session.
   const other = await newCtx()
   const op = await other.newPage()

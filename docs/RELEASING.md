@@ -63,12 +63,11 @@ So:
 
 ### Why the first release is `1.0.0-rc.1`
 
-The product was feature-complete and the contract above held, but passkeys are the only way into an
-account and they unlock encrypted writing, and that path had only been tested with virtual
-authenticators and real browsers. Losing access there means losing an account, so 1.0.0 waited for a
-check on physical devices. That check was done on 2026-09-29 — phones, platform authenticators,
-password managers and recovery (`docs/PASSKEYS.md` §8) — so nothing on the device side holds back
-1.0.0 now. Promoting is a normal release: `prepare 1.0.0`, a short changelog entry, tag.
+Passkeys are the only way into an account and they unlock encrypted writing, so losing access there
+means losing an account. The first release is therefore a candidate that runs in production before it
+carries the plain number. The device side is checked — phones, platform authenticators, password
+managers and recovery, on physical devices on 2026-09-29 (`docs/PASSKEYS.md` §8) — so promoting it is
+a normal release: `prepare 1.0.0`, a short changelog entry, tag.
 
 ## 3. Preparing a release
 
@@ -112,7 +111,7 @@ password managers and recovery (`docs/PASSKEYS.md` §8) — so nothing on the de
 2. **deploy** (the `production` environment): asks production what it's running. If it's already this
    version *and* this commit, it skips to verification (a re-run). If it's a later version, it stops:
    going back is a rollback, not a release — unless that later version's release was withdrawn (its
-   tag deleted, as when release candidates are folded into one): then this release replaces it. Otherwise it builds the tagged commit, applies D1
+   tag deleted): then this release replaces it. Otherwise it builds the tagged commit, applies D1
    migrations (retrying once), and deploys the Worker — which serves the API and the app together, so
    they change in one step — stamped with the commit (`--var MUNI_COMMIT:<sha>`) and tagged with the
    version. Then it checks production from outside until `/api/version` reports this version and

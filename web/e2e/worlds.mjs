@@ -261,15 +261,6 @@ try {
       check('…and the chooser doesn’t come back', (await page.locator('.w-chooser').count()) === 0)
       await ctx.close()
 
-      const old = await account('old', 'Olivia Old', 'note')
-      const o = await pageFor(old)
-      await o.page.goto(`${BASE}/`)
-      await o.page.waitForSelector('.journal-scene')
-      check('An account from before characters: a quiet note, no gate', (await o.page.locator('.w-note').count()) === 1 && (await o.page.locator('.w-chooser').count()) === 0)
-      await o.page.locator('.w-note button[aria-label="Dismiss"]').click()
-      await o.page.waitForSelector('.w-note', { state: 'detached' })
-      check('…dismissed for good', (await old.req('GET', '/api/auth/me')).avatar.intro === 'done')
-      await o.ctx.close()
     }
   } else {
     // ── Offline (production build with the service worker): the chosen world keeps its art and type.

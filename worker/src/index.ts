@@ -6,7 +6,6 @@ import { Hono, type Context } from 'hono'
 import type { AppEnv, HonoEnv } from './env'
 import { config, ConfigError } from './lib/config'
 import { AppError } from './lib/errors'
-import { expireLegacyCookies } from './lib/auth'
 import { auth } from './routes/auth'
 import { workspaces } from './routes/workspaces'
 import { sprints } from './routes/sprints'
@@ -33,13 +32,7 @@ export { MeetingRoom } from './room'
  * backward compatible. (Not exported: every named export of a Worker's main module must be a
  * handler or Durable Object class, or the runtime refuses to start.)
  */
-// 2: invitation tokens moved to request bodies and production cookies gained the __Host- prefix
-// (a revision-1 client can't read the renamed CSRF cookie).
-// 3: encrypted sprints (content fields carry client envelopes; older clients can't read or write them).
-// 4: passkey-unlocked encryption (the account key is never kept in plaintext on a device, and signing
-// out no longer deletes it; a revision-3 tab would still do both).
-// 5: AI theme drafts and voice transcription removed (a revision-4 tab still offers both; its
-// grouping page waits on an endpoint that no longer exists).
+// The web client in 1.0.0-rc.1 sends revision 5.
 const MIN_CLIENT_REVISION = 5
 
 const app = new Hono<HonoEnv>()
@@ -54,11 +47,10 @@ app.use('*', async (c, next) => {
     throw e
   }
   // Clients send their build's API revision. One below the minimum is told to update rather than
-  // retrying payloads this server no longer accepts (an old tab left open across a deploy).
+  // retrying payloads this server won't accept (an old tab left open across a deploy).
   const client = Number(c.req.header('x-muni-client'))
   if (client && client < MIN_CLIENT_REVISION) return c.json({ error: 'Muni has been updated. Reload to continue — anything you haven’t sent is kept on this device.', code: 'upgrade_required' }, 426)
   await next()
-  expireLegacyCookies(c, config(c.env))
   c.header('x-content-type-options', 'nosniff')
   c.header('referrer-policy', 'same-origin')
   c.header('cache-control', 'no-store')

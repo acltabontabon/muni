@@ -133,8 +133,7 @@ const binding = (k: MyKeys, id: string): WrapBinding => ({ accountId: accountId!
 
 /**
  * Find a way to reopen the account key, in order: already open in this tab; this device's
- * envelope; a passkey used in this tab just now; a plaintext key an older build left here (moved
- * into an envelope). A new account gets a key. Otherwise the person is asked — as little as
+ * envelope; a passkey used in this tab just now. A new account gets a key. Otherwise the person is asked — as little as
  * possible. A missing key here is never taken to mean the account is new: only the server says so.
  */
 async function reopen(my: number, depth = 0): Promise<void> {
@@ -159,15 +158,15 @@ async function reopen(my: number, depth = 0): Promise<void> {
   }
 
   if (!k.public_key) {
-    const [dev, legacy] = await Promise.all([store.getDevice(id).catch(() => null), store.getLegacy(id)])
+    const dev = await store.getDevice(id).catch(() => null)
     if (my !== epoch) return
     // A key made here whose publishing didn't finish (the tab closed or reloaded at that moment):
     // it was kept first, so open it and finish — never make a second one.
-    if (dev && !legacy && depth === 0) {
+    if (dev && depth === 0) {
       const resumed = await resumeSetup(my, id, dev)
       if (resumed || my !== epoch) return
     }
-    if (dev || legacy) return set({ kind: 'error', message: 'Muni’s server says your account has no encryption key, but this device has one. Nothing was changed — try again later.' })
+    if (dev) return set({ kind: 'error', message: 'Muni’s server says your account has no encryption key, but this device has one. Nothing was changed — try again later.' })
     if (depth > 0) return set({ kind: 'error', message: 'Couldn’t set up encryption on this device. Try again in a moment.' })
     return setUpNew(my, id, depth)
   }
@@ -210,18 +209,6 @@ async function reopen(my: number, depth = 0): Promise<void> {
     }
   }
 
-  // A key an older build kept here in plaintext: moved into an envelope, then deleted.
-  const legacy = await store.getLegacy(id)
-  if (my !== epoch) return
-  if (legacy && legacy.pk === k.public_key) {
-    try {
-      const opened = fromB64u(legacy.sk, 32)
-      if (matches(opened, k)) return unlocked(my, opened, 'legacy')
-    } catch {
-      /* unreadable: keep it, never delete what might be someone's only copy */
-    }
-  }
-
   // Nothing here can reopen it without the person.
   const note = lastCeremony?.accountId === id && Date.now() - lastCeremony.at < PRF_TTL_MS ? (lastCeremony.prf ? 'That passkey can’t unlock your writing here. Try another passkey, or use your recovery key.' : 'The passkey you used can sign you in, but it can’t unlock encrypted writing in this browser.') : undefined
   if (k.passkeys.length || passkeyRequired) return set({ kind: 'needs-passkey', recoveryAvailable: !!k.recovery_blob, note })
@@ -232,7 +219,7 @@ async function reopen(my: number, depth = 0): Promise<void> {
 let lastCeremony: { accountId: string; credentialId: string; prf: boolean; at: number } | null = null
 
 /** How the key was opened. 'kept': made here and kept before it was published; 'made': made here, not kept yet. */
-type Via = 'device' | 'kept' | 'made' | 'passkey' | 'recovery' | 'legacy'
+type Via = 'device' | 'kept' | 'made' | 'passkey' | 'recovery'
 
 /** The key is open: usable at once; kept for next time (and passkeys enrolled) right after. */
 async function unlocked(my: number, opened: Uint8Array, via: Via) {
@@ -242,8 +229,7 @@ async function unlocked(my: number, opened: Uint8Array, via: Via) {
   keysEpoch++
   const alreadyKept = via === 'device' || via === 'kept'
   set(readyState(alreadyKept ? true : null))
-  // An older build's copy stays until its envelope is verified, so it still counts as kept.
-  const persisted = alreadyKept ? true : (await keepOpenKey(my, via)) || via === 'legacy'
+  const persisted = alreadyKept ? true : await keepOpenKey(my)
   if (my !== epoch) return
   await settleReady(my, persisted)
 }
@@ -291,15 +277,13 @@ async function keepOnDevice(my: number, id: string, key: Uint8Array, target: { p
   return { deviceId, share }
 }
 
-/** Keep the key that's open now (after a passkey, recovery key or older build's copy opened it). */
-async function keepOpenKey(my: number, via: Via): Promise<boolean> {
+/** Keep the key that's open now (after a passkey or the recovery key opened it). */
+async function keepOpenKey(my: number): Promise<boolean> {
   const id = accountId
   const k = server
   if (!id || !k?.public_key || !sk) return false
   const kept = await keepOnDevice(my, id, sk, { publicKey: k.public_key, keyVersion: k.key_version })
-  if (!kept) return false
-  if (via === 'legacy') await retireLegacy(my, id, kept.deviceId, kept.share)
-  return true
+  return !!kept
 }
 
 /** Finish a setup that kept its key here but didn't get to publish it. True if it did. */
@@ -318,22 +302,6 @@ async function resumeSetup(my: number, id: string, dev: DeviceRecord): Promise<b
     return true
   } catch {
     return false
-  }
-}
-
-/**
- * The plaintext key an older build kept is deleted only once its envelope has been reopened with
- * a share the server released under its normal rule (so the next visit can reopen it too). If the
- * rule refuses this session (a passkey added after the device was set up), the old copy stays until
- * a sign-in with an earlier passkey, or until signing out.
- */
-async function retireLegacy(my: number, id: string, deviceId: string, share: Uint8Array) {
-  try {
-    const r = await timed(fetcher!<{ share: string }>('POST', `/api/me/devices/${deviceId}/unlock`, {}))
-    if (my !== epoch || r.share !== b64u(share)) return
-    await store.deleteLegacy(id)
-  } catch {
-    /* kept for now: see above */
   }
 }
 
@@ -520,8 +488,7 @@ export const keyring = {
 
   /**
    * "Forget this device": also remove what would let it reopen the key (its envelope, and its
-   * share on the server while the session still works), an older build's plaintext copy, and
-   * teammates' pins. Then locks. Passkeys stay wherever the person keeps them.
+   * share on the server while the session still works), and teammates' pins. Then locks. Passkeys stay wherever the person keeps them.
    */
   async forgetDevice(opts: { serverToo?: boolean; keepSignedIn?: boolean } = {}) {
     const id = accountId
@@ -529,7 +496,6 @@ export const keyring = {
       const dev = await store.getDevice(id).catch(() => null)
       if (dev && fetcher && opts.serverToo !== false) await timed(fetcher('DELETE', `/api/me/devices/${dev.deviceId}`, {})).catch(() => {})
       await store.deleteDevice(id).catch(() => {})
-      await store.deleteLegacy(id)
       await store.deletePins(id).catch(() => {})
     }
     if (!opts.keepSignedIn) keyring.lock()
@@ -539,21 +505,11 @@ export const keyring = {
   async signOutRisk(): Promise<'none' | 'only-copy'> {
     const id = accountId
     if (!id) return 'none'
-    const [dev, legacy] = await Promise.all([store.getDevice(id).catch(() => null), store.getLegacy(id)])
     const others = (server?.passkeys?.length ?? 0) > 0 || !!server?.recovery_blob
     if (others) return 'none'
-    if (legacy && !dev) return 'only-copy'
     if (state.kind === 'ready' && state.persisted === false) return 'only-copy'
     return 'none'
   },
-  /**
-   * Signing out keeps the envelope, but not an older build's plaintext copy (the envelope replaces
-   * it; when there's no envelope, `signOutRisk` warned first).
-   */
-  async dropLegacy() {
-    if (accountId) await store.deleteLegacy(accountId)
-  },
-
   /** Another device, or after clearing this one: open the key with the recovery key. */
   async unlock(recoveryText: string) {
     const id = accountId
@@ -591,7 +547,6 @@ export const keyring = {
     const k = await fetcher<MyKeys>('GET', '/api/me/keys')
     server = { ...k, passkeys: k.passkeys ?? [], session_passkey: k.session_passkey ?? null }
     if (my !== epoch) return
-    await store.deleteLegacy(id)
     await withLock(`muni-keys:${id}`, () => (kept ? unlocked(my, kp.sk, 'kept') : unlocked(my, kp.sk, 'made')))
   },
 

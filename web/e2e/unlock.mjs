@@ -3,8 +3,7 @@
  * out and back in with the passkey reads old thoughts and sends new ones without a recovery key
  * (the original bug); cleared storage comes back with the same passkey (PRF); a passkey without
  * PRF still works on the same device, and cleared storage then honestly needs the recovery key;
- * signing out in one tab clears decrypted text in another; a key kept in plaintext by an older
- * build is moved into an envelope; leaving the page while a new account's key is set up never
+ * signing out in one tab clears decrypted text in another; leaving the page while a new account's key is set up never
  * leaves the next page asking for the passkey. Request bodies are captured to check that nothing secret
  * leaves the browser. Real Chromium against a local `wrangler dev` over HTTPS:
  *
@@ -208,74 +207,6 @@ for (const prf of [true, false]) {
   } catch (e) {
     check(`${L} run completed`, false, e.message.split('\n')[0])
     await page.screenshot({ path: `${OUT}${prf ? 'prf' : 'plain'}-failure.png` }).catch(() => {})
-  } finally {
-    await ctx.close()
-  }
-}
-
-// ------------------------------------------------------------------ a key kept by an older build
-
-{
-  const ctx = await newCtx()
-  const page = await ctx.newPage()
-  try {
-    // An account set up by an older build: a key in plaintext in IndexedDB `muni-keys` (v1).
-    // Its passkey is made straight through the API (as that build did), so this build's own key set-up doesn't run.
-    await virtualAuthenticator(page, { prf: false })
-    await page.goto(`${BASE}/privacy`)
-    const seeded = await page.evaluate(async () => {
-      const dec = (s) => Uint8Array.from(atob(s.replace(/-/g, '+').replace(/_/g, '/') + '==='.slice((s.length + 3) % 4)), (c) => c.charCodeAt(0))
-      const enc = (b) => btoa(String.fromCharCode(...new Uint8Array(b))).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '')
-      const json = { 'content-type': 'application/json' }
-      const o = await (await fetch('/api/auth/passkey/signup/options', { method: 'POST', headers: json, body: JSON.stringify({ display_name: 'Legacy Lee' }) })).json()
-      const cred = await navigator.credentials.create({ publicKey: { ...o, challenge: dec(o.challenge), user: { ...o.user, id: dec(o.user.id) }, excludeCredentials: (o.excludeCredentials ?? []).map((c) => ({ ...c, id: dec(c.id) })) } })
-      const response = { id: cred.id, rawId: enc(cred.rawId), type: cred.type, clientExtensionResults: {}, authenticatorAttachment: cred.authenticatorAttachment, response: { clientDataJSON: enc(cred.response.clientDataJSON), attestationObject: enc(cred.response.attestationObject), transports: cred.response.getTransports?.() ?? [] } }
-      const me = await (await fetch('/api/auth/passkey/signup/verify', { method: 'POST', headers: json, body: JSON.stringify({ response, name: 'Old laptop' }) })).json()
-      const csrf = document.cookie.match(/(?:^|; )(?:__Host-)?muni_csrf=([^;]+)/)?.[1]
-      const kp = await crypto.subtle.generateKey({ name: 'X25519' }, true, ['deriveBits'])
-      const jwk = await crypto.subtle.exportKey('jwk', kp.privateKey)
-      await fetch('/api/me/keys', { method: 'PUT', headers: { 'content-type': 'application/json', 'x-csrf-token': csrf }, body: JSON.stringify({ public_key: jwk.x }) })
-      await new Promise((resolve, reject) => {
-        const r = indexedDB.open('muni-keys', 1)
-        r.onupgradeneeded = () => {
-          r.result.createObjectStore('keys', { keyPath: 'accountId' })
-          r.result.createObjectStore('pins')
-        }
-        r.onsuccess = () => {
-          const t = r.result.transaction('keys', 'readwrite')
-          t.objectStore('keys').put({ accountId: me.account_id, sk: jwk.d, pk: jwk.x, savedAt: Date.now() })
-          t.oncomplete = () => (r.result.close(), resolve(null))
-          t.onerror = () => reject(t.error)
-        }
-      })
-      return { account: me.account_id, sk: jwk.d }
-    })
-    await page.goto(`${BASE}/account#encryption`)
-    await page.locator('button:has-text("Decide later")').click({ timeout: 3000 }).catch(() => {})
-    await page.locator('button:has-text("Not now")').click({ timeout: 3000 }).catch(() => {})
-    check('[older build] the kept key opens here without asking', await page.waitForSelector('text=Your encrypted writing is unlocked on this device.', { timeout: 15000 }).then(() => true, () => false))
-    const stored = await page.evaluate(async (account) => {
-      const read = (name, store) =>
-        new Promise((resolve) => {
-          const r = indexedDB.open(name)
-          r.onsuccess = () => {
-            if (!r.result.objectStoreNames.contains(store)) return resolve(null)
-            const q = r.result.transaction(store).objectStore(store).get(account)
-            q.onsuccess = () => (r.result.close(), resolve(q.result ?? null))
-          }
-          r.onerror = () => resolve(null)
-        })
-      for (let i = 0; i < 40; i++) {
-        const legacy = await read('muni-keys', 'keys')
-        const device = await read('muni-unlock', 'devices')
-        if (!legacy && device) return { legacy, device }
-        await new Promise((r) => setTimeout(r, 250))
-      }
-      return { legacy: await read('muni-keys', 'keys'), device: await read('muni-unlock', 'devices') }
-    }, seeded.account)
-    check('[older build] it’s moved into an envelope and the plaintext copy is deleted', !stored.legacy && !!stored.device?.envelope && !JSON.stringify(stored.device).includes(seeded.sk))
-  } catch (e) {
-    check('[older build] run completed', false, e.message.split('\n')[0])
   } finally {
     await ctx.close()
   }

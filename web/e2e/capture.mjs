@@ -1,6 +1,6 @@
 /**
  * The capture page, end to end: the journal scene, the open writing surface, passages and their
- * menus, states (empty, pending, failed, submitted), editing beside a draft, roles, legacy vs
+ * menus, states (empty, pending, failed, submitted), editing beside a draft, roles, unencrypted vs
  * encrypted guidance, keyboard and reduced motion. Synthetic accounts and text only.
  * Run from web/:  MUNI_URL=http://localhost:5173 node e2e/capture.mjs   (SHOTS=dir to save screenshots)
  */
@@ -55,7 +55,7 @@ const shot = async (page, name) => {
 const entry = (a, sprint, body, category = null, extra = {}) => a.req('POST', `/api/sprints/${sprint}/entries`, { body, category, idempotency_key: crypto.randomUUID(), ...extra })
 
 try {
-  // ── Setup: a facilitator, a participant, a legacy (unencrypted) sprint that's collecting.
+  // ── Setup: a facilitator, a participant, a sprint set up without encryption that's collecting.
   const fay = await account('fay', 'Fay Facilitator')
   const pia = await account('pia', 'Pia Participant')
   const ws = await fay.req('POST', '/api/workspaces', { name: `Journal team ${tag}` })

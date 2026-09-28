@@ -401,11 +401,10 @@ export function EncryptionSettings({ onForget }: { onForget?: () => void }) {
 }
 
 /**
- * The one sprint-specific fact about protection worth showing where the sprint is: a sprint set up
- * before on-device encryption, which Muni's servers can read. Encrypted sprints need no line; the
- * explanation lives on the Privacy page.
+ * The one line a sprint set up without encryption carries: Muni's servers can read its content.
+ * Encrypted sprints need no line; the explanation lives on the Privacy page.
  */
 export function EncryptionLine({ encryption }: { encryption: 'e1' | null | undefined }) {
   if (encryption === 'e1') return null
-  return <span>Set up before on-device encryption, so Muni’s servers can read this sprint’s content. <Link to="/privacy#encryption" className="underline underline-offset-2">Privacy</Link></span>
+  return <span>Set up without encryption, so Muni’s servers can read this sprint’s content. <Link to="/privacy#encryption" className="underline underline-offset-2">Privacy</Link></span>
 }

@@ -41,8 +41,6 @@ if (required.some((k) => env[k])) {
 } else if (existsSync(out)) {
   const existing = readFileSync(out, 'utf8')
   if (/\$\{MUNI_|REPLACE_WITH/.test(existing)) fail('wrangler.production.jsonc still has placeholders')
-  // Muni no longer has AI features; a config rendered before that still names a provider.
-  if (/"AI_PROVIDER"/.test(existing)) console.warn('production config: AI_PROVIDER is no longer used — remove it from wrangler.production.jsonc (and any ANTHROPIC_API_KEY secret you set for Muni).')
   console.log('production config: using the existing wrangler.production.jsonc')
 } else {
   fail(`no production config. Set ${required.join(', ')} (and optional overrides), or create wrangler.production.jsonc`)

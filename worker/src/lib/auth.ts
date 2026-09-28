@@ -53,7 +53,7 @@ export interface SprintRow {
   vote_budget: number
   retro_duration_min: number
   opening_question: string | null
-  /** NULL: a legacy plaintext sprint. 'e1': content is client-encrypted. */
+  /** 'e1': content is client-encrypted. NULL: set up without encryption. */
   encryption: string | null
 }
 export interface SprintCtx {
@@ -122,18 +122,6 @@ export function setSessionCookies(c: Context, cfg: Config, s: { token: string; c
   c.header('set-cookie', cookie(sessionCookie(cfg), s.token, cfg.cookieSecure, secs, true), { append: true })
   c.header('set-cookie', cookie(csrfCookie(cfg), s.csrf, cfg.cookieSecure, secs, false), { append: true })
 }
-/**
- * Before the `__Host-` prefix (deployed 2026-09-27), production set plain `muni_session` and a
- * readable `muni_csrf`. Browsers keep those for up to 30 days next to the new ones, and a client
- * that read the old CSRF value had every change refused. Over HTTPS the plain names are never
- * ours any more, so any that arrive are expired on the way out.
- */
-export function expireLegacyCookies(c: Context, cfg: Config) {
-  if (!cfg.cookieSecure) return
-  for (const [name, httpOnly] of [[SESSION_COOKIE, true], [CSRF_COOKIE, false]] as const)
-    if (readCookie(c.req.raw, name) !== null) c.header('set-cookie', cookie(name, '', true, 0, httpOnly), { append: true })
-}
-
 export function clearSessionCookies(c: Context, cfg: Config) {
   c.header('set-cookie', cookie(sessionCookie(cfg), '', cfg.cookieSecure, 0, true), { append: true })
   c.header('set-cookie', cookie(csrfCookie(cfg), '', cfg.cookieSecure, 0, false), { append: true })

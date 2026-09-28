@@ -20,7 +20,7 @@ function fakeServer(me: string) {
     wraps: new Map<string, { webauthn_id: string; key_version: number; public_key: string; wrapped: string }>(),
     passkeys: new Map<string, Passkey>(),
     devices: new Map<string, { share: string; key_version: number; requires_passkey: boolean; bound_at: number }>(),
-    session: { method: 'passkey' as 'passkey' | 'email', credential: null as string | null, alive: true },
+    session: { method: 'passkey' as const, credential: null as string | null, alive: true },
     sprints: new Map<string, SprintKeyView>(),
     posts: [] as { method: string; path: string; body: unknown }[],
     offline: false,
@@ -181,7 +181,6 @@ function sprintFor(server: Server, pk: Uint8Array, opts: { others?: { id: string
 
 /** Signing out: the session ends and this tab forgets the account (what the sign-out dialog does). */
 async function signOut(srv: Server) {
-  await keyring.dropLegacy()
   keyring.lock()
   srv.s.session = { ...srv.s.session, alive: false }
 }
@@ -196,7 +195,7 @@ beforeEach(async () => {
   keyring.useStore(store)
 })
 
-describe('the original bug: signing out and back in on a configured device', () => {
+describe('signing out and back in on a configured device', () => {
   it('unlocks again with the passkey sign-in — no recovery key, no “doesn’t have the key”', async () => {
     const srv = await newAccount()
     expect(keyring.state().kind).toBe('ready')
@@ -258,15 +257,11 @@ describe('what stays on the device', () => {
     expect(keyring.publicKey()).toBeNull()
   })
 
-  it('an email-code session can’t reopen a passkey account’s device envelope', async () => {
+  it('a passkey added after this device was set up can’t reopen its envelope', async () => {
     const srv = await knownKeyAccount()
     await keyring.use(srv.me, srv.fetcher)
     await keyring.unlock(srv.recovery)
     await signOut(srv)
-    srv.s.session = { method: 'email', credential: null, alive: true }
-    await keyring.use(srv.me, srv.fetcher)
-    expect(keyring.state().kind).toBe('needs-passkey')
-    // A passkey added later (through that email session) doesn't count either.
     const added = srv.addPasskey(Date.now() + 60_000)
     keyring.lock()
     srv.s.session = { method: 'passkey', credential: added.rowId, alive: true }
@@ -371,16 +366,6 @@ describe('never a guess', () => {
     // The key this device kept is published again — the same one — and opens.
     expect(srv.s.key!.public_key).toBe(had)
     expect(keyring.state().kind).toBe('ready')
-    // An older build's plaintext copy is never republished or replaced on its own: it's an error to look at.
-    keyring.lock()
-    const stale = newKeyPair()
-    await keyring.forgetDevice({ serverToo: false })
-    store.legacy.set(srv.me, { accountId: srv.me, sk: b64u(stale.sk), pk: b64u(stale.pk), savedAt: 1 })
-    srv.s.key = null
-    const puts = srv.s.posts.length
-    await keyring.use(srv.me, srv.fetcher)
-    expect(keyring.state().kind).toBe('error')
-    expect(srv.s.posts.slice(puts).some((p) => p.method === 'PUT' && p.path === '/api/me/keys')).toBe(false)
   })
 
   it('keeps a new key on the device before publishing it, so a reload in between loses nothing', async () => {
@@ -523,60 +508,6 @@ describe('signing out while unlocking', () => {
   })
 })
 
-describe('moving keys from older builds', () => {
-  it('moves a plaintext key into an envelope, verifies it, then deletes the plaintext', async () => {
-    const srv = await knownKeyAccount()
-    store.legacy.set(srv.me, { accountId: srv.me, sk: b64u(srv.kp.sk), pk: b64u(srv.kp.pk), savedAt: 1 })
-    await keyring.use(srv.me, srv.fetcher)
-    expect(keyring.state()).toMatchObject({ kind: 'ready', persisted: true })
-    expect(store.legacy.has(srv.me)).toBe(false)
-    expect(store.dump()).not.toContain(b64u(srv.kp.sk))
-    // The envelope reopens it after signing out and in.
-    await signOut(srv)
-    srv.s.session = { method: 'passkey', credential: srv.passkeys[0].rowId, alive: true }
-    await keyring.use(srv.me, srv.fetcher)
-    expect(keyring.state().kind).toBe('ready')
-  })
-
-  it('an interrupted move keeps the old copy and finishes next time', async () => {
-    const srv = await knownKeyAccount()
-    store.legacy.set(srv.me, { accountId: srv.me, sk: b64u(srv.kp.sk), pk: b64u(srv.kp.pk), savedAt: 1 })
-    srv.s.failNext = /^\/api\/me\/devices\//
-    await keyring.use(srv.me, srv.fetcher)
-    expect(keyring.state().kind).toBe('ready') // usable now
-    expect(store.legacy.has(srv.me)).toBe(true) // and nothing was lost
-    keyring.lock() // reload
-    await keyring.use(srv.me, srv.fetcher)
-    expect(store.legacy.has(srv.me)).toBe(false)
-    expect(keyring.state().kind).toBe('ready')
-  })
-
-  it('keeps the old copy while the envelope can’t be verified (an email session on a passkey account)', async () => {
-    const srv = await knownKeyAccount()
-    store.legacy.set(srv.me, { accountId: srv.me, sk: b64u(srv.kp.sk), pk: b64u(srv.kp.pk), savedAt: 1 })
-    srv.s.session = { method: 'email', credential: null, alive: true }
-    await keyring.use(srv.me, srv.fetcher)
-    expect(keyring.state().kind).toBe('ready')
-    expect(store.legacy.has(srv.me)).toBe(true)
-  })
-
-  it('never deletes an old key that doesn’t match the account’s (it may be someone’s only copy)', async () => {
-    const srv = await knownKeyAccount()
-    const stale = newKeyPair()
-    store.legacy.set(srv.me, { accountId: srv.me, sk: b64u(stale.sk), pk: b64u(stale.pk), savedAt: 1 })
-    await keyring.use(srv.me, srv.fetcher)
-    expect(keyring.state()).toMatchObject({ kind: 'locked', recoveryAvailable: true })
-    expect(store.legacy.has(srv.me)).toBe(true)
-  })
-
-  it('two refreshes at once move it once', async () => {
-    const srv = await knownKeyAccount()
-    store.legacy.set(srv.me, { accountId: srv.me, sk: b64u(srv.kp.sk), pk: b64u(srv.kp.pk), savedAt: 1 })
-    await Promise.all([keyring.use(srv.me, srv.fetcher), keyring.refresh(), keyring.refresh()])
-    expect(srv.s.posts.filter((p) => p.method === 'PUT' && p.path.startsWith('/api/me/devices/'))).toHaveLength(1)
-  })
-})
-
 describe('nothing secret leaves the browser', () => {
   it('no key, PRF output, device half, recovery key or plaintext in any request', async () => {
     const srv = await newAccount()
@@ -646,15 +577,15 @@ describe('reading', () => {
 })
 
 describe('writing', () => {
-  it('seals content fields for encrypted sprints and leaves legacy ones alone', async () => {
+  it('seals content fields for encrypted sprints and leaves unencrypted ones alone', async () => {
     const srv = await signedIn()
     const sp = sprintFor(srv, srv.pk)
     const sealed = (await keyring.sealRequest('POST', `/api/sprints/${sp.id}/themes`, { title: 'Synthetic', entry_ids: ['a'] })) as { title: string; entry_ids: string[] }
     expect(sealed.title.startsWith('e1.')).toBe(true)
     expect(sealed.entry_ids).toEqual(['a'])
     expect((await keyring.decryptDeep({ title: sealed.title }, sp.id)).title).toBe('Synthetic')
-    const legacy = crypto.randomUUID()
-    expect(await keyring.sealRequest('POST', `/api/sprints/${legacy}/themes`, { title: 'Plain' })).toEqual({ title: 'Plain' })
+    const plain = crypto.randomUUID()
+    expect(await keyring.sealRequest('POST', `/api/sprints/${plain}/themes`, { title: 'Plain' })).toEqual({ title: 'Plain' })
   })
 
   it('never sends plaintext when this device can’t seal, or can’t tell whether it should', async () => {
@@ -676,9 +607,9 @@ describe('writing', () => {
     expect(await keyring.decryptDeep({ id: 'rec-7', body: sealed.body }, sp.id)).toMatchObject({ body: 'Synthetic edited', impact: 'Synthetic impact', might_help: null })
     // Moved to another record, it doesn't open.
     expect((await keyring.decryptDeep({ id: 'rec-8', body: sealed.body }, sp.id)).body).toBe(LOCKED)
-    // A legacy sprint's edit is sent as it is.
-    const legacy = crypto.randomUUID()
-    expect(await keyring.sealRequest('PATCH', `/api/sprints/${legacy}/entries/rec-7`, edit)).toEqual(edit)
+    // An unencrypted sprint's edit is sent as it is.
+    const plain = crypto.randomUUID()
+    expect(await keyring.sealRequest('PATCH', `/api/sprints/${plain}/entries/rec-7`, edit)).toEqual(edit)
   })
 
   it('seals a thought to the sprint and to its author, readable back by the author', async () => {

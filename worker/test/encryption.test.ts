@@ -236,9 +236,9 @@ describe('encrypted sprints', () => {
     expect((r.body as { key_version: number }).key_version).toBe(2)
   })
 
-  it('legacy sprints are untouched and labelled as not encrypted', async () => {
+  it('a sprint set up without encryption takes plain text, and says it isn’t encrypted', async () => {
     const t = await team(1)
-    const r = await post(`/api/workspaces/${t.ws}/sprints`, t.owner, { name: 'Legacy', timezone: 'UTC', starts_on: '2026-09-14', ends_on: '2026-09-27', retro_date: '2026-09-28', retro_time: '14:00', participant_ids: [t.members[0].account_id], facilitator_id: t.owner.account_id, reminders_enabled: false })
+    const r = await post(`/api/workspaces/${t.ws}/sprints`, t.owner, { name: 'Plain', timezone: 'UTC', starts_on: '2026-09-14', ends_on: '2026-09-27', retro_date: '2026-09-28', retro_time: '14:00', participant_ids: [t.members[0].account_id], facilitator_id: t.owner.account_id, reminders_enabled: false })
     expect(r.body.encryption).toBeNull()
     await go(t.owner, r.body.id, 'collecting')
     expect((await post(`/api/sprints/${r.body.id}/entries`, t.members[0], { body: 'plain text still works here' })).status).toBe(200)

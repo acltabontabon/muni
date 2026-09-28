@@ -12,8 +12,6 @@
 /** The retro's four steps: did last time's experiments help, what matters most, talk it through, agree what to try. */
 export const PHASES = ['look_back', 'choose', 'talk', 'agree'] as const
 export type Phase = (typeof PHASES)[number]
-/** Sessions stored before the four steps keep going, at the step that replaced theirs. */
-const LEGACY: Record<string, Phase> = { arrive: 'look_back', remember: 'look_back', discover: 'choose', discuss: 'talk', decide: 'agree', leave: 'agree' }
 
 export interface AgendaItem {
   theme_id: string
@@ -81,9 +79,9 @@ export class MeetingRoom implements DurableObject {
 
   // ---------- storage ----------
   private async meeting(): Promise<MeetingState | null> {
-    const m = (await this.ctx.storage.get<MeetingState & { quiet_reading?: boolean }>('meeting')) ?? null
-    if (m && !(PHASES as readonly string[]).includes(m.phase)) m.phase = LEGACY[m.phase] ?? 'look_back'
-    if (m) delete m.quiet_reading
+    const m = (await this.ctx.storage.get<MeetingState>('meeting')) ?? null
+    // A step this build doesn't know (it never should) starts the retro from the beginning.
+    if (m && !(PHASES as readonly string[]).includes(m.phase)) m.phase = 'look_back'
     return m
   }
   private async attendance(): Promise<Record<string, Attendance>> {
@@ -241,7 +239,6 @@ export class MeetingRoom implements DurableObject {
       cancelled: false,
     }
     await this.ctx.storage.put({ meeting: m, attendance: {} })
-    await this.ctx.storage.delete('speaking') // from sessions that had a speaking round
     this.broadcast({ type: 'hint', resource: 'meeting', version: m.version })
     return Response.json({ ok: true, version: m.version, existed: false })
   }

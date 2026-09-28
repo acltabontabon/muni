@@ -1,11 +1,9 @@
 /**
  * Where a person meets and manages their character: the first-visit chooser (new accounts, once),
- * the dialog to change it from anywhere, the settings block, and the one quiet note for accounts
- * from before characters existed. Everything here is about the person's own preference; nothing
- * is shown to their team.
+ * the dialog to change it from anywhere, and the settings block. The character is also their face
+ * beside their name in the retro; its world dresses only their own pages.
  */
 import { useRef, useState } from 'react'
-import { X } from 'lucide-react'
 import { Wordmark } from '@/brand/Mark'
 import { useAuth } from '@/lib/auth'
 import { Button, Dialog, Switch, useDocumentTitle } from '@/ui'
@@ -136,25 +134,6 @@ export function CharacterSettings() {
       </div>
       {offline ? <p className="text-sm text-ink-soft">Changing your character needs a connection.</p> : null}
       <div className="mt-3"><CultureNote character={character} /></div>
-    </div>
-  )
-}
-
-/** Accounts from before characters: one quiet line, dismissed for good. */
-export function CharacterNote() {
-  const { intro, character, setChooserOpen, finishIntro } = useWorld()
-  const { offline } = useAuth()
-  if (intro !== 'note' || character || offline) return null
-  return (
-    <div className="w-note mb-5" role="note">
-      <span className="flex shrink-0 -space-x-2" aria-hidden>
-        {(['kape', 'bola', 'sibol'] as const).map((id) => <Portrait key={id} id={id} size={28} className="rounded-full ring-2 ring-[var(--card)]" />)}
-      </span>
-      <p className="min-w-0 flex-1">Muni has characters now. Choose one to give your writing page its own world.</p>
-      <Button size="sm" onClick={() => setChooserOpen(true)}>Choose</Button>
-      <button type="button" className="icon-btn" aria-label="Dismiss" onClick={() => void finishIntro()}>
-        <X className="size-4" />
-      </button>
     </div>
   )
 }

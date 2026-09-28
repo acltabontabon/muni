@@ -369,7 +369,7 @@ export function SprintSetup() {
         ) : existing.encryption === 'e1' ? (
           <p className="text-sm text-ink-soft">This sprint is encrypted: its content is sealed on participants’ devices.</p>
         ) : (
-          <p className="text-sm text-ink-soft">This sprint isn’t encrypted — it was set up before encryption was available.</p>
+          <p className="text-sm text-ink-soft">This sprint was set up without encryption, so Muni’s servers can read its content.</p>
         )}
 
         <section className="border-t border-line/70 pt-6">

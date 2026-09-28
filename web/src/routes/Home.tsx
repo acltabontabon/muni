@@ -31,7 +31,6 @@ import { RetroWhen } from '@/ui/when'
 import { useWorld } from '@/worlds/world'
 import { Room } from '@/worlds/rooms'
 import { SprintTab, StateWriter } from '@/worlds/room'
-import { CharacterNote } from '@/worlds/Character'
 
 type Sprintish = Pick<SprintSummary, 'id' | 'workspace_id' | 'name' | 'status' | 'timezone'> & Partial<SprintSummary>
 type Loaded = { capture: CaptureTarget | null; cached: { sprint: ContextSprint; workspaceName: string | null; fetchedAt: number }[]; offline: boolean }
@@ -163,7 +162,7 @@ function Quiet({ ws, me, title, body, extras, tab, state, bubble }: { ws: Me['wo
   if (world)
     return (
       <AppShell workspace={ws} wide>
-        <Room world={world} mode="state" notices={<CharacterNote />} context={<SprintTab s={null} state={state} title={tab} me={me} />} writing={<StateWriter title={title}>{body}</StateWriter>} collection={null} extras={extras} />
+        <Room world={world} mode="state" context={<SprintTab s={null} state={state} title={tab} me={me} />} writing={<StateWriter title={title}>{body}</StateWriter>} collection={null} extras={extras} />
       </AppShell>
     )
   return (
@@ -173,8 +172,7 @@ function Quiet({ ws, me, title, body, extras, tab, state, bubble }: { ws: Me['wo
         <h1 className="journal-title mt-2">{title}</h1>
       </JournalScene>
       <div className="mt-4 max-w-3xl">
-        <CharacterNote />
-        {body}
+          {body}
         {extras}
       </div>
     </AppShell>
@@ -281,7 +279,7 @@ function Welcome() {
   return (
     <AppShell workspace={null} wide>
       {world && me ? (
-        <Room world={world} mode="state" notices={<CharacterNote />} context={<SprintTab s={null} state="none" title="No team yet" me={me} />} writing={<StateWriter title="Welcome to Muni">{body}</StateWriter>} collection={null} />
+        <Room world={world} mode="state" context={<SprintTab s={null} state="none" title="No team yet" me={me} />} writing={<StateWriter title="Welcome to Muni">{body}</StateWriter>} collection={null} />
       ) : (
         <>
           <JournalScene bubble>
@@ -289,8 +287,7 @@ function Welcome() {
             <h1 className="journal-title mt-2">Welcome to <em>Muni</em></h1>
           </JournalScene>
           <div className="mt-4 max-w-2xl">
-            <CharacterNote />
-            {body}
+                  {body}
           </div>
         </>
       )}

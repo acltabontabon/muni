@@ -135,9 +135,9 @@ demo.post('/api/demo/seed', async (c) => {
 demo.post('/api/dev/session', async (c) => {
   const cfg = config(c.env)
   if (cfg.env === 'production' || !cfg.allowDemoSeed) throw notFound()
-  const body = (await c.req.json().catch(() => ({}))) as { name?: string; intro?: 'choose' | 'note' | 'done' }
+  const body = (await c.req.json().catch(() => ({}))) as { name?: string; intro?: 'choose' | 'done' }
   // Scripts and tests aren't interrupted by the character chooser unless they ask to see it.
-  const intro = INTRO[body.intro === 'choose' || body.intro === 'note' ? body.intro : 'done']
+  const intro = INTRO[body.intro === 'choose' ? 'choose' : 'done']
   const id = uuid()
   const name = typeof body.name === 'string' ? body.name.trim().slice(0, 80) : ''
   const [sql, ...args] = newAccountStatement(id, name, isoHandle())

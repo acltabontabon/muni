@@ -21,7 +21,7 @@ Security problems go through [`SECURITY.md`](SECURITY.md), never a public issue.
 
 ## Making a change
 
-1. Set up locally as described in the [README](README.md#run-it-locally).
+1. Set up locally as described in the [README](README.md#for-contributors-and-hosters).
 2. Keep the change focused, and match the surrounding code's style and comment density.
 3. Add or update tests: `worker/test/` runs against the real Workers runtime; `web/` has unit
    tests and browser end-to-end scripts in `web/e2e/`.

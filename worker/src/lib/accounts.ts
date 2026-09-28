@@ -2,7 +2,7 @@
  * Accounts and the one address mail may go to. An account is its id and its passkeys: that's the
  * only way in. An address, if an account has one, is where invitations and reminders are sent
  * (`account_emails`: at most one per account, each address on at most one account); it never
- * signs anyone in. `accounts.legacy_key` holds the account's own id (migration 0008).
+ * signs anyone in. `accounts.account_ref` is a unique copy of the account's own id; nothing reads it.
  */
 import { one, run } from './db'
 
@@ -40,6 +40,6 @@ export async function clearAccountEmail(db: D1Database, accountId: string) {
 /** A new account: a name the person chose, and (from its first passkey) nothing else. */
 export function newAccountStatement(accountId: string, displayName: string, userHandle: string): [string, ...unknown[]] {
   const now = Date.now()
-  return ['INSERT INTO accounts (id, legacy_key, display_name, created_at, name_set_at, webauthn_user_id) VALUES (?,?,?,?,?,?)', accountId, accountId, displayName, now, now, userHandle]
+  return ['INSERT INTO accounts (id, account_ref, display_name, created_at, name_set_at, webauthn_user_id) VALUES (?,?,?,?,?,?)', accountId, accountId, displayName, now, now, userHandle]
 }
 

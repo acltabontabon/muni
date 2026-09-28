@@ -7,8 +7,6 @@ type Prefs = {
   companionFollow?: boolean
   /** Accounts that chose to keep drafts and unsent thoughts on this device (IndexedDB). Per person. */
   keepLocalFor?: string[]
-  /** Legacy device-wide flag (before the choice was per account); adopted by the next account to sign in. */
-  keepLocal?: boolean
   /** The install hint was dismissed; never shown again unprompted. */
   installHintDismissed?: boolean
   /** A passkey was used or added in this browser: the entrance offers it first. A hint, never proof. */
@@ -79,13 +77,6 @@ export function keptAccounts(): string[] {
 export function setKeepsLocal(accountId: string, on: boolean) {
   const cur = keptAccounts().filter((a) => a !== accountId)
   writePrefs({ keepLocalFor: on ? [...cur, accountId] : cur })
-}
-/** The old device-wide switch becomes the choice of whoever signs in next (it was theirs to make). */
-export function adoptLegacyKeep(accountId: string): boolean {
-  const p = readPrefs()
-  if (p.keepLocalFor !== undefined || !p.keepLocal) return false
-  writePrefs({ keepLocalFor: [accountId], keepLocal: undefined })
-  return true
 }
 
 /** What the app remembers between visits about the signed-in person's navigation; cleared on sign-out. */

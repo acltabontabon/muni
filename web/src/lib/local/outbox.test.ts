@@ -209,8 +209,8 @@ describe('outbox', () => {
   })
 
   it('upgrades records written before versioning instead of dropping them', () => {
-    const legacy = { id: 'x', payload: { body: 'kept' } } as unknown as Omit<OutboxItem, 'v'> & { v?: number }
-    expect(upgradeRecord(legacy)).toMatchObject({ id: 'x', v: 1, payload: { body: 'kept' } })
+    const unversioned = { id: 'x', payload: { body: 'kept' } } as unknown as Omit<OutboxItem, 'v'> & { v?: number }
+    expect(upgradeRecord(unversioned)).toMatchObject({ id: 'x', v: 1, payload: { body: 'kept' } })
   })
 
   it('namespaces everything by account and clears only one account', async () => {

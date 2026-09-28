@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it } from 'vitest'
-import { adoptLegacyKeep, forgetSignedInState, keepsLocal, keptAccounts, readPrefs, rememberWorld, setKeepsLocal, worldFor, writePrefs } from './prefs'
+import { forgetSignedInState, keepsLocal, keptAccounts, readPrefs, rememberWorld, setKeepsLocal, worldFor, writePrefs } from './prefs'
 
 // A minimal localStorage for node.
 class MemStorage {
@@ -29,19 +29,6 @@ describe('keeping drafts on this device', () => {
     expect(keptAccounts()).toEqual(['ben'])
   })
 
-  it('hands the old device-wide switch to the next person who signs in, once', () => {
-    writePrefs({ keepLocal: true })
-    expect(adoptLegacyKeep('ana')).toBe(true)
-    expect(keepsLocal('ana')).toBe(true)
-    expect(readPrefs().keepLocal).toBeUndefined()
-    expect(adoptLegacyKeep('ben')).toBe(false)
-    expect(keepsLocal('ben')).toBe(false)
-  })
-
-  it('does nothing for a device that never kept drafts', () => {
-    expect(adoptLegacyKeep('ana')).toBe(false)
-    expect(keptAccounts()).toEqual([])
-  })
 })
 
 describe('signing out', () => {

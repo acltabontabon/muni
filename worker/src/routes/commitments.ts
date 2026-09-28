@@ -217,8 +217,8 @@ commitments.put('/api/sprints/:sprintId/recap', async (c) => {
   requireFacilitator(ctx)
   if (!['live', 'completed', 'archived'].includes(ctx.sprint.status)) throw conflict('the recap is written during or after the retro')
   const body = (await c.req.json().catch(() => ({}))) as { body?: string; publish?: boolean }
-  // A recap draft is generated from the meeting record, which the server can only read for
-  // legacy sprints. Encrypted sprints draft it on the facilitator's device.
+  // A recap draft is generated from the meeting record, which the server can only read for a
+  // sprint set up without encryption. Encrypted sprints draft it on the facilitator's device.
   if (isEncrypted(ctx.sprint) && typeof body.body !== 'string') throw new AppError(409, 'encrypted_recap', 'this sprint is encrypted, so its recap is drafted on your device')
   const text = isEncrypted(ctx.sprint) ? content(true, body.body, 20_000, 'The recap', false) ?? '' : typeof body.body === 'string' ? body.body.trim().slice(0, 20_000) : await generateRecap(c.env.DB, ctx)
   const source = typeof body.body === 'string' ? 'manual' : 'generated'

@@ -1,8 +1,7 @@
 /**
- * Passkeys are the only way in: creating an account with a passkey, email sign-in being gone (its
- * endpoints, codes and sessions), the last-passkey guard, the address that emailed invitations
- * leave behind (for mail only), personal single-use invite links, and what accounts without an
- * address are and aren't sent. Through the public HTTP API, with the software authenticator.
+ * Passkeys are the only way in: creating an account with a passkey, an address that never signs
+ * anyone in, the last-passkey guard, the address that emailed invitations leave behind (for mail
+ * only), personal single-use invite links, and what accounts without an address are and aren't sent. Through the public HTTP API, with the software authenticator.
  */
 import { describe, expect, it } from 'vitest'
 import { env } from 'cloudflare:test'
@@ -21,10 +20,8 @@ describe('creating an account with a passkey', () => {
   it('needs only a name, and signs in', async () => {
     const { user, me } = await fresh('Pia')
     expect(me).toMatchObject({ email: null, display_name: 'Pia', needs_name: false, passkeys: 1, created: true, auth_method: 'passkey' })
-    // No email column: the legacy key is the account's own id.
-    const legacy = await env.DB.prepare('SELECT legacy_key, webauthn_user_id FROM accounts WHERE id = ?').bind(user.account_id).first<{ legacy_key: string; webauthn_user_id: string }>()
-    expect(legacy!.legacy_key).toBe(user.account_id)
-    expect(legacy!.webauthn_user_id).toMatch(/^[A-Za-z0-9_-]{43}$/)
+    const row = await env.DB.prepare('SELECT webauthn_user_id FROM accounts WHERE id = ?').bind(user.account_id).first<{ webauthn_user_id: string }>()
+    expect(row!.webauthn_user_id).toMatch(/^[A-Za-z0-9_-]{43}$/)
     expect(await count('SELECT count(*) AS n FROM account_emails WHERE account_id = ?', user.account_id)).toBe(0)
     expect((await get('/api/auth/me', user)).body.account_id).toBe(user.account_id)
   })
@@ -67,36 +64,7 @@ describe('creating an account with a passkey', () => {
 
 })
 
-describe('email sign-in is gone', () => {
-  it('its endpoints don’t exist, answer nothing useful, and never start a session', async () => {
-    const email = `pk-only-${tag()}@example.com`
-    await signin(email, 'Has an address')
-    for (const [path, body] of [
-      ['/api/auth/request-code', { email }],
-      ['/api/auth/verify', { email, code: '123456' }],
-      ['/api/auth/verify', { email, code: '123456', reauth: true }],
-      ['/api/me/email/request', { email }],
-      ['/api/me/email/verify', { email, code: '123456' }],
-      ['/api/invitations/confirm', { token: 'x' }],
-    ] as const) {
-      const r = await rawReq('POST', path, { json: body })
-      expect(r.status, path).toBe(404)
-      expect(setCookie(r, 'muni_session'), path).toBeNull()
-    }
-    expect(await count("SELECT count(*) AS n FROM dev_mail WHERE to_addr = ?", email)).toBe(0)
-    // Nothing is left to redeem: the codes table is gone.
-    expect(await count("SELECT count(*) AS n FROM sqlite_master WHERE name = 'verification_challenges'")).toBe(0)
-  })
-
-  it('a session from an email code, if one were left, doesn’t sign anyone in', async () => {
-    const { user } = await fresh('Old session')
-    const { sha256Hex } = await import('../src/lib/crypto')
-    const token = 'old-email-session-token-' + tag()
-    await env.DB.prepare("INSERT INTO sessions (id, account_id, token_hash, csrf_token, created_at, last_seen_at, expires_at, auth_method) VALUES (?,?,?,?,?,?,?, 'email')")
-      .bind(crypto.randomUUID(), user.account_id, await sha256Hex(token), 'csrf', Date.now(), Date.now(), Date.now() + 86_400_000).run()
-    expect((await get('/api/auth/me', { ...user, session: token, csrf: 'csrf' })).status).toBe(401)
-  })
-
+describe('an address', () => {
   it('an address never signs in, and removing it only stops the mail', async () => {
     const email = `pk-addr-${tag()}@example.com`
     const u = await signin(email, 'Mail only')

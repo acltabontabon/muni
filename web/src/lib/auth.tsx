@@ -1,7 +1,7 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { ApiError, get, onAccountChanged, onUnauthorized, post, setExpectedAccount } from '@/api/client'
 import type { Me } from '@/api/types'
-import { adoptLegacyKeep, keepsLocal, keptAccounts, readPrefs, worldFor } from '@/lib/prefs'
+import { keepsLocal, keptAccounts, worldFor } from '@/lib/prefs'
 import { deviceStore } from '@/lib/local/store'
 import { hasDeviceStorage } from '@/lib/local/LocalProvider'
 import { announceSignIn, clearPendingSignOut, hasPendingSignOut, onAuthElsewhere } from '@/lib/signout'
@@ -33,12 +33,11 @@ type AuthState = {
 const Ctx = createContext<AuthState>({ me: null, loading: true, offline: false, sessionEnded: false, sessionEpoch: 0, refresh: async () => null, signOutLocal: () => {} })
 
 async function cachedIdentity(): Promise<Me | null> {
-  const legacy = !!readPrefs().keepLocal && readPrefs().keepLocalFor === undefined
-  if ((!keptAccounts().length && !legacy) || !hasDeviceStorage()) return null
+  if (!keptAccounts().length || !hasDeviceStorage()) return null
   try {
     const i = await deviceStore().getIdentity()
     // Only someone who chose to keep drafts on this device can open Muni from it offline.
-    if (!i || (!legacy && !keptAccounts().includes(i.account_id))) return null
+    if (!i || !keptAccounts().includes(i.account_id)) return null
     // Their character comes from this device's copy; offline is never the moment for the chooser.
     const w = worldFor(i.account_id)
     return { account_id: i.account_id, display_name: i.display_name, needs_name: false, email: '', workspaces: i.workspaces.map((w) => ({ ...w, is_demo: false })), session_expires_at: '', email_transport: '', passkeys: 0, auth_method: null, recent_auth_until: '', pending_join_requests: [], avatar: { id: w?.avatar ?? null, theme: w?.theme ?? true, intro: 'done' } }
@@ -82,7 +81,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setOffline(false)
       setSessionEnded(false)
       setSessionEpoch((n) => n + 1)
-      adoptLegacyKeep(m.account_id)
       if (keepsLocal(m.account_id) && hasDeviceStorage())
         deviceStore()
           .putIdentity({ account_id: m.account_id, display_name: m.display_name, workspaces: m.workspaces.map((w) => ({ id: w.id, name: w.name, role: w.role })), savedAt: Date.now() })

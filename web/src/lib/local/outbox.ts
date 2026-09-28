@@ -32,7 +32,7 @@ export interface SyncDeps {
   /** Told after every change so other tabs can re-read. */
   notify?: () => void
   /**
-   * Seals a thought for an encrypted sprint (returns the request body), or null for a legacy sprint.
+   * Seals a thought for an encrypted sprint (returns the request body), or null for a sprint set up without encryption.
    * Throws { code: 'no-key' } when this device can't. Absent in the service worker, which holds no
    * keys: it leaves encrypted thoughts for the app to send.
    */

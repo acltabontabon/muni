@@ -38,7 +38,6 @@ import { DeviceKeyNotice, EncryptionLine } from '@/ui/keys'
 import { AppShell } from '@/ui/shell'
 import { SprintBar, useSprintControl, type BarSprint } from '@/ui/sprint-bar'
 import { RetroWhen } from '@/ui/when'
-import { CharacterNote } from '@/worlds/Character'
 import { RoomEmpty, StateWriter, Writer } from '@/worlds/room'
 import { Room } from '@/worlds/rooms'
 import { useWorld } from '@/worlds/world'
@@ -237,7 +236,6 @@ export function SprintPage() {
   const keyNotice = s?.encryption === 'e1' ? <div className="mb-4"><DeviceKeyNotice need={writing ? 'write' : 'read'} /></div> : null
   const notices = (
     <>
-      <CharacterNote />
       {offlineNote}
       {keyNotice}
     </>

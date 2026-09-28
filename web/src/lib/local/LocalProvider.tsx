@@ -5,7 +5,7 @@
  */
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { csrfToken } from '@/api/client'
-import { adoptLegacyKeep, keptAccounts, setKeepsLocal } from '@/lib/prefs'
+import { keptAccounts, setKeepsLocal } from '@/lib/prefs'
 import { flush, nextDue, type FlushResult } from './outbox'
 import { serialPasses } from './passes'
 import { keyring } from '@/lib/e2ee/keyring'
@@ -64,10 +64,7 @@ export function hasDeviceStorage() {
 
 export function LocalProvider({ accountId, children }: { accountId: string | null; children: ReactNode }) {
   // The provider is keyed by account (App.tsx), so this reads the choice of the person signed in here.
-  const [kept, setKept] = useState(() => {
-    if (accountId) adoptLegacyKeep(accountId)
-    return keptAccounts()
-  })
+  const [kept, setKept] = useState(() => keptAccounts())
   const keepLocal = !!accountId && kept.includes(accountId) && hasDeviceStorage()
   const [cleared, setCleared] = useState(0)
   const [storageError, setStorageError] = useState<string | null>(null)
@@ -287,7 +284,7 @@ export function LocalProvider({ accountId, children }: { accountId: string | nul
   return <Ctx.Provider value={api}>{children}</Ctx.Provider>
 }
 
-/** Seals a queued thought for an encrypted sprint. Null for legacy sprints (sent as they are). */
+/** Seals a queued thought for an encrypted sprint. Null for a sprint set up without encryption (sent as it is). */
 async function sealThought(item: OutboxItem, plain: Record<string, unknown>): Promise<Record<string, unknown> | null> {
   let encrypted = item.encrypted
   if (!encrypted) {

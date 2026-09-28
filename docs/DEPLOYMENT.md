@@ -57,21 +57,11 @@ anything), rebuild the web app (`npm run build`), then `pnpm migrate:remote && p
 `pnpm exec wrangler rollback --config wrangler.production.jsonc` restores the previous Worker
 version; migrations are not reversed.
 
-**No AI** (`0009_no_ai.sql`) drops the theme-drafting tables and switches. Deploy the Worker
-*first*, then migrate: the new Worker works with or without the old columns, but the previous one
-can't run against the migrated schema, so don't roll the Worker back past this release. Thoughts,
-themes (including ones that began as drafts), notes, experiments and recaps are untouched. If you
-had set `AI_PROVIDER` or an `ANTHROPIC_API_KEY` secret, they're no longer read: remove the var from
-`wrangler.production.jsonc`, and the secret with `wrangler secret delete ANTHROPIC_API_KEY` if
-nothing else of yours uses it. Delete any `web/public/voice/` left from the speech model so the
-build stops serving it.
-
-**Passkeys** (`0004_passkeys_and_join.sql`) need no new secret: the relying-party ID is rendered
-from `MUNI_DOMAIN` as `WEBAUTHN_RP_ID`, and the Worker refuses to start if it isn't exactly
-`PUBLIC_ORIGIN`'s host. Passkeys registered on one host can't be used on another, so moving the
+**Passkeys** need no secret: the relying-party ID is rendered from `MUNI_DOMAIN` as
+`WEBAUTHN_RP_ID`, and the Worker refuses to start if it isn't exactly `PUBLIC_ORIGIN`'s host. Passkeys registered on one host can't be used on another, so moving the
 app to a new domain means everyone creates new passkeys there — there's no other way in, so plan
 it with your users (see [PASSKEYS.md](PASSKEYS.md) §5).
-Rollout, rollback and the real-device test matrix: [PASSKEYS.md](PASSKEYS.md#8-rollout-and-rollback).
+The real-device test matrix is in [PASSKEYS.md](PASSKEYS.md#8-tests).
 
 ## Releasing from GitHub Actions
 

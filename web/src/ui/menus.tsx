@@ -294,10 +294,7 @@ export function LeaveDialog({ kind, onClose, stay, forget: forgetByDefault = fal
   const forgetHere = async (opts: { forgetDevice: boolean }) => {
     await local.clearLocal()
     if (opts.forgetDevice) await keyring.forgetDevice({ serverToo: false })
-    else {
-      await keyring.dropLegacy()
-      keyring.lock()
-    }
+    else keyring.lock()
     forgetSignedInState()
     announceSignOut()
     signOutLocal()

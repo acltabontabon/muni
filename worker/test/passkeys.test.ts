@@ -279,17 +279,15 @@ describe('sessions and sign-out', () => {
     expect((await get('/api/auth/me', stranger)).status).toBe(200)
   })
 
-  it('a session with no method recorded (as email-code sessions were) doesn’t sign anyone in', async () => {
-    const email = `ses-legacy-${tag()}@example.com`
-    const a = await signin(email)
-    // What an older Worker writes after the migration: only the original columns.
+  it('a session that wasn’t made by a passkey never signs anyone in', async () => {
+    const a = await signin(`ses-other-${tag()}@example.com`)
     const { sha256Hex } = await import('../src/lib/crypto')
-    const token = crypto.randomUUID().replace(/-/g, '') + 'legacy'
-    await env.DB.prepare('INSERT INTO sessions (id, account_id, token_hash, csrf_token, created_at, last_seen_at, expires_at) VALUES (?,?,?,?,?,?,?)')
-      .bind(crypto.randomUUID(), a.account_id, await sha256Hex(token), 'legacycsrf', Date.now() - 3_600_000, Date.now() - 3_600_000, Date.now() + 86_400_000).run()
-    const legacy = { ...a, session: token, csrf: 'legacycsrf' }
-    expect((await get('/api/auth/me', legacy)).status).toBe(401)
-    expect((await post('/api/auth/passkey/register/options', legacy)).status).toBe(401)
+    const token = crypto.randomUUID().replace(/-/g, '') + 'other'
+    await env.DB.prepare("INSERT INTO sessions (id, account_id, token_hash, csrf_token, created_at, last_seen_at, expires_at, auth_method) VALUES (?,?,?,?,?,?,?, 'other')")
+      .bind(crypto.randomUUID(), a.account_id, await sha256Hex(token), 'othercsrf', Date.now() - 3_600_000, Date.now() - 3_600_000, Date.now() + 86_400_000).run()
+    const other = { ...a, session: token, csrf: 'othercsrf' }
+    expect((await get('/api/auth/me', other)).status).toBe(401)
+    expect((await post('/api/auth/passkey/register/options', other)).status).toBe(401)
   })
 
   it('logout is idempotent: an ended session still gets its cookies cleared', async () => {
@@ -306,20 +304,6 @@ describe('sessions and sign-out', () => {
     const forged = await rawReq('POST', '/api/auth/logout', { cookie: `muni_session=${v.session}`, csrf: 'wrong' })
     expect(forged.status).toBe(403)
     expect((await get('/api/auth/me', v)).status).toBe(200)
-  })
-
-  it('expires leftover unprefixed cookies over HTTPS', async () => {
-    const { expireLegacyCookies } = await import('../src/lib/auth')
-    const { config } = await import('../src/lib/config')
-    const set: string[] = []
-    const ctx = (cookie: string) => ({ req: { raw: new Request('https://muni.test/api/auth/me', { headers: { cookie } }) }, header: (_: string, v: string) => set.push(v) }) as never
-    const secure = config({ APP_ENV: 'test', PUBLIC_ORIGIN: 'https://muni.test' })
-    expireLegacyCookies(ctx('muni_csrf=old; __Host-muni_csrf=new; muni_session=old'), secure)
-    expect(set.sort()).toEqual(['muni_csrf=; Path=/; SameSite=Lax; Max-Age=0; Secure', 'muni_session=; Path=/; SameSite=Lax; Max-Age=0; HttpOnly; Secure'])
-    set.length = 0
-    expireLegacyCookies(ctx('__Host-muni_csrf=new'), secure)
-    expireLegacyCookies(ctx('muni_csrf=dev'), config({ APP_ENV: 'test', PUBLIC_ORIGIN: 'http://localhost:5173' }))
-    expect(set).toEqual([])
   })
 })
 

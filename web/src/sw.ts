@@ -15,7 +15,6 @@
  */
 import { flush } from './lib/local/outbox'
 import { deviceStore } from './lib/local/store'
-import { dropRetiredCaches } from './lib/retired'
 
 type ExtendableEvent = Event & { waitUntil(p: Promise<unknown>): void }
 type FetchEvent = ExtendableEvent & { request: Request; respondWith(r: Promise<Response> | Response): void }
@@ -49,10 +48,9 @@ sw.addEventListener('activate', (e) => {
     caches
       .keys()
       .then((keys) => Promise.all(keys.filter((k) => k.startsWith('muni-shell-') && k !== SHELL).map((k) => caches.delete(k))))
-      // World fonts this build no longer uses (renamed, or retired) are dropped; the rest are kept.
+      // World fonts this build doesn't use are dropped; the rest are kept.
       .then(() => caches.open(FONTS))
       .then(async (c) => Promise.all((await c.keys()).filter((r) => !WORLD_FILES.has(new URL(r.url).pathname)).map((r) => c.delete(r))))
-      .then(() => dropRetiredCaches())
       .then(() => sw.clients.claim()),
   )
 })

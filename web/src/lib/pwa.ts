@@ -6,7 +6,6 @@
  * told another tab updated Muni, instead of being reloaded under someone's cursor.
  */
 import { useSyncExternalStore } from 'react'
-import { dropRetiredCaches } from '@/lib/retired'
 
 type State = {
   updateReady: boolean
@@ -41,9 +40,6 @@ let requestedUpdate = false
 
 export function initPwa() {
   if (typeof window === 'undefined') return
-  // Space held by features Muni no longer has (voice's speech model); the service worker does the
-  // same when it takes over, but an update can wait a long time for a safe moment.
-  void dropRetiredCaches()
   // Capture the browser's install prompt so it only appears when the person asks for it.
   window.addEventListener('beforeinstallprompt', (e) => {
     e.preventDefault()

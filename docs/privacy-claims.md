@@ -5,7 +5,7 @@ Every public statement about privacy, and what backs it. The explanation has one
 sign-in). Elsewhere the app only states what matters at a decision point, in a line, and links there:
 the close-collection confirmation (`web/src/lib/lifecycle.ts`), opening collection and the encryption
 switch in sprint setup (`web/src/routes/SprintSetup.tsx`), the downloads line on Outcomes, and the note
-on a sprint from before encryption (`EncryptionLine` in `web/src/ui/keys.tsx`). Recovery and key-change
+on a sprint set up without encryption (`EncryptionLine` in `web/src/ui/keys.tsx`). Recovery and key-change
 instructions in Account (`web/src/ui/security.tsx`, `keys.tsx`) are instructions, not claims. The
 marketing site's section is `site/index.html`; release notes (`CHANGELOG.md`) repeat only claims listed
 here. Change a claim and its evidence together; if the evidence goes away, the claim goes too.
@@ -18,7 +18,7 @@ Kinds of evidence:
 - **Provider** — stated by a provider's documentation, not observed by us.
 - **Commitment** — a policy the operator keeps. Nothing technical enforces it.
 
-Last checked 2026-09-28, against `main` at 1.0.0-rc.1 (the Privacy page was reorganised around who sees what, what teammates and facilitators can do, authorship, encryption, and what's kept; three stale statements about keys were corrected — see *Encryption (new sprints)*).
+Last checked 2026-09-28, against `main` at 1.0.0-rc.1.
 
 ## Visibility and authorship
 
@@ -47,23 +47,23 @@ Last checked 2026-09-28, against `main` at 1.0.0-rc.1 (the Privacy page was reor
 
 | Claim | Kind | Evidence |
 | --- | --- | --- |
-| The database records who wrote each thought; the operator or Cloudflare can link thoughts to accounts, and can read the content of sprints from before encryption | Code | `entries.author_account_id`, `votes.account_id`, `context_additions.author_account_id`, `checkin_responses.account_id` (migrations); `sprints.encryption IS NULL` for legacy sprints |
+| The database records who wrote each thought; the operator or Cloudflare can link thoughts to accounts, and can read the content of sprints set up without encryption | Code | `entries.author_account_id`, `votes.account_id`, `context_additions.author_account_id`, `checkin_responses.account_id` (migrations); `sprints.encryption IS NULL` for sprints set up without encryption |
 | Operator accesses data only for running/securing Muni, abuse, or a user's request | Commitment | Not enforced; **no record of operator access is kept** — the page says so |
 | Owners can't read sprints they aren't in or learn authorship | Test | as above (boundaries, no author lookup) |
 | Cloudflare hosts app, database, live connection; request logs ≤ 7 days with URL, headers (IP, browser) | Provider + Config | Workers Logs docs (3 days Free / 7 Paid; invocation logs include request metadata and headers); `observability` on at sampling 1 in the production config. Not inspected on the live dashboard |
 | URLs contain only ids, never text or email addresses | Code + Test | Tokens in fragments/bodies (`boundaries.test.ts` “keeps invitation tokens out of URLs…”); no client route puts an email or text in a query string |
 | Muni's own logging records failures only: path, method, short error; no text or email | Test | `privacy.test.ts` “writes no entry text or email address to the log” (spies on `console.*` across a full flow, including a provoked 500) |
-| Resend receives the address and an invitation (workspace, inviter name, link) or a reminder (sprint name, link); never a thought, never a code | Code + Config | `lib/email.ts` templates (the only two); `EMAIL_PROVIDER=resend` in the production config |
+| Resend receives the address and an invitation (workspace, inviter name, link) or a reminder (sprint name, link); never a thought | Code + Config | `lib/email.ts` templates (the only two); `EMAIL_PROVIDER=resend` in the production config |
 | munimuni.app is on GitHub Pages behind Cloudflare, with Google Fonts | Config | `.github/workflows/pages.yml`; live response headers (`server: cloudflare`, `x-github-request-id`); `site/index.html` font link |
 | No analytics, ads, session recording or error reporting; the app can't load code from or send data to other sites | Code + Config | No such dependency (`web/package.json`); CSP in `web/public/_headers` (`script-src 'self'; connect-src 'self'`), confirmed on the live app shell |
 | No IP address or device details stored with an account | Code | `sessions` table has no IP/user-agent columns; rate-limit buckets hold SHA-256 hashes (`boundaries.test.ts` “stores no plaintext address or network…”) |
-| We don't sell personal data; contributions not used for advertising; emails not added to marketing lists | Commitment | No advertising or marketing integration exists in code; the only emails are the three templates |
+| We don't sell personal data; contributions not used for advertising; emails not added to marketing lists | Commitment | No advertising or marketing integration exists in code; the only emails are the two templates |
 
 ## AI
 
 | Claim | Kind | Evidence |
 | --- | --- | --- |
-| Muni has no AI features; no thought is sent to an AI provider | Code + Test | No AI provider, model or inference code in `worker/` or `web/` (theme drafting and on-device voice transcription were removed; `0009_no_ai.sql` dropped the drafting tables); `no-ai.test.ts` (drafting endpoints 404, no AI field in any response, no drafting tables left); CSP `connect-src 'self'` |
+| Muni has no AI features; no thought is sent to an AI provider | Code + Config | No AI provider, model or inference code in `worker/` or `web/`; CSP `connect-src 'self'` |
 | Muni doesn't train AI models on contributions | Code | No training pipeline or data export for training exists |
 
 ## Encryption
@@ -72,9 +72,9 @@ Last checked 2026-09-28, against `main` at 1.0.0-rc.1 (the Privacy page was reor
 | --- | --- | --- |
 | HTTPS in transit | Config | Custom domain on Cloudflare; HSTS in `_headers` (live) |
 | Stored data encrypted at rest with AES-256, Cloudflare-managed keys | Provider | D1 and Durable Objects data-security docs |
-| Sprints from before encryption (and sprints with encryption turned off) aren't encrypted at the application level; the server can read their thoughts. New sprints: see *Encryption (new sprints)* below | Code | `sprints.encryption` is null for them; `lib/sealed.ts` accepts plaintext only there |
-| Email addresses (only accounts invited by email) stored readable; session tokens only as hashes | Code | `account_emails.email` plain; `sessions.token_hash` (`lib/auth.ts`); `accounts.legacy_key` holds the account id, no address (migration 0008) |
-| Passkeys are the only way in: no email sign-in, codes, password or recovery email | Code + Test | No such route (`passkeys-only.test.ts`: the old endpoints answer 404 and set no cookie; non-passkey sessions don't authenticate; codes table dropped); `web/e2e/entrance.mjs`, `passkeys.mjs` |
+| Sprints set up without encryption aren't encrypted at the application level; the server can read their thoughts, and each says so. Every other sprint: see *Encryption (encrypted sprints)* below | Code | `sprints.encryption` is null for them; `lib/sealed.ts` accepts plaintext only there; `EncryptionLine` in `ui/keys.tsx` |
+| Email addresses (only accounts invited by email) stored readable; session tokens only as hashes | Code | `account_emails.email` plain; `sessions.token_hash` (`lib/auth.ts`); `accounts.legacy_key` (an unused unique column the schema can't drop) holds the account's own id, never an address |
+| Passkeys are the only way in: no email sign-in, codes, password or recovery email | Code + Test | No such route; a session authenticates only with `auth_method = 'passkey'` (`lib/auth.ts`); `passkeys-only.test.ts` (sign-up with only a name; an address never signs in); `web/e2e/entrance.mjs`, `passkeys.mjs` |
 
 ## Device
 
@@ -112,19 +112,19 @@ Last checked 2026-09-28, against `main` at 1.0.0-rc.1 (the Privacy page was reor
 - The Cloudflare plan (Free/Paid) decides the log and backup windows; record it to state exact numbers.
 - Log redaction of cookies in Workers Logs hasn't been observed on the live dashboard.
 
-## Encryption (new sprints)
+## Encryption (encrypted sprints)
 
 | Claim | Kind | Evidence |
 | --- | --- | --- |
-| New sprints are encrypted by default | Code | `SprintSetup.tsx` (`encrypt: true`); `web/e2e/encryption.mjs` “Encryption is on by default” |
+| Sprints are encrypted by default; the facilitator can turn it off at setup | Code | `SprintSetup.tsx` (`encrypt: true`); `web/e2e/encryption.mjs` “Encryption is on by default” |
 | Thoughts, what's added in the retro, check-in lines, themes, notes, experiments, recap, opening question and vote-reset reasons are encrypted in the browser before upload | Test | `worker/test/encryption.test.ts` (plaintext refused for each; envelopes stored); `web/e2e/encryption.mjs` (captured request bodies contain no text, including a check-in line and an addition) |
 | Muni's servers don't hold keys that open that content | Test + Code | `encryption.test.ts` scans every D1 table and the room's storage for the synthetic text, private keys and sprint secrets; the Worker imports no content cryptography (`grep -rn noble worker/src` is empty; `lib/sealed.ts` only checks envelope format) |
 | The server refuses plaintext for encrypted sprints | Test | `encryption.test.ts` (`encryption_required`), `lib/sealed.ts` |
 | While collecting, the revealing key is held only by the facilitator's devices; other participants can't decrypt early | Test | `encryption.test.ts` “…follow the sealing policy through reveal” (no wraps for participants; early wraps refused) |
-| The facilitator isn't given thoughts before close — server rule, not cryptography | Test | `privacy.test.ts` (unchanged sealing tests); stated as a limitation on the page |
+| The facilitator isn't given thoughts before close — server rule, not cryptography | Test | `privacy.test.ts` (sealing tests); stated as a limitation on the page |
 | A passkey that only signs in doesn't unlock content on a device that didn't have it (nor a device bound before it existed); a passkey that unlocks, or the recovery key, does | Test | `encryption.test.ts` “recovery…”; `unlock.test.ts` release rule; `web/e2e/encryption.mjs` new-device steps |
 | Signing in with a passkey (PRF) unlocks your writing; its PRF output never reaches Muni | Test | `keyring.test.ts`, `passkeys.test.ts` (web), `unlock.test.ts` (PRF results refused, D1 scan); `web/e2e/unlock.mjs` (captured bodies, PRF output compared) |
-| Signing out keeps this device able to unlock only after signing in again; no plaintext key is stored | Test | `keyring.test.ts` “the original bug…”, “what stays on the device”; `web/e2e/unlock.mjs` |
+| Signing out keeps this device able to unlock only after signing in again; no plaintext key is stored | Test | `keyring.test.ts` (signing out and back in on a configured device), “what stays on the device”; `web/e2e/unlock.mjs` |
 | “Forget this device” removes what lets this browser reopen your key (the device envelope and the server's share); signing out keeps it, openable only after signing in again | Test + Code | `keyring.test.ts` “what stays on the device”; `ui/menus.tsx` `LeaveDialog forget`; docs/ENCRYPTION.md §4 |
 | The key is held by the server only locked: per passkey (PRF wrap), by an optional recovery key, and per device by a share that opens nothing alone | Code + Test | `routes/keys.ts` (stores `p1.` wraps, the recovery blob and `device_unlocks` shares it can't open); `unlock.test.ts` D1 scan |
 | Muni can't recover a lost key | Code | Server holds only wraps it can't open (recovery blob, passkey wraps) and device shares that open nothing alone (`routes/keys.ts`) |

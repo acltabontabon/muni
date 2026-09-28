@@ -5,8 +5,8 @@
  *   Not open yet → Collecting → Closed → Retro → Done
  *
  * Setup is the sprint's settings, not a step. Grouping thoughts into themes is optional work while
- * collection is closed, not a stage anyone waits on ("ready" is only a closed sprint an older
- * client marked ready). The outcomes are what a finished sprint is.
+ * collection is closed, not a stage anyone waits on ("ready" is only a closed sprint marked ready
+ * to start). The outcomes are what a finished sprint is.
  *
  * For whoever is looking, `sprintPlan` answers: what's happening now, what can I do, what's the one
  * next action, and what will it change for everyone. A change of state is only ever offered when

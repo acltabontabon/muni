@@ -230,15 +230,13 @@ try {
     await ctx.close()
   }
 
-  // ── Old email links, the email API, invitations.
+  // ── Signing in is a passkey, never an address; invitations.
   {
     const ctx = await browser.newContext(DESKTOP)
     const page = await ctx.newPage()
-    await page.goto(`${BASE}/signin?method=email`)
+    await page.goto(`${BASE}/signin`)
     await page.getByRole('button', { name: 'Continue with a passkey' }).waitFor()
-    check('An old ?method=email link opens the passkey sign-in', (await page.locator('input[type=email]').count()) === 0)
-    const r = await page.evaluate(async () => (await fetch('/api/auth/request-code', { method: 'POST', headers: { 'content-type': 'application/json' }, body: '{"email":"x@example.test"}' })).status)
-    check('The email sign-in API is gone', r === 404)
+    check('Sign-in asks for a passkey, never an email address', (await page.locator('input[type=email]').count()) === 0)
     await page.goto(`${BASE}/invite#not-a-real-token`)
     await page.waitForSelector('text=This invitation can’t be used.')
     check('Unknown invitation: a clear outcome', true)

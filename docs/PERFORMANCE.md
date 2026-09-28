@@ -2,7 +2,7 @@
 
 Muni should cost nothing while it sits open. A phone that keeps drawing frames, re-running
 timers or re-fetching data for a page nobody is looking at gets warm and drains its battery.
-This page records what was measured, what was fixed, the budgets that now guard it, and what
+This page records what was measured, what was fixed, the budgets that guard it, and what
 still needs a real phone.
 
 ## How it's measured
@@ -33,7 +33,7 @@ slowdown.
 | Sign-in (light), after 26 s | **60 frames/s, 44 paints/s, 22 layouts/s, 57 ms/s busy — forever** | **0 frames, 0 paints, 0 ms/s** |
 | Sign-in (dark), after 26 s | **60 frames/s, 60 paints/s, 94 ms/s busy — forever** | **0 frames, 0 paints, 4 ms/s** |
 | Workspace ("Sprints") page, after 26 s | **60 frames/s, 19 paints/s, 23 ms/s busy — forever** | **0 frames, 0 paints, 3 ms/s** |
-| Sign-in / workspace, first 13 s | 60 frames/s | 60 frames/s (the scene's motion — now finite, see below) |
+| Sign-in / workspace, first 13 s | 60 frames/s | 60 frames/s (the scene's motion, which is finite: see below) |
 | Home in all eight worlds, light and dark; a sprint; Account | 0 frames, 0 timers, 0 requests | unchanged |
 | Opening Home (API requests) | 18 (capture-target ×5, auth/me ×3, sprints ×2, experiments ×2, …) | 10 |
 | Back to Write from Sprints (API requests) | 6 | 4 |
@@ -88,7 +88,6 @@ page. Measured with handle-free waits, nothing is left behind.
 - Scenes pause when **scrolled out of view** as well as when the tab is hidden (`useStill` in
   `ui/scene.tsx`, an IntersectionObserver).
 - Fireflies glow with a second, fainter circle instead of a filter.
-- The stage's sealed bubbles pulse a few times instead of forever.
 - The sun (moon at night) is a flat disc, not a shaded sphere.
 - Home's loaders read the local store through a ref and key the workspace effect by id.
 - A send pass with an empty queue makes no request; a forced pass waits for the one under way and
@@ -98,9 +97,8 @@ page. Measured with handle-free waits, nothing is left behind.
 ### Guarded by
 
 - `web/src/lib/motion.test.ts`: no decorative `infinite` animation anywhere in `styles.css` or
-  `worlds.css` (only indicators that exist while something is in progress: a pending join, a
-  focused code field's caret); every scene animation has a finite count and
-  holds its end; no scene animation under a filter. It fails on the old stylesheet.
+  `worlds.css` (only an indicator that exists while something is in progress: a pending join);
+  every scene animation has a finite count and holds its end; no scene animation under a filter.
 - `web/src/lib/local/passes.test.ts`: a save during a pass gets its own pass and result; routine
   triggers join; a failure doesn't block the next.
 - `web/e2e/perf.mjs` budgets, below.
@@ -174,11 +172,11 @@ promises about any particular phone.
 
 ## The retro (2026-09-29)
 
-`perf.mjs` (`ONLY=retro`) now also holds the retro to a budget: the stage during a topic
+`perf.mjs` (`ONLY=retro`) also holds the retro to a budget: the stage during a topic
 (1440×900) and a phone on the same topic. Everything that moves there is finite — the sun rising
 on the talk's horizon, an arrival line fading, a face lighting up — so at rest the only work is
-the topic clock, which visibly ticks once a second. `useCountdown` used to re-render every 500 ms;
-it now wakes only when the shown second changes (and not at all at zero). Measured: ~1 ms/s main
+the topic clock, which visibly ticks once a second. `useCountdown` wakes only when the shown
+second changes (and not at all at zero). Measured: ~1 ms/s main
 thread, 2 frames/s, 4 small paints/s, 2 timer fires/s, no requests. The budget for a ticking
 retro screen is stated separately in `perf.mjs` (≤2.5 frames/s, ≤5 paints/s, ≤2 timers/s); every
 other screen keeps the idle budget.
@@ -198,7 +196,7 @@ scenes or the retro, where it matters:
    track should go idle after ~20 s. Settings → Battery usage for Chrome after 20 minutes.
 3. **Background and return.** Lock the phone for a minute, unlock, return to Muni: one quick burst
    of requests (Home's data), then nothing.
-4. Compare with the previous build if possible (the pages above ran at 60 frames/s indefinitely).
+4. Compare with the previous build if possible.
 
 Report the thermal issue fixed only once these show it; until then it's "the only continuous
 work found is gone".

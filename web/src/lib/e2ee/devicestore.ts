@@ -4,37 +4,30 @@
  *
  * - `muni-unlock` (IndexedDB): per account, the device envelope (wrap.ts) and this device's half of
  *   its wrapping key. Useless without the other half, which only the account's own sessions get.
- * - `muni-keys` (IndexedDB, version 1 as older builds made it): teammates' pinned public keys, and
- *   — from builds before passkey unlocking — the account private key in plaintext. That copy is
- *   only read to move it into an envelope, then deleted (keyring.ts). A separate database for the
- *   new records means an older tab still open can never block, or be broken by, an upgrade.
+ * - `muni-keys` (IndexedDB): teammates' pinned public keys, so a key that changes unexpectedly is
+ *   noticed before a sprint's key is shared with it.
  *
  * Browser storage is not a vault: anyone who can run code in this browser profile while the key is
  * unlocked can use it. What storage adds here is only what an envelope can't be opened without.
  */
 export type DeviceRecord = { accountId: string; deviceId: string; ds: string; envelope: string; keyVersion: number; pk: string; savedAt: number }
-export type LegacyKey = { accountId: string; sk: string; pk: string; savedAt: number }
 
 export interface DeviceStore {
   getDevice(accountId: string): Promise<DeviceRecord | null>
   /** Throws when the browser won't store it (private mode, quota, storage blocked). */
   putDevice(r: DeviceRecord): Promise<void>
   deleteDevice(accountId: string): Promise<void>
-  getLegacy(accountId: string): Promise<LegacyKey | null>
-  deleteLegacy(accountId: string): Promise<void>
   getPin(key: string): Promise<string | null>
   putPin(key: string, pk: string): Promise<void>
   deletePins(accountId: string): Promise<void>
 }
 
 /** In memory: tests, and browsers without IndexedDB (nothing survives a reload there). */
-export function memoryDeviceStore(): DeviceStore & { dump(): string; legacy: Map<string, LegacyKey> } {
+export function memoryDeviceStore(): DeviceStore & { dump(): string } {
   const devices = new Map<string, DeviceRecord>()
-  const legacy = new Map<string, LegacyKey>()
   const pins = new Map<string, string>()
   return {
-    legacy,
-    dump: () => JSON.stringify({ devices: [...devices.values()], legacy: [...legacy.values()], pins: [...pins.entries()] }),
+    dump: () => JSON.stringify({ devices: [...devices.values()], pins: [...pins.entries()] }),
     async getDevice(id) {
       return devices.get(id) ?? null
     },
@@ -43,12 +36,6 @@ export function memoryDeviceStore(): DeviceStore & { dump(): string; legacy: Map
     },
     async deleteDevice(id) {
       devices.delete(id)
-    },
-    async getLegacy(id) {
-      return legacy.get(id) ?? null
-    },
-    async deleteLegacy(id) {
-      legacy.delete(id)
     },
     async getPin(k) {
       return pins.get(k) ?? null
@@ -107,9 +94,7 @@ async function tx<T>(open: () => Promise<IDBDatabase>, store: string, mode: IDBT
 
 export function indexedDbDeviceStore(): DeviceStore {
   const unlock = openDb('muni-unlock', 1, (db) => db.createObjectStore('devices', { keyPath: 'accountId' }))
-  // Exactly how older builds open it (version 1, same stores), so both can share it.
-  const legacy = openDb('muni-keys', 1, (db) => {
-    if (!db.objectStoreNames.contains('keys')) db.createObjectStore('keys', { keyPath: 'accountId' })
+  const pinsDb = openDb('muni-keys', 1, (db) => {
     if (!db.objectStoreNames.contains('pins')) db.createObjectStore('pins')
   })
   return {
@@ -125,25 +110,15 @@ export function indexedDbDeviceStore(): DeviceStore {
     async deleteDevice(id) {
       await tx(unlock, 'devices', 'readwrite', (s) => s.delete(id))
     },
-    async getLegacy(id) {
-      try {
-        return ((await tx<LegacyKey>(legacy, 'keys', 'readonly', (s) => s.get(id))) as LegacyKey | undefined) ?? null
-      } catch {
-        return null
-      }
-    },
-    async deleteLegacy(id) {
-      await tx(legacy, 'keys', 'readwrite', (s) => s.delete(id)).catch(() => {})
-    },
     async getPin(k) {
-      return ((await tx<string>(legacy, 'pins', 'readonly', (s) => s.get(k)).catch(() => undefined)) as string | undefined) ?? null
+      return ((await tx<string>(pinsDb, 'pins', 'readonly', (s) => s.get(k)).catch(() => undefined)) as string | undefined) ?? null
     },
     async putPin(k, pk) {
-      await tx(legacy, 'pins', 'readwrite', (s) => s.put(pk, k)).catch(() => {})
+      await tx(pinsDb, 'pins', 'readwrite', (s) => s.put(pk, k)).catch(() => {})
     },
     async deletePins(id) {
-      const keys = ((await tx<IDBValidKey[]>(legacy, 'pins', 'readonly', (s) => s.getAllKeys()).catch(() => [])) as IDBValidKey[] | undefined) ?? []
-      for (const k of keys) if (String(k).startsWith(`${id}|`)) await tx(legacy, 'pins', 'readwrite', (s) => s.delete(k)).catch(() => {})
+      const keys = ((await tx<IDBValidKey[]>(pinsDb, 'pins', 'readonly', (s) => s.getAllKeys()).catch(() => [])) as IDBValidKey[] | undefined) ?? []
+      for (const k of keys) if (String(k).startsWith(`${id}|`)) await tx(pinsDb, 'pins', 'readwrite', (s) => s.delete(k)).catch(() => {})
     },
   }
 }

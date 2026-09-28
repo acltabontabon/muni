@@ -38,7 +38,7 @@ also encodes it: `python3 -m http.server 4321 --directory site`, then `cd web &&
 
 Chapters overlap by half a second. Everything behind them happens off camera, through the same UI.
 Six accounts are created with passkeys: Chromium's virtual authenticator, with PRF (Tomás's
-browser is a phone). The sprint is encrypted, as new sprints are by default, so each person writes
+browser is a phone). The sprint is encrypted, as sprints are by default, so each person writes
 their own thoughts in their own browser. The facilitator closes collection, groups the thoughts
 into themes on camera (the first) and off it (the other three), writes the opening questions, then
 runs the retro on the stage in its four steps while the team opens it on their own screens. Where a

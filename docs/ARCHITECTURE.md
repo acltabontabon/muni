@@ -64,9 +64,10 @@ Opaque UUIDs everywhere; instants are integer milliseconds. Columns marked *priv
 for authorization and are never selected into a shared response type.
 
 ```
-accounts (email, display_name, name_set_at)      sessions (sha256(token), csrf, expiry, revoked)
+accounts (display_name, name_set_at, avatar)     sessions (sha256(token), csrf, expiry, revoked)
+account_emails (account, email)                  webauthn_credentials (public key), webauthn_challenges
 workspaces (retention windows)                   memberships (workspace, account, role, revoked_at)
-invitations (sha256(token), email, expiry)       verification_challenges (sha256(code:id), attempts)
+invitations (sha256(token), email, expiry)       join_links, join_requests
 sprints (lifecycle, schedule, settings)          sprint_participants (is_facilitator, reminder opt-out)
 entries (body, category, …, author_account_id ← private, reveal_order)
 themes, theme_entries
@@ -107,7 +108,7 @@ This is application-level anonymity. It is implemented as follows.
    content is sent to an AI provider.
 8. **Logs carry no content.** The app logs failures with the path and a short error only. The
    platform's request logs record method, URL and (redacted) headers; URLs carry resource IDs,
-   never invitation tokens, codes or text.
+   never invitation tokens or text.
 9. **Check-ins are sealed until shared.** An answer is visible to its author; the facilitator gets
    a count while it's open, nobody else anything; the live hint for an answer goes only to the
    facilitator's sockets and the author's own other tabs. Shared results are counts per answer and
@@ -118,9 +119,9 @@ This is application-level anonymity. It is implemented as follows.
 
 **Known limits** (stated in the product, not hidden): the operator, with database or backup
 access, can join `author_account_id` to accounts — the mitigation is operational, not
-cryptographic. New sprints' content is encrypted client-side (docs/ENCRYPTION.md), which removes
-the operator's stored ability to read it but not to see authorship or to ship a malicious
-frontend; legacy sprints stay plaintext. Small teams and distinctive writing can
+cryptographic. Sprint content is encrypted client-side by default (docs/ENCRYPTION.md), which
+removes the operator's stored ability to read it but not to see authorship or to ship a malicious
+frontend; a sprint set up without encryption is stored as plaintext. Small teams and distinctive writing can
 identify an author. Exports are copies retention can't retract.
 
 ## Authentication and authorization
@@ -163,7 +164,7 @@ on the server first, names unsent work, then removes that account's local record
 
 A daily sweep deletes a finished sprint's raw content (entries, themes, votes, notes,
 unpublished recaps) after the workspace's window (90 days by default) and its outcomes
-(experiments, published recaps) after a longer one (730 days). Verification codes, rate-limit
+(experiments, published recaps) after a longer one (730 days). Passkey challenges, rate-limit
 rows, sessions and finished jobs expire on short schedules. Not yet covered: sprints that are
 never finished, and deleting a workspace others are still in. Deleted rows remain in the database's point-in-time recovery window (7 days on the Workers Free plan, 30 on
 Paid).
@@ -188,11 +189,11 @@ statements; `test/departure.test.ts` checks that no row names the account afterw
 
 Configuration is Worker vars and secrets, validated once per isolate. A production deployment
 refuses insecure settings instead of degrading: a non-HTTPS `PUBLIC_ORIGIN`, the console email
-inbox, demo seeding. Without an email provider, sign-in answers
+inbox, demo seeding. Without an email provider, emailed invitations and reminders answer
 `setup_required`; there is no development login bypass. `worker/wrangler.jsonc` is for local
 development and tests only; a production deployment uses its own rendered config
 (see [`DEPLOYMENT.md`](DEPLOYMENT.md)). Clients send their build revision; one older than
-`MIN_CLIENT_REVISION` is asked to reload rather than sending payloads the server no longer accepts.
+`MIN_CLIENT_REVISION` is asked to reload rather than sending payloads the server doesn't accept.
 
 ## Capacity (estimates, not measurements)
 

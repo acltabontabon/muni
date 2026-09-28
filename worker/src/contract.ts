@@ -38,11 +38,11 @@ export interface Me {
   recent_auth_until: string
   pending_join_requests: { id: string; workspace_name: string; created_at: string }[]
   /**
-   * The person's own character and whether their pages wear its world. Private: returned here
-   * only, never in anything shared with a team. `intro`: offer the chooser ('choose', a new
-   * account), a quiet note ('note', an account from before characters), or nothing ('done').
+   * The person's own character and whether their own pages wear its world (the character also
+   * appears beside their name in the retro; the world is theirs alone). `intro`: offer the
+   * chooser ('choose', a new account) or nothing more ('done').
    */
-  avatar: { id: string | null; theme: boolean; intro: 'choose' | 'note' | 'done' }
+  avatar: { id: string | null; theme: boolean; intro: 'choose' | 'done' }
   /** Only on sign-in responses: whether that verification created a new account. */
   created?: boolean
 }
@@ -206,7 +206,7 @@ export interface SprintSummary {
   is_participant: boolean
   reminders_enabled: boolean
   my_reminders_opt_out: boolean
-  /** null: a sprint from before encryption, stored as plaintext. 'e1': content is encrypted on participants' devices. */
+  /** 'e1': content is encrypted on participants' devices (the default). null: set up without encryption, stored as plaintext. */
   encryption: 'e1' | null
   /** The changes of state this person may make (only ever the facilitator's). */
   allowed_transitions: string[]

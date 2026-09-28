@@ -2,7 +2,7 @@
  * Content fields for encrypted sprints. The server never encrypts or decrypts anything: for a
  * sprint marked 'e1' it only checks that each content field is a well-formed client envelope and
  * refuses plaintext, so a buggy or outdated client can't store readable content by accident.
- * Legacy (NULL) sprints keep the plaintext rules they always had.
+ * Sprints set up without encryption (NULL) take plaintext, with the usual limits.
  */
 import { AppError, bad } from './errors'
 import { nonempty, optional } from './util'
@@ -21,7 +21,7 @@ export const envelopeMax = (max: number) => Math.ceil((max * 4 + 1600) * 1.4)
 export const encryptionRequired = (label: string) => new AppError(400, 'encryption_required', `${label} must be encrypted on your device for this sprint — nothing was saved`)
 
 /**
- * A content field: plaintext rules for legacy sprints; an envelope (and only an envelope) for
+ * A content field: plaintext rules for a sprint without encryption; an envelope (and only an envelope) for
  * encrypted ones. `max` is the plaintext limit the client enforces before encrypting.
  */
 export function content(encrypted: boolean, v: unknown, max: number, label: string, required: boolean): string | null {

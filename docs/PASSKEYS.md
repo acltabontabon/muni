@@ -3,13 +3,13 @@
 *Scan to join. Unlock to return. Capture a thought.*
 
 Muni signs in with **passkeys only**: an account is its opaque id and its passkeys. There is no
-email sign-in, no password and no recovery email (removed on 2026-09-27, migration 0008). An email
-address, if an account has one, is only where invitations and reminders are sent. This document
-covers the design, the security model, the removal of email sign-in, and rollout/rollback.
+email sign-in, no password and no recovery email. An email address, if an account has one, is
+only where invitations and reminders are sent. This document covers the design, the security model
+and the tests.
 
-Status: deployed to act.munimuni.app (see §9). Tested with Chromium's virtual authenticator and
+Status: live on act.munimuni.app. Tested with Chromium's virtual authenticator and
 a software authenticator, and on physical devices by the maintainer on 2026-09-29 (iPhone Safari, Android Chrome, Windows Hello, Firefox, 1Password and Bitwarden, and a company-managed Chrome), including recovery after a lost phone and on a new laptop. **Not
-independently reviewed** (§8, §10).
+independently reviewed** (§8, §9).
 
 ## 1. Three separate things
 
@@ -22,7 +22,7 @@ independently reviewed** (§8, §10).
 Signing in never grants membership. An invitation is permission to join, never a sign-in: every
 invitation path needs a signed-in account first. Membership never grants keys.
 
-**Passkeys and encryption (since 2026-09-27).** A passkey's *signature* proves who you are; it is
+**Passkeys and encryption.** A passkey's *signature* proves who you are; it is
 never a key. Separately, every ceremony asks the passkey for its PRF output (WebAuthn `prf`
 extension, input SHA-256(`muni:prf:account-key:v1`)). Where the passkey and browser return one,
 the browser derives a wrapping key from it and unwraps the account's encryption key in the same
@@ -63,8 +63,7 @@ discoverable-credential prompt — nothing to type), **New to Muni? Create an ac
 (QR) option, cancelling, several accounts on one device, losing a passkey (synced passkeys reach
 other devices; there is no email or support reset) and supported browsers. Error guidance appears
 only when something goes wrong (cancelled, unknown passkey, offline, rate-limited). Browsers
-without WebAuthn get a plain explanation and no other way in. Old `/signin?method=email` links open
-this same sign-in.
+without WebAuthn get a plain explanation and no other way in.
 
 Nothing starts a passkey prompt by itself (no autofill/conditional UI, no auto-start after
 sign-out), so a passkey on the device can't silently sign the previous account back in; the
@@ -94,7 +93,7 @@ which only stops that mail.
   one winner (tested). It stops working if its creator can no longer invite into that scope.
 - **Emailed invitation**: Muni emails a link; it works once and expires in 14 days, and whoever
   accepts it first while signed in with a passkey joins — like a personal link that happens to
-  travel by email. There is no address confirmation code any more.
+  travel by email.
 
 ### Devices, sessions, sign-out
 Add/rename/remove passkeys (removal needs a recent sign-in; an account's last passkey can't be
@@ -112,8 +111,7 @@ with a warning when it's the only way to unlock.
 - Passkeys are phishing-resistant, and they're the only way in: no inbox, password or support
   process can sign anyone in or add a passkey.
 - Sessions are accepted only if they were made by a passkey (`sessions.auth_method = 'passkey'`,
-  checked on every request), so a leftover session from an email code — all were revoked by
-  migration 0008 — could never authenticate.
+  checked on every request).
 - Step-up (10 minutes, confirmed with one of the account's own passkeys) guards adding/removing
   passkeys, replacing encryption keys and the recovery key.
 - Local storage holds only non-authoritative hints (a "used a passkey here" flag, a pending
@@ -121,7 +119,7 @@ with a warning when it's the only way to unlock.
   nothing about identity.
 - Security events: ids and coarse labels only (never tokens, raw WebAuthn responses, invitation
   tokens or content), 365 days.
-- Anonymity is unchanged: names never appear with thoughts or votes; approvers see names (and an
+- Anonymity: names never appear with thoughts or votes; approvers see names (and an
   address only if the account has one), never content.
 
 ## 5. Losing access — the honest policy
@@ -141,29 +139,18 @@ with a warning when it's the only way to unlock.
   Settings while an account has one passkey, the sign-in help, and the server refusing to remove
   the last passkey.
 
-## 6. Data model and migrations
+## 6. Data model
 
-- `0004_passkeys_and_join.sql`: credentials, challenges, session details, security events, join
-  links/requests.
-- `0005_passkey_first.sql`: `account_emails(account_id PK, email UNIQUE, verified_at)`; join-link
-  modes; the challenge table rebuilt for sign-up.
-- `0008_passkeys_only.sql` (email sign-in removed):
-  - Accounts without a passkey — they can no longer sign in — are deleted with everything that is
-    theirs, and so are workspaces left with no one who can sign in. Rows that reference them
-    without a foreign key (thoughts, votes, context, experiment owners, invitations, links, keys'
-    creators, audit and security events, jobs, AI usage) are removed or cleared explicitly, so
-    nothing is orphaned. On 2026-09-27 that was the operator's two early test accounts (email
-    only) and their own workspace.
-  - Every session not made by a passkey is ended; `verification_challenges` (the codes) is dropped.
-  - `accounts.email` becomes `accounts.legacy_key`, holding the account's own id. It can't be
-    dropped (SQLite refuses to drop a `UNIQUE` column) and `accounts` can't be rebuilt: in D1,
-    dropping a parent table runs an implicit `DELETE` whose `ON DELETE CASCADE` actions wipe the
-    child rows, `PRAGMA defer_foreign_keys` doesn't stop cascade *actions*, and
-    `PRAGMA legacy_alter_table` is ignored (all three tested on a local D1, 2026-09-27). Renaming
-    the column keeps every child row. Nothing reads it; it holds no address.
-- Rehearsed on a copy of production (`wrangler d1 export` → local D1 → migrations): 3 accounts, 2
-  workspaces, 2 sprints and 5 thoughts kept, all passkey accounts; no orphans in any
-  account-, workspace- or sprint-referencing column; `PRAGMA foreign_key_check` clean.
+- `webauthn_credentials` (public keys), `webauthn_challenges`, `sessions` (with `auth_method`,
+  `authenticated_at`, the credential used and a coarse client label), `security_events`,
+  `join_links` and `join_requests`.
+- `account_emails(account_id PK, email UNIQUE, verified_at)`: the address mail goes to, if any.
+- `passkey_key_wraps` and `device_unlocks`: the account key wrapped for each PRF passkey, and the
+  server's half of each device's envelope ([ENCRYPTION.md](ENCRYPTION.md) §4).
+- `accounts.account_ref` is a unique copy of the account's own id (a column SQLite can't drop);
+  nothing reads it, and it never holds an address.
+
+Migrations live in `worker/migrations` and are applied in order.
 
 ## 7. Which flows send email
 
@@ -176,27 +163,25 @@ Nothing else sends email, and no email signs anyone in.
 
 ## 8. Tests
 
-Automated (2026-09-27, all passing):
+Automated:
 
-- Worker, in workerd (`pnpm test`, 157). Every test account signs up and signs in with a passkey
-  (the harness's software authenticator). `passkeys-only.test.ts` (14): sign-up with only a name,
-  replay/concurrency → one account, reused credential, ceremony checks, caps; **the email endpoints
-  (`request-code`, `verify`, email re-auth, `me/email/request|verify`, `invitations/confirm`) answer
-  404 and set no session cookie; the codes table is gone; a session with a non-passkey method
-  doesn't authenticate**; an address never signs in and removing it only stops mail; the last
-  passkey can't be removed even with an address; emailed invitations keep the invited address
-  unless another account has it; personal links; reminders skip accounts without an address.
+- Worker, in workerd (`pnpm test`). Every test account signs up and signs in with a passkey (the
+  harness's software authenticator). `passkeys-only.test.ts` (12): sign-up with only a name,
+  replay/concurrency → one account, reused credential, ceremony checks, caps; an address never
+  signs in and removing it only stops mail; the last passkey can't be removed even with an address;
+  emailed invitations keep the invited address unless another account has it; personal links;
+  reminders skip accounts without an address.
   `passkeys.test.ts` (19), `unlock.test.ts` (12: device shares only to a passkey that existed when
   the device was bound), `join.test.ts` (13), and every other suite.
 - Browser, headless Chromium + CDP virtual authenticator: `web/e2e/entrance.mjs` (30: the panel's
   hierarchy and restraint, reading width, keyboard order and visible focus, the help disclosure,
   phone layout with the primary action in reach, loading, cancel and retry, unknown passkey,
-  create → sign out → sign in → `next`, old `?method=email` links, the email API gone, reduced
-  motion, unsupported browser, offline); `web/e2e/passkeys.mjs` (30, over HTTPS: onboarding,
+  create → sign out → sign in → `next`, no email sign-in anywhere, reduced motion, unsupported
+  browser, offline); `web/e2e/passkeys.mjs` (29, over HTTPS: onboarding,
   second-passkey offer, last-passkey guard, a synced passkey on a second device, draft kept through
-  a session ending, team QR, personal link, emailed invitation, sessions with pre-prefix cookies,
-  offline sign-out); `unlock.mjs`, `encryption.mjs` (the new-device step now uses a synced
-  passkey without PRF, which signs in but doesn't unlock), `capture`, `offline`, `worlds`, `voice`.
+  a session ending, team QR, personal link, emailed invitation, sessions, offline sign-out);
+  `unlock.mjs`, `encryption.mjs` (the new-device step uses a synced passkey without PRF, which
+  signs in but doesn't unlock), `capture`, `offline`, `worlds`.
 
 **On physical devices (2026-09-29, by the maintainer):** iPhone Safari, Android Chrome, Windows Hello, Firefox, 1Password and Bitwarden, and a company-managed Chrome, plus recovery: a lost phone,
 and signing in on a new laptop. Not covered by that pass: the installed iOS home-screen app and
@@ -205,20 +190,7 @@ Windows Chrome/Edge, Firefox} × {create account, sign in, sign in via phone QR,
 then switch account, add a second passkey, scan team QR, open personal and emailed links,
 writing unlocks after sign out → sign in}.
 
-## 9. Rollout and rollback
-
-Rollout (0008): take a D1 Time Travel bookmark, `pnpm migrate:remote`, deploy Worker + web together.
-Passkey sessions stay valid; email-code sessions end.
-
-Rollback options, least to most drastic:
-
-1. **Roll the Worker back** (`wrangler rollback`) — only as far as a Worker that reads
-   `legacy_key`: earlier Workers read `accounts.email`, which no longer exists, and would fail.
-   Prefer a forward fix.
-2. **Restore D1 to the pre-migration bookmark** (`wrangler d1 time-travel restore`) together with
-   the previous Worker: loses every write since, and brings back the deleted test accounts.
-
-## 10. Remaining risks and review requirements
+## 9. Remaining risks and review requirements
 
 - Losing every passkey loses the account, for everyone; the product says so plainly and pushes a
   second passkey.
@@ -228,4 +200,5 @@ Rollback options, least to most drastic:
   it on (the email says so).
 - Approvers can approve the wrong person; the UI shows what's verifiable and says a name proves nothing.
 - `@simplewebauthn/server` on Workers is upstream-unofficial: re-run the suites on upgrades.
-- Needs the real-device matrix and an independent security review.
+- Not yet tried on real devices: the installed iOS home-screen app and hardware security keys.
+- Needs an independent security review.
