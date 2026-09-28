@@ -94,6 +94,7 @@ export function forgetSignedInState() {
   writePrefs({ lastWorkspace: undefined, lastSprint: undefined, world: undefined })
   try {
     for (const k of Object.keys(localStorage)) if (k.startsWith('muni:revealed:')) localStorage.removeItem(k)
+    for (const k of Object.keys(sessionStorage)) if (k.startsWith('muni:retro:')) sessionStorage.removeItem(k)
   } catch {
     /* private mode */
   }

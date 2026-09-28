@@ -280,10 +280,10 @@
     stage.style.setProperty('--sc', (0.94 + t * 0.06).toFixed(4))
   }
 
-  // Voices, one at a time, following attendance — never authorship.
+  // A check-in: asked on everyone's phone, then shared — counts and lines, never names.
   const voice = document.querySelector('[data-voice]')
   const rest = document.querySelector('[data-voice-rest]')
-  const turns = [['Jonas', ', anything you’d add?'], ['Priya', ', anything you’d add?'], ['Sam', ', how did this show up in your work?'], ['The floor', ' is open']]
+  const turns = [['On everyone’s phone', ' — How did this show up for you?'], ['4 felt this', ' · 1 not in their work · 1 needs context']]
   let turn = 0
   let stageVisible = false
   new IntersectionObserver(([e]) => (stageVisible = e.isIntersecting), { threshold: 0.3 }).observe(stage)

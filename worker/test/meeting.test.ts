@@ -1,7 +1,7 @@
-/** The live stage: versioned commands, timer, attendance and the speaking round, context, notes, recovery. */
+/** The live stage: versioned commands, the steps and their housekeeping, timer, attendance, context, notes, recovery. */
 import { describe, expect, it } from 'vitest'
 import { env } from 'cloudflare:test'
-import { closeCollection, command, entry, get, go, ids, openSocket, patch, post, put, roomCancel, roomState, sleep, sprint, team, type User } from './harness'
+import { closeCollection, command, entry, get, go, ids, openSocket, patch, post, put, roomCancel, sleep, sprint, team, type User } from './harness'
 
 /** A live sprint with `n` themes (one entry each) and everyone's attendance untouched. */
 async function live(owner: User, members: User[], ws: string, n = 2, extra: Record<string, unknown> = {}) {
@@ -18,7 +18,7 @@ async function live(owner: User, members: User[], ws: string, n = 2, extra: Reco
   return { s, themes, entries }
 }
 const snap = (u: User, s: string) => get(`/api/sprints/${s}/meeting`, u)
-const present = (u: User, s: string, ready?: boolean) => post(`/api/sprints/${s}/meeting/attendance`, u, ready === undefined ? { present: true } : { present: true, ready })
+const present = (u: User, s: string) => post(`/api/sprints/${s}/meeting/attendance`, u, { present: true })
 const raw = (u: User, s: string, expected_version: number, cmd: unknown) => post(`/api/sprints/${s}/meeting/command`, u, { expected_version, command: cmd })
 
 describe('meeting', () => {
@@ -113,16 +113,9 @@ describe('meeting', () => {
     const votes = await get(`/api/sprints/${s}/votes`, members[0])
     expect(votes.body.current).toBeNull()
     expect(votes.body.previous[0].totals[themes[1]]).toBe(2)
-    // An invitation to speak belongs to its topic: the next topic starts without one.
-    for (const u of members) await present(u, s)
-    expect((await command(owner, s, { type: 'speaking_start' })).body.speaking.current).not.toBeNull()
     // Opening a topic counts it as discussed; going back to choose shows the result without reopening the vote.
     const next = await command(owner, s, { type: 'set_topic', theme_id: themes[0] })
-    expect(next.body.speaking).toBeNull()
     expect(next.body.discussed_theme_ids.sort()).toEqual([...themes].sort())
-    await command(owner, s, { type: 'speaking_start' })
-    expect((await command(owner, s, { type: 'set_phase', phase: 'agree' })).body.speaking).toBeNull()
-    await command(owner, s, { type: 'set_phase', phase: 'talk' })
     expect((await command(owner, s, { type: 'set_phase', phase: 'choose' })).body.timer.total_secs).toBe(0)
     expect((await get(`/api/sprints/${s}/votes`, members[0])).body.current).toBeNull()
     // Back to the talk: the topic in hand stays open.
@@ -166,134 +159,26 @@ describe('meeting', () => {
     socket.close()
   })
 
-  it('rotates only through people who are present and ready', async () => {
-    const { owner, members, ws } = await team(3)
-    const { s } = await live(owner, members, ws)
-    await present(members[0], s)
-    await present(members[1], s, false)
-    // members[2] never arrives.
-    const view = await snap(owner, s)
-    const att = (id: string) => view.body.attendance.find((a: { account_id: string }) => a.account_id === id)
-    expect(att(members[0].account_id)).toMatchObject({ present: true, ready: true })
-    expect(att(members[1].account_id)).toMatchObject({ present: true, ready: false })
-    expect(att(members[2].account_id)).toMatchObject({ present: false })
-    // Readiness is private: another member sees null for others, their own value for themselves.
-    const asMember = await snap(members[1], s)
-    expect(asMember.body.attendance.find((a: { is_you: boolean }) => a.is_you).ready).toBe(false)
-    expect(asMember.body.attendance.find((a: { account_id: string }) => a.account_id === members[0].account_id).ready).toBeNull()
-    const started = await command(owner, s, { type: 'speaking_start' })
-    expect(started.body.speaking.status).toBe('active')
-    expect(started.body.speaking.current.account_id).toBe(members[0].account_id)
-    expect(started.body.speaking.remaining).toBe(0)
-    expect((await roomState(s)).speaking.ordering).toEqual([members[0].account_id])
-    expect((await snap(members[0], s)).body.speaking.current.is_you).toBe(true)
-    const done = await command(owner, s, { type: 'speaking_next' })
-    expect(done.body.speaking.status).toBe('exhausted')
-    expect(done.body.speaking.current).toBeNull()
-    const again = await command(owner, s, { type: 'speaking_next' })
-    expect(again.status).toBe(409)
-    expect(again.body.error).toContain('no speaking round is active')
-    expect((await command(owner, s, { type: 'speaking_end' })).body.speaking).toBeNull()
-  })
-
-  it('pass removes the current speaker at once and keeps them out until they are ready again', async () => {
+  it('marks who is here: people themselves, or the facilitator correcting it', async () => {
     const { owner, members, ws } = await team(2)
     const { s } = await live(owner, members, ws)
     await present(members[0], s)
+    const att = (await snap(owner, s)).body.attendance as { account_id: string; present: boolean }[]
+    expect(att.find((a) => a.account_id === members[0].account_id)!.present).toBe(true)
+    expect(att.find((a) => a.account_id === members[1].account_id)!.present).toBe(false)
+    expect((await post(`/api/sprints/${s}/meeting/attendance/${members[1].account_id}`, members[0], { present: true })).status).toBe(403)
+    await post(`/api/sprints/${s}/meeting/attendance/${members[1].account_id}`, owner, { present: true })
+    // Arriving doesn't turn the facilitator's next command into a conflict.
+    const v = (await snap(owner, s)).body.version
     await present(members[1], s)
-    const started = await command(owner, s, { type: 'speaking_start' })
-    const currentId = started.body.speaking.current.account_id as string
-    const passer = members.find((m) => m.account_id === currentId)!
-    const other = members.find((m) => m.account_id !== currentId)!
-    const passed = await post(`/api/sprints/${s}/meeting/pass`, passer)
-    expect(passed.status).toBe(200)
-    expect(passed.body.speaking.current.account_id).toBe(other.account_id)
-    expect(passed.body.attendance.find((a: { is_you: boolean }) => a.is_you).ready).toBe(false)
-    expect(passed.body.version).toBe(started.body.version + 1)
-    // The passer is not re-selected: after the other person, the round is exhausted.
-    const next = await command(owner, s, { type: 'speaking_next' })
-    expect(next.body.speaking.status).toBe('exhausted')
-    // Passing while not the current speaker only steps out of the rotation.
-    await command(owner, s, { type: 'speaking_end' })
-    await post(`/api/sprints/${s}/meeting/attendance`, passer, { ready: true })
-    const round2 = await command(owner, s, { type: 'speaking_start' })
-    expect((await roomState(s)).speaking.ordering).toHaveLength(2)
-    const notCurrent = members.find((m) => m.account_id !== round2.body.speaking.current.account_id)!
-    const quiet = await post(`/api/sprints/${s}/meeting/pass`, notCurrent)
-    expect(quiet.body.speaking.current.account_id).toBe(round2.body.speaking.current.account_id)
-    expect((await command(owner, s, { type: 'speaking_next' })).body.speaking.status).toBe('exhausted')
-    // Passing outside a live retro is a 404 from the room.
-    const ready = await sprint(owner, members, ws, 'ready')
-    expect((await post(`/api/sprints/${ready}/meeting/pass`, members[0])).status).toBe(404)
-  })
-
-  it('skips someone who left and appends a late arrival without reordering others', async () => {
-    const { owner, members, ws } = await team(3)
-    const { s } = await live(owner, members, ws)
-    await present(members[0], s)
-    await present(members[1], s)
-    await present(members[2], s)
-    await command(owner, s, { type: 'speaking_start' })
-    const ordering = (await roomState(s)).speaking.ordering as string[]
-    expect(ordering).toHaveLength(3)
-    const [first, second, third] = ordering.map((id) => members.find((m) => m.account_id === id)!)
-    expect((await snap(owner, s)).body.speaking.current.account_id).toBe(first.account_id)
-    // The second person leaves before their turn.
-    const left = await post(`/api/sprints/${s}/meeting/attendance`, second, { present: false })
-    expect(left.body.speaking.current.account_id).toBe(first.account_id)
-    const next = await command(owner, s, { type: 'speaking_next' })
-    expect(next.body.speaking.current.account_id).toBe(third.account_id)
-    expect(next.body.speaking.remaining).toBe(0)
-    expect((await command(owner, s, { type: 'speaking_next' })).body.speaking.status).toBe('exhausted')
-    await command(owner, s, { type: 'speaking_end' })
-
-    // Late arrival: a fresh round with two people; a third arrives after it started.
-    const late = await team(3)
-    const { s: l } = await live(late.owner, late.members, late.ws)
-    await present(late.members[0], l)
-    await present(late.members[1], l)
-    const startedLate = await command(late.owner, l, { type: 'speaking_start' })
-    expect(startedLate.status, JSON.stringify(startedLate.body)).toBe(200)
-    const before = (await roomState(l)).speaking.ordering as string[]
-    expect(before).toHaveLength(2)
-    await present(late.members[2], l)
-    expect((await roomState(l)).speaking.ordering).toEqual(before)
-    const n1 = await command(late.owner, l, { type: 'speaking_next' })
-    expect(n1.body.speaking.current.account_id).toBe(before[1])
-    expect(n1.body.speaking.remaining).toBe(1)
-    const after = (await roomState(l)).speaking.ordering as string[]
-    expect(after.slice(0, 2)).toEqual(before)
-    expect(after[2]).toBe(late.members[2].account_id)
-    const n2 = await command(late.owner, l, { type: 'speaking_next' })
-    expect(n2.body.speaking.current.account_id).toBe(late.members[2].account_id)
-    expect((await command(late.owner, l, { type: 'speaking_next' })).body.speaking.status).toBe('exhausted')
-    // The facilitator can mark presence for others, never readiness.
-    expect((await post(`/api/sprints/${l}/meeting/attendance/${late.members[0].account_id}`, late.owner, { present: false, ready: false })).status).toBe(200)
-    const v = await snap(late.owner, l)
-    expect(v.body.attendance.find((a: { account_id: string }) => a.account_id === late.members[0].account_id)).toMatchObject({ present: false, ready: true })
-    expect((await post(`/api/sprints/${l}/meeting/attendance/${late.members[0].account_id}`, late.members[1], { present: true })).status).toBe(403)
-    expect((await post(`/api/sprints/${l}/meeting/attendance/${crypto.randomUUID()}`, late.owner, { present: true })).status).toBe(404)
-  })
-
-  it('excludes the facilitator from the rotation unless the sprint says otherwise', async () => {
-    const { owner, members, ws } = await team(1)
-    const { s } = await live(owner, members, ws)
-    await present(owner, s)
-    await present(members[0], s)
-    const excluded = await command(owner, s, { type: 'speaking_start' })
-    expect(excluded.body.include_facilitator_in_rotation).toBe(false)
-    expect((await roomState(s)).speaking.ordering).toEqual([members[0].account_id])
-    await command(owner, s, { type: 'speaking_end' })
-    // Only the facilitator present: nothing to rotate through.
-    await post(`/api/sprints/${s}/meeting/attendance`, members[0], { present: false })
-    expect((await command(owner, s, { type: 'speaking_start' })).body.speaking.status).toBe('exhausted')
-    await command(owner, s, { type: 'speaking_end' })
-    expect((await patch(`/api/sprints/${s}`, owner, { include_facilitator_in_rotation: true })).status).toBe(200)
-    await present(members[0], s)
-    const included = await command(owner, s, { type: 'speaking_start' })
-    expect(included.body.include_facilitator_in_rotation).toBe(true)
-    expect(included.body.speaking.status).toBe('active')
-    expect([...(await roomState(s)).speaking.ordering].sort()).toEqual([owner.account_id, members[0].account_id].sort())
+    expect((await raw(owner, s, v, { type: 'set_phase', phase: 'choose' })).status).toBe(200)
+    const after = (await snap(members[1], s)).body
+    expect(after.attendance.every((a: { present: boolean; is_facilitator: boolean }) => a.present || a.is_facilitator)).toBe(true)
+    // Nothing about speaking turns or readiness remains in the snapshot.
+    expect(after).not.toHaveProperty('speaking')
+    expect(after.attendance[0]).not.toHaveProperty('ready')
+    expect((await command(owner, s, { type: 'speaking_start' })).status).toBe(400)
+    expect((await post(`/api/sprints/${s}/meeting/pass`, members[0])).status).toBe(404)
   })
 
   it('collects context privately and reveals it under the theme only on release', async () => {
@@ -326,7 +211,10 @@ describe('meeting', () => {
     const ctx = themesAfter.body.themes.find((t: { id: string }) => t.id === themes[0]).context
     expect(ctx).toHaveLength(1)
     expect(ctx[0].body).toBe('ctx-needle')
-    expect(Object.keys(ctx[0]).sort()).toEqual(['body', 'id'])
+    expect(Object.keys(ctx[0]).sort()).toEqual(['body', 'id', 'kind'])
+    // An addition may say what it is; only the three kinds.
+    expect((await add(members[1], { theme_id: themes[0], body: 'q', kind: 'rant' })).status).toBe(400)
+    expect((await add(members[1], { theme_id: themes[0], body: 'Did anyone check the old cluster?', kind: 'question' })).body.my_context[0]).toMatchObject({ kind: 'question', released: false })
     expect((await snap(members[0], s)).body.my_context[0].released).toBe(true)
     // Context is a live-only affordance.
     const ready = await sprint(owner, members, ws, 'ready')

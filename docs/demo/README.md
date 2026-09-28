@@ -1,7 +1,7 @@
 # The release demo
 
-`muni-demo.mp4` (1920×1200 at 60 fps) and `muni-demo.gif` (640 wide, for the release page) are a
-52-second reel of the real app. Every app frame in it is this build of Muni running locally, driven through
+`muni-demo.mp4` (1920×1200 at 60 fps) and `muni-demo.gif` (620 wide, for the release page) are a
+53-second reel of the real app. Every app frame in it is this build of Muni running locally, driven through
 its own UI by [`web/e2e/demo.mjs`](../../web/e2e/demo.mjs), and never retouched. The reel around the
 footage is added by [`web/e2e/demo-reel.mjs`](../../web/e2e/demo-reel.mjs): Muni's paper, a
 chapter title per scene in Muni's type, the app in a window (a phone beside it where one was
@@ -23,7 +23,7 @@ new files.
 | 03 | *Close collection whenever you’re ready.* Maya closes collection from the sprint bar: what it will do, then the closed state and *Start the retro…* | the camera moves to the control, then the confirmation | `/sprints/:id` (facilitator) |
 | 04 | *Gather them into themes.* Maya picks up four thoughts about staging on the sorting table, names the theme from the tray, and it appears with them inside | the camera follows the picking, the tray at the screen's foot, then the new theme | `/sprints/:id/prepare` |
 | 05 | *Choose what matters, privately.* The retro's second step: four themes, the team's votes in; Maya moves on, which closes the vote and opens the most-voted topic | wide while the cursor goes to *Next: Talk*, then closer on the topic | `/sprints/:id/stage` (Choose → Talk) |
-| 06 | *Talk it through, one topic at a time.* “Who owns staging?”, presented: its question and thoughts, what the room will remember and an idea to try, an invitation to speak that moves to the next person | | `/sprints/:id/stage?mode=present` |
+| 06 | *Everyone answers. Nobody has to speak first.* “Who owns staging?”: the facilitator has asked how it showed up, five teammates have answered on their phones, and sharing turns the answers into counts and lines to talk about | still and wide, so what came back appears in place | `/sprints/:id/stage` (Talk) |
 | 07 | *Agree what to try next.* Priya comes back later: the finished sprint's page is its outcomes | | `/sprints/:id` (done) |
 | — | The mark, *Keep the thought. Bring it to the conversation.*, act.munimuni.app | drawn by the reel | |
 
@@ -32,8 +32,9 @@ Six accounts are created with passkeys: Chromium's virtual authenticator, with P
 browser is a phone). The sprint is encrypted, as new sprints are by default, so each person writes
 their own thoughts in their own browser. The facilitator closes collection, groups the thoughts
 into themes on camera (the first) and off it (the other three), writes the opening questions, then runs the retro on the stage in its four steps. There she
-writes what the room will remember and an idea to try, invites voices, proposes the experiments
-and ends the retro. Plain API calls are used only for things with no content in them: the
+asks a check-in (answered in each teammate's own browser, so the lines are sealed), shares it,
+writes what the room will remember and an idea to try, proposes the experiments and ends the
+retro. Plain API calls are used only for things with no content in them: the
 workspace and its invitations, choosing Priya's character, attendance, votes and accepting
 ownership.
 
@@ -88,14 +89,15 @@ docs/demo/export.sh /tmp/muni-demo/capture
 
 - `muni-demo.mp4`: 1920×1200, H.264 High, yuv420p (BT.709, limited range), CRF 22 at the `veryslow` preset, `+faststart`,
   no audio.
-- `muni-demo.gif`: 640 wide at 15 fps, one 128-colour palette for the whole film (palettegen with
+- `muni-demo.gif`: 620 wide at 15 fps, one 128-colour palette for the whole film (palettegen with
   `stats_mode=diff`, paletteuse with Bayer dithering at scale 4 and `diff_mode=rectangle`), loops
-  forever. The release page shows it at 640. `GIF_FPS` and `GIF_WIDTH` change it.
+  forever. The release page shows it at 620. `GIF_FPS` and `GIF_WIDTH` change it.
 
 Each file has to stay under 10 MB: `node scripts/release.mjs check` (in CI on every push, and on
 every tag) refuses a larger one, and the export says so. The slow camera changes every pixel of
 every frame, so the GIF's size follows its area and frame rate; fewer colours or gentler dithering
-barely help. At 15 fps and 640 wide it's about 10 MB, and the MP4 about 8 MB.
+barely help. At 15 fps and 620 wide it's just under 10 MB, and the MP4 about 8.5 MB. A camera that
+moves while a lot changes on screen costs the most: keep one of the two still.
 
 Set `OUT_MP4` / `OUT_GIF` to write somewhere else first. Before committing, look at a few frames:
 
@@ -103,5 +105,5 @@ Set `OUT_MP4` / `OUT_GIF` to write somewhere else first. Before committing, look
 for t in 1 6 12 17 23 29 33 38 44 50; do ffmpeg -loglevel error -y -ss $t -i docs/demo/muni-demo.mp4 -frames:v 1 /tmp/muni-demo/check-$t.png; done
 ```
 
-Run to run, the only things that change are who the stage invites to speak (the app picks at
-random) and the clock times on the thoughts.
+Run to run, the only things that change are the order the thoughts and shared lines come out in
+(drawn at random, as in the app) and the clock times.

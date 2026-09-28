@@ -51,7 +51,6 @@ export interface SprintRow {
   status: string
   grouping_revision: number
   vote_budget: number
-  include_facilitator_in_rotation: number
   retro_duration_min: number
   opening_question: string | null
   /** NULL: a legacy plaintext sprint. 'e1': content is client-encrypted. */
@@ -247,7 +246,7 @@ export function requireOwner(m: Member) {
   if (m.role !== 'owner') throw forbidden('only a workspace owner can do that')
 }
 
-export const SPRINT_COLS = 'id, workspace_id, name, status, grouping_revision, vote_budget, include_facilitator_in_rotation, retro_duration_min, opening_question, encryption'
+export const SPRINT_COLS = 'id, workspace_id, name, status, grouping_revision, vote_budget, retro_duration_min, opening_question, encryption'
 
 export async function loadSprintCtx(db: D1Database, auth: Auth, sprintId: string): Promise<SprintCtx> {
   const sprint = await one<SprintRow>(db, `SELECT ${SPRINT_COLS} FROM sprints WHERE id = ?`, sprintId)

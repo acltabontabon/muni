@@ -196,7 +196,6 @@ export interface Participant {
 export interface SprintDetail extends SprintSummary {
   opening_question: string | null
   vote_budget: number
-  include_facilitator_in_rotation: boolean
   participants: Participant[]
   /** Aggregate only, and only once collection has closed. */
   entry_count: number | null
@@ -240,9 +239,12 @@ export interface SharedEntry {
   period: string | null
   theme_id: string | null
 }
+/** What someone may say an addition is. Optional. */
+export type AdditionKind = 'example' | 'view' | 'question'
 export interface ContextNote {
   id: string
   body: string
+  kind: AdditionKind | null
 }
 export interface ThemeView {
   id: string
@@ -302,21 +304,8 @@ export interface AttendeeView {
   account_id: string
   display_name: string
   present: boolean
-  ready: boolean | null
   is_facilitator: boolean
   is_you: boolean
-}
-export interface SpeakerView {
-  account_id: string
-  display_name: string
-  is_you: boolean
-}
-export interface SpeakingView {
-  round_id: string
-  status: string
-  current: SpeakerView | null
-  remaining: number
-  prompt: string
 }
 export interface AgendaItem {
   theme_id: string
@@ -334,6 +323,7 @@ export interface MyContext {
   id: string
   theme_id: string | null
   body: string
+  kind: AdditionKind | null
   released: boolean
 }
 export interface StageSnapshot {
@@ -351,12 +341,10 @@ export interface StageSnapshot {
   controller_stale: boolean
   opening_question: string | null
   attendance: AttendeeView[]
-  speaking: SpeakingView | null
   notes: DiscussionNotes
   discussed_theme_ids: string[]
   has_unreleased_context: boolean | null
   my_context: MyContext[]
-  include_facilitator_in_rotation: boolean
   retro_duration_min: number
   started_at: string
   ended_at: string | null
@@ -374,12 +362,33 @@ export type Command =
   | { type: 'timer_adjust'; delta_secs: number }
   | { type: 'timer_clear' }
   | { type: 'take_control' }
-  | { type: 'speaking_start' }
-  | { type: 'speaking_next' }
-  | { type: 'speaking_open_floor' }
-  | { type: 'speaking_end' }
   | { type: 'release_context' }
   | { type: 'mark_discussed'; theme_id: string; discussed: boolean }
+
+/**
+ * A check-in during the talk: how a topic showed up for people, or whether an idea to try would
+ * help. Private until the facilitator shares it; then counts per choice and the lines people added,
+ * never who.
+ */
+export type CheckinKind = 'topic' | 'action'
+export type TopicChoice = 'felt' | 'not_mine' | 'context'
+export type ActionChoice = 'worth' | 'concern' | 'unsure'
+export interface CheckinView {
+  id: string
+  sprint_id: string
+  theme_id: string
+  kind: CheckinKind
+  /** For an action check-in: the idea's wording when it was asked about. */
+  could_try: string | null
+  status: 'open' | 'shared'
+  opened_at: string
+  shared_at: string | null
+  /** Your own answer, visible only to you. */
+  mine: { choice: string; note: string | null } | null
+  /** The facilitator only, while open: how many have answered so far. */
+  answers: number | null
+  results: { responded: number; counts: Record<string, number>; notes: { choice: string; note: string }[] } | null
+}
 
 export interface Experiment {
   id: string

@@ -56,7 +56,6 @@ type Form = {
   participant_ids: string[]
   reminders_enabled: boolean
   vote_budget: number
-  include_facilitator_in_rotation: boolean
   encrypt: boolean
 }
 
@@ -122,7 +121,6 @@ export function SprintSetup() {
     participant_ids: [],
     reminders_enabled: true,
     vote_budget: 3,
-    include_facilitator_in_rotation: false,
     encrypt: true,
   })
   useDocumentTitle(existing ? `Setup · ${existing.name}` : 'New sprint')
@@ -152,7 +150,6 @@ export function SprintSetup() {
             participant_ids: s.participants.map((x) => x.account_id),
             reminders_enabled: s.reminders_enabled,
             vote_budget: s.vote_budget,
-            include_facilitator_in_rotation: s.include_facilitator_in_rotation,
             encrypt: s.encryption === 'e1',
           }))
         }
@@ -188,7 +185,7 @@ export function SprintSetup() {
     try {
       const schedule = { timezone: f.timezone, starts_on: f.starts_on, ends_on: f.ends_on, retro_date: f.retro_date, retro_time: f.retro_time, retro_duration_min: Number(f.retro_duration_min) }
       if (existing) {
-        const body: Record<string, unknown> = { name: f.name, external_ref: f.external_ref, goal: f.goal, opening_question: f.opening_question, schedule, facilitator_id: f.facilitator_id, reminders_enabled: f.reminders_enabled, vote_budget: Number(f.vote_budget), include_facilitator_in_rotation: f.include_facilitator_in_rotation }
+        const body: Record<string, unknown> = { name: f.name, external_ref: f.external_ref, goal: f.goal, opening_question: f.opening_question, schedule, facilitator_id: f.facilitator_id, reminders_enabled: f.reminders_enabled, vote_budget: Number(f.vote_budget) }
         const oldFac = existing.participants.find((p) => p.is_facilitator)?.account_id
         if (existing.encryption === 'e1' && f.facilitator_id !== oldFac) {
           // The sprint's key goes with the role, sealed on this device to the new facilitator.
@@ -225,7 +222,7 @@ export function SprintSetup() {
           enc = { id, encryption: 'e1', ...keyring.newSprintKey(id, 1, { account_id: f.facilitator_id, public_key: facPk }) }
           if (opening) opening = keyring.sealForNew(id, 1, 'opening_question', opening)
         }
-        const s = await post<SprintDetail>(`/api/workspaces/${wsParam}/sprints`, { name: f.name, external_ref: f.external_ref || undefined, goal: f.goal || undefined, opening_question: opening, ...schedule, participant_ids: f.participant_ids, facilitator_id: f.facilitator_id, reminders_enabled: f.reminders_enabled, vote_budget: Number(f.vote_budget), include_facilitator_in_rotation: f.include_facilitator_in_rotation, ...enc })
+        const s = await post<SprintDetail>(`/api/workspaces/${wsParam}/sprints`, { name: f.name, external_ref: f.external_ref || undefined, goal: f.goal || undefined, opening_question: opening, ...schedule, participant_ids: f.participant_ids, facilitator_id: f.facilitator_id, reminders_enabled: f.reminders_enabled, vote_budget: Number(f.vote_budget), ...enc })
         if (mode === 'open') {
           try {
             await post(`/api/sprints/${s.id}/transition`, { to: 'collecting' })
@@ -401,7 +398,6 @@ export function SprintSetup() {
                   <Input id="f-ref" value={f.external_ref} onChange={(e) => set('external_ref', e.target.value)} placeholder="PROJ-42" maxLength={60} />
                 </div>
               </div>
-              <Switch id="f-rot" checked={f.include_facilitator_in_rotation} onCheckedChange={(v) => set('include_facilitator_in_rotation', v)} label="Include the facilitator when inviting voices" description="Otherwise the facilitator guides and isn’t invited to speak in turn." />
             </div>
           ) : null}
         </section>

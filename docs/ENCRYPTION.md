@@ -35,7 +35,9 @@ was written, not who wrote it.
 | Thought text, impact, what might help | `entries.body/impact/might_help` | One entry envelope in `body`; `impact`/`might_help` NULL |
 | Edited thoughts | same rows (overwritten) | New envelope, fresh content key |
 | Drafts, unsent thoughts | browser only (never uploaded) | Plaintext in the browser; sealed at send time |
-| Context added in the retro | `context_additions.body` | Field envelope |
+| Added to a discussion in the retro | `context_additions.body` | Field envelope |
+| A line with a check-in answer | `checkin_responses.note` | Field envelope |
+| The idea a check-in asked about (a copy) | `checkins.subject` | Field envelope (`could_try`) |
 | Theme title, summary, question, draft experiment, order reason | `themes.*` | Field envelopes |
 | Discussion notes (takeaway, what happened, impact, could try, notes) | `discussion_notes.*`, returned in stage snapshots | Field envelopes |
 | Experiment change, success signal, outcome note; copied theme title | `experiments.*` | Field envelopes (copy is the theme's envelope) |

@@ -853,6 +853,7 @@ const SEALED: [RegExp, string[]][] = [
   [/^\/api\/sprints\/[^/]+\/themes\/(ungroup|reorder|[^/]+\/merge)$/, ['reset_voting_reason', 'reason']],
   [/^\/api\/sprints\/[^/]+\/meeting\/notes\/[^/]+$/, ['takeaway', 'what_happened', 'impact', 'could_try', 'notes']],
   [/^\/api\/sprints\/[^/]+\/meeting\/context$/, ['body']],
+  [/^\/api\/sprints\/[^/]+\/checkins\/[^/]+\/response$/, ['note']],
   [/^\/api\/sprints\/[^/]+\/experiments(\/[^/]+)?$/, ['change_to_try', 'success_signal', 'outcome_note']],
   [/^\/api\/sprints\/[^/]+\/recap$/, ['body']],
   [/^\/api\/sprints\/[^/]+\/votes\/rounds\/close$/, ['reason']],

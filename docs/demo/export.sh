@@ -15,7 +15,7 @@ OUT_MP4="${OUT_MP4:-$HERE/muni-demo.mp4}"
 OUT_GIF="${OUT_GIF:-$HERE/muni-demo.gif}"
 FPS="${REEL_FPS:-60}"   # the reel (web/e2e/demo-reel.mjs renders 60 a second) and the MP4
 GIF_FPS="${GIF_FPS:-15}"     # the least that still reads as smooth motion
-GIF_WIDTH="${GIF_WIDTH:-640}" # the width the release page shows it at
+GIF_WIDTH="${GIF_WIDTH:-620}" # the width the release page shows it at
 # Each file has to stay under 10 MB: `scripts/release.mjs check` refuses a tag otherwise.
 MAX_BYTES=$((10 * 1024 * 1024))
 # Frames are full-range sRGB (JPEG); video is limited-range BT.709, tagged so players agree.

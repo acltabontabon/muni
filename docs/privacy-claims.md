@@ -33,17 +33,21 @@ Last checked 2026-09-28, against `main` at 1.0.0-rc.1 (the Privacy page was reor
 | No way in Muni to look up who wrote a thought | Test | `privacy.test.ts` “offers no author lookup route” |
 | Raw download is facilitator-only; participants get a summary; files carry no names | Test | `privacy.test.ts` (raw export 403 for members; no emails/names/dates in files) |
 | Votes are private; totals only after a round closes | Test | `privacy.test.ts` “keeps votes private…”; `voting.test.ts` |
-| Added context appears without names, on release | Test | `meeting.test.ts` “collects context privately and reveals it under the theme only on release” |
-| Where names do appear: members, participants, attendance, speaking, experiment owners; facilitator sees passes | Code | `routes/meeting.ts` `snapshot()` (`ready` only for facilitator/self); `routes/sprints.ts` `detail()` |
+| What's added to a discussion appears without names, on release | Test | `meeting.test.ts` “collects context privately and reveals it under the theme only on release” |
+| Check-in answers are private until shared: your own to you, a count (not who) to the facilitator, nothing to anyone else — in responses and in live hints | Test | `checkins.test.ts` “keeps answers private until shared…”, “tells only the facilitator and your own tabs that you answered” |
+| Shared check-in results are counts and lines, with no account, time or order of answering; answers after sharing are refused | Test | `checkins.test.ts` “shares counts and lines without anything that identifies who…” |
+| An answer counts once and belongs to its check-in, never to whatever topic is on screen | Test | `checkins.test.ts` “ties an answer to its check-in…” (primary key; cross-sprint 404) |
+| Nobody is called on to speak | Code | No speaking round exists (`room.ts`); `meeting.test.ts` “marks who is here…” (no `speaking` or readiness in the snapshot) |
+| Where names do appear: members, participants, attendance, experiment owners | Code | `routes/meeting.ts` `snapshot()`; `routes/sprints.ts` `detail()` |
 | Your character (avatar) and its theme are visible only to you: never in anything a teammate sees, never attached to a thought, vote, export or the live socket | Test | `avatars.test.ts` “only ever reaches its owner” (deep scan of every shared route and the socket for avatar keys and the eight ids); only `buildMe` selects the columns |
 | Reopening keeps what people saw visible | Code | `routes/sprints.ts` `preparing>collecting` (confirmation message) |
-| Authorship can still be inferred (wording, small teams, lone votes, reopen) | — | Stated limitation; see security review §4 |
+| Authorship can still be inferred (wording, small teams, lone votes, a lone check-in answer, the moment something is added, reopen) | — | Stated limitation; the Privacy page names these; see security review §4 |
 
 ## Operator, providers, logs
 
 | Claim | Kind | Evidence |
 | --- | --- | --- |
-| The database records who wrote each thought; the operator or Cloudflare can link thoughts to accounts, and can read the content of sprints from before encryption | Code | `entries.author_account_id`, `votes.account_id`, `context_additions.author_account_id` (migrations); `sprints.encryption IS NULL` for legacy sprints |
+| The database records who wrote each thought; the operator or Cloudflare can link thoughts to accounts, and can read the content of sprints from before encryption | Code | `entries.author_account_id`, `votes.account_id`, `context_additions.author_account_id`, `checkin_responses.account_id` (migrations); `sprints.encryption IS NULL` for legacy sprints |
 | Operator accesses data only for running/securing Muni, abuse, or a user's request | Commitment | Not enforced; **no record of operator access is kept** — the page says so |
 | Owners can't read sprints they aren't in or learn authorship | Test | as above (boundaries, no author lookup) |
 | Cloudflare hosts app, database, live connection; request logs ≤ 7 days with URL, headers (IP, browser) | Provider + Config | Workers Logs docs (3 days Free / 7 Paid; invocation logs include request metadata and headers); `observability` on at sampling 1 in the production config. Not inspected on the live dashboard |
@@ -109,7 +113,7 @@ Last checked 2026-09-28, against `main` at 1.0.0-rc.1 (the Privacy page was reor
 | Claim | Kind | Evidence |
 | --- | --- | --- |
 | New sprints are encrypted by default | Code | `SprintSetup.tsx` (`encrypt: true`); `web/e2e/encryption.mjs` “Encryption is on by default” |
-| Thoughts, context, themes, notes, experiments, recap, opening question and vote-reset reasons are encrypted in the browser before upload | Test | `worker/test/encryption.test.ts` (plaintext refused for each; envelopes stored); `web/e2e/encryption.mjs` (captured request bodies contain no text) |
+| Thoughts, what's added in the retro, check-in lines, themes, notes, experiments, recap, opening question and vote-reset reasons are encrypted in the browser before upload | Test | `worker/test/encryption.test.ts` (plaintext refused for each; envelopes stored); `web/e2e/encryption.mjs` (captured request bodies contain no text, including a check-in line and an addition) |
 | Muni's servers don't hold keys that open that content | Test + Code | `encryption.test.ts` scans every D1 table and the room's storage for the synthetic text, private keys and sprint secrets; the Worker imports no content cryptography (`grep -rn noble worker/src` is empty; `lib/sealed.ts` only checks envelope format) |
 | The server refuses plaintext for encrypted sprints | Test | `encryption.test.ts` (`encryption_required`), `lib/sealed.ts` |
 | While collecting, the revealing key is held only by the facilitator's devices; other participants can't decrypt early | Test | `encryption.test.ts` “…follow the sealing policy through reveal” (no wraps for participants; early wraps refused) |

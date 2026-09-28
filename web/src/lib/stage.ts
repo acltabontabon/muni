@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { ApiError, get, post } from '@/api/client'
-import type { Command, Experiment, GroupingView, SprintDetail, StageSnapshot, VotingState } from '@/api/types'
+import type { CheckinView, Command, Experiment, GroupingView, SprintDetail, StageSnapshot, VotingState } from '@/api/types'
 import { useLive } from './live'
 import { useKeysEpoch } from './e2ee/E2eeProvider'
 
@@ -15,6 +15,7 @@ export function useStage(sprintId: string) {
   const [votes, setVotes] = useState<VotingState | null>(null)
   const [experiments, setExperiments] = useState<Experiment[]>([])
   const [previous, setPrevious] = useState<Experiment[]>([])
+  const [checkins, setCheckins] = useState<CheckinView[]>([])
   const [error, setError] = useState('')
   const [revoked, setRevoked] = useState(false)
 
@@ -23,13 +24,14 @@ export function useStage(sprintId: string) {
   const loadThemes = useCallback(() => get<GroupingView>(`/api/sprints/${sprintId}/themes`).then(setGrouping).catch(() => setGrouping(null)), [sprintId])
   const loadVotes = useCallback(() => get<VotingState>(`/api/sprints/${sprintId}/votes`).then(setVotes).catch(() => {}), [sprintId])
   const loadExperiments = useCallback(() => Promise.all([get<Experiment[]>(`/api/sprints/${sprintId}/experiments`).then(setExperiments), get<Experiment[]>(`/api/sprints/${sprintId}/experiments/previous`).then(setPrevious)]), [sprintId])
+  const loadCheckins = useCallback(() => get<CheckinView[]>(`/api/sprints/${sprintId}/checkins`).then(setCheckins).catch(() => {}), [sprintId])
   const loadAll = useCallback(async () => {
     try {
-      await Promise.all([loadSprint(), loadStage(), loadThemes(), loadVotes(), loadExperiments()])
+      await Promise.all([loadSprint(), loadStage(), loadThemes(), loadVotes(), loadExperiments(), loadCheckins()])
     } catch (e) {
       setError(e instanceof ApiError ? e.message : 'Couldn’t load the retro')
     }
-  }, [loadSprint, loadStage, loadThemes, loadVotes, loadExperiments])
+  }, [loadSprint, loadStage, loadThemes, loadVotes, loadExperiments, loadCheckins])
   // Read again when this device unlocks (content opened before that showed as "can't be shown").
   const keysEpoch = useKeysEpoch()
   useEffect(() => {
@@ -44,6 +46,7 @@ export function useStage(sprintId: string) {
       else if (r === 'themes' || r === 'entries') { loadThemes(); loadStage() }
       else if (r === 'votes') { loadVotes(); loadThemes() }
       else if (r === 'commitments') loadExperiments()
+      else if (r === 'checkins') loadCheckins()
     },
     () => setRevoked(true),
   )
@@ -71,5 +74,7 @@ export function useStage(sprintId: string) {
   useEffect(() => {
     liveRef.current = live
   }, [live])
-  return { sprint, stage, grouping, votes, experiments, previous, error, revoked, command, reload: loadAll, setStage, loadVotes, loadExperiments, loadThemes, live }
+  /** A check-in the server just returned replaces the one held, so a tap shows its result without waiting for a hint. */
+  const putCheckin = useCallback((c: CheckinView) => setCheckins((all) => (all.some((x) => x.id === c.id) ? all.map((x) => (x.id === c.id ? c : x)) : [...all, c])), [])
+  return { sprint, stage, grouping, votes, experiments, previous, checkins, error, revoked, command, reload: loadAll, setStage, loadVotes, loadExperiments, loadThemes, loadCheckins, putCheckin, live }
 }

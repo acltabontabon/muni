@@ -15,6 +15,7 @@ import { themes } from './routes/themes'
 import { voting } from './routes/voting'
 import { meeting } from './routes/meeting'
 import { commitments } from './routes/commitments'
+import { checkins } from './routes/checkins'
 import { exportsRoutes } from './routes/exports'
 import { demo } from './routes/demo'
 import { keys } from './routes/keys'
@@ -91,6 +92,7 @@ app.route('/', themes)
 app.route('/', voting)
 app.route('/', meeting)
 app.route('/', commitments)
+app.route('/', checkins)
 app.route('/', exportsRoutes)
 app.route('/', demo)
 app.route('/', keys)

@@ -37,6 +37,12 @@ those as highlights. The app's About → What's new and each GitHub release are 
   its order; the facilitator writes what the room will remember, and ideas to try, right on the
   screen. If it helps, thoughts are gathered into themes first, on a calm sorting table — pick up
   the ones that belong together, name them, give each an opening question.
+- **A way in for everyone, without having to speak.** When it helps, the facilitator asks how a
+  topic showed up — *I felt this*, *Not in my work*, *I’d need context* — or whether an idea would
+  help. One tap answers, a line is optional, and answers stay private until the facilitator shares
+  them: counts and lines, never names, with a concern kept visible beside the rest. Anyone can also
+  add an example, another view or a question to the topic from their phone, shared without their
+  name when the facilitator brings it in. Nothing waits for everyone, and nobody is called on.
 - **Experiments that come back.** Agree on one to three changes to try. They open the next sprint’s
   retro, so the team sees what actually happened.
 - **Encrypted on your team’s devices.** New sprints are encrypted before anything leaves the browser,

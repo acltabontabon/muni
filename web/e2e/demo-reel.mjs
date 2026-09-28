@@ -62,8 +62,9 @@ const CHAPTERS = [
   { id: 'choose', kicker: 'The retro, in four steps', title: 'Choose what matters, <em>privately</em>.', shot: '07-choose', label: 'The stage · Sprint 14', length: len('07-choose'),
     // Wide while the cursor goes to the step's one button in the corner; closer once the talk opens.
     camera: [[0, 1, 576, 360], [2.4, 1, 576, 360], [3.4, 1.08, 470, 260], [99, 1.1, 470, 260]] },
-  { id: 'talk', kicker: 'The retro', title: 'Talk it through, <em>one topic at a time</em>.', shot: '08-talk', label: 'The stage · presenting', length: len('08-talk'),
-    camera: [[0, 1.02, 576, 260], [99, 1.1, 400, 260]] },
+  { id: 'talk', kicker: 'The talk, one topic at a time', title: 'Everyone answers. <em>Nobody has to speak first.</em>', shot: '08-talk', label: 'The stage · Sprint 14', length: len('08-talk'),
+    // Still and wide: the cursor goes to Share in the facilitator's margin, and what came back appears in place.
+    camera: [[0, 1.02, 576, 330], [99, 1.02, 576, 330]] },
   { id: 'outcomes', kicker: 'What comes of it', title: 'Agree what to <em>try next</em>.', shot: '09-outcomes', label: 'Sprint 14 · Harbor', length: len('09-outcomes') + 0.3,
     camera: [[0, 1, 640, 300], [99, 1.04, 640, 300]] },
 ]

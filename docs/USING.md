@@ -55,17 +55,30 @@ being there: nobody takes attendance. The retro is four steps, each one question
    Without themes, there's nothing to choose between, and the retro goes straight to the talk.
 3. **Talk** — one topic at a time, in the vote's order, then whatever isn't in a theme. Moving here
    closes the vote. Each topic has its question, its thoughts exactly as written, and a clock that's
-   guidance, never a cut-off. The facilitator can invite someone to speak — a random person who's
-   here and ready, never chosen by what they wrote; passing is one tap — and writes, on the
-   screen, *We'll remember* (a line the room agrees on) and *We could try* (an idea for Agree).
-   Anyone can add something to the topic without their name; it reaches the room when the
-   facilitator shows it. A topic the room opens counts as discussed.
+   guidance, never a cut-off. The facilitator writes, on the screen, *We'll remember* (what the room
+   takes from it) and, if there is one, *We could try* (an idea for Agree). A topic can end with
+   either, both or neither. A topic the room opens counts as discussed. Along the way, when it
+   helps — never by default:
+   - **Ask how it showed up.** Everyone's phone asks *How did this show up for you?*: *I felt this*,
+     *Not in my work* or *I'd need context*. One tap is a whole answer; a line is optional. Answers
+     can be changed until the facilitator shares them; the facilitator sees only how many have
+     answered. Sharing shows the counts and any lines, without names, and closes it. Nobody has to
+     answer, nothing waits for everyone, and a topic that's already a good conversation needs no
+     check-in at all. Not answering means nothing.
+   - **Check an idea with the room.** Once *We could try* is written: *Would trying this next
+     sprint help?* — *Worth trying*, *I have a concern* or *Not sure*, the same way. A concern is
+     shown beside the rest, never outvoted; an idea nobody checked carries no label.
+   - **Add to this discussion.** On anyone's phone, any time: an example, another view or a
+     question (saying which is optional). It waits, without a name, until the facilitator shares
+     what's waiting; your phone says whether yours is waiting or shared. If the room moves on while
+     you're writing, your words stay, with the topic they were for.
 4. **Agree** — what will we try? The ideas from the talk wait here; one to three become
    experiments, each with an owner who says yes on their own phone. **End the retro** takes
    everyone to the sprint's outcomes, which stay editable.
 
-The facilitator moves on with **Next** (or →); the steps at the top go back. Changing topic or
-step ends an open invitation to speak.
+The facilitator moves on with **Next** (or →); the steps and topics along the stage go back, and
+coming back to a topic finds its answers as they were. Joining late, reconnecting or picking your
+phone up again puts you where the room is, with anything you'd written still there.
 
 ## What the dots mean
 

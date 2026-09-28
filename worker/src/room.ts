@@ -2,15 +2,13 @@
  * MeetingRoom — one Durable Object per sprint.
  *
  * Authoritative for live meeting coordination only: step, current topic,
- * timer deadline, controller, attendance, speaking round, version. Everything
+ * timer deadline, controller, attendance, version. Everything
  * with content (entries, themes, notes, votes, experiments) lives in D1 and is
  * composed into snapshots by the Worker. Sockets carry hints — a resource
  * name and a version — never content, so nothing a recipient may not see can
  * be broadcast. State is persisted before any hint is sent. Sockets use the
  * Hibernation API: the object sleeps between events and restores attachments.
  */
-import { shuffle } from './lib/crypto'
-
 /** The retro's four steps: did last time's experiments help, what matters most, talk it through, agree what to try. */
 export const PHASES = ['look_back', 'choose', 'talk', 'agree'] as const
 export type Phase = (typeof PHASES)[number]
@@ -39,24 +37,11 @@ export interface MeetingState {
 }
 export interface Attendance {
   present: boolean
-  ready: boolean
   updated_at: number
-}
-export interface Speaking {
-  id: string
-  ordering: string[]
-  cursor: number
-  current_account_id: string | null
-  status: 'active' | 'exhausted' | 'ended'
-}
-export interface Participant {
-  account_id: string
-  is_facilitator: boolean
 }
 export interface RoomState {
   meeting: MeetingState | null
   attendance: Record<string, Attendance>
-  speaking: Speaking | null
   connected: string[]
 }
 
@@ -71,10 +56,6 @@ export type Command =
   | { type: 'timer_adjust'; delta_secs: number }
   | { type: 'timer_clear' }
   | { type: 'take_control' }
-  | { type: 'speaking_start' }
-  | { type: 'speaking_next' }
-  | { type: 'speaking_open_floor' }
-  | { type: 'speaking_end' }
 
 interface Attachment {
   a: string // account id
@@ -108,9 +89,6 @@ export class MeetingRoom implements DurableObject {
   private async attendance(): Promise<Record<string, Attendance>> {
     return (await this.ctx.storage.get<Record<string, Attendance>>('attendance')) ?? {}
   }
-  private async speaking(): Promise<Speaking | null> {
-    return (await this.ctx.storage.get<Speaking>('speaking')) ?? null
-  }
 
   private connectedAccounts(): string[] {
     const ids = new Set<string>()
@@ -121,9 +99,14 @@ export class MeetingRoom implements DurableObject {
     return [...ids]
   }
 
-  private broadcast(msg: Record<string, unknown>) {
+  /** To everyone connected, or only to the facilitator's sockets and/or some accounts' own. */
+  private broadcast(msg: Record<string, unknown>, to?: { facilitators?: boolean; accounts?: string[] } | null) {
     const data = JSON.stringify(msg)
     for (const ws of this.ctx.getWebSockets()) {
+      if (to) {
+        const att = ws.deserializeAttachment() as Attachment | null
+        if (!att || !((to.facilitators && att.f) || to.accounts?.includes(att.a))) continue
+      }
       try {
         ws.send(data)
       } catch {
@@ -133,7 +116,7 @@ export class MeetingRoom implements DurableObject {
   }
 
   private async state(): Promise<RoomState> {
-    return { meeting: await this.meeting(), attendance: await this.attendance(), speaking: await this.speaking(), connected: this.connectedAccounts() }
+    return { meeting: await this.meeting(), attendance: await this.attendance(), connected: this.connectedAccounts() }
   }
 
   // ---------- HTTP (internal, only reachable through the Worker binding) ----------
@@ -155,11 +138,9 @@ export class MeetingRoom implements DurableObject {
         return this.command(body)
       case '/attendance':
         return this.setAttendance(body)
-      case '/pass':
-        return this.pass(body)
       case '/hint': {
         const m = await this.meeting()
-        this.broadcast({ type: 'hint', resource: String(body.resource ?? 'all'), version: m?.version ?? 0 })
+        this.broadcast({ type: 'hint', resource: String(body.resource ?? 'all'), version: m?.version ?? 0 }, body.to as { facilitators?: boolean; accounts?: string[] } | undefined)
         return Response.json({ ok: true })
       }
       case '/revoke': {
@@ -245,7 +226,8 @@ export class MeetingRoom implements DurableObject {
       ended_at: null,
       cancelled: false,
     }
-    await this.ctx.storage.put({ meeting: m, attendance: {}, speaking: null })
+    await this.ctx.storage.put({ meeting: m, attendance: {} })
+    await this.ctx.storage.delete('speaking') // from sessions that had a speaking round
     this.broadcast({ type: 'hint', resource: 'meeting', version: m.version })
     return Response.json({ ok: true, version: m.version, existed: false })
   }
@@ -258,9 +240,7 @@ export class MeetingRoom implements DurableObject {
     m.phase = cancelled ? m.phase : 'agree'
     m.timer_ends_at = null
     m.version += 1
-    const sp = await this.speaking()
-    if (sp) sp.status = 'ended'
-    await this.ctx.storage.put({ meeting: m, speaking: sp })
+    await this.ctx.storage.put({ meeting: m })
     this.broadcast({ type: 'hint', resource: 'meeting', version: m.version })
     return Response.json({ ok: true })
   }
@@ -270,8 +250,6 @@ export class MeetingRoom implements DurableObject {
     const account = String(body.account ?? '')
     const expected = Number(body.expected_version)
     const cmd = body.command as Command
-    const participants = (body.participants as Participant[]) ?? []
-    const includeFac = !!body.include_facilitator
     const m = await this.meeting()
     if (!m || m.ended_at) return Response.json({ error: 'the retro isn’t live', code: 'conflict' }, { status: 409 })
     if (m.version !== expected) return Response.json({ error: 'the stage changed since you last saw it — it’s been refreshed, try again', code: 'conflict' }, { status: 409 })
@@ -281,15 +259,9 @@ export class MeetingRoom implements DurableObject {
       return Response.json({ error: 'another facilitator is controlling the stage — take control explicitly to continue', code: 'conflict' }, { status: 409 })
     }
     const now = Date.now()
-    let speaking = await this.speaking()
     let action = 'meeting.command'
     /** A topic's timebox: the talk's minutes shared across the first three topics, running from the moment it opens. Guidance, not a cut-off. */
-    // Invitations to speak belong to a topic: moving on ends the round, so nobody is left invited to a conversation that's over.
-    const endRound = () => {
-      if (speaking && speaking.status !== 'ended') speaking.status = 'ended'
-    }
     const openTopic = (id: string | null) => {
-      endRound()
       m.current_theme_id = id
       const per = Math.floor(((m.plan.talk ?? 28) * 60) / Math.min(3, Math.max(1, m.agenda.length)))
       m.timer_ends_at = id ? now + per * 1000 : null
@@ -302,7 +274,6 @@ export class MeetingRoom implements DurableObject {
         break
       case 'set_phase': {
         if (!(PHASES as readonly string[]).includes(cmd.phase)) return Response.json({ error: 'unknown phase', code: 'bad_request' }, { status: 400 })
-        if (m.phase !== cmd.phase) endRound()
         m.phase = cmd.phase as Phase
         if (Array.isArray(cmd.agenda)) m.agenda = cmd.agenda.slice(0, 40).map((i) => ({ theme_id: String(i.theme_id), reason: null }))
         // Only the talk keeps a clock: arriving there opens its first topic (when one is given), anywhere else the clock stops.
@@ -364,83 +335,29 @@ export class MeetingRoom implements DurableObject {
         m.timer_remaining_secs = null
         m.timer_total_secs = null
         break
-      case 'speaking_start': {
-        const eligible = shuffle(this.eligible(participants, await this.attendance(), includeFac))
-        speaking = { id: crypto.randomUUID(), ordering: eligible, cursor: 0, current_account_id: eligible[0] ?? null, status: eligible.length ? 'active' : 'exhausted' }
-        action = 'meeting.speaking_started'
-        break
-      }
-      case 'speaking_next':
-        if (!speaking || speaking.status !== 'active') return Response.json({ error: 'no speaking round is active', code: 'conflict' }, { status: 409 })
-        speaking = this.advance(speaking, this.eligible(participants, await this.attendance(), includeFac))
-        break
-      case 'speaking_open_floor':
-        if (speaking && speaking.status === 'active') speaking.current_account_id = null
-        break
-      case 'speaking_end':
-        if (speaking) speaking.status = 'ended'
-        break
       default:
         return Response.json({ error: 'unknown command', code: 'bad_request' }, { status: 400 })
     }
     m.version += 1
     m.controller_account_id = account
     m.controller_seen_at = now
-    await this.ctx.storage.put({ meeting: m, speaking })
+    await this.ctx.storage.put({ meeting: m })
     this.broadcast({ type: 'hint', resource: 'meeting', version: m.version })
     return Response.json({ ok: true, version: m.version, action })
   }
 
-  private eligible(participants: Participant[], attendance: Record<string, Attendance>, includeFac: boolean): string[] {
-    return participants.filter((p) => (includeFac || !p.is_facilitator) && attendance[p.account_id]?.present && attendance[p.account_id]?.ready !== false).map((p) => p.account_id)
-  }
-
-  /** Skips people who left or passed; late arrivals are appended so nobody else's place changes. */
-  private advance(sp: Speaking, eligible: string[]): Speaking {
-    const order = [...sp.ordering]
-    for (const id of shuffle(eligible.filter((e) => !order.includes(e)))) order.push(id)
-    let next = sp.cursor + 1
-    while (next < order.length && !eligible.includes(order[next])) next++
-    if (next < order.length) return { ...sp, ordering: order, cursor: next, current_account_id: order[next] }
-    return { ...sp, ordering: order, cursor: order.length, current_account_id: null, status: 'exhausted' }
-  }
-
   private async setAttendance(body: Record<string, unknown>): Promise<Response> {
     const target = String(body.target ?? '')
-    const participants = (body.participants as Participant[]) ?? []
-    const includeFac = !!body.include_facilitator
     const m = await this.meeting()
     if (!m) return Response.json({ error: 'the retro hasn’t started yet', code: 'not_found' }, { status: 404 })
     const att = await this.attendance()
-    const cur = att[target] ?? { present: false, ready: true, updated_at: 0 }
+    const cur = att[target] ?? { present: false, updated_at: 0 }
     if (typeof body.present === 'boolean') cur.present = body.present
-    if (typeof body.ready === 'boolean') cur.ready = body.ready
     cur.updated_at = Date.now()
-    att[target] = cur
-    let speaking = await this.speaking()
-    // If the current speaker just passed or left, respect it immediately.
-    if ((body.ready === false || body.present === false) && speaking?.status === 'active' && speaking.current_account_id === target) {
-      speaking = this.advance(speaking, this.eligible(participants, att, includeFac))
-    }
-    m.version += 1
-    await this.ctx.storage.put({ meeting: m, attendance: att, speaking })
-    this.broadcast({ type: 'hint', resource: 'meeting', version: m.version })
-    return Response.json({ ok: true })
-  }
-
-  /** Passing is "not now": step out of the rotation until you choose Ready again. */
-  private async pass(body: Record<string, unknown>): Promise<Response> {
-    const account = String(body.account ?? '')
-    const participants = (body.participants as Participant[]) ?? []
-    const includeFac = !!body.include_facilitator
-    const m = await this.meeting()
-    if (!m) return Response.json({ error: 'the retro hasn’t started yet', code: 'not_found' }, { status: 404 })
-    const att = await this.attendance()
-    att[account] = { present: att[account]?.present ?? true, ready: false, updated_at: Date.now() }
-    let speaking = await this.speaking()
-    if (speaking?.status === 'active' && speaking.current_account_id === account) speaking = this.advance(speaking, this.eligible(participants, att, includeFac))
-    m.version += 1
-    await this.ctx.storage.put({ meeting: m, attendance: att, speaking })
+    att[target] = { present: cur.present, updated_at: cur.updated_at }
+    // Presence isn't a command: someone arriving mustn't make the facilitator's next click a conflict.
+    // Everyone still hears about it; the version that guards commands stays as it was.
+    await this.ctx.storage.put({ attendance: att })
     this.broadcast({ type: 'hint', resource: 'meeting', version: m.version })
     return Response.json({ ok: true })
   }

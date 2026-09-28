@@ -34,7 +34,7 @@ export async function grouping(env: HonoEnv['Bindings'], ctx: SprintCtx) {
   const sp = (await one<{ status: string; grouping_revision: number }>(db, 'SELECT status, grouping_revision FROM sprints WHERE id = ?', ctx.sprint.id))!
   const rows = await all<ThemeRow>(db, 'SELECT id, title, summary, question, draft_experiment, position, parked, needs_attention, order_reason FROM themes WHERE sprint_id = ? ORDER BY position, created_at LIMIT 100', ctx.sprint.id)
   const allEntries = await sharedEntries(db, ctx.sprint.id)
-  const context = await all<{ id: string; theme_id: string; body: string }>(db, 'SELECT id, theme_id, body FROM context_additions WHERE sprint_id = ? AND released_batch IS NOT NULL AND theme_id IS NOT NULL ORDER BY released_batch, reveal_order, id LIMIT 500', ctx.sprint.id)
+  const context = await all<{ id: string; theme_id: string; body: string; kind: string | null }>(db, 'SELECT id, theme_id, body, kind FROM context_additions WHERE sprint_id = ? AND released_batch IS NOT NULL AND theme_id IS NOT NULL ORDER BY released_batch, reveal_order, id LIMIT 500', ctx.sprint.id)
   const takeaways = await all<{ theme_id: string; takeaway: string; could_try: string; discussed: number }>(db, 'SELECT theme_id, takeaway, could_try, discussed FROM discussion_notes WHERE sprint_id = ?', ctx.sprint.id)
   const votes = await latestClosedTotals(db, ctx.sprint.id)
   const themesOut = rows.map((t) => {
@@ -55,7 +55,7 @@ export async function grouping(env: HonoEnv['Bindings'], ctx: SprintCtx) {
       entry_count: ents.length,
       category_mix: mix,
       entries: ents,
-      context: context.filter((x) => x.theme_id === t.id).map((x) => ({ id: x.id, body: x.body })),
+      context: context.filter((x) => x.theme_id === t.id).map((x) => ({ id: x.id, body: x.body, kind: x.kind })),
       votes: votes ? (votes[t.id] ?? 0) : null,
       takeaway: tk?.takeaway ?? '',
       could_try: tk?.could_try ?? '',

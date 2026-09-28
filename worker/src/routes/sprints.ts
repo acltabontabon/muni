@@ -54,7 +54,6 @@ interface FullRow {
   retro_duration_min: number
   reminders_enabled: number
   vote_budget: number
-  include_facilitator_in_rotation: number
   grouping_revision: number
   collection_opened_at: number | null
   collection_closed_at: number | null
@@ -126,7 +125,6 @@ export async function detail(env: HonoEnv['Bindings'], ctx: SprintCtx) {
     ...s,
     opening_question: r.opening_question,
     vote_budget: r.vote_budget,
-    include_facilitator_in_rotation: bool(r.include_facilitator_in_rotation),
     participants: prows.map((p) => ({ account_id: p.id, display_name: p.display_name, is_facilitator: bool(p.is_facilitator), is_you: p.id === ctx.auth.account.id })),
     entry_count,
     theme_count,
@@ -201,9 +199,9 @@ sprints.post('/api/workspaces/:workspaceId/sprints', async (c) => {
   const stmts: [string, ...unknown[]][] = [
     [
       `INSERT INTO sprints (id, workspace_id, name, external_ref, goal, opening_question, timezone, starts_on, ends_on, retro_at, retro_local_date, retro_local_time, retro_duration_min,
-        reminders_enabled, vote_budget, include_facilitator_in_rotation, created_by, created_at, updated_at, encryption) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+        reminders_enabled, vote_budget, created_by, created_at, updated_at, encryption) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
       id, m.workspaceId, name, external_ref, goal, opening_question, sch.timezone, sch.starts_on, sch.ends_on, sch.retro_at, sch.retro_date, sch.retro_time, sch.retro_duration_min,
-      body.reminders_enabled === false ? 0 : 1, budget, body.include_facilitator_in_rotation ? 1 : 0, m.auth.account.id, now, now, encrypted ? ENCRYPTION : null,
+      body.reminders_enabled === false ? 0 : 1, budget, m.auth.account.id, now, now, encrypted ? ENCRYPTION : null,
     ],
   ]
   if (encrypted) {
@@ -291,7 +289,6 @@ sprints.patch('/api/sprints/:sprintId', async (c) => {
     if (await count(db, "SELECT count(*) AS n FROM vote_rounds WHERE sprint_id = ? AND status = 'open'", sid)) throw conflict('close the open voting round before changing the budget')
     await run(db, 'UPDATE sprints SET vote_budget = ? WHERE id = ?', b, sid)
   }
-  if (body.include_facilitator_in_rotation !== undefined) await run(db, 'UPDATE sprints SET include_facilitator_in_rotation = ? WHERE id = ?', body.include_facilitator_in_rotation ? 1 : 0, sid)
   if (body.facilitator_id !== undefined) {
     const fid = String(body.facilitator_id)
     if (!(await count(db, 'SELECT count(*) AS n FROM sprint_participants WHERE sprint_id = ? AND account_id = ?', sid, fid))) throw bad('the facilitator must be a participant')

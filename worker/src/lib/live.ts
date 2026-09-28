@@ -3,7 +3,12 @@
  * is the only place live meeting state lives; the Worker never caches it.
  * Hints carry a resource name only, never content.
  */
-export type Resource = 'sprint' | 'entries' | 'themes' | 'meeting' | 'votes' | 'commitments' | 'all'
+export type Resource = 'sprint' | 'entries' | 'themes' | 'meeting' | 'votes' | 'commitments' | 'checkins' | 'all'
+/** Who a hint goes to, when not everyone: the facilitator's sockets, and/or particular accounts' own (their other tabs). */
+export interface Audience {
+  facilitators?: boolean
+  accounts?: string[]
+}
 
 export function room(env: { ROOMS: DurableObjectNamespace }, sprintId: string): DurableObjectStub {
   return env.ROOMS.get(env.ROOMS.idFromName(sprintId))
@@ -22,9 +27,9 @@ async function call<T = unknown>(stub: DurableObjectStub, path: string, body?: u
 }
 
 /** Fire-and-forget hint; failures are swallowed (clients also resync on reconnect and visibility). */
-export async function hint(env: { ROOMS: DurableObjectNamespace }, sprintId: string, resource: Resource): Promise<void> {
+export async function hint(env: { ROOMS: DurableObjectNamespace }, sprintId: string, resource: Resource, to?: Audience): Promise<void> {
   try {
-    await call(room(env, sprintId), '/hint', { resource })
+    await call(room(env, sprintId), '/hint', { resource, to })
   } catch {
     /* best effort */
   }

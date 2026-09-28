@@ -155,6 +155,8 @@ export async function retention(env: AppEnv) {
 export async function purgeSprintContent(db: D1Database, sprintId: string, workspaceId: string) {
   await db.batch([
     db.prepare('DELETE FROM context_additions WHERE sprint_id = ?').bind(sprintId),
+    db.prepare('DELETE FROM checkin_responses WHERE checkin_id IN (SELECT id FROM checkins WHERE sprint_id = ?)').bind(sprintId),
+    db.prepare('DELETE FROM checkins WHERE sprint_id = ?').bind(sprintId),
     db.prepare('DELETE FROM discussion_notes WHERE sprint_id = ?').bind(sprintId),
     db.prepare('DELETE FROM votes WHERE round_id IN (SELECT id FROM vote_rounds WHERE sprint_id = ?)').bind(sprintId),
     db.prepare('DELETE FROM vote_rounds WHERE sprint_id = ?').bind(sprintId),

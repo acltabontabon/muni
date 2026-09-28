@@ -11,7 +11,7 @@ Try it at [act.munimuni.app](https://act.munimuni.app).
 - **Private capture.** Your thoughts stay hidden until collection closes — even from the facilitator.
 - **Blind reveal.** When collection closes, all thoughts appear at once, unnamed and in random order.
 - **Themes and voting.** The facilitator groups thoughts into themes; everyone votes on what to discuss first.
-- **Live retrospective.** A gentle, paced conversation where people speak up and one to three experiments come back first next sprint.
+- **Live retrospective.** Four steps — look back, choose, talk, agree — on a shared screen with everyone's phone alongside: quick private check-ins and additions let people take part without having to speak first, and one to three experiments come back first next sprint.
 - **Offline-first.** Works on planes, trains, or anywhere — drafts are kept on your device.
 
 Sprint content is end-to-end encrypted: the backend never sees what you write, only that you wrote something. See [`docs/privacy-claims.md`](docs/privacy-claims.md) for details.

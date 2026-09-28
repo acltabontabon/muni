@@ -57,7 +57,7 @@ describe('migration 0009', () => {
     const db = (env as unknown as { MIGRATION_DB: D1Database }).MIGRATION_DB
     const all = (env as unknown as { TEST_MIGRATIONS: D1Migration[] }).TEST_MIGRATIONS
     const before = all.filter((m) => m.name < '0009')
-    expect(before.length).toBe(all.length - 1)
+    expect(all.some((m) => m.name.startsWith('0009'))).toBe(true)
     await applyD1Migrations(db, before)
     // A sprint from the AI era: drafting on, a draft applied and then edited by the facilitator.
     await db.batch(

@@ -485,29 +485,50 @@ try {
   })
   await sc.hide()
 
-  // On the first topic: what the room will remember and an idea to try, written on the screen; an invitation to speak; then present it.
+  // On the first topic, the facilitator asks how it showed up. Five teammates answer on their own
+  // devices, privately; three add a line. (Off camera: each in their own browser, so lines are sealed.)
+  await maya.click('.retro-asks button:has-text("Ask how it showed up")')
+  const ANSWERS = { jonas: ['I felt this', 'Nobody knew the runbook still pointed at the old cluster.'], priya: ['I felt this', null], tomas: ['Not in my work', 'Mobile never touched staging this sprint.'], aiko: ['I felt this', 'I restarted it twice without knowing whose it was.'], sam: ['I’d need context', null] }
+  for (const [k, [choice, line]] of Object.entries(ANSWERS)) {
+    const pg = p[k]
+    await pg.goto(`${BASE}/sprints/${sprintId}/room`)
+    await pg.locator('.ci-choice', { hasText: choice }).click()
+    await pg.locator('.ci-choice[aria-checked="true"]').waitFor()
+    if (line) {
+      await pg.locator('.ci-ask button:has-text("Add a line")').click()
+      await pg.fill('textarea[aria-label="Your line (optional)"]', line)
+      await pg.click('button:has-text("Save line")')
+      await pg.locator('.ci-your-line').waitFor()
+    }
+  }
+  await maya.locator('.retro-asks .retro-asking-n', { hasText: '5 answers' }).waitFor()
+  await maya.evaluate(() => document.fonts.ready)
+  await sleep(1200)
+
+  // 08 · Everyone answers, nobody has to speak first: the facilitator shares, and the room has something to talk about.
+  const tc2 = cursorOf(maya)
+  await tc2.show(760, 600)
+  const share = maya.locator('.retro-asks .retro-ask--share')
+  await film(maya, '08-talk', async () => {
+    await sleep(700)
+    await tc2.to(share, 900, 0.5, 0.55)
+    await sleep(150)
+    await tc2.click()
+    await maya.locator('.ci-moment .ci-tally').waitFor()
+    await tc2.glide(640, 560, 800)
+    await sleep(2800)
+  })
+  await tc2.hide()
+  // What the room will remember, and an idea to try, written on the screen.
   await maya.fill('textarea[aria-label="We’ll remember"]', TAKEAWAY)
   await maya.keyboard.press('Enter')
   await maya.locator('.retro-saved').first().waitFor()
   await maya.fill('textarea[aria-label="We could try"]', EXPERIMENTS[0].change)
   await maya.keyboard.press('Enter')
   await maya.locator('.retro-saved').first().waitFor()
-  await maya.click('.retro-voice-do button:has-text("Invite someone")')
-  await sleep(600)
-  await maya.keyboard.press('h') // present on this screen
-  await maya.mouse.move(1100, 690)
-  await sleep(2000)
-
-  // 08 · Talk it through, one topic at a time.
-  await film(maya, '08-talk', async () => {
-    await sleep(2100)
-    await maya.keyboard.press('n') // the next voice is invited
-    await sleep(3000)
-  })
   log('talked')
 
   // Agree: two experiments, each owner says yes. Then end the retro and publish the recap.
-  await maya.keyboard.press('h')
   await maya.setViewportSize({ width: 1280, height: 800 })
   await maya.click('.retro-steps button:has-text("Agree")')
   await maya.waitForSelector('#ex-change')

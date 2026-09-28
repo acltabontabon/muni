@@ -26,7 +26,7 @@ cron */15 ──▶ Worker: due jobs (email, reminders) and a daily retention sw
 | --- | --- |
 | `worker/src/index.ts` | entry: configuration check, client-revision gate, routes, error mapping, cron |
 | `worker/src/routes/` | one module per area: auth and invitations, workspaces, sprints, entries, themes, voting, meeting, commitments, exports, demo |
-| `worker/src/room.ts` | `MeetingRoom`: phase, topic, timer deadline, controller, attendance, speaking round, version |
+| `worker/src/room.ts` | `MeetingRoom`: step, topic, timer deadline, controller, attendance, version; hints to everyone, or only to facilitators and an account's own tabs |
 | `worker/src/lib/` | sessions/CSRF/authorization, D1 helpers, email adapter, rate limits, config |
 | `worker/src/jobs.ts` | durable jobs in D1, reminders, retention |
 | `worker/src/contract.ts` | the typed API contract, imported by the web app |
@@ -71,6 +71,7 @@ sprints (lifecycle, schedule, settings)          sprint_participants (is_facilit
 entries (body, category, …, author_account_id ← private, reveal_order)
 themes, theme_entries
 vote_rounds, votes (account_id ← private)        context_additions (author_account_id ← private)
+checkins, checkin_responses (account_id ← private)
 discussion_notes, experiments, recaps            jobs, audit_events (ids only), rate_events (hashed keys)
 ```
 
@@ -85,9 +86,10 @@ The promise made in the product (the full wording is the Privacy & data page, `w
 
 This is application-level anonymity. It is implemented as follows.
 
-1. **Ownership is a private column.** `entries.author_account_id`, `votes.account_id` and
-   `context_additions.author_account_id` exist so the server can authorise private editing and
-   enforce vote budgets. They are never selected into a shared response.
+1. **Ownership is a private column.** `entries.author_account_id`, `votes.account_id`,
+   `context_additions.author_account_id` and `checkin_responses.account_id` exist so the server can
+   authorise private editing, let an answer be changed and never counted twice, and enforce vote
+   budgets. They are never selected into a shared response.
 2. **Allow-listed response types.** Shared representations (`SharedEntry`, `ThemeView`,
    `StageSnapshot`, exports) are built from explicit SELECT lists with no author, timestamp,
    alias or network field. There is no "with author" variant.
@@ -106,8 +108,11 @@ This is application-level anonymity. It is implemented as follows.
 8. **Logs carry no content.** The app logs failures with the path and a short error only. The
    platform's request logs record method, URL and (redacted) headers; URLs carry resource IDs,
    never invitation tokens, codes or text.
-9. **The speaking rotation is named, feedback is not.** The speaking card shows a display name
-   because it invites someone to speak; it never links them to an entry.
+9. **Check-ins are sealed until shared.** An answer is visible to its author; the facilitator gets
+   a count while it's open, nobody else anything; the live hint for an answer goes only to the
+   facilitator's sockets and the author's own other tabs. Shared results are counts per answer and
+   the lines, in a drawn order, with no account, time or order of answering. Muni never picks
+   someone to speak.
 10. **Audit without content.** Audit events record who changed a phase, regrouped or closed
     collection, with resource IDs only.
 

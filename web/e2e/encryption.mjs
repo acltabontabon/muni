@@ -157,6 +157,35 @@ try {
   check('Theme titles are stored as envelopes', themes.length === 1 && themes[0].title.startsWith('e1.'))
   check('…and shown decrypted', (await owner.locator('textarea[aria-label="Theme title"]').first().inputValue().catch(() => '')) === `Synthetic-${tag} staging ownership`)
 
+  // The live retro: a line with a check-in answer, and something added to the discussion, are sealed
+  // on Maya's device; the facilitator reads them once they're shared.
+  check('The retro goes live', (await api(owner, 'POST', `/api/sprints/${sprintId}/transition`, { to: 'live' })).status === 200)
+  const version = (await api(owner, 'GET', `/api/sprints/${sprintId}/meeting`)).body.version
+  await api(owner, 'POST', `/api/sprints/${sprintId}/meeting/command`, { expected_version: version, command: { type: 'set_phase', phase: 'talk' } })
+  const ci = (await api(owner, 'POST', `/api/sprints/${sprintId}/checkins`, { theme_id: themes[0].id, kind: 'topic' })).body
+  sent.length = 0
+  const LINE = `Synthetic-${tag} line about the cluster`
+  const ADDED = `Synthetic-${tag} added about the pager`
+  await maya.goto(`${BASE}/sprints/${sprintId}/room`)
+  await maya.locator('.ci-choice', { hasText: 'I felt this' }).click()
+  await maya.locator('.ci-choice[aria-checked="true"]').waitFor()
+  await maya.click('.ci-ask button:has-text("Add a line")')
+  await maya.fill('textarea[aria-label="Your line (optional)"]', LINE)
+  await maya.click('button:has-text("Save line")')
+  await maya.locator('.ci-your-line', { hasText: 'line about' }).waitFor()
+  await maya.click('.ad-open')
+  await maya.fill('textarea[aria-label="Add to this discussion"]', ADDED)
+  await maya.click('.ad button:has-text("Send")')
+  await maya.locator('.ad-mine li', { hasText: 'added about' }).waitFor()
+  check('No request carries a check-in line or an addition', sent.length > 0 && sent.every((b) => !b.includes('line about') && !b.includes('added about')), `${sent.length} requests`)
+  const mineRaw = (await api(maya, 'GET', `/api/sprints/${sprintId}/checkins`)).body.find((c) => c.id === ci.id)
+  const addedRaw = (await api(maya, 'GET', `/api/sprints/${sprintId}/meeting`)).body.my_context
+  check('…the server holds envelopes for both', mineRaw.mine.note.startsWith('e1.') && addedRaw.length === 1 && addedRaw[0].body.startsWith('e1.'))
+  await api(owner, 'POST', `/api/sprints/${sprintId}/checkins/${ci.id}/share`)
+  await owner.goto(`${BASE}/sprints/${sprintId}/stage`)
+  await owner.locator('.ci-lines li', { hasText: 'line about' }).waitFor({ timeout: 10000 })
+  check('Once shared, the facilitator reads the line, decrypted', true)
+
   // Maya on a new device, with her synced passkey (one that can't unlock): signed in, but her
   // writing stays locked until the recovery key opens it.
   const newDevice = await browser.newContext()

@@ -3,7 +3,7 @@ import { Link, useNavigate, useParams, useSearchParams } from 'react-router'
 import * as Popover from '@radix-ui/react-popover'
 import { ArrowRight, MonitorPlay, Pause, Play, Users } from 'lucide-react'
 import { ApiError, patch, post, put } from '@/api/client'
-import type { Experiment, SharedEntry, StageSnapshot, ThemeView } from '@/api/types'
+import type { CheckinView, Experiment, SharedEntry, StageSnapshot, ThemeView } from '@/api/types'
 import { PHASE_LABEL, categoryMeta } from '@/lib/categories'
 import { applyAppearance } from '@/lib/prefs'
 import { useStage } from '@/lib/stage'
@@ -11,6 +11,7 @@ import { Button, Dialog, Spinner, fmtClock, useCountdown, useDocumentTitle, useT
 import { ReconnectingBar } from '@/ui/status'
 import { ExperimentEditor } from '@/ui/experiments'
 import { NoteField, PastExperiment, Thought, worthKeeping } from '@/ui/retro'
+import { ASK, CheckinResult, kindWord } from '@/ui/checkin'
 import { Mark } from '@/brand/Mark'
 
 type Command = ReturnType<typeof useStage>['command']
@@ -90,13 +91,12 @@ export function Stage() {
       if (['INPUT', 'TEXTAREA', 'SELECT'].includes(t.tagName) || t.isContentEditable) return
       if (e.key === 'ArrowRight') forward()
       else if (e.key === 'ArrowLeft') toStep(phases[phaseIdx - 1])
-      else if (e.key.toLowerCase() === 'n' && stage?.speaking?.status === 'active') run({ type: 'speaking_next' })
       else if (e.key.toLowerCase() === 'h') setPresenting(!presenting)
       else if (e.key === 'Escape') setReader(null)
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
-  }, [fac, forward, toStep, phases, phaseIdx, run, stage?.speaking?.status, presenting, setPresenting])
+  }, [fac, forward, toStep, phases, phaseIdx, presenting, setPresenting])
 
   if (st.revoked) return <Centered><p>Your access to this sprint ended.</p></Centered>
   if (st.error) return <Centered><p>{st.error}</p></Centered>
@@ -132,8 +132,8 @@ export function Stage() {
         <ReconnectingBar status={st.live} />
         {stage.phase === 'look_back' ? <LookBack previous={previous} wins={worthKeeping([...themes.flatMap((t) => t.entries), ...ungrouped])} controls={controls} onVerdict={async (e, status) => { try { await patch(`/api/sprints/${e.sprint_id}/experiments/${e.id}`, { status }); st.loadExperiments() } catch (err) { toast(err instanceof ApiError ? err.message : 'Couldn’t save', 'danger') } }} /> : null}
         {stage.phase === 'choose' ? <Choose themes={themes} ungrouped={ungrouped} votes={votes} controls={controls} sprintId={sprintId} budget={sprint.vote_budget} onRead={setReader} onVotes={() => { st.loadVotes(); st.loadThemes() }} /> : null}
-        {stage.phase === 'talk' ? <Talk stage={stage} themes={themes} ungrouped={ungrouped} topics={topics} controls={controls} command={run} onNote={saveNote} /> : null}
-        {stage.phase === 'agree' ? <Agree themes={themes} experiments={experiments} controls={controls} sprintId={sprintId} participants={sprint.participants} onChange={st.loadExperiments} onEnd={async () => { try { await post(`/api/sprints/${sprintId}/transition`, { to: 'completed' }); nav(`/sprints/${sprintId}`) } catch (e) { toast(e instanceof ApiError ? e.message : 'Couldn’t end the retro', 'danger') } }} /> : null}
+        {stage.phase === 'talk' ? <Talk stage={stage} themes={themes} ungrouped={ungrouped} topics={topics} controls={controls} command={run} onNote={saveNote} sprintId={sprintId} checkins={{ list: st.checkins, put: st.putCheckin }} /> : null}
+        {stage.phase === 'agree' ? <Agree themes={themes} experiments={experiments} controls={controls} sprintId={sprintId} participants={sprint.participants} onChange={st.loadExperiments} checkins={{ list: st.checkins, put: st.putCheckin }} onEnd={async () => { try { await post(`/api/sprints/${sprintId}/transition`, { to: 'completed' }); nav(`/sprints/${sprintId}`) } catch (e) { toast(e instanceof ApiError ? e.message : 'Couldn’t end the retro', 'danger') } }} /> : null}
       </main>
       <div className="retro-corner">
         {fac ? (
@@ -144,7 +144,7 @@ export function Stage() {
             </button>
           </>
         ) : (
-          <Link to={`/sprints/${sprintId}/room`} className="retro-chip">On your phone</Link>
+          <Link to={`/sprints/${sprintId}/room`} className="retro-chip">Answer and add from here</Link>
         )}
       </div>
       <Dialog open={!!reader} onOpenChange={(o) => !o && setReader(null)} title={reader === 'ungrouped' ? 'Not in a theme' : readerTheme?.title ?? ''} description={reader === 'ungrouped' ? `${ungrouped.length} ${ungrouped.length === 1 ? 'thought' : 'thoughts'}, exactly as written.` : readerTheme?.question || undefined} wide>
@@ -204,14 +204,14 @@ function People({ stage, sprintId, onChange, command }: { stage: StageSnapshot; 
       <Popover.Portal>
         <Popover.Content align="end" sideOffset={8} className="retro-pop anim-rise">
           <p className="retro-pop-title">Who’s here</p>
-          <p className="retro-pop-hint">Opening the retro on a phone or laptop marks someone here. Only people here are invited to speak.</p>
+          <p className="retro-pop-hint">Opening the retro on a phone or laptop marks someone here.</p>
           <ul className="retro-pop-list">
             {stage.attendance.map((a) => (
               <li key={a.account_id}>
                 <label>
                   <input type="checkbox" checked={a.present} onChange={async () => { await post(`/api/sprints/${sprintId}/meeting/attendance/${a.account_id}`, { present: !a.present }); onChange() }} />
                   <span>{a.display_name}</span>
-                  {a.is_facilitator ? <em>facilitating</em> : a.ready === false ? <em>passing for now</em> : null}
+                  {a.is_facilitator ? <em>facilitating</em> : null}
                 </label>
               </li>
             ))}
@@ -324,11 +324,37 @@ function Mix({ mix }: { mix: Record<string, number> }) {
 }
 
 // ---------- 3 · Talk ----------
-function Talk({ stage, themes, ungrouped, topics, controls, command, onNote }: { stage: StageSnapshot; themes: ThemeView[]; ungrouped: SharedEntry[]; topics: string[]; controls: boolean; command: (c: Parameters<Command>[0]) => void; onNote: (themeId: string, field: 'takeaway' | 'could_try', value: string) => Promise<void> }) {
+interface Checkins {
+  list: CheckinView[]
+  put: (c: CheckinView) => void
+}
+
+/** Opening and sharing check-ins, from the facilitator's side. */
+function useAsking(sprintId: string, checkins: Checkins) {
+  const toast = useToast()
+  const open = async (themeId: string, kind: 'topic' | 'action', renew = false) => {
+    try {
+      checkins.put(await post<CheckinView>(`/api/sprints/${sprintId}/checkins`, { theme_id: themeId, kind, renew }))
+    } catch (e) {
+      toast(e instanceof ApiError ? e.message : 'Couldn’t ask', 'danger')
+    }
+  }
+  const share = async (c: CheckinView) => {
+    try {
+      checkins.put(await post<CheckinView>(`/api/sprints/${sprintId}/checkins/${c.id}/share`))
+    } catch (e) {
+      toast(e instanceof ApiError ? e.message : 'Couldn’t share the answers', 'danger')
+    }
+  }
+  return { open, share }
+}
+
+function Talk({ stage, themes, ungrouped, topics, controls, command, onNote, sprintId, checkins }: { stage: StageSnapshot; themes: ThemeView[]; ungrouped: SharedEntry[]; topics: string[]; controls: boolean; command: (c: Parameters<Command>[0]) => void; onNote: (themeId: string, field: 'takeaway' | 'could_try', value: string) => Promise<void>; sprintId: string; checkins: Checkins }) {
   const current = stage.current_theme_id
   const theme = current && current !== 'ungrouped' ? themes.find((t) => t.id === current) ?? null : null
   const pos = current ? topics.indexOf(current) : -1
   const title = (id: string) => (id === 'ungrouped' ? 'Not in a theme' : themes.find((t) => t.id === id)?.title ?? '')
+  const asking = useAsking(sprintId, checkins)
   if (!current || pos < 0)
     return (
       <section>
@@ -346,32 +372,55 @@ function Talk({ stage, themes, ungrouped, topics, controls, command, onNote }: {
       </section>
     )
   const entries = theme ? theme.entries : ungrouped
+  const topicCheck = theme ? checkins.list.find((c) => c.theme_id === theme.id && c.kind === 'topic') ?? null : null
+  const actionCheck = theme ? checkins.list.find((c) => c.theme_id === theme.id && c.kind === 'action') ?? null : null
+  // An idea reworded after it was checked: its answers were about other words, so they aren't shown as its answers.
+  const reworded = !!actionCheck && !!stage.notes.could_try && actionCheck.could_try !== stage.notes.could_try
+  const openNow = [topicCheck, reworded ? null : actionCheck].filter((c) => c?.status === 'open') as CheckinView[]
+  const onPhones = openNow.length === 2 ? 'this topic, and both questions' : openNow[0]?.kind === 'topic' ? 'this topic, and how it showed up' : openNow[0] ? 'this topic, and the idea to check' : 'this topic, and a way to add to it'
   return (
     <section key={current} className="retro-talk anim-rise">
       <div className="retro-talk-main">
         <p className="retro-kicker"><span>03</span>Topic {pos + 1} of {topics.length}{typeof theme?.votes === 'number' && theme.votes > 0 ? ` · ${theme.votes} ${theme.votes === 1 ? 'vote' : 'votes'}` : ''}</p>
         <h1 className="retro-talk-title">{theme ? theme.title : 'Not in a theme'}</h1>
         {theme?.question ? <p className="retro-talk-q">{theme.question}</p> : !theme ? <p className="retro-talk-q">The thoughts nobody grouped, exactly as written.</p> : null}
+        {topicCheck ? <Moment c={topicCheck} /> : null}
+        {actionCheck && !reworded ? <Moment c={actionCheck} /> : null}
         <ul className="retro-thoughts retro-thoughts--talk">{entries.map((e) => <Thought key={e.id} e={e} />)}</ul>
         {theme?.context.length ? (
           <div className="retro-added">
             <h2 className="retro-col-title">Added during the retro <span>without names</span></h2>
-            <ul>{theme.context.map((c) => <li key={c.id} className="anim-rise">{c.body}</li>)}</ul>
+            <ul className="retro-thoughts">
+              {theme.context.map((c) => (
+                <li key={c.id} className="retro-thought retro-thought--added anim-rise">
+                  <span className="retro-cat">{kindWord(c.kind)}</span>
+                  <div className="retro-words"><p className="retro-text">{c.body}</p></div>
+                </li>
+              ))}
+            </ul>
           </div>
         ) : null}
       </div>
       <aside className="retro-margin">
+        {controls ? <p className="retro-seen"><span>On phones</span> {onPhones}</p> : null}
         <Clock stage={stage} controls={controls} command={command} />
-        <Voices stage={stage} controls={controls} command={command} />
+        {controls && theme ? (
+          <div className="retro-asks">
+            <AskControl c={topicCheck} idle="Ask how it showed up" onOpen={() => asking.open(theme.id, 'topic')} onShare={asking.share} />
+          </div>
+        ) : null}
         {theme ? (
           <>
             <Note label="We’ll remember" value={stage.notes.takeaway} controls={controls} placeholder="What the room takes from this, in a line" onSave={(v) => onNote(theme.id, 'takeaway', v)} />
-            <Note label="We could try" value={stage.notes.could_try} controls={controls} placeholder="An idea to try — it waits for Agree" onSave={(v) => onNote(theme.id, 'could_try', v)} />
+            <div className="retro-note-group">
+              <Note label="We could try" value={stage.notes.could_try} controls={controls} placeholder="An idea to try — it waits for Agree" onSave={(v) => onNote(theme.id, 'could_try', v)} />
+              {controls && stage.notes.could_try ? <AskControl c={reworded ? null : actionCheck} idle={reworded ? 'Check this wording with the room' : 'Check it with the room'} onOpen={() => asking.open(theme.id, 'action', reworded)} onShare={asking.share} quiet /> : null}
+            </div>
           </>
         ) : null}
         {controls && stage.has_unreleased_context ? (
           <button className="retro-waiting" onClick={() => command({ type: 'release_context' })}>
-            <span>Someone added to this, without their name.</span> Show it to the room
+            <span>Something was added, without a name.</span> Share it with the room
           </button>
         ) : null}
       </aside>
@@ -386,6 +435,39 @@ function Talk({ stage, themes, ungrouped, topics, controls, command, onNote }: {
       </nav>
     </section>
   )
+}
+
+/** What the room sees of a check-in: that it's been asked, or what came back. */
+function Moment({ c }: { c: CheckinView }) {
+  if (c.status === 'open')
+    return (
+      <p className="ci-live">
+        <span className="ci-live-label">On everyone’s phone</span> <em>{ASK[c.kind].question}</em>
+        {c.kind === 'action' && c.could_try ? <> — “{c.could_try}”</> : null}
+      </p>
+    )
+  if (!c.results?.responded) return null
+  return (
+    <div className="ci-moment anim-rise" data-kind={c.kind}>
+      <p className="retro-note-label">{c.kind === 'topic' ? 'How it showed up' : 'Would trying it help?'}</p>
+      {c.kind === 'action' && c.could_try ? <p className="ci-subject">“{c.could_try}”</p> : null}
+      <CheckinResult c={c} />
+    </div>
+  )
+}
+
+/** The facilitator's side of a check-in: ask; then share when it helps, or just keep talking. */
+function AskControl({ c, idle, onOpen, onShare, quiet }: { c: CheckinView | null; idle: string; onOpen: () => void; onShare: (c: CheckinView) => void; quiet?: boolean }) {
+  if (!c) return <button className={quiet ? 'retro-link retro-ask-quiet' : 'retro-ask'} onClick={onOpen}>{idle}</button>
+  if (c.status === 'open')
+    return (
+      <div className="retro-asking">
+        <p className="retro-asking-n">{c.answers ? `${c.answers} ${c.answers === 1 ? 'answer' : 'answers'} so far` : 'Asked · no answers yet'}</p>
+        <button className="retro-ask retro-ask--share" onClick={() => onShare(c)}>Share answers</button>
+        <p className="retro-ask-hint">Shows the counts and lines, without names, and closes it. Or keep talking: it stays open.</p>
+      </div>
+    )
+  return <p className="retro-ask-hint">{c.results?.responded ? `Shared · ${c.results.responded} ${c.results.responded === 1 ? 'answer' : 'answers'}` : 'Shared · no answers came in'}</p>
 }
 
 /** A topic's timebox: guidance, never a cut-off. */
@@ -407,31 +489,6 @@ function Clock({ stage, controls, command }: { stage: StageSnapshot; controls: b
   )
 }
 
-/** An invitation to speak, never a turn: the order is random, and passing is always fine. */
-function Voices({ stage, controls, command }: { stage: StageSnapshot; controls: boolean; command: (c: Parameters<Command>[0]) => void }) {
-  const sp = stage.speaking
-  const line = sp?.current ? <><strong>{sp.current.display_name.split(' ')[0]}</strong>, {sp.prompt.charAt(0).toLowerCase() + sp.prompt.slice(1)}</> : sp?.status === 'exhausted' ? 'Everyone who’s ready has been invited.' : sp ? 'The floor is open.' : null
-  if (!line && !controls) return null
-  return (
-    <div className="retro-voices">
-      <p className="retro-note-label">Voices</p>
-      {line ? <p key={sp?.current?.account_id ?? 'open'} className="retro-voice anim-settle">{line}</p> : <p className="retro-voice retro-voice--quiet">If the room is quiet, invite someone. Passing is fine.</p>}
-      {controls ? (
-        <div className="retro-voice-do">
-          {sp?.status === 'active' ? (
-            <>
-              <button onClick={() => command({ type: 'speaking_next' })} title="N">Next voice</button>
-              {sp.current ? <button onClick={() => command({ type: 'speaking_open_floor' })}>Open the floor</button> : null}
-            </>
-          ) : (
-            <button onClick={() => command({ type: 'speaking_start' })}>{sp ? 'Invite again' : 'Invite someone'}</button>
-          )}
-        </div>
-      ) : null}
-    </div>
-  )
-}
-
 function Note({ label, value, controls, placeholder, onSave }: { label: string; value: string; controls: boolean; placeholder: string; onSave: (v: string) => Promise<void> }) {
   if (!controls && !value) return null
   return (
@@ -443,8 +500,9 @@ function Note({ label, value, controls, placeholder, onSave }: { label: string; 
 }
 
 // ---------- 4 · Agree ----------
-function Agree({ themes, experiments, controls, sprintId, participants, onChange, onEnd }: { themes: ThemeView[]; experiments: Experiment[]; controls: boolean; sprintId: string; participants: { account_id: string; display_name: string; is_facilitator: boolean; is_you: boolean }[]; onChange: () => void; onEnd: () => Promise<void> }) {
+function Agree({ themes, experiments, controls, sprintId, participants, onChange, onEnd, checkins }: { themes: ThemeView[]; experiments: Experiment[]; controls: boolean; sprintId: string; participants: { account_id: string; display_name: string; is_facilitator: boolean; is_you: boolean }[]; onChange: () => void; onEnd: () => Promise<void>; checkins: Checkins }) {
   const ideas = themes.filter((t) => t.could_try || t.takeaway)
+  const asking = useAsking(sprintId, checkins)
   const [seed, setSeed] = useState<{ text: string; theme: string } | null>(null)
   const [ending, setEnding] = useState(false)
   const waiting = experiments.filter((e) => e.status === 'proposed')
@@ -481,6 +539,7 @@ function Agree({ themes, experiments, controls, sprintId, participants, onChange
                   <p className="retro-idea-theme">{t.title}</p>
                   {t.takeaway ? <p className="retro-idea-line"><i>we’ll remember</i>{t.takeaway}</p> : null}
                   {t.could_try ? <p className="retro-idea-line"><i>we could try</i>{t.could_try}</p> : null}
+                  {t.could_try ? <IdeaCheck c={checkins.list.find((c) => c.theme_id === t.id && c.kind === 'action') ?? null} idea={t.could_try} controls={controls} onOpen={(renew) => asking.open(t.id, 'action', renew)} onShare={asking.share} /> : null}
                   {experiments.some((e) => e.theme_id === t.id) ? (
                     <p className="retro-idea-done">Experiment {experiments.findIndex((e) => e.theme_id === t.id) + 1}</p>
                   ) : controls && t.could_try ? (
@@ -507,4 +566,15 @@ function Agree({ themes, experiments, controls, sprintId, participants, onChange
       </Dialog>
     </section>
   )
+}
+
+/**
+ * What the room said about an idea, if it was asked — shown as it came back, never as "endorsed".
+ * An idea nobody checked carries no label at all.
+ */
+function IdeaCheck({ c, idea, controls, onOpen, onShare }: { c: CheckinView | null; idea: string; controls: boolean; onOpen: (renew: boolean) => void; onShare: (c: CheckinView) => void }) {
+  const reworded = !!c && c.could_try !== idea
+  if (c && !reworded && c.status === 'shared') return c.results?.responded ? <div className="retro-idea-check"><CheckinResult c={c} /></div> : <p className="retro-ask-hint">Checked · no answers came in</p>
+  if (!controls) return c && !reworded ? <p className="retro-ask-hint">Being checked on phones</p> : null
+  return <AskControl c={reworded ? null : c} idle={reworded ? 'Check this wording with the room' : 'Check it with the room'} onOpen={() => onOpen(reworded)} onShare={onShare} quiet />
 }

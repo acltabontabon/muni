@@ -218,17 +218,31 @@ topics as numbered lines on rules, never cards.
 
 The steps do their own housekeeping, so the facilitator never works the machinery. Choosing opens
 the vote; leaving it closes the vote and orders the topics; opening a topic starts its clock and
-counts it as discussed; moving on ends an invitation to speak; opening the retro marks you here.
+counts it as discussed; opening the retro marks you here.
 There's no reveal on the stage — everyone read every thought when collection closed — no quiet
 reading minute, no "mark as discussed", no menu of commands. What's left is where it's used: the
-next step in the rail's one button, the clock, voices and the two notes (*We'll remember*, *We
+next step in the rail's one button, the clock, the ask and the two notes (*We'll remember*, *We
 could try*) in the talk's margin, the verdicts under last time's experiments, the ideas from the
 talk beside Agree.
 
+**Quiet ways in.** A call is often two voices and a row of muted tiles. Muni doesn't call on
+anyone. It offers ways in that cost a moment: a *check-in* the facilitator can ask on a topic or an
+idea (one tap is a whole answer; a line is optional), and *Add to this discussion* on every phone.
+They're offered, never required. Nothing waits for everyone, and not answering means nothing. The
+facilitator's margin says what phones show right now, and holds *Ask how it showed up*, then a
+quiet count and *Share answers*. When the answers are shared, they land in the talk itself: the
+counts in words at display size ("2 felt this · 1 not in their work") and the lines people wrote,
+each beside its answer, in the category-in-the-margin voice. There are no percentages, no bars and
+no summary written for people. A concern about an idea is set in the accent italic and listed
+first, so a majority can't make it disappear. One answer reads as one answer; none shows nothing
+at all. The phone's check-in is the one tinted panel on the page: three full-width answers with a
+drawn check mark, "Saving…" until the server has it, then a line saying it can still change. A
+topic's own words stay visible above and below it.
+
 Presenting (**H**) removes every control, so the shared screen shows only the room's words. The
-phone carries the private things — your votes, whether you'll be invited to speak, what you add
-without your name — and nothing else. Changing any of this: `web/e2e/retro.mjs` walks the whole
-retro on a stage and two phones.
+phone carries the private things — your votes, your answers, what you add without your name, and
+saying yes to an experiment — and nothing else. Changing any of this: `web/e2e/retro.mjs` walks a
+whole meeting on a stage, a presenting screen and several phones, and counts what each thing costs.
 
 ## Characters and worlds
 
