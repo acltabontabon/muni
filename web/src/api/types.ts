@@ -1,5 +1,7 @@
 // The API contract is one TypeScript file shared with the Worker (worker/src/contract.ts).
 export type {
+  AccountDeleted,
+  AccountDeletionPreview,
   AuditEvent,
   CaptureTarget,
   Category,
@@ -37,4 +39,5 @@ export type {
   VotingState,
   Workspace,
   WorkspaceDetail,
+  WorkspaceStanding,
 } from '../../../worker/src/contract'

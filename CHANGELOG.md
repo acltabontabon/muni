@@ -16,7 +16,7 @@ those as highlights. The app's About → What's new and each GitHub release are 
 
 ## [Unreleased]
 
-## [1.0.0-rc.1] - 2026-09-28
+## [1.0.0-rc.1] - 2026-09-29
 
 ### Added
 
@@ -33,22 +33,35 @@ those as highlights. The app's About → What's new and each GitHub release are 
   anything until collection closes. Then every thought appears together, in random order, with no names.
 - **A retro in four steps.** Look back (did last time’s experiments help?), choose (what matters
   most?), talk (one topic at a time) and agree (what will we try?), on a shared screen while each
-  person follows on their own device. Voting opens and closes with its step and the talk follows
-  its order; the facilitator writes what the room will remember, and ideas to try, right on the
-  screen. If it helps, thoughts are gathered into themes first, on a sorting table that needs no
-  explaining — tick the ones that belong together, name them, give each an opening question.
+  person follows on their own phone. The first step shows the whole retro at a glance. Choosing says
+  why it matters — the talk has time for about three topics, so the votes pick which come first —
+  and the facilitator sees how many have voted, never who. In the talk, the topics lie along a
+  horizon with the sun on the one being discussed, on the stage and every phone; the facilitator
+  writes what the room will remember, and ideas to try, right on the screen. If it helps, thoughts
+  are gathered into themes first, on a sorting table that needs no explaining.
+- **See who’s here.** Faces in the retro light up as people open it on any screen — their
+  character, or their initials — and the stage says, once, when someone arrives.
 - **A way in for everyone, without having to speak.** When it helps, the facilitator asks how a
   topic showed up — *I felt this*, *Not in my work*, *I’d need context* — or whether an idea would
   help. One tap answers, a line is optional, and answers stay private until the facilitator shares
   them: counts and lines, never names, with a concern kept visible beside the rest. Anyone can also
   add an example, another view or a question to the topic from their phone, shared without their
   name when the facilitator brings it in. Nothing waits for everyone, and nobody is called on.
-- **Experiments that come back.** Agree on one to three changes to try. They open the next sprint’s
-  retro, so the team sees what actually happened.
+- **Experiments that come back.** Agree on one to three changes to try — start from an idea from the
+  talk in one tap; wording that reads like a hope gets a suggestion, never a wall. Each owner says
+  yes on their phone, and the experiments open the next sprint’s retro, so the team sees what
+  actually happened.
+- **A recap worth coming back to.** Once the retro ends, the sprint’s page is its recap: who came,
+  what the team will try and who owns it, what each topic left behind, and the facilitator’s own
+  words — the same page for everyone, easy to scan on a phone.
 - **Encrypted on your team’s devices.** New sprints are encrypted before anything leaves the browser,
   and Muni’s servers don’t hold the keys to read them. You sign in with a passkey — no passwords.
-- **A page that feels like yours.** Choose one of eight characters to give your sprint’s page a calm
-  room of its own, with the sprint drawn in its manner. Only you see it.
+- **A page that feels like yours.** Choose one of eight characters: it gives your own pages a calm
+  room of their own, and it’s your face in the retro, beside your name.
+- **Leave whenever you like.** Leave a workspace from its People page, or delete your account from
+  Account. Anything the team relies on — ownership, a sprint you facilitate — is handed on first, and
+  Muni says what that is. What nobody has seen yet goes with you; what the team saw stays, tied to
+  no one.
 
 [unreleased]: https://github.com/acltabontabon/muni/compare/v1.0.0-rc.1...HEAD
 [1.0.0-rc.1]: https://github.com/acltabontabon/muni/releases/tag/v1.0.0-rc.1

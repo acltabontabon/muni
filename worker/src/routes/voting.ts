@@ -32,10 +32,13 @@ async function roundView(db: D1Database, ctx: SprintCtx, r: RoundRow) {
     totals = {}
     for (const t of await all<{ theme_id: string; n: number }>(db, 'SELECT theme_id, count(*) AS n FROM votes WHERE round_id = ? GROUP BY theme_id', r.id)) totals[t.theme_id] = Number(t.n)
   }
+  // The facilitator, while voting is open: how many people have voted so far (never who, or for what).
+  const voters = r.status === 'open' && ctx.isFacilitator ? Number((await one<{ n: number }>(db, 'SELECT count(DISTINCT account_id) AS n FROM votes WHERE round_id = ?', r.id))?.n ?? 0) : null
   return {
     id: r.id,
     status: r.status,
     budget: r.budget,
+    voters,
     cancel_reason: r.cancel_reason,
     opened_at: new Date(r.opened_at).toISOString(),
     closed_at: r.closed_at ? new Date(r.closed_at).toISOString() : null,
@@ -137,7 +140,10 @@ voting.post('/api/sprints/:sprintId/votes', async (c) => {
   } else {
     await run(db, 'DELETE FROM votes WHERE round_id = ? AND theme_id = ? AND account_id = ?', round.id, themeId, me)
   }
-  // No hint: nobody learns that someone voted.
+  // Nobody learns what anyone voted for. Only the facilitator's count of voters moves: when this
+  // person goes from no votes to some, or back to none, the facilitator's screen reads it again.
+  const mine = await count(db, 'SELECT count(*) AS n FROM votes WHERE round_id = ? AND account_id = ?', round.id, me)
+  if ((body.cast && mine === 1) || (!body.cast && mine === 0)) await hint(c.env, ctx.sprint.id, 'votes', { facilitators: true })
   return c.json(await votingState(db, ctx))
 })
 

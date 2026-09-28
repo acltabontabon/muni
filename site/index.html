@@ -105,7 +105,7 @@
         <h2 id="problem-title" class="display">Friday, 3 pm. <em>The retro.</em></h2>
         <p class="lede">Two weeks of work, one hour, a grid of faces on a call. You’ve probably been in this one.</p>
         <ol class="woes">
-          <li class="woe" data-woe="memory">
+          <li class="woe" id="woe-memory" data-woe="memory">
             <div class="woe-art" aria-hidden="true">
               <div class="fade-days">
                 <span style="--d:0"><i></i><i></i></span><span style="--d:1"><i></i></span><span style="--d:2"><i></i><i></i><i></i></span><span style="--d:3"><i></i></span><span style="--d:4"><i></i><i></i></span>
@@ -117,7 +117,7 @@
             <p>Asked what went well, everyone remembers the last three days. The thing that actually hurt, in week one, never comes up.</p>
             <p class="woe-fix"><span>With Muni</span> Write it down the moment it happens — a line is enough, on your phone.</p>
           </li>
-          <li class="woe" data-woe="voices">
+          <li class="woe" id="woe-voices" data-woe="voices">
             <div class="woe-art" aria-hidden="true">
               <div class="call">
                 <span class="call-tile talk">JW</span><span class="call-tile">AT</span><span class="call-tile">PN</span>
@@ -129,7 +129,7 @@
             <p>The others have something to say. There’s never a good moment to unmute and say it.</p>
             <p class="woe-fix"><span>With Muni</span> Everyone answers a check-in in one tap, or adds a thought without taking the floor.</p>
           </li>
-          <li class="woe" data-woe="names">
+          <li class="woe" id="woe-names" data-woe="names">
             <div class="woe-art" aria-hidden="true">
               <div class="memo">
                 <p class="memo-said">Reviews here are a rubber stamp.</p>
@@ -141,7 +141,7 @@
             <p>When everyone can see who said it, the candid version turns into something safe — or nothing at all.</p>
             <p class="woe-fix"><span>With Muni</span> Thoughts stay sealed until collection closes, then show up together, without names.</p>
           </li>
-          <li class="woe" data-woe="actions">
+          <li class="woe" id="woe-actions" data-woe="actions">
             <div class="woe-art" aria-hidden="true">
               <ul class="actions">
                 <li><i></i>Improve code reviews <span>Sprint 11</span></li>
@@ -155,6 +155,162 @@
           </li>
         </ol>
         <p class="problem-bridge">So Muni starts the retro <em>before</em> the meeting, lets everyone in, and remembers what you agreed. <a href="#how">Here’s how <span aria-hidden="true">→</span></a></p>
+      </div>
+    </section>
+
+    <!-- ── Both sides of one retro: the stage and the phone, step by step ── -->
+    <section class="duo" id="demo" data-sky="day" aria-labelledby="duo-title">
+      <div class="container">
+        <p class="kicker">A retro with Muni</p>
+        <h2 id="duo-title" class="display">Two screens, <em>one conversation</em>.</h2>
+        <p class="lede">The facilitator runs the shared stage. Everyone else holds the private half on their phone. Here’s the same retro from both sides — and which problem each step answers.</p>
+
+        <div class="duo-tabs" role="tablist" aria-label="The retro, step by step">
+          <button role="tab" id="duo-t1" aria-controls="duo-p1" aria-selected="true"><span>1</span>Look back<i></i></button>
+          <button role="tab" id="duo-t2" aria-controls="duo-p2" aria-selected="false" tabindex="-1"><span>2</span>Choose<i></i></button>
+          <button role="tab" id="duo-t3" aria-controls="duo-p3" aria-selected="false" tabindex="-1"><span>3</span>Talk<i></i></button>
+          <button role="tab" id="duo-t4" aria-controls="duo-p4" aria-selected="false" tabindex="-1"><span>4</span>Agree<i></i></button>
+          <button role="tab" id="duo-t5" aria-controls="duo-p5" aria-selected="false" tabindex="-1"><span>→</span>Recap<i></i></button>
+        </div>
+
+        <div class="duo-panels">
+          <div class="duo-panel" role="tabpanel" id="duo-p1" aria-labelledby="duo-t1">
+            <div class="duo-screens" aria-hidden="true">
+              <div class="ds">
+                <div class="ds-bar"><span class="ds-name"><svg width="14" height="14"><use href="#mark" /></svg> Sprint 14</span><ol><li class="on"><i>1</i>Look back</li><li><i>2</i>Choose</li><li><i>3</i>Talk</li><li><i>4</i>Agree</li></ol><span class="ds-faces"><i class="f on" style="--h:#d6a452">MR</i><i class="f on" style="--h:#c8674a">JW</i><i class="f on" style="--h:#8fb3a4">PN</i><i class="f on" style="--h:#7fa0c8">TI</i><i class="f on" style="--h:#a9b86a">AT</i><i class="f" style="--h:#e0c9a6">SO</i><b>5/6</b></span></div>
+                <p class="ds-arrive"><i class="f on" style="--h:#8fb3a4">PN</i> Priya pulled up a chair.</p>
+                <p class="ds-kicker">01 Look back</p>
+                <p class="ds-title">Last time, we said we’d <em>try</em>…</p>
+                <p class="ds-exp">Keep 20 minutes after standup for first reviews.</p>
+                <p class="ds-verdicts"><span class="on">Helped</span><span>Didn’t help</span><span>Inconclusive</span><span>Not tried yet</span></p>
+              </div>
+              <div class="dp">
+                <p class="dp-head">Sprint 14 <span>1 · Look back</span></p>
+                <p class="dp-title">Last time, we said we’d <em>try</em>…</p>
+                <p class="dp-exp">Keep 20 minutes after standup for first reviews.</p>
+                <p class="dp-verdict">Helped</p>
+                <p class="dp-quiet">What you agree today comes back here next time.</p>
+              </div>
+            </div>
+            <div class="duo-notes">
+              <p><b>Facilitator</b>Opens the stage. Faces light up as people join, and last time’s experiments come back first.</p>
+              <p><b>Everyone</b>Opens Muni on their phone — that’s joining — and says whether last time’s change actually helped.</p>
+              <a class="duo-solves" href="#woe-actions"><span>Answers</span>“Agreed three times. Revisited never.”</a>
+            </div>
+          </div>
+
+          <div class="duo-panel" role="tabpanel" id="duo-p2" aria-labelledby="duo-t2" hidden>
+            <div class="duo-screens" aria-hidden="true">
+              <div class="ds">
+                <div class="ds-bar"><span class="ds-name"><svg width="14" height="14"><use href="#mark" /></svg> Sprint 14</span><ol><li><i>1</i>Look back</li><li class="on"><i>2</i>Choose</li><li><i>3</i>Talk</li><li><i>4</i>Agree</li></ol><span class="ds-faces"><i class="f on" style="--h:#d6a452">MR</i><i class="f on" style="--h:#c8674a">JW</i><i class="f on" style="--h:#8fb3a4">PN</i><i class="f on" style="--h:#7fa0c8">TI</i><i class="f on" style="--h:#a9b86a">AT</i><i class="f" style="--h:#e0c9a6">SO</i><b>6/6</b></span></div>
+                <p class="ds-kicker">02 Choose</p>
+                <p class="ds-title">What matters <em>most</em>?</p>
+                <p class="ds-sub">Time for about three of these four topics. The most-voted go first.</p>
+                <div class="ds-two">
+                  <ol class="ds-topics"><li><i>1</i>Who owns staging?</li><li><i>2</i>Reviews that wait</li><li><i>3</i>What helped us ship</li><li><i>4</i>Planning runs long</li></ol>
+                  <div class="ds-count"><span>Votes so far</span><b>5 <small>of 6</small></b><p class="ds-dots"><i class="on"></i><i class="on"></i><i class="on"></i><i class="on"></i><i class="on"></i><i></i></p></div>
+                </div>
+              </div>
+              <div class="dp">
+                <p class="dp-head">Sprint 14 <span>2 · Choose</span></p>
+                <p class="dp-title">What matters <em>most</em>?</p>
+                <p class="dp-purse"><span><i class="on"></i><i></i><i></i></span>1 of 3 votes left · nobody sees yours</p>
+                <p class="dp-topic voted">Who owns staging? <span>Voted ✓</span></p>
+                <p class="dp-topic voted">Reviews that wait <span>Voted ✓</span></p>
+                <p class="dp-topic">What helped us ship <span>Vote for this</span></p>
+              </div>
+            </div>
+            <div class="duo-notes">
+              <p><b>Facilitator</b>Sees how many have voted — never who, or for what — and moves on when most have.</p>
+              <p><b>Everyone</b>Spends three private votes on what the team should talk about first. The quiet ones decide the agenda too.</p>
+              <a class="duo-solves" href="#woe-voices"><span>Answers</span>“Two people talk. Seven are muted tiles.”</a>
+            </div>
+          </div>
+
+          <div class="duo-panel" role="tabpanel" id="duo-p3" aria-labelledby="duo-t3" hidden>
+            <div class="duo-screens" aria-hidden="true">
+              <div class="ds">
+                <div class="ds-bar"><span class="ds-name"><svg width="14" height="14"><use href="#mark" /></svg> Sprint 14</span><ol><li><i>1</i>Look back</li><li><i>2</i>Choose</li><li class="on"><i>3</i>Talk</li><li><i>4</i>Agree</li></ol><span class="ds-faces"><i class="f on" style="--h:#d6a452">MR</i><i class="f on" style="--h:#c8674a">JW</i><i class="f on" style="--h:#8fb3a4">PN</i><i class="f on" style="--h:#7fa0c8">TI</i><i class="f on" style="--h:#a9b86a">AT</i><i class="f" style="--h:#e0c9a6">SO</i><b>5/6</b></span></div>
+                <div class="ds-horizon"><span class="now">1 Who owns staging?</span><span>2 Reviews that wait</span><span>3 What helped us ship</span></div>
+                <p class="ds-kicker">Now talking about · topic 1 of 4</p>
+                <p class="ds-title">Who owns staging?</p>
+                <p class="ds-label">How it showed up</p>
+                <p class="ds-tally">4 felt this <i>·</i> 1 not in their work</p>
+                <p class="ds-line"><span>I felt this</span>I restarted it twice without knowing whose it was.</p>
+              </div>
+              <div class="dp">
+                <p class="dp-horizon"><i class="now"></i><i></i><i></i><i></i></p>
+                <p class="dp-title">Who owns staging?</p>
+                <div class="dp-ask">
+                  <p>How did this show up for you?</p>
+                  <span class="pick">I felt this</span><span>Not in my work</span><span>I’d need context</span>
+                </div>
+                <p class="dp-add">+ Add to this discussion</p>
+              </div>
+            </div>
+            <div class="duo-notes">
+              <p><b>Facilitator</b>Asks how the topic showed up, then shares the answers on the stage — counts and lines, never names.</p>
+              <p><b>Everyone</b>Answers in one tap, or adds an example or a question without taking the floor.</p>
+              <a class="duo-solves" href="#woe-names"><span>Answers</span>“The hard thing gets softened.”</a>
+            </div>
+          </div>
+
+          <div class="duo-panel" role="tabpanel" id="duo-p4" aria-labelledby="duo-t4" hidden>
+            <div class="duo-screens" aria-hidden="true">
+              <div class="ds">
+                <div class="ds-bar"><span class="ds-name"><svg width="14" height="14"><use href="#mark" /></svg> Sprint 14</span><ol><li><i>1</i>Look back</li><li><i>2</i>Choose</li><li><i>3</i>Talk</li><li class="on"><i>4</i>Agree</li></ol><span class="ds-faces"><i class="f on" style="--h:#d6a452">MR</i><i class="f on" style="--h:#c8674a">JW</i><i class="f on" style="--h:#8fb3a4">PN</i><i class="f on" style="--h:#7fa0c8">TI</i><i class="f on" style="--h:#a9b86a">AT</i><i class="f" style="--h:#e0c9a6">SO</i><b>6/6</b></span></div>
+                <p class="ds-kicker">04 Agree</p>
+                <p class="ds-title">What will we <em>try</em>?</p>
+                <p class="ds-exp">Name a staging owner in every on-call handover.</p>
+                <p class="ds-owner"><span class="wait">Waiting for Tomás to say yes</span><span class="yes">Tomás owns this</span> <i>we’ll know by</i> someone is on a staging incident within 15 minutes</p>
+              </div>
+              <div class="dp">
+                <div class="dp-invite">
+                  <p class="dp-invite-k">Will you own this?</p>
+                  <p class="dp-invite-t">Name a staging owner in every on-call handover.</p>
+                  <p class="dp-invite-b"><span>I’ll own this</span><em>Not me</em></p>
+                </div>
+                <p class="dp-quiet">Saying yes means you keep it moving — not that you do it all yourself.</p>
+              </div>
+            </div>
+            <div class="duo-notes">
+              <p><b>Facilitator</b>Turns the room’s idea into one to three experiments, each with a sign it helped and an owner.</p>
+              <p><b>Everyone</b>The owner says yes on their phone. The experiment opens the next retro — to see if it worked.</p>
+              <a class="duo-solves" href="#woe-actions"><span>Answers</span>“Action items are vague and have no owner.”</a>
+            </div>
+          </div>
+
+          <div class="duo-panel" role="tabpanel" id="duo-p5" aria-labelledby="duo-t5" hidden>
+            <div class="duo-screens" aria-hidden="true">
+              <div class="ds ds--paper">
+                <div class="ds-bar"><span class="ds-name"><svg width="14" height="14"><use href="#mark" /></svg> Sprint 14 · Harbor</span><span class="ds-done">Retro done</span></div>
+                <p class="ds-kicker">The retro · Tuesday · 43 minutes</p>
+                <p class="ds-title">5 people came. <em>Here’s what came of it.</em></p>
+                <ul class="ds-people"><li><i class="f on" style="--h:#d6a452">MR</i><span>Maya</span></li><li><i class="f on" style="--h:#c8674a">JW</i><span>Jonas</span></li><li><i class="f on" style="--h:#8fb3a4">PN</i><span>Priya</span></li><li><i class="f on" style="--h:#7fa0c8">TI</i><span>Tomás</span></li><li><i class="f on" style="--h:#a9b86a">AT</i><span>Aiko</span></li><li><i class="f" style="--h:#e0c9a6">SO</i><span>Sam</span></li></ul>
+                <p class="ds-section">What we’ll <em>try</em></p>
+                <p class="ds-exp ds-exp--row"><span><i>1</i>Name a staging owner in every on-call handover.</span><b><i class="f on" style="--h:#7fa0c8">TI</i> Tomás owns this</b></p>
+                <p class="ds-exp ds-exp--row"><span><i>2</i>Keep 20 minutes after standup for first reviews.</span><b><i class="f on" style="--h:#a9b86a">AT</i> Aiko owns this</b></p>
+                <p class="ds-section">What we <em>talked about</em></p>
+                <p class="ds-topic"><span><i>1</i>Who owns staging? <small>we’ll remember — staging needs a named owner</small></span><b>5</b></p>
+                <p class="ds-topic"><span><i>2</i>Reviews that wait</span><b>4</b></p>
+              </div>
+              <div class="dp">
+                <p class="dp-head">Sprint 14 <span>Retro done</span></p>
+                <p class="dp-title">5 people came. <em>Here’s what came of it.</em></p>
+                <p class="dp-faces"><i class="f on" style="--h:#d6a452">MR</i><i class="f on" style="--h:#c8674a">JW</i><i class="f on" style="--h:#8fb3a4">PN</i><i class="f on" style="--h:#7fa0c8">TI</i><i class="f on" style="--h:#a9b86a">AT</i></p>
+                <p class="dp-exp">Name a staging owner in every on-call handover.</p>
+                <p class="dp-quiet">Tomás owns this · back on Oct 25</p>
+                <div class="dp-letter"><b>In the facilitator’s words</b>We spent most of the hour on Wednesday’s outage…</div>
+              </div>
+            </div>
+            <div class="duo-notes">
+              <p><b>Facilitator</b>Publishes the recap — filled in from what the retro recorded, then in their own words.</p>
+              <p><b>Everyone</b>One page to come back to: who came, what the team will try and who owns it, and what each topic left behind.</p>
+              <a class="duo-solves" href="#woe-memory"><span>Answers</span>“Monday’s lesson is gone by Friday.”</a>
+            </div>
+          </div>
+        </div>
+        <p class="duo-film"><a href="https://github.com/acltabontabon/muni/releases">Or watch the whole sprint in 75 seconds, from the first thought to the last yes <span aria-hidden="true">→</span></a></p>
       </div>
     </section>
 
@@ -213,7 +369,7 @@
             <span class="stage-timer" data-timer>12:40</span>
           </div>
           <div class="stage-body">
-            <p class="stage-kicker">Topic 1 of 3 · 5 votes</p>
+            <p class="stage-kicker">Now talking about · topic 1 of 3 · 5 votes</p>
             <p class="stage-title">PR review turnaround</p>
             <p class="stage-question">What would make a first review arrive within a day, without making reviews shallower?</p>
             <div class="moment" data-moment="shared">
@@ -239,7 +395,7 @@
 
         <ul class="features">
           <li><h3>Four steps, one question each</h3><p>Did last time’s experiments help? What matters most? Then the talk, topic by topic, and what to try. The steps open and close the vote themselves.</p></li>
-          <li><h3>Votes on every phone</h3><p>Everyone picks what to talk about first, privately. Nobody sees a count until the room moves on.</p></li>
+          <li><h3>Votes on every phone</h3><p>The talk has time for about three topics, so everyone picks which come first — privately. The counts appear when the room moves on; until then the facilitator sees only how many have voted.</p></li>
           <li><h3>Disagreement stays visible</h3><p>Opposing views sit side by side in their own words. Nothing is averaged into a paragraph, and nobody is called on.</p></li>
         </ul>
       </div>

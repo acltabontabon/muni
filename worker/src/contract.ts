@@ -138,6 +138,8 @@ export interface MemberInfo {
   role: string
   joined_at: string
   is_you: boolean
+  /** Owners only (empty otherwise): unfinished sprints this person facilitates that others are in. Removing them waits until they hand these on. */
+  facilitating: { id: string; name: string }[]
 }
 export interface PendingInvitation {
   id: string
@@ -152,10 +154,32 @@ export interface WorkspaceDetail {
   pending_invitations: PendingInvitation[]
   can_invite: boolean
 }
+/** Where you stand in a workspace, before leaving it or deleting your account. */
+export interface WorkspaceStanding {
+  workspace_id: string
+  workspace_name: string
+  /** No one else is an active member: leaving means the workspace goes too. */
+  sole: boolean
+  /** Their only owner, while other people remain. */
+  last_owner: boolean
+  /** Unfinished sprints you facilitate that someone else takes part in. */
+  facilitating: { id: string; name: string }[]
+}
+export interface AccountDeletionPreview {
+  can_delete: boolean
+  workspaces: WorkspaceStanding[]
+}
+export interface AccountDeleted {
+  ok: true
+  rp_id: string
+  credential_ids: string[]
+}
 export interface AuditEvent {
   id: number
   sprint_id: string | null
   actor_name: string | null
+  /** The actor has since deleted their account (shown as someone, not Muni). */
+  actor_gone: boolean
   action: string
   meta: Record<string, unknown>
   created_at: string
@@ -286,6 +310,8 @@ export interface VoteRoundView {
   closed_at: string | null
   my_votes: string[]
   my_remaining: number
+  /** The facilitator only, while the round is open: how many people have voted so far. */
+  voters: number | null
   totals: Record<string, number> | null
   eligible: boolean
 }
@@ -303,7 +329,11 @@ export interface TimerView {
 export interface AttendeeView {
   account_id: string
   display_name: string
+  /** Their character, shown as their face in the retro (with their name, never with anything anonymous). */
+  avatar_id: string | null
   present: boolean
+  /** Has the retro open right now (the stage or their phone), live. */
+  connected: boolean
   is_facilitator: boolean
   is_you: boolean
 }

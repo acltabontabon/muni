@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { clsx } from 'clsx'
 import type { Experiment, SharedEntry } from '@/api/types'
 import { OUTCOME_LABEL, PERIODS, categoryMeta } from '@/lib/categories'
@@ -95,5 +95,64 @@ export function NoteField({ value, onSave, placeholder, label }: { value: string
       />
       {saved ? <span className="retro-saved" aria-live="polite">Saved</span> : null}
     </div>
+  )
+}
+
+const MAP: { id: string; label: string; what: string }[] = [
+  { id: 'look_back', label: 'Look back', what: 'Did last time’s experiments help?' },
+  { id: 'choose', label: 'Choose', what: 'Vote privately on what to talk about first.' },
+  { id: 'talk', label: 'Talk', what: 'One topic at a time. Add from your phone, without a name.' },
+  { id: 'agree', label: 'Agree', what: 'One to three changes to try, each with an owner.' },
+]
+
+/** The retro at a glance: its steps, what each is for, and roughly how long — so nobody wonders what's next. */
+export function RetroMap({ phases, plan, now }: { phases: string[]; plan: Record<string, number>; now: string }) {
+  const steps = MAP.filter((m) => phases.includes(m.id))
+  return (
+    <ol className="retro-map" aria-label="Today’s retro">
+      {steps.map((m, i) => (
+        <li key={m.id} data-now={m.id === now || undefined}>
+          <span className="retro-map-n">{i + 1}</span>
+          <span className="retro-map-label">{m.label}{plan[m.id] ? <em>~{plan[m.id]} min</em> : null}</span>
+          <span className="retro-map-what">{m.what}</span>
+        </li>
+      ))}
+    </ol>
+  )
+}
+
+/**
+ * The talk's topics as a horizon: a stop for each, the sun resting on the one being discussed,
+ * those already talked about behind it and the rest ahead. The facilitator can move the sun by
+ * choosing a stop; everyone else just sees where the room is. `compact` (the phone) names only
+ * the current stop.
+ */
+export function TopicHorizon({ topics, current, discussed, titleOf, onPick, compact }: { topics: string[]; current: string | null; discussed: string[]; titleOf: (id: string) => string; onPick?: (id: string) => void; compact?: boolean }) {
+  const at = current ? topics.indexOf(current) : -1
+  if (topics.length < 2) return null
+  return (
+    <nav className="horizon" data-compact={compact || undefined} aria-label="Topics" style={{ ['--n' as string]: topics.length, ['--at' as string]: Math.max(0, at) }}>
+      <ol>
+        {topics.map((id, i) => {
+          const state = id === current ? 'now' : discussed.includes(id) || (at >= 0 && i < at) ? 'past' : 'ahead'
+          const label: ReactNode = (
+            <>
+              <i className="horizon-stop" aria-hidden />
+              <span className="horizon-label"><span className="horizon-n">{i + 1}</span><span className="horizon-title">{titleOf(id)}</span></span>
+            </>
+          )
+          return (
+            <li key={id} data-state={state}>
+              {onPick && state !== 'now' ? (
+                <button onClick={() => onPick(id)} title={`Talk about “${titleOf(id)}”`}>{label}</button>
+              ) : (
+                <span aria-current={state === 'now' ? 'step' : undefined}>{label}</span>
+              )}
+            </li>
+          )
+        })}
+      </ol>
+      {at >= 0 ? <span className="horizon-sun" key={current} aria-hidden /> : null}
+    </nav>
   )
 }

@@ -372,6 +372,52 @@
       requestAnimationFrame(frame)
     }
   }
+  /* ── Both sides of one retro: four steps as tabs, playing on their own while on screen. ──
+     Hover, focus or a click hands control to the reader; nothing runs while it's hidden. */
+  const duo = document.querySelector('.duo')
+  if (duo) {
+    const tabs = [...duo.querySelectorAll('[role=tab]')]
+    const panels = tabs.map((t) => document.getElementById(t.getAttribute('aria-controls')))
+    const DUR = 7000
+    let at = 0, timer = 0, owned = 0, visible = false, held = false, stopped = reduced
+    duo.style.setProperty('--dur', `${DUR}ms`)
+    const show = (i, focus = false) => {
+      at = (i + tabs.length) % tabs.length
+      tabs.forEach((t, j) => {
+        t.setAttribute('aria-selected', String(j === at))
+        t.tabIndex = j === at ? 0 : -1
+        panels[j].hidden = j !== at
+        panels[j].classList.remove('owned')
+      })
+      clearTimeout(owned)
+      // Agree: after a moment, the owner says yes on their phone and the stage says so.
+      if (panels[at].querySelector('.ds-owner')) owned = setTimeout(() => panels[at].classList.add('owned'), reduced ? 0 : 2800)
+      if (focus) tabs[at].focus()
+      schedule()
+    }
+    const playing = () => visible && !held && !stopped
+    const schedule = () => {
+      clearTimeout(timer)
+      duo.toggleAttribute('data-playing', playing())
+      if (playing()) timer = setTimeout(() => show(at + 1), DUR)
+    }
+    tabs.forEach((t, i) => {
+      t.addEventListener('click', () => { stopped = true; show(i) })
+      t.addEventListener('keydown', (e) => {
+        const d = { ArrowRight: 1, ArrowLeft: -1 }[e.key]
+        if (e.key === 'Home' || e.key === 'End') { e.preventDefault(); stopped = true; show(e.key === 'Home' ? 0 : tabs.length - 1, true) }
+        else if (d) { e.preventDefault(); stopped = true; show(at + d, true) }
+      })
+    })
+    const hold = (on) => () => { held = on; schedule() }
+    duo.addEventListener('pointerenter', hold(true))
+    duo.addEventListener('pointerleave', hold(false))
+    duo.addEventListener('focusin', hold(true))
+    duo.addEventListener('focusout', (e) => { if (!duo.contains(e.relatedTarget)) hold(false)() })
+    new IntersectionObserver(([e]) => { visible = e.isIntersecting; schedule() }, { threshold: 0.35 }).observe(duo)
+    show(0)
+  }
+
   addEventListener('scroll', queue, { passive: true })
   addEventListener('resize', () => { layout(); queue() })
   if (document.fonts) document.fonts.ready.then(() => { layout(); queue() })

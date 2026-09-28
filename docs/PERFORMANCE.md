@@ -53,7 +53,7 @@ slowdown.
    ripple filter; because the mirrored shore was the moving one, the filter re-ran every frame, at
    the phone's full pixel density. In dark mode the fireflies also moved under `drop-shadow`
    filters, re-rasterised every frame. This is the only continuous work found anywhere in the app,
-   and the most likely source of the heat reported on phones — unverified on a phone.
+   and the most likely source of the heat reported on phones. Checked on real phones on 2026-09-29.
 
 2. **Home fetched the same data several times.** Its loaders depended on the local store's object,
    which changes identity on every send-queue update, so each update re-ran `capture-target`; the
@@ -172,10 +172,22 @@ promises about any particular phone.
 | After 12 round trips | ≤ 20 listeners, ≤ 200 DOM nodes left behind |
 | Typing | ≤ 200 ms/s main thread at 4× slowdown |
 
-## On a real phone (not done here)
+## The retro (2026-09-29)
 
-Nothing above was measured on a phone. No device was available, and emulation can't show
-heat, GPU work, or battery. To check the fix where it matters:
+`perf.mjs` (`ONLY=retro`) now also holds the retro to a budget: the stage during a topic
+(1440×900) and a phone on the same topic. Everything that moves there is finite — the sun rising
+on the talk's horizon, an arrival line fading, a face lighting up — so at rest the only work is
+the topic clock, which visibly ticks once a second. `useCountdown` used to re-render every 500 ms;
+it now wakes only when the shown second changes (and not at all at zero). Measured: ~1 ms/s main
+thread, 2 frames/s, 4 small paints/s, 2 timer fires/s, no requests. The budget for a ticking
+retro screen is stated separately in `perf.mjs` (≤2.5 frames/s, ≤5 paints/s, ≤2 timers/s); every
+other screen keeps the idle budget.
+
+## On a real phone
+
+The budgets above come from emulation, which can't show heat, GPU work or battery. The maintainer
+checked Muni on real iPhone and Android phones on 2026-09-29. To check again after a change to the
+scenes or the retro, where it matters:
 
 1. **iPhone (Safari, and the home-screen app).** Charge, close other apps, room temperature.
    Open act.munimuni.app signed out, leave the sign-in page on screen for 10 minutes; then sign in

@@ -4,12 +4,13 @@ import { config } from '../lib/config'
 import { requireMember, requireOwner } from '../lib/auth'
 import { randomToken, sha256Hex, uuid } from '../lib/crypto'
 import { all, audit, batch, bool, count, one, run } from '../lib/db'
-import { bad, conflict, forbidden, notFound } from '../lib/errors'
+import { AppError, bad, conflict, forbidden, notFound } from '../lib/errors'
 import { templates } from '../lib/email'
 import { limit } from '../lib/ratelimit'
 import { nonempty, normalizeEmail } from '../lib/util'
 import { enqueue, runSoon } from '../jobs'
 import { revokeLive } from '../lib/live'
+import { deleteWorkspaces, facilitated, openSprints, revokeMembership, standing } from '../lib/departure'
 import { EMAIL_OF_A } from '../lib/accounts'
 
 export const workspaces = new Hono<HonoEnv>()
@@ -46,16 +47,18 @@ workspaces.get('/api/workspaces/:workspaceId', async (c) => {
   const isOwner = m.role === 'owner'
   // Independent reads travel to the database together. Pending invitations are read alongside and
   // returned only to someone who may invite.
-  const [workspace, rows, can_invite, invitations] = await Promise.all([
+  const [workspace, rows, can_invite, invitations, fac] = await Promise.all([
     loadWorkspace(c.env, m.workspaceId, m.role),
     all<{ id: string; display_name: string; email: string | null; role: string; created_at: number }>(c.env.DB, `SELECT a.id, a.display_name, ${EMAIL_OF_A} AS email, m.role, m.created_at FROM memberships m JOIN accounts a ON a.id = m.account_id WHERE m.workspace_id = ? AND m.revoked_at IS NULL ORDER BY m.created_at`, m.workspaceId),
     canInvite(c.env.DB, m.workspaceId, m.auth.account.id, m.role),
     all<{ id: string; email: string; sprint_id: string | null; expires_at: number; created_at: number }>(c.env.DB, 'SELECT id, email, sprint_id, expires_at, created_at FROM invitations WHERE workspace_id = ? AND accepted_at IS NULL AND revoked_at IS NULL AND expires_at > ? ORDER BY created_at DESC LIMIT 100', m.workspaceId, Date.now()),
+    // Owners see who a removal would strand a sprint for; nobody else is told.
+    isOwner ? facilitated(c.env.DB, { workspaceId: m.workspaceId }) : Promise.resolve([]),
   ])
   const pending = can_invite ? invitations : []
   return c.json({
     workspace,
-    members: rows.map((r) => ({ account_id: r.id, display_name: r.display_name, email: isOwner ? r.email : null, role: r.role, joined_at: new Date(r.created_at).toISOString(), is_you: r.id === m.auth.account.id })),
+    members: rows.map((r) => ({ account_id: r.id, display_name: r.display_name, email: isOwner ? r.email : null, role: r.role, joined_at: new Date(r.created_at).toISOString(), is_you: r.id === m.auth.account.id, facilitating: fac.filter((f) => f.account_id === r.id).map((f) => ({ id: f.id, name: f.name })) })),
     pending_invitations: pending.map((p) => ({ id: p.id, email: p.email, sprint_id: p.sprint_id, expires_at: new Date(p.expires_at).toISOString(), created_at: new Date(p.created_at).toISOString() })),
     can_invite,
   })
@@ -132,16 +135,42 @@ workspaces.delete('/api/workspaces/:workspaceId/members/:accountId', async (c) =
     const owners = await count(c.env.DB, "SELECT count(*) AS n FROM memberships WHERE workspace_id = ? AND role = 'owner' AND revoked_at IS NULL", m.workspaceId)
     if (owners <= 1) throw conflict('a workspace needs at least one owner')
   }
-  const liveSprints = await all<{ id: string }>(c.env.DB, `SELECT s.id FROM sprints s JOIN sprint_participants sp ON sp.sprint_id = s.id WHERE s.workspace_id = ? AND sp.account_id = ? AND s.status NOT IN ('completed','archived')`, m.workspaceId, target)
-  await batch(c.env.DB, [
-    ['UPDATE memberships SET revoked_at = ? WHERE workspace_id = ? AND account_id = ? AND revoked_at IS NULL', Date.now(), m.workspaceId, target],
-    // Drop them from unfinished sprints; their sealed entries stay in the sprint's pool.
-    [`DELETE FROM sprint_participants WHERE account_id = ? AND sprint_id IN (SELECT id FROM sprints WHERE workspace_id = ? AND status NOT IN ('completed','archived'))`, target, m.workspaceId],
-    ['INSERT INTO audit_events (workspace_id, actor_id, action, meta, created_at) VALUES (?,?,?,?,?)', m.workspaceId, m.auth.account.id, 'membership.revoked', JSON.stringify({ account_id: target }), Date.now()],
-  ])
+  // Nobody is removed from under a sprint the team depends on: its facilitator hands it on first.
+  const facilitating = (await facilitated(c.env.DB, { accountId: target, workspaceId: m.workspaceId })).map((f) => ({ id: f.id, name: f.name }))
+  if (facilitating.length)
+    throw new AppError(409, 'facilitating', `they facilitate ${facilitating.map((f) => f.name).join(', ')} — ask them to choose another facilitator first`, { sprints: facilitating })
+  const liveSprints = await openSprints(c.env.DB, target, m.workspaceId)
+  await batch(c.env.DB, revokeMembership(m.workspaceId, target, m.auth.account.id, 'membership.revoked'))
   // Persisted first; live sockets are closed afterwards (and every join/command re-checks membership).
-  await Promise.all(liveSprints.map((s) => revokeLive(c.env, s.id, target)))
+  await Promise.all(liveSprints.map((s) => revokeLive(c.env, s, target)))
   return c.json({ ok: true })
+})
+
+/**
+ * Leave a workspace. The last owner hands ownership on first, and a facilitator hands on any
+ * unfinished sprint others are in. Someone alone in a workspace can leave only by deleting it,
+ * and says so (`delete_workspace: true`).
+ */
+workspaces.post('/api/workspaces/:workspaceId/leave', async (c) => {
+  const m = await requireMember(c, config(c.env), c.env.DB, c.req.param('workspaceId'))
+  const me = m.auth.account.id
+  const body = (await c.req.json().catch(() => ({}))) as { delete_workspace?: boolean }
+  const [s] = await standing(c.env.DB, me, m.workspaceId)
+  if (!s) throw notFound()
+  if (s.facilitating.length)
+    throw new AppError(409, 'facilitating', `hand ${s.facilitating.map((f) => f.name).join(', ')} to another facilitator first`, { sprints: s.facilitating })
+  if (s.last_owner) throw new AppError(409, 'last_owner', 'make someone else an owner first')
+  const liveSprints = await openSprints(c.env.DB, me, m.workspaceId)
+  if (s.sole) {
+    if (body.delete_workspace !== true) throw new AppError(409, 'sole_member', 'you’re the only one here, so leaving deletes the workspace')
+    const res = await batch(c.env.DB, deleteWorkspaces([m.workspaceId], me))
+    if (!res[res.length - 1].meta.changes) throw new AppError(409, 'not_alone', 'someone just joined — leave again to see what that means')
+  } else {
+    const [done] = await batch(c.env.DB, revokeMembership(m.workspaceId, me, me, 'membership.left'))
+    if (!done.meta.changes) throw new AppError(409, 'last_owner', 'make someone else an owner first')
+  }
+  await Promise.all(liveSprints.map((id) => revokeLive(c.env, id, me)))
+  return c.json({ ok: true, deleted: s.sole })
 })
 
 workspaces.patch('/api/workspaces/:workspaceId/members/:accountId', async (c) => {
@@ -160,6 +189,7 @@ workspaces.patch('/api/workspaces/:workspaceId/members/:accountId', async (c) =>
 workspaces.get('/api/workspaces/:workspaceId/audit', async (c) => {
   const m = await requireMember(c, config(c.env), c.env.DB, c.req.param('workspaceId'))
   requireOwner(m)
-  const rows = await all<{ id: number; sprint_id: string | null; actor_name: string | null; action: string; meta: string; created_at: number }>(c.env.DB, 'SELECT e.id, e.sprint_id, a.display_name AS actor_name, e.action, e.meta, e.created_at FROM audit_events e LEFT JOIN accounts a ON a.id = e.actor_id WHERE e.workspace_id = ? ORDER BY e.id DESC LIMIT 200', m.workspaceId)
-  return c.json(rows.map((r) => ({ id: r.id, sprint_id: r.sprint_id, actor_name: r.actor_name, action: r.action, meta: JSON.parse(r.meta || '{}'), created_at: new Date(r.created_at).toISOString() })))
+  const rows = await all<{ id: number; sprint_id: string | null; actor_id: string | null; actor_name: string | null; action: string; meta: string; created_at: number }>(c.env.DB, 'SELECT e.id, e.sprint_id, e.actor_id, a.display_name AS actor_name, e.action, e.meta, e.created_at FROM audit_events e LEFT JOIN accounts a ON a.id = e.actor_id WHERE e.workspace_id = ? ORDER BY e.id DESC LIMIT 200', m.workspaceId)
+  // An actor whose account no longer exists is a person who deleted it, never Muni itself.
+  return c.json(rows.map((r) => ({ id: r.id, sprint_id: r.sprint_id, actor_name: r.actor_name, actor_gone: r.actor_id !== null && r.actor_name === null, action: r.action, meta: JSON.parse(r.meta || '{}'), created_at: new Date(r.created_at).toISOString() })))
 })

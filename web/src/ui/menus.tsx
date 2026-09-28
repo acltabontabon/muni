@@ -6,7 +6,7 @@ import { useEffect, useState, type FormEvent, type ReactNode } from 'react'
 import { Link, useNavigate } from 'react-router'
 import * as Popover from '@radix-ui/react-popover'
 import { clsx } from 'clsx'
-import { Check, ChevronDown, Download, LayoutList, LogOut, Monitor, Moon, Info, Plus, Settings2, Smile, Sun, Trash2, UserRound, Users } from 'lucide-react'
+import { Check, ChevronDown, ChevronRight, Download, LayoutList, LogOut, Monitor, Moon, Info, Plus, Settings2, Smile, Sun, Trash2, Users } from 'lucide-react'
 import { ApiError, post } from '@/api/client'
 import type { Me, Workspace } from '@/api/types'
 import { useAuth } from '@/lib/auth'
@@ -16,6 +16,7 @@ import { installInstructions, promptInstall, usePwa } from '@/lib/pwa'
 import { chooseWorkspace } from '@/lib/workspace'
 import { keyring } from '@/lib/e2ee/keyring'
 import { announceSignOut, markSignedOutLocally } from '@/lib/signout'
+import { APP_VERSION } from '@/lib/release'
 import { useDeviceKeys } from '@/lib/e2ee/E2eeProvider'
 import { Button, Dialog, ErrorText, Input, Label, Switch, useToast } from '@/ui'
 import { Portrait } from '@/worlds/portraits'
@@ -165,47 +166,55 @@ export function AccountMenu() {
       <Popover.Root open={open} onOpenChange={setOpen}>
         <Popover.Trigger asChild>
           <button data-account-trigger className="grid size-9 place-items-center overflow-hidden rounded-full bg-accent-soft text-sm font-semibold text-accent-ink hover:brightness-95" aria-label={`Account menu for ${me.display_name}`}>
-            {/* Their own character, on their own pages only: shared pages (often on a shared screen) show the initial. */}
-            {world.personal && world.character ? <Portrait id={world.character.id} size={36} /> : initial}
+            {world.character ? <Portrait id={world.character.id} size={36} /> : initial}
           </button>
         </Popover.Trigger>
         <Popover.Portal>
-          <Popover.Content align="end" sideOffset={6} className={clsx(panel, 'w-[min(22rem,calc(100vw-24px))]')}>
-            <div className="px-3 pb-2 pt-2.5">
-              <div className="truncate font-medium">{me.display_name}</div>
-              {offline ? <div className="text-sm text-ink-soft">Offline — showing what this device kept</div> : <div className="text-sm text-ink-soft">Signs in with a passkey</div>}
-            </div>
-            <div className="my-1 h-px bg-line" />
-            <Link to="/account" className={item} onClick={() => setOpen(false)}>
-              <UserRound className="size-4 text-ink-soft" /> Account &amp; settings
+          <Popover.Content align="end" sideOffset={6} className={clsx(panel, 'w-[min(21rem,calc(100vw-24px))]')}>
+            {/* You: your face, your name, and the way into your account. */}
+            <Link to="/account" className="acct-head" onClick={() => setOpen(false)}>
+              <span className="acct-face" aria-hidden>{world.character ? <Portrait id={world.character.id} size={44} /> : initial}</span>
+              <span className="min-w-0 flex-1">
+                <span className="block truncate font-medium">{me.display_name}</span>
+                <span className="block truncate text-[13px] text-ink-soft">{offline ? 'Offline — showing what this device kept' : 'Account & settings'}</span>
+              </span>
+              <ChevronRight className="size-4 shrink-0 text-ink-faint" aria-hidden />
             </Link>
             <button
-              className={item}
+              className={clsx(item, 'acct-row')}
               onClick={() => {
                 setOpen(false)
                 world.setChooserOpen(true)
               }}
             >
-              {world.character ? <Portrait id={world.character.id} size={16} /> : <Smile className="size-4 text-ink-soft" />} {world.character ? 'Change character' : 'Choose a character'}
+              <Smile className="size-4 text-ink-soft" aria-hidden />
+              <span className="flex-1">Character</span>
+              <span className="acct-value">{world.character ? world.character.name : 'Choose one'}</span>
             </button>
-            <div className="flex items-center gap-2 px-3 py-2" role="group" aria-label="Theme">
-              {([['system', Monitor], ['light', Sun], ['dark', Moon]] as const).map(([t, Icon]) => (
-                <button
-                  key={t}
-                  aria-pressed={theme === t}
-                  className={clsx('inline-flex h-8 flex-1 items-center justify-center gap-1.5 rounded-full border text-xs capitalize', theme === t ? 'border-accent bg-accent-soft text-accent-ink' : 'border-line text-ink-soft hover:text-ink')}
-                  onClick={() => {
-                    setTheme(t)
-                    writePrefs({ theme: t })
-                    applyAppearance({ mode: t })
-                  }}
-                >
-                  <Icon className="size-3.5" /> {t}
-                </button>
-              ))}
+            <div className={clsx(item, 'acct-row cursor-default hover:bg-transparent')}>
+              {theme === 'dark' ? <Moon className="size-4 text-ink-soft" aria-hidden /> : theme === 'light' ? <Sun className="size-4 text-ink-soft" aria-hidden /> : <Monitor className="size-4 text-ink-soft" aria-hidden />}
+              <span className="flex-1" id="acct-theme">Theme</span>
+              <span className="acct-seg" role="group" aria-labelledby="acct-theme">
+                {([['system', Monitor, 'Match this device'], ['light', Sun, 'Light'], ['dark', Moon, 'Dark']] as const).map(([t, Icon, label]) => (
+                  <button
+                    key={t}
+                    aria-pressed={theme === t}
+                    aria-label={label}
+                    title={label}
+                    onClick={() => {
+                      setTheme(t)
+                      writePrefs({ theme: t })
+                      applyAppearance({ mode: t })
+                    }}
+                  >
+                    <Icon className="size-3.5" aria-hidden />
+                  </button>
+                ))}
+              </span>
             </div>
             {local.storageError ? <p className="px-3 pb-1 text-xs text-danger">{local.storageError}</p> : null}
             <div className="my-1 h-px bg-line" />
+            <p className="acct-group">This device</p>
             {!pwa.installed ? (
               <button
                 className={item}
@@ -216,18 +225,21 @@ export function AccountMenu() {
                   } else close('install')
                 }}
               >
-                <Download className="size-4 text-ink-soft" /> Install Muni
+                <Download className="size-4 text-ink-soft" aria-hidden /> Install Muni
               </button>
             ) : null}
-            <Link to="/about" className={item} onClick={() => setOpen(false)}>
-              <Info className="size-4 text-ink-soft" /> About Muni
-            </Link>
             <button className={item} onClick={() => close('clear')}>
-              <Trash2 className="size-4 text-ink-soft" /> Clear local data
+              <Trash2 className="size-4 text-ink-soft" aria-hidden /> Clear local data
             </button>
-            <button className={item} onClick={() => close('signout')}>
-              <LogOut className="size-4 text-ink-soft" /> Sign out
-            </button>
+            <div className="my-1 h-px bg-line" />
+            <div className="acct-foot">
+              <button className="acct-signout" onClick={() => close('signout')}>
+                <LogOut className="size-4" aria-hidden /> Sign out
+              </button>
+              <Link to="/about" className="acct-about" onClick={() => setOpen(false)}>
+                <Info className="size-3.5" aria-hidden /> Muni {APP_VERSION}
+              </Link>
+            </div>
           </Popover.Content>
         </Popover.Portal>
       </Popover.Root>

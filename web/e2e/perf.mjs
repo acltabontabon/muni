@@ -156,6 +156,35 @@ try {
     await s.ctx.close()
   }
 
+  // The retro: the stage during a topic (the clock ticking, faces in the rail, the sun on the
+  // horizon) and a phone on the same topic. Finite animations only: at rest, it should be quiet.
+  if (want('retro')) {
+    const b = await account('perf-b', 'Perf Teammate')
+    const { url } = await a.req('POST', `/api/workspaces/${ws.id}/join-links`, { mode: 'direct', expires_in_hours: 24 })
+    await b.req('POST', '/api/join/request', { token: url.split('#')[1] })
+    const r = await a.req('POST', `/api/workspaces/${ws.id}/sprints`, { name: 'Perf retro', timezone: 'Asia/Manila', starts_on: d(-3), ends_on: d(6), retro_date: d(7), retro_time: '14:00', participant_ids: [a.id, b.id], facilitator_id: a.id, reminders_enabled: false })
+    await a.req('POST', `/api/sprints/${r.id}/transition`, { to: 'collecting' })
+    for (let i = 0; i < 12; i++) await (i % 2 ? b : a).req('POST', `/api/sprints/${r.id}/entries`, { body: `Retro thought ${i}: reviews waited, staging broke, pairing helped.`, category: ['improve', 'keep', null][i % 3], idempotency_key: crypto.randomUUID() })
+    await a.req('POST', `/api/sprints/${r.id}/transition`, { to: 'preparing', confirm: true })
+    const loose = (await a.req('GET', `/api/sprints/${r.id}/themes`)).ungrouped
+    for (let t = 0; t < 3; t++) await a.req('POST', `/api/sprints/${r.id}/themes`, { title: `Theme ${t + 1}`, entry_ids: loose.slice(t * 4, t * 4 + 4).map((e) => e.id) })
+    await a.req('POST', `/api/sprints/${r.id}/transition`, { to: 'ready' })
+    await a.req('POST', `/api/sprints/${r.id}/transition`, { to: 'live' })
+    const stage = await session({ cookies: a.cookies(), ws: ws.id, phone: false, theme: 'dark' })
+    await stage.page.goto(`${BASE}/sprints/${r.id}/stage`)
+    await stage.page.locator('.retro-rail-end button', { hasText: 'Next: Choose' }).click()
+    await stage.page.locator('.retro-rail-end button', { hasText: 'Next: Talk' }).click()
+    await stage.page.locator('.horizon-sun').waitFor()
+    const phone = await session({ cookies: b.cookies(), ws: ws.id })
+    await phone.page.goto(`${BASE}/sprints/${r.id}/room`)
+    await phone.page.locator('.horizon').waitFor()
+    await stage.page.waitForTimeout(6500) // arrival line gone, sun risen
+    record('retro stage, talk (desktop)', await idle(stage))
+    record('retro phone, talk (phone)', await idle(phone))
+    await stage.ctx.close()
+    await phone.ctx.close()
+  }
+
   // Typing: what one keystroke costs while autosave runs.
   if (want('typing')) {
     const s = await session({ cookies: a.cookies(), ws: ws.id })
@@ -236,9 +265,12 @@ const over = []
 for (const r of rows) {
   const settled = !/3–\d+ s/.test(r.name) && !/^typing|^scroll|^navigate/.test(r.name)
   if (settled) {
-    if (r.framesPerS > 2) over.push(`${r.name}: ${r.framesPerS} frames/s idle (budget 2)`)
-    if (r.paintsPerS > 1) over.push(`${r.name}: ${r.paintsPerS} paints/s idle (budget 1)`)
-    if (r.timerFiresPerS > 1) over.push(`${r.name}: ${r.timerFiresPerS} timers/s idle (budget 1)`)
+    // A retro topic has a clock that visibly ticks once a second: that tick is its whole budget.
+    const clock = /^retro/.test(r.name)
+    const [frames, paints, timers] = clock ? [2.5, 5, 2] : [2, 1, 1]
+    if (r.framesPerS > frames) over.push(`${r.name}: ${r.framesPerS} frames/s idle (budget ${frames})`)
+    if (r.paintsPerS > paints) over.push(`${r.name}: ${r.paintsPerS} paints/s idle (budget ${paints})`)
+    if (r.timerFiresPerS > timers) over.push(`${r.name}: ${r.timerFiresPerS} timers/s idle (budget ${timers})`)
     if (r.requests > 0) over.push(`${r.name}: ${r.requests} requests while idle (budget 0)`)
     if (r.busyMsPerS > 8) over.push(`${r.name}: ${r.busyMsPerS} ms/s main thread idle (budget 8)`)
   }

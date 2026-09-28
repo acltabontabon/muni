@@ -95,14 +95,18 @@ Last checked 2026-09-28, against `main` at 1.0.0-rc.1 (the Privacy page was reor
 | About 90 days after finishing (7–3,650, set by owners), raw content is deleted; outcomes 730 days (30–3,650); sprint name and dates remain | Test | `retention.test.ts`; `jobs.ts` `retention()` (daily sweep, so "about") |
 | Unfinished sprints aren't purged | Code | `retention()` only selects `completed`/`archived` — **open policy decision** |
 | A thought deleted while collecting is removed from the live database (backups keep it ≤ 30 days) | Code | `DELETE FROM entries` in `routes/entries.ts` |
-| Account and email kept while the account exists; no self-service deletion or leaving | Code | No such route — **missing control** |
+| Account and email kept while the account exists; deleting it removes them, unseen contributions and sole workspaces, and unlinks the rest | Test | `departure.test.ts` (no row names the account afterwards); `lib/departure.ts` |
+| Members can leave a workspace; what they submitted stays, without their name | Test | `departure.test.ts` |
+| The facilitator sees how many have voted while a vote is open — never who or for what; nobody else sees it | Test | `socket.test.ts` “tells the facilitator how many have voted”; `voting.ts` `roundView` |
+| The retro shows who's connected (faces beside names), and nothing about what they're doing | Test | `socket.test.ts` “who is connected”; `meeting.ts` attendance `connected` |
+| A person's character appears beside their name in the retro and on nothing anonymous | Test | `avatars.test.ts` |
 | Passkey challenges deleted ~1 day after expiry; sessions 30 days, deleted 7 days after ending; hashed limiter rows 24 h; email queue payload cleared when sent | Test + Code | `jobs.ts` `retention()`; `boundaries.test.ts` “keeps a queued email until it’s sent…” |
 | Admin action log kept indefinitely (no text) | Code | `audit_events` never deleted — **open policy decision** |
 | Backups ≤ 30 days, logs ≤ 7 days | Provider + Config | D1 Time Travel docs (7 Free / 30 Paid); Workers Logs docs. The pilot's plan (Free or Paid) isn't recorded, so the page states the upper bounds |
 
 ## Unresolved (prevents stronger wording)
 
-- No account deletion, member self-removal, workspace deletion, or personal data export.
+- No personal data export, and no way to delete a workspace others are still in.
 - No purge for sprints that are never finished; `audit_events` kept forever.
 - Operator access to the database isn't logged by Muni; any claim of audited access needs that first.
 - The Cloudflare plan (Free/Paid) decides the log and backup windows; record it to state exact numbers.

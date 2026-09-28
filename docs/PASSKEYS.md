@@ -8,8 +8,8 @@ address, if an account has one, is only where invitations and reminders are sent
 covers the design, the security model, the removal of email sign-in, and rollout/rollback.
 
 Status: deployed to act.munimuni.app (see §9). Tested with Chromium's virtual authenticator and
-a software authenticator; **not yet tested on physical devices or in installed-app mode**, and
-**not independently reviewed** (§8, §10).
+a software authenticator, and on physical devices by the maintainer on 2026-09-29 (iPhone Safari, Android Chrome, Windows Hello, Firefox, 1Password and Bitwarden, and a company-managed Chrome), including recovery after a lost phone and on a new laptop. **Not
+independently reviewed** (§8, §10).
 
 ## 1. Three separate things
 
@@ -198,10 +198,9 @@ Automated (2026-09-27, all passing):
   offline sign-out); `unlock.mjs`, `encryption.mjs` (the new-device step now uses a synced
   passkey without PRF, which signs in but doesn't unlock), `capture`, `offline`, `worlds`, `voice`.
 
-**Not verified here:** physical devices and password managers — iOS/macOS Safari with iCloud
-Keychain, the installed iOS app, Android/Google Password Manager, Windows Hello, Firefox,
-1Password/Bitwarden, security keys, the real cross-device (QR/hybrid) flow — and PRF on each.
-Suggested matrix: {iPhone Safari, iPhone installed app, Android Chrome, macOS Safari/Chrome,
+**On physical devices (2026-09-29, by the maintainer):** iPhone Safari, Android Chrome, Windows Hello, Firefox, 1Password and Bitwarden, and a company-managed Chrome, plus recovery: a lost phone,
+and signing in on a new laptop. Not covered by that pass: the installed iOS home-screen app and
+hardware security keys. The matrix used as a guide: {iPhone Safari, iPhone installed app, Android Chrome, macOS Safari/Chrome,
 Windows Chrome/Edge, Firefox} × {create account, sign in, sign in via phone QR, cancel, sign out
 then switch account, add a second passkey, scan team QR, open personal and emailed links,
 writing unlocks after sign out → sign in}.

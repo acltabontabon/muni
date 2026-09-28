@@ -208,13 +208,17 @@ export function useCountdown(endsAt: string | null | undefined, remainingSecs: n
   // Derive the clock from the server's instant, corrected by the skew observed at snapshot time.
   const skew = useMemo(() => (serverTime ? Date.parse(serverTime) - Date.now() : 0), [serverTime])
   const [now, setNow] = useState(Date.now())
+  const secs = endsAt ? Math.max(0, Math.round((Date.parse(endsAt) - (now + skew)) / 1000)) : remainingSecs
+  // Wake only when the shown second changes (not on a fixed interval): one render a second, and
+  // none once it reaches zero.
   useEffect(() => {
-    if (!endsAt) return
-    const t = window.setInterval(() => setNow(Date.now()), 500)
-    return () => window.clearInterval(t)
-  }, [endsAt])
-  if (!endsAt) return remainingSecs
-  return Math.max(0, Math.round((Date.parse(endsAt) - (now + skew)) / 1000))
+    if (!endsAt || secs <= 0) return
+    const left = Date.parse(endsAt) - (Date.now() + skew)
+    const wait = ((left - 500) % 1000 + 1000) % 1000 || 1000
+    const t = window.setTimeout(() => setNow(Date.now()), wait + 15)
+    return () => window.clearTimeout(t)
+  }, [endsAt, skew, secs, now])
+  return secs
 }
 
 export function fmtClock(secs: number) {

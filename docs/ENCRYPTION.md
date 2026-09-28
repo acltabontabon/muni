@@ -2,8 +2,8 @@
 
 Status: implemented for **new sprints** (`sprints.encryption = 'e1'`), tested (below), **not
 independently reviewed**. Legacy sprints are unchanged and labelled. Since 2026-09-27 the account
-key unlocks with a passkey (PRF) or on a device after signing in again (§4); physical devices are
-not yet verified (PASSKEYS.md §8).
+key unlocks with a passkey (PRF) or on a device after signing in again (§4); tested on physical
+devices and password managers on 2026-09-29 (PASSKEYS.md §8).
 
 ## 1. The protection, precisely
 

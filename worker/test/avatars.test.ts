@@ -1,8 +1,9 @@
 /**
- * Characters: a person's avatar and whether their own pages wear its world. Stored on the account,
- * returned by /api/auth/me only, and never attached to anything another person can see — not
- * entries, themes, votes, the meeting, member or participant lists, experiments, join requests,
- * audit records, exports or live-socket hints.
+ * Characters: a person's avatar and whether their own pages wear its world. The character is their
+ * face in the retro, next to their name (the meeting's attendance); it is never attached to
+ * anything anonymous — entries, themes, votes, additions, check-ins — nor to lists, experiments,
+ * join requests, audit records, exports or live-socket hints. Whether their pages wear its world
+ * is theirs alone (/api/auth/me).
  */
 import { describe, expect, it } from 'vitest'
 import { env } from 'cloudflare:test'
@@ -80,7 +81,7 @@ describe('a person’s character', () => {
     expect(await events(u)).toBe(before)
   })
 
-  it('only ever reaches its owner', async () => {
+  it('shows as a face next to its person’s name in the retro, and nowhere else', async () => {
     const { owner, members, ws } = await team(2)
     const people = [owner, ...members]
     // Everyone picks a character; one keeps it but switches the world off.
@@ -156,6 +157,15 @@ describe('a person’s character', () => {
       for (const path of paths) {
         const r = await get(path, u)
         if (r.status === 200) reached++
+        if (path.endsWith('/meeting') && r.status === 200) {
+          // The one place it belongs: each attendee's face, beside their name — and nothing else about it.
+          for (const a of r.body.attendance as { account_id: string; avatar_id: string | null; avatar_theme?: unknown }[]) {
+            const i = people.findIndex((p) => p.account_id === a.account_id)
+            expect(a.avatar_id).toBe(AVATAR_IDS[i])
+            expect('avatar_theme' in a).toBe(false)
+            delete (a as { avatar_id?: unknown }).avatar_id
+          }
+        }
         scan(`${path} as ${u.email}`, r.body)
       }
     expect(reached, 'most shared views answered').toBeGreaterThan(paths.length * 2)

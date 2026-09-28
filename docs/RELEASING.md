@@ -63,11 +63,12 @@ So:
 
 ### Why the first release is `1.0.0-rc.1`
 
-The product is feature-complete and the contract above holds, but passkeys are the only way into an
-account and they unlock encrypted writing. That path has been tested with virtual authenticators and
-real browsers, not yet on physical phones, platform authenticators and password managers
-(`docs/PASSKEYS.md` §8). Losing access there means losing an account, so 1.0.0 waits for that device
-check. Promoting is a normal release: `prepare 1.0.0`, a short changelog entry, tag.
+The product was feature-complete and the contract above held, but passkeys are the only way into an
+account and they unlock encrypted writing, and that path had only been tested with virtual
+authenticators and real browsers. Losing access there means losing an account, so 1.0.0 waited for a
+check on physical devices. That check was done on 2026-09-29 — phones, platform authenticators,
+password managers and recovery (`docs/PASSKEYS.md` §8) — so nothing on the device side holds back
+1.0.0 now. Promoting is a normal release: `prepare 1.0.0`, a short changelog entry, tag.
 
 ## 3. Preparing a release
 

@@ -170,10 +170,13 @@ export class MeetingRoom implements DurableObject {
     if (!account) return new Response('unauthorized', { status: 401 })
     const pair = new WebSocketPair()
     const [client, server] = [pair[0], pair[1]]
+    const arriving = !this.connectedAccounts().includes(account)
     this.ctx.acceptWebSocket(server)
     server.serializeAttachment({ a: account, f: fac } satisfies Attachment)
     const m = await this.meeting()
     server.send(JSON.stringify({ type: 'hello', version: m?.version ?? 0, server_time: Date.now() }))
+    // The facilitator sees who's connected right now; only a first connection changes that.
+    if (arriving && m) this.broadcast({ type: 'hint', resource: 'meeting', version: m.version }, { facilitators: true })
     return new Response(null, { status: 101, webSocket: client })
   }
 
@@ -197,6 +200,16 @@ export class MeetingRoom implements DurableObject {
     } catch {
       /* already closed */
     }
+    await this.leaving(ws)
+  }
+
+  /** Someone's last connection closed: the facilitator's list of who's connected changes. */
+  private async leaving(ws: WebSocket) {
+    const att = ws.deserializeAttachment() as Attachment | null
+    if (!att?.a) return
+    const still = this.ctx.getWebSockets().some((o) => o !== ws && (o.deserializeAttachment() as Attachment | null)?.a === att.a)
+    const m = await this.meeting()
+    if (!still && m) this.broadcast({ type: 'hint', resource: 'meeting', version: m.version }, { facilitators: true })
   }
   async webSocketError(ws: WebSocket) {
     try {
@@ -204,6 +217,7 @@ export class MeetingRoom implements DurableObject {
     } catch {
       /* already closed */
     }
+    await this.leaving(ws)
   }
 
   // ---------- lifecycle ----------

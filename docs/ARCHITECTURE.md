@@ -165,9 +165,24 @@ A daily sweep deletes a finished sprint's raw content (entries, themes, votes, n
 unpublished recaps) after the workspace's window (90 days by default) and its outcomes
 (experiments, published recaps) after a longer one (730 days). Verification codes, rate-limit
 rows, sessions and finished jobs expire on short schedules. Not yet covered: sprints that are
-never finished, account deletion, leaving a workspace as a member, workspace deletion. Deleted
-rows remain in the database's point-in-time recovery window (7 days on the Workers Free plan, 30 on
+never finished, and deleting a workspace others are still in. Deleted rows remain in the database's point-in-time recovery window (7 days on the Workers Free plan, 30 on
 Paid).
+
+## Leaving and deleting an account
+
+A member can leave a workspace; the last owner (while others remain) and the facilitator of an
+unfinished sprint others are in must hand on first, because the team depends on them — and in an
+encrypted sprint that's collecting, the facilitator holds its only key. Someone alone in a
+workspace leaves by deleting it. Leaving is the same as being removed: access ends, unfinished
+sprints drop them, and what they submitted stays.
+
+Deleting an account (after a recent passkey sign-in) follows one rule: what the team has seen stays
+with the team, what nobody has seen goes. Entries not yet revealed, votes in open rounds, unshared
+check-in answers and unreleased additions are deleted; revealed rows are kept with the author
+column replaced by a fresh random value per row, so they can't be grouped as one person's.
+Workspace history keeps its events under a "gone" actor (shown as "Someone", not Muni) and records
+`account.deleted`. Workspaces with no other member go too. `lib/departure.ts` holds the
+statements; `test/departure.test.ts` checks that no row names the account afterwards.
 
 ## Configuration and safety rails
 

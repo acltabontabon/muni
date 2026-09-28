@@ -67,7 +67,7 @@ const field = (page) => page.locator('textarea[name="thought"]')
 const mine = (a, sprintId) => a.req('GET', `/api/sprints/${sprintId}/entries/mine`)
 const choose = async (page, name) => {
   await page.locator('[data-account-trigger]').click()
-  await page.locator('button:has-text("Change character")').click()
+  await page.locator('[data-radix-popper-content-wrapper] button:has-text("Character")').click()
   await page.locator(`[role=dialog] [role=radio][aria-label^="${name}"]`).click()
   await page.locator(`[role=dialog] button:has-text("Choose ${name}")`).click()
   // The chooser previews rooms in miniature: wait until it has gone before looking at the page.

@@ -14,8 +14,9 @@ HERE="$(cd "$(dirname "$0")" && pwd)"
 OUT_MP4="${OUT_MP4:-$HERE/muni-demo.mp4}"
 OUT_GIF="${OUT_GIF:-$HERE/muni-demo.gif}"
 FPS="${REEL_FPS:-60}"   # the reel (web/e2e/demo-reel.mjs renders 60 a second) and the MP4
-GIF_FPS="${GIF_FPS:-15}"     # the least that still reads as smooth motion
+GIF_FPS="${GIF_FPS:-12}"     # the least that still reads as smooth motion, and keeps the file under 10 MB
 GIF_WIDTH="${GIF_WIDTH:-620}" # the width the release page shows it at
+CRF="${CRF:-24}"             # H.264 quality: 24 keeps the 75-second reel under 10 MB and still crisp
 # Each file has to stay under 10 MB: `scripts/release.mjs check` refuses a tag otherwise.
 MAX_BYTES=$((10 * 1024 * 1024))
 # Frames are full-range sRGB (JPEG); video is limited-range BT.709, tagged so players agree.
@@ -24,7 +25,7 @@ TAGS="-color_range tv -colorspace bt709 -color_primaries bt709 -color_trc bt709"
 # The MP4: 1920×1200 at 60 frames a second, H.264 High, yuv420p, streamable, no audio.
 ffmpeg -loglevel error -y -framerate $FPS -i "$CAPTURE/reel/%05d.jpg" \
   -vf "scale=1920:1200:flags=lanczos:out_range=tv:out_color_matrix=bt709,setsar=1,format=yuv420p" \
-  -c:v libx264 -preset veryslow -crf 22 -pix_fmt yuv420p $TAGS -profile:v high -movflags +faststart -an "$OUT_MP4"
+  -c:v libx264 -preset veryslow -crf $CRF -pix_fmt yuv420p $TAGS -profile:v high -movflags +faststart -an "$OUT_MP4"
 
 # The GIF: one palette for the whole film, gentle dithering, only what changes redrawn, loops forever.
 ffmpeg -loglevel error -y -framerate $FPS -i "$CAPTURE/reel/%05d.jpg" -filter_complex \

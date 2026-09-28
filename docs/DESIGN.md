@@ -232,11 +232,28 @@ next step in the rail's one button, the clock, the ask and the two notes (*We'll
 could try*) in the talk's margin, the verdicts under last time's experiments, the ideas from the
 talk beside Agree.
 
+**One shape, every step.** Each step is the same page: the question, one line saying what's
+happening and what everyone does, the room's content on the left, and a margin on the right —
+for the facilitator the tools of that step, for everyone else what to do on their phone. Look
+back opens with the retro at a glance: four steps, what each is for, and its minutes, so nobody
+wonders what's next. Choose says why it exists before it asks for anything: the talk has time for
+about three topics (its minutes are shared across the first three), so the votes decide which come
+first; three votes each is "your top three"; nobody sees whose; the count appears when the room
+moves on. The facilitator's margin counts how many have voted (never who), and once counted a
+dashed line marks about where the time runs out. On the phone the votes are a small purse of
+coins, spent one topic at a time.
+
+**Who's here.** The rail shows the room as faces — each person's character, or a monogram in
+their own ink — lit while their stage or phone is open, dimmed when they've stepped away. As
+people arrive the stage says so, once, in a light line ("Priya pulled up a chair.") that leaves on
+its own. The facilitator's list says who's connected now, who's here without a device, and who
+isn't here yet.
+
 **Quiet ways in.** A call is often two voices and a row of muted tiles. Muni doesn't call on
 anyone. It offers ways in that cost a moment: a *check-in* the facilitator can ask on a topic or an
 idea (one tap is a whole answer; a line is optional), and *Add to this discussion* on every phone.
 They're offered, never required. Nothing waits for everyone, and not answering means nothing. The
-facilitator's margin says what phones show right now, and holds *Ask how it showed up*, then a
+facilitator's margin holds *Ask the room* — *Ask how it showed up*, then a
 quiet count and *Share answers*. When the answers are shared, they land in the talk itself: the
 counts in words at display size ("2 felt this · 1 not in their work") and the lines people wrote,
 each beside its answer, in the category-in-the-margin voice. There are no percentages, no bars and
@@ -260,8 +277,10 @@ person's **own** pages: where they write and their collection (a sprint's page, 
 their own screen, in every state) and Account. Pages worked on together or shown to the room
 (workspace, themes, setup, stage, companion) always keep
 Muni's shared presentation; the stage is projected and anonymous thoughts stay visually neutral.
-A character is private to its owner: it is returned only by `/api/auth/me` and never appears in
-anything a teammate sees (tested in `worker/test/avatars.test.ts`).
+A character is also its person's face: in the retro, next to their name, it shows who is here
+and lights up while they're connected. It never travels with anything anonymous — thoughts,
+votes, additions, check-in answers — and whether someone's pages wear its world is theirs alone
+(tested in `worker/test/avatars.test.ts`).
 
 **Direction (since the calm reset).** Elegant, artistic, calm, professional, personal, subtly
 Filipino: a well-designed place to pause and write, carried over from the entrance — one opaque

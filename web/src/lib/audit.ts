@@ -21,6 +21,8 @@ const ACTIONS: Record<string, string> = {
   'workspace.created': 'created the workspace',
   'workspace.settings_updated': 'changed workspace settings',
   'membership.revoked': 'removed a member',
+  'membership.left': 'left the workspace',
+  'account.deleted': 'deleted their account and left',
   'invitation.sent': 'sent an invitation',
   'invitation.accepted': 'joined the workspace',
   'join_link.revoked': 'turned off an invite code',
@@ -71,7 +73,10 @@ export function describeAction(e: Pick<AuditEvent, 'action' | 'meta'>): string {
   return ACTIONS[e.action] ?? humanize(e.action)
 }
 
-/** "Maya closed collection · Sprint 42". Muni itself acts only for retention and scheduled jobs. */
+/**
+ * "Maya closed collection · Sprint 42". Muni itself acts only for retention and scheduled jobs;
+ * someone who has since deleted their account is "Someone".
+ */
 export function describeEvent(e: AuditEvent, sprintName?: (id: string) => string | undefined): { who: string; what: string; where: string | null } {
-  return { who: e.actor_name ?? 'Muni', what: describeAction(e), where: e.sprint_id ? sprintName?.(e.sprint_id) ?? null : null }
+  return { who: e.actor_name ?? (e.actor_gone ? 'Someone' : 'Muni'), what: describeAction(e), where: e.sprint_id ? sprintName?.(e.sprint_id) ?? null : null }
 }

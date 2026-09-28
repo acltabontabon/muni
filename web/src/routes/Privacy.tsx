@@ -20,7 +20,7 @@ import { InfoShell } from '@/ui/shell'
  */
 const OPERATOR = 'Alvin Cris Tabontabon'
 const CONTACT = 'me@acltabontabon.com'
-const UPDATED = '28 September 2026'
+const UPDATED = '29 September 2026'
 
 const SECTIONS = [
   ['visibility', 'Who sees your thoughts, and when'],
@@ -82,10 +82,11 @@ function Page({ signedIn }: { signedIn: boolean }) {
       </Section>
 
       <Section id="team">
-        <Item title="The facilitator">Opens and closes collection, groups thoughts into themes, runs the vote and the live retro, and can download the thoughts (Markdown or CSV). During a check-in they see how many have answered so far — not who, and not what — until they share the answers. They can’t read anyone’s thoughts before collection closes.</Item>
+        <Item title="The facilitator">Opens and closes collection, groups thoughts into themes, runs the vote and the live retro, and can download the thoughts (Markdown or CSV). While a vote is open they see how many people have voted so far, and during a check-in how many have answered — never who, and not what — until the vote closes or they share the answers. They can’t read anyone’s thoughts before collection closes.</Item>
         <Item title="Everyone in the sprint">Reads the thoughts once collection closes, votes, answers check-ins, adds to the discussion during the retro, and can download a summary. Votes are private — only totals are shown, after a round closes. Check-in answers are private until the facilitator shares them; then everyone sees how many chose each answer and any lines people added, without names or the order they came in. What you add to a discussion appears under its topic without a name, when the facilitator shares it.</Item>
         <Item title="Workspace owners">Manage members and settings. Owning a workspace doesn’t let them read a sprint they aren’t part of, or find out who wrote anything.</Item>
         <Item title="Where your name does appear">In the workspace’s member list, a sprint’s participants and who is present at the retro, and on experiments you own. None of these is linked to a thought, a vote or an answer.</Item>
+        <Item title="Who’s here, live">During the retro, the stage shows each person’s face — their character, or their initials — lit while they have the retro open on some screen, and says briefly when someone arrives or leaves. That’s all it shows: not what they’re looking at, and never what they voted, answered or added.</Item>
         <Item title="Downloads">Carry no names, times or votes, but once saved they’re outside Muni — and not encrypted.</Item>
       </Section>
 
@@ -93,7 +94,7 @@ function Page({ signedIn }: { signedIn: boolean }) {
         <Item title="Kept, privately">Muni records which account wrote each thought, each vote, each check-in answer and each addition during the retro. That’s how only you can edit your thoughts and change your answer, and how vote limits work. No screen, download or live update shows it.</Item>
         <Item title="Never shown to your team">There’s no way in Muni to look up who wrote a thought — no button or report for facilitators or workspace owners, and nothing in shared views, the stage or downloads.</Item>
         <Item title="Who could connect them">Anyone with access to Muni’s database or its backups — the operator, or Cloudflare, which hosts it — can see which account wrote what. Encryption hides what you wrote, not that you wrote it.</Item>
-        <Item title="What can still give you away">A detail only you would know, the way you write, or a small team where everyone knows who works on what. Numbers can hint too — a lone vote, a single “I have a concern” in a group of four, something added just after you were seen typing, or a thought that only appears after collection was reopened. In a small team, “without your name” isn’t the same as unknowable. Write what you’d be comfortable having read aloud.</Item>
+        <Item title="What can still give you away">A detail only you would know, the way you write, or a small team where everyone knows who works on what. Numbers can hint too — a lone vote, a single “I have a concern” in a group of four, the facilitator’s count of voters ticking up just as you tap (it says that you voted, never what for), something added just after you were seen typing, or a thought that only appears after collection was reopened. In a small team, “without your name” isn’t the same as unknowable. Write what you’d be comfortable having read aloud.</Item>
       </Section>
 
       <Section id="encryption">
@@ -109,7 +110,7 @@ function Page({ signedIn }: { signedIn: boolean }) {
       <Section id="collect">
         <Item title="What you write">Thoughts and their details, what you add during a retro, your votes and your check-in answers — each with the private note of who made it, above.</Item>
         <Item title="What your team builds from it">Themes, discussion notes, experiments and who owns them, and recaps.</Item>
-        <Item title="Your name and character">Your display name, so teammates know who’s in a workspace and who’s at the retro; it’s never shown with a thought, a vote or an answer. The character you chose is seen only by you.</Item>
+        <Item title="Your name and character">Your display name, so teammates know who’s in a workspace and who’s at the retro, and the character you chose, which is your face beside your name in the retro. Neither is ever shown with a thought, a vote, an answer or an addition. Whether your own pages wear your character’s world is yours alone.</Item>
         <Item title="Your email address, only if you were invited at one">You sign in with a passkey, so Muni doesn’t need an address. If you accept an emailed invitation, that address is kept so later invitations and a sprint’s two reminders can reach you — never newsletters or marketing. You can remove it in Account.</Item>
         <Item title="Your passkeys">Each one’s public key, the name you give it, whether it can sync, and when it was added and last used. Your fingerprint, face, PIN or screen lock never leave your device.</Item>
         <Item title="Account and workspace records">Your sign-ins (a one-way hash of the token, how you signed in, a rough label such as “Safari on iPhone”, and when), a history of changes to how you sign in (shown only to you), memberships and roles, requests to join a team (the people who approve see your name, any email address and how new your account is), pending invitations, and a log of administrative actions such as closing collection — who did it and to which item, never any text.</Item>
@@ -119,7 +120,8 @@ function Page({ signedIn }: { signedIn: boolean }) {
         <Item title="Finished sprints">About 90 days after a sprint is finished — the default; workspace owners can choose from 7 to 3,650 days — its thoughts, themes, votes, check-ins, notes, what was added during the retro and any unpublished recap are deleted. Agreed experiments and published recaps are kept longer, 730 days by default, so later retros can look back at them. The sprint’s name and dates remain.</Item>
         <Item title="Unfinished sprints">A sprint that is never finished isn’t deleted automatically yet.</Item>
         <Item title="A thought you delete">Is removed from Muni’s live database straight away; backups keep it for up to 30 days.</Item>
-        <Item title="Your account">Your name, and any email address you were invited at, are kept while your account exists. If an owner removes you from a workspace, what you wrote stays in its sprints, without your name.</Item>
+        <Item title="Your account">Your name, and any email address you were invited at, are kept while your account exists. If you leave a workspace, or an owner removes you, what you wrote stays in its sprints, without your name.</Item>
+        <Item title="Deleting your account">Your name, email address, passkeys, keys and sessions are deleted straight away, and so is any workspace no one else is in. In other workspaces, what nobody has seen yet — thoughts not yet revealed, votes in an open round, unshared check-in answers — is deleted; what the team has already seen stays in its sprints, no longer tied to any account. The workspace’s activity says someone deleted their account. The last owner of a workspace others use, and the facilitator of a sprint in progress, hand those on first.</Item>
         <Item title="Housekeeping">Passkey challenges are deleted about a day after they expire. A sign-in lasts 30 days and its record is deleted a week after it ends. Security history is kept for a year; decided requests to join a team, 180 days. An email’s address and message leave Muni’s send queue once it’s sent. The log of administrative actions (no text) is kept.</Item>
         <Item title="Backups, logs and copies">Deleted data can remain in Cloudflare’s database backups for up to 30 days, and in request logs for up to 7. Downloaded files, screenshots and copies on someone’s device can’t be recalled.</Item>
 
@@ -152,8 +154,8 @@ function Page({ signedIn }: { signedIn: boolean }) {
       </Section>
 
       <Section id="contact">
-        <Item title="What you can do yourself">Edit or delete your thoughts while collection is open; turn a sprint’s reminder emails off in {signedIn ? <Link to="/account#notifications" className="underline underline-offset-2">Account</Link> : 'Account'}; change your name and sign out other devices there too. Workspace owners choose how long finished sprints are kept, and remove members.</Item>
-        <Item title="Not in the app yet">Deleting your account, leaving a workspace yourself, and downloading everything you’ve written. Until then, write to {CONTACT}.</Item>
+        <Item title="What you can do yourself">Edit or delete your thoughts while collection is open; turn a sprint’s reminder emails off in {signedIn ? <Link to="/account#notifications" className="underline underline-offset-2">Account</Link> : 'Account'}; change your name and sign out other devices there too. Leave a workspace from its People page, and delete your account from {signedIn ? <Link to="/account#delete" className="underline underline-offset-2">Account</Link> : 'Account'}. Workspace owners choose how long finished sprints are kept, and remove members.</Item>
+        <Item title="Not in the app yet">Downloading everything you’ve written. Until then, write to {CONTACT}.</Item>
         <P>Write to <a href={`mailto:${CONTACT}`} className="font-medium text-ink underline underline-offset-2">{CONTACT}</a> with questions about privacy or requests about your data. Muni is run by one person, so a reply may take a few days. This page changes when the way Muni handles data changes; the date at the top says when it last did.</P>
       </Section>
 

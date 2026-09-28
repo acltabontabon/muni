@@ -42,6 +42,8 @@ function shot(name) {
   return { name, frames, length: t, w: meta.width, h: meta.height }
 }
 const shots = Object.fromEntries(readdirSync(FRAMES).sort().map((n) => [n, shot(n)]))
+/** When each phone was filmed, in seconds from the start of the stage shot beside it (e2e/demo.mjs). */
+const OFFSETS = existsSync(`${OUT}/offsets.json`) ? JSON.parse(readFileSync(`${OUT}/offsets.json`, 'utf8')) : {}
 const rooms = Object.keys(shots).filter((n) => n.startsWith('04-room-'))
 const len = (n) => shots[n].length
 
@@ -59,15 +61,18 @@ const CHAPTERS = [
   { id: 'themes', kicker: 'Before the retro, if it helps', title: 'Gather them into <em>themes</em>.', shot: '06-themes', label: 'Themes · Sprint 14', length: len('06-themes'), from: 0.6,
     // Selecting slips on the left; across to the empty pile, named where the theme then appears.
     camera: [[0, 1, 640, 420], [0.7, 1.12, 330, 470], [4.7, 1.12, 330, 470], [6.0, 1.12, 1000, 280], [99, 1.12, 1000, 280]] },
-  { id: 'choose', kicker: 'The retro, in four steps', title: 'Choose what matters, <em>privately</em>.', shot: '07-choose', label: 'The stage · Sprint 14', length: len('07-choose'),
-    // Wide while the cursor goes to the step's one button in the corner; closer once the talk opens.
-    camera: [[0, 1, 576, 360], [2.4, 1, 576, 360], [3.4, 1.08, 470, 260], [99, 1.1, 470, 260]] },
-  { id: 'talk', kicker: 'The talk, one topic at a time', title: 'Everyone answers. <em>Nobody has to speak first.</em>', shot: '08-talk', label: 'The stage · Sprint 14', length: len('08-talk'),
-    // Still and wide: the cursor goes to Share in the facilitator's margin, and what came back appears in place.
-    camera: [[0, 1.02, 576, 330], [99, 1.02, 576, 330]] },
-  { id: 'outcomes', kicker: 'What comes of it', title: 'Agree what to <em>try next</em>.', shot: '09-outcomes', label: 'Sprint 14 · Harbor', length: len('09-outcomes') + 0.3,
-    camera: [[0, 1, 640, 300], [99, 1.04, 640, 300]] },
+  { id: 'arrive', kicker: 'The retro, in four steps', title: 'Everyone arrives, <em>on any screen</em>.', shot: '07-arrive', label: 'The stage · Sprint 14', length: len('07-arrive'), from: 0.5,
+    // The rail, where faces light up, and the arrivals as they're said.
+    camera: [[0, 1, 576, 200], [1.2, 1.18, 900, 90], [99, 1.2, 900, 90]] },
+  { id: 'choose', kicker: 'Vote on your phone, privately', title: 'Choose what matters <em>most</em>.', shot: '08-choose', label: 'The stage · Sprint 14', length: len('08-choose'), phone: { shot: '08b-vote-phone' },
+    // Window aside so the phone can stand beside it; the count in the margin ticks as Tomás votes.
+    camera: [[0, 0.8, 0, 0, 80, 200], [99, 0.8, 0, 0, 80, 200]] },
+  { id: 'talk', kicker: 'The talk, one topic at a time', title: 'Everyone answers. <em>Nobody has to speak first.</em>', shot: '09-talk', label: 'The stage · Sprint 14', length: len('09-talk'), phone: { shot: '09b-answer-phone' },
+    camera: [[0, 0.8, 0, 0, 80, 200], [99, 0.8, 0, 0, 80, 200]] },
+  { id: 'agree', kicker: 'What comes of it', title: 'Agree what to <em>try next</em>.', shot: '10-agree', label: 'The stage · Sprint 14', length: len('10-agree') + 0.3, phone: { shot: '10b-own-phone' },
+    camera: [[0, 0.8, 0, 0, 80, 200], [99, 0.8, 0, 0, 80, 200]] },
 ]
+for (const c of CHAPTERS) if (c.phone && c.phone.at === undefined) c.phone.at = (OFFSETS[c.phone.shot] ?? 0.8) - (c.from ?? 0)
 // Dead time trimmed off a shot's footage: `from` at its start, `cut` at its end.
 for (const c of CHAPTERS) if (c.shot) c.length = Math.min(c.length, len(c.shot) - (c.cut ?? 0)) - (c.from ?? 0)
 let at = OPEN - X
@@ -240,15 +245,20 @@ function install(data) {
         w.querySelector('.bar span').textContent = c.label
       }
     }
-    // The phone, beside the first chapter.
-    const pc = chapters.find((c) => c.phone)
+    // The phone, beside a chapter that filmed one: it rises in as it starts, and leaves with the chapter.
     const ph = $('#phone')
-    const plt = t - pc.start - pc.phone.at
-    const pin = out(clamp((plt + 0.5) / 0.7))
-    const po = Math.min(pin, clamp((pc.end - t) / x))
-    ph.style.opacity = t > pc.start ? po : 0
-    ph.style.transform = `translateY(${(1 - pin) * 60}px) rotate(${(1 - pin) * 2}deg)`
-    if (po > 0) blend(ph.querySelector('.screen'), pc.phone.shot, plt)
+    let shown = null, best = 0
+    for (const pc of chapters.filter((c) => c.phone)) {
+      const plt = t - pc.start - pc.phone.at
+      const pin = out(clamp((plt + 0.5) / 0.7))
+      const po = t > pc.start ? Math.min(pin, clamp((pc.end - t) / x)) : 0
+      if (po > best) { best = po; shown = { pc, plt, pin } }
+    }
+    ph.style.opacity = best
+    if (shown) {
+      ph.style.transform = `translateY(${(1 - shown.pin) * 60}px) rotate(${(1 - shown.pin) * 2}deg)`
+      blend(ph.querySelector('.screen'), shown.pc.phone.shot, Math.max(0, shown.plt))
+    }
     // The horizon: the sun travels it as the film goes on, then settles at the end.
     const rule = $('#rule'), sun = $('#sun')
     const ro = clamp((t - (open - x)) / x)

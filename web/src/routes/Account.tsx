@@ -8,6 +8,7 @@ import { Button, ErrorText, Input, Label, Switch, useDocumentTitle, useToast } f
 import { DeviceControls, LeaveDialog } from '@/ui/menus'
 import { AppShell, PageTitle } from '@/ui/shell'
 import { EncryptionSettings } from '@/ui/keys'
+import { DeleteAccountDialog } from '@/ui/departure'
 import { MailAddress, SecurityActivity, Sessions, SignInMethods } from '@/ui/security'
 import { CharacterSettings } from '@/worlds/Character'
 import { APP_VERSION } from '@/lib/release'
@@ -44,6 +45,7 @@ export function Account() {
   useDocumentTitle('Account')
   const { me, refresh } = useAuth()
   const [forgetting, setForgetting] = useState(false)
+  const [deleting, setDeleting] = useState(false)
   const toast = useToast()
   const [name, setName] = useState(me?.display_name ?? '')
   const [nameError, setNameError] = useState('')
@@ -121,7 +123,7 @@ export function Account() {
           )}
         </Block>
 
-        <Block id="character" title="Character" lead="It dresses your own pages. Only you see it.">
+        <Block id="character" title="Character" lead="Your face in the retro, next to your name. Its world dresses your own pages — that part is just for you.">
           <CharacterSettings />
         </Block>
 
@@ -153,6 +155,11 @@ export function Account() {
 
         <Block id="about" title="About">
           <SettingsLink to="/about" title="About Muni" detail={`Version ${APP_VERSION}, and what’s new.`} />
+        </Block>
+
+        <Block id="delete" title="Delete your account" lead="Leave Muni altogether. What your teams have already seen stays with them, tied to no one.">
+          <Button variant="danger" onClick={() => setDeleting(true)}>Delete account…</Button>
+          <DeleteAccountDialog open={deleting} onClose={() => setDeleting(false)} />
         </Block>
       </div>
     </AppShell>

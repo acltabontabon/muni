@@ -38,7 +38,7 @@ const THOUGHTS = {
 /** Written on camera: Priya on her laptop, Tomás on his phone. */
 const ON_CAMERA = 'Pairing on the release checklist caught two gaps before Friday.'
 const ON_PHONE = 'Writing the release notes as we went saved us an evening.'
-/** The rooms shown in the reel's montage (characters are private; Priya's, on her own screen). */
+/** The rooms shown in the reel's montage (Priya's own choice, on her own screen). */
 const ROOMS = ['kape', 'biyahe', 'himig', 'sibol']
 const THEMES = [
   { title: 'Who owns staging?', question: 'What would have made Wednesday’s outage shorter?', entries: ['Staging was down most', 'We found the expired certificate', 'The on-call runbook still', 'On-call was quiet'] },
@@ -48,9 +48,11 @@ const THEMES = [
 ]
 // Indexes into THEMES, three votes each at most.
 const VOTES = { maya: [0, 1, 3], jonas: [0, 1, 2], priya: [0, 1, 2], tomas: [1, 0], aiko: [1, 0, 3], sam: [0, 2] }
+/** Faces in the retro: each person's character (Sam has none, and shows as a monogram). */
+const FACES = { maya: 'kape', jonas: 'guhit', priya: 'himig', tomas: 'biyahe', aiko: 'sibol' }
 const TAKEAWAY = 'Staging needs a named owner every sprint, the way on-call has one.'
 const EXPERIMENTS = [
-  { change: 'Name a staging owner in every on-call handover, starting this sprint.', signal: 'A staging incident has someone on it within 15 minutes.', owner: 'jonas', theme: 0 },
+  { change: 'Name a staging owner in every on-call handover, starting this sprint.', signal: 'A staging incident has someone on it within 15 minutes.', owner: 'tomas', theme: 0 },
   { change: 'Keep 20 minutes after standup for first reviews, every day.', signal: 'No PR waits more than a working day for a first review.', owner: 'aiko', theme: 1 },
 ]
 const RECAP = `Sprint 14, looking back
@@ -60,7 +62,7 @@ We spent most of the hour on Wednesday’s staging outage, then on reviews that 
 Takeaway: staging needs a named owner every sprint, the way on-call has one.
 
 We’ll try:
-- a named staging owner in every on-call handover (Jonas)
+- a named staging owner in every on-call handover (Tomás)
 - 20 minutes after standup for first reviews (Aiko)`
 
 // ---------- the overlay: a tidy cursor, and a soft mark where a finger taps ----------
@@ -459,40 +461,78 @@ try {
   await maya.click('[role=dialog] button:text-is("Start the retro")')
   await maya.waitForURL(/stage$/)
   await maya.setViewportSize({ width: 1152, height: 720 }) // a big-screen layout: film it a little closer
-  for (const k of Object.keys(PEOPLE)) must(await api(p[k], 'POST', `/api/sprints/${sprintId}/meeting/attendance`, { present: true }), 'attendance')
+  // Faces in the room: most of Harbor has a character; Sam doesn't, and shows as a monogram.
+  for (const [k, avatar] of Object.entries(FACES)) must(await api(p[k], 'PATCH', '/api/auth/me', { avatar_id: avatar, avatar_theme: false }), 'character')
+  await maya.reload()
   await maya.locator('.retro-title').waitFor()
-  // Choose: moving there opens the vote; everyone votes on their own phone.
+  await maya.evaluate(() => document.fonts.ready)
+  await sleep(1500)
+  const ROOM = `${BASE}/sprints/${sprintId}/room`
+  const offsets = {}
+  /** Films a phone while the stage is being filmed, and notes when it started, so the reel can play them in step. */
+  const alongside = async (stageStart, name, page, fn) => {
+    offsets[name] = (Date.now() - stageStart) / 1000
+    await film(page, name, fn)
+  }
+
+  // 07 · The room fills: the team opens the retro, on laptops and a phone; faces light up, each arrival said once.
+  await film(maya, '07-arrive', async () => {
+    await sleep(900)
+    for (const k of ['jonas', 'tomas', 'priya', 'aiko', 'sam']) {
+      await p[k].goto(ROOM)
+      await p[k].locator('.retro-title').waitFor()
+      await sleep(650)
+    }
+    await sleep(1800)
+  })
+  log('arrived')
+
+  // 08 · Choose: moving there opens the vote. Everyone votes on their own screen; Tomás on his phone, on camera.
   await maya.click('.retro-rail-end button:has-text("Next: Choose")')
   await maya.locator('.retro-title', { hasText: 'What matters' }).waitFor()
   const ids = must(await api(maya, 'GET', `/api/sprints/${sprintId}/themes`), 'themes').themes.map((t) => t.id)
-  for (const [k, list] of Object.entries(VOTES)) for (const i of list) must(await api(p[k], 'POST', `/api/sprints/${sprintId}/votes`, { theme_id: ids[i], cast: true }), 'vote')
-  await maya.reload()
-  const next = maya.locator('.retro-rail-end button', { hasText: 'Next: Talk' })
-  await next.waitFor()
+  for (const [k, list] of Object.entries(VOTES)) if (k !== 'tomas') for (const i of list) must(await api(p[k], 'POST', `/api/sprints/${sprintId}/votes`, { theme_id: ids[i], cast: true }), 'vote')
+  await maya.locator('.rm-big', { hasText: /^5/ }).waitFor({ timeout: 10000 })
+  await tomas.locator('.vote-purse').waitFor()
+  await tomas.evaluate(() => window.scrollTo(0, 0))
   await maya.evaluate(() => document.fonts.ready)
-  await sleep(1500)
-
-  // 07 · What matters most, privately: moving on closes the vote, and the talk starts where it points.
+  await sleep(1200)
+  const next = maya.locator('.retro-rail-end button', { hasText: 'Next: Talk' })
   const sc = cursorOf(maya)
   await sc.show(620, 520)
-  await film(maya, '07-choose', async () => {
+  await film(maya, '08-choose', async () => {
+    const t0 = Date.now()
+    await sleep(700)
+    await alongside(t0, '08b-vote-phone', tomas, async () => {
+      await sleep(500)
+      for (const i of VOTES.tomas) {
+        const vote = tomas.locator('.retro-topic', { hasText: THEMES[i].title }).locator('.retro-vote')
+        await vote.scrollIntoViewIfNeeded()
+        await sleep(350)
+        await vote.tap()
+        await tomas.locator('.retro-topic[data-voted]', { hasText: THEMES[i].title }).waitFor()
+        await sleep(650)
+      }
+      await sleep(600)
+    })
+    await maya.locator('.rm-big', { hasText: /^6/ }).waitFor({ timeout: 10000 })
     await sleep(900)
     await sc.to(next, 900, 0.5, 0.55)
     await sleep(150)
     await sc.click()
     await maya.locator('.retro-talk-title').waitFor()
     await sc.glide(760, 430, 700)
-    await sleep(2400)
+    await sleep(2200)
   })
   await sc.hide()
+  log('chosen')
 
-  // On the first topic, the facilitator asks how it showed up. Five teammates answer on their own
-  // devices, privately; three add a line. (Off camera: each in their own browser, so lines are sealed.)
+  // 09 · Talk: the facilitator asks how the first topic showed up. Four answer off camera, in their
+  // own browsers (so the lines are sealed); Tomás answers on his phone, on camera; then she shares.
   await maya.click('.retro-asks button:has-text("Ask how it showed up")')
-  const ANSWERS = { jonas: ['I felt this', 'Nobody knew the runbook still pointed at the old cluster.'], priya: ['I felt this', null], tomas: ['Not in my work', 'Mobile never touched staging this sprint.'], aiko: ['I felt this', 'I restarted it twice without knowing whose it was.'], sam: ['I’d need context', null] }
+  const ANSWERS = { jonas: ['I felt this', 'Nobody knew the runbook still pointed at the old cluster.'], priya: ['I felt this', null], aiko: ['I felt this', 'I restarted it twice without knowing whose it was.'], sam: ['I’d need context', null] }
   for (const [k, [choice, line]] of Object.entries(ANSWERS)) {
     const pg = p[k]
-    await pg.goto(`${BASE}/sprints/${sprintId}/room`)
     await pg.locator('.ci-choice', { hasText: choice }).click()
     await pg.locator('.ci-choice[aria-checked="true"]').waitFor()
     if (line) {
@@ -502,22 +542,38 @@ try {
       await pg.locator('.ci-your-line').waitFor()
     }
   }
-  await maya.locator('.retro-asks .retro-asking-n', { hasText: '5 answers' }).waitFor()
+  await maya.locator('.retro-asks .retro-asking-n', { hasText: '4 answers' }).waitFor()
+  await tomas.locator('.ci-ask').waitFor()
+  await tomas.evaluate(() => window.scrollTo(0, 0))
   await maya.evaluate(() => document.fonts.ready)
   await sleep(1200)
-
-  // 08 · Everyone answers, nobody has to speak first: the facilitator shares, and the room has something to talk about.
   const tc2 = cursorOf(maya)
   await tc2.show(760, 600)
   const share = maya.locator('.retro-asks .retro-ask--share')
-  await film(maya, '08-talk', async () => {
-    await sleep(700)
+  await film(maya, '09-talk', async () => {
+    const t0 = Date.now()
+    await sleep(500)
+    await alongside(t0, '09b-answer-phone', tomas, async () => {
+      await sleep(500)
+      await tomas.locator('.ci-choice', { hasText: 'Not in my work' }).tap()
+      await tomas.locator('.ci-choice[aria-checked="true"]').waitFor()
+      await sleep(500)
+      await tomas.locator('.ci-ask button:has-text("Add a line")').tap()
+      await sleep(250)
+      await tomas.keyboard.type('Mobile never touched staging this sprint.', { delay: 36 })
+      await sleep(250)
+      await tomas.locator('button:has-text("Save line")').tap()
+      await tomas.locator('.ci-your-line').waitFor()
+      await sleep(900)
+    })
+    await maya.locator('.retro-asks .retro-asking-n', { hasText: '5 answers' }).waitFor({ timeout: 10000 })
+    await sleep(500)
     await tc2.to(share, 900, 0.5, 0.55)
     await sleep(150)
     await tc2.click()
     await maya.locator('.ci-moment .ci-tally').waitFor()
     await tc2.glide(640, 560, 800)
-    await sleep(2800)
+    await sleep(2600)
   })
   await tc2.hide()
   // What the room will remember, and an idea to try, written on the screen.
@@ -529,40 +585,70 @@ try {
   await maya.locator('.retro-saved').first().waitFor()
   log('talked')
 
-  // Agree: two experiments, each owner says yes. Then end the retro and publish the recap.
+  // 10 · Agree: the idea from the talk becomes an experiment; Tomás is asked on his phone and says yes.
   await maya.setViewportSize({ width: 1280, height: 800 })
   await maya.click('.retro-steps button:has-text("Agree")')
   await maya.waitForSelector('#ex-change')
+  await tomas.locator('.retro-title', { hasText: 'What will we' }).waitFor()
+  await maya.evaluate(() => document.fonts.ready)
+  await sleep(1200)
   const members = must(await api(maya, 'GET', `/api/sprints/${sprintId}`), 'sprint').participants
-  for (const e of EXPERIMENTS) {
-    await maya.fill('#ex-change', e.change)
-    await maya.fill('#ex-signal', e.signal)
-    await maya.selectOption('#ex-owner', members.find((m) => m.display_name === PEOPLE[e.owner]).account_id)
-    await maya.selectOption('#ex-theme', { label: THEMES[e.theme].title })
-    await maya.click('button:has-text("Propose this experiment")')
-    await maya.locator('.retro-exp', { hasText: e.change }).waitFor()
-    await maya.waitForFunction(() => document.querySelector('#ex-change')?.value === '')
-  }
+  const ac = cursorOf(maya)
+  await ac.show(700, 300)
+  await film(maya, '10-agree', async () => {
+    const t0 = Date.now()
+    await sleep(500)
+    const use = maya.locator('.retro-idea-use').first()
+    await ac.to(use, 800)
+    await sleep(120)
+    await ac.click()
+    await sleep(500)
+    const signal = maya.locator('#ex-signal')
+    await ac.to(signal, 600, 0.3, 0.5)
+    await ac.click()
+    await maya.keyboard.type(EXPERIMENTS[0].signal, { delay: 22 })
+    await sleep(250)
+    await maya.selectOption('#ex-owner', members.find((m) => m.display_name === PEOPLE[EXPERIMENTS[0].owner]).account_id)
+    await sleep(400)
+    const addBtn = maya.locator('.exp-form button[type=submit]')
+    await reveal(maya, addBtn)
+    await ac.to(addBtn, 600)
+    await sleep(120)
+    await ac.click()
+    await maya.locator('.retro-exp', { hasText: 'Waiting for' }).waitFor()
+    // Back up to what's agreed: the experiment, waiting for its owner.
+    await maya.evaluate(() => window.scrollTo({ top: 0, behavior: 'smooth' }))
+    await ac.glide(900, 380, 700)
+    await sleep(500)
+    await alongside(t0, '10b-own-phone', tomas, async () => {
+      await tomas.locator('.retro-invite').waitFor({ timeout: 10000 })
+      await tomas.evaluate(() => window.scrollTo(0, 0))
+      await sleep(900)
+      await tomas.locator('.retro-invite button:has-text("I’ll own this")').tap()
+      await tomas.locator('.retro-invite').waitFor({ state: 'detached' })
+      await sleep(900)
+    })
+    await maya.locator('.retro-exp', { hasText: `${PEOPLE[EXPERIMENTS[0].owner]} owns this` }).waitFor({ timeout: 10000 })
+    await sleep(2200)
+  })
+  await ac.hide()
+  writeFileSync(`${OUT}/offsets.json`, JSON.stringify(offsets))
+  // Off camera: the second experiment, its owner's yes, the end of the retro and the recap.
+  const e2 = EXPERIMENTS[1]
+  await maya.fill('#ex-change', e2.change)
+  await maya.fill('#ex-signal', e2.signal)
+  await maya.selectOption('#ex-owner', members.find((m) => m.display_name === PEOPLE[e2.owner]).account_id)
+  await maya.selectOption('#ex-theme', { label: THEMES[e2.theme].title })
+  await maya.click('.exp-form button[type=submit]')
+  await maya.locator('.retro-exp', { hasText: e2.change }).waitFor()
   const exps = must(await api(maya, 'GET', `/api/sprints/${sprintId}/experiments`), 'experiments')
-  for (const e of EXPERIMENTS) must(await api(p[e.owner], 'POST', `/api/sprints/${sprintId}/experiments/${exps.find((x) => x.owner_name === PEOPLE[e.owner]).id}/accept`, { accept: true }), 'accept ownership')
+  must(await api(p[e2.owner], 'POST', `/api/sprints/${sprintId}/experiments/${exps.find((x) => x.owner_name === PEOPLE[e2.owner]).id}/accept`, { accept: true }), 'accept ownership')
   await maya.click('.retro-end button:has-text("End the retro")')
   await maya.click('[role=dialog] button:has-text("End the retro")')
   await maya.waitForURL(new RegExp(`/sprints/${sprintId}$`))
   await maya.fill('textarea[aria-label="Recap (Markdown)"]', RECAP)
   await maya.click('button:has-text("Publish")')
   await maya.waitForSelector('text=published')
-
-  // 09 · Priya comes back to the sprint: it's done, and its page is what the team will try next.
-  await priya.goto(`${BASE}/sprints/${sprintId}`)
-  await priya.waitForSelector(`text=${EXPERIMENTS[1].change}`)
-  await priya.evaluate(() => document.fonts.ready)
-  await priya.evaluate(() => window.scrollTo(0, 0))
-  await sleep(1500)
-  await film(priya, '09-outcomes', async () => {
-    await sleep(1400)
-    await priya.evaluate(() => window.scrollTo({ top: 360, behavior: 'smooth' }))
-    await sleep(3000)
-  })
   log('done')
 } catch (e) {
   failed = true

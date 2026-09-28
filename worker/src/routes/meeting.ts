@@ -4,6 +4,7 @@
  * same sanitized shape serves participants, facilitator and presenter.
  */
 import { Hono } from 'hono'
+import { isAvatarId } from '../lib/avatars'
 import { content, isEncrypted } from '../lib/sealed'
 import type { HonoEnv } from '../env'
 import { config } from '../lib/config'
@@ -20,7 +21,7 @@ import { closeRound, openRound } from './voting'
 export const meeting = new Hono<HonoEnv>()
 
 async function participants(db: D1Database, sprintId: string) {
-  return all<{ account_id: string; display_name: string; is_facilitator: number }>(db, 'SELECT a.id AS account_id, a.display_name, sp.is_facilitator FROM sprint_participants sp JOIN accounts a ON a.id = sp.account_id WHERE sp.sprint_id = ? ORDER BY sp.is_facilitator DESC, a.display_name', sprintId)
+  return all<{ account_id: string; display_name: string; avatar_id: string | null; is_facilitator: number }>(db, 'SELECT a.id AS account_id, a.display_name, a.avatar_id, sp.is_facilitator FROM sprint_participants sp JOIN accounts a ON a.id = sp.account_id WHERE sp.sprint_id = ? ORDER BY sp.is_facilitator DESC, a.display_name', sprintId)
 }
 
 export async function snapshot(env: HonoEnv['Bindings'], ctx: SprintCtx) {
@@ -63,7 +64,10 @@ export async function snapshot(env: HonoEnv['Bindings'], ctx: SprintCtx) {
     attendance: people.map((p) => ({
       account_id: p.account_id,
       display_name: p.display_name,
+      // A character travels with its person's name, as a face in the room — never with anything anonymous.
+      avatar_id: isAvatarId(p.avatar_id) ? p.avatar_id : null,
       present: rs.attendance[p.account_id]?.present ?? false,
+      connected: rs.connected.includes(p.account_id),
       is_facilitator: bool(p.is_facilitator),
       is_you: p.account_id === me,
     })),

@@ -194,7 +194,7 @@ Existing tests already covered:
 
 **Retention decisions that don't exist yet** (no policy was invented):
 - **Unfinished sprints are never purged.** Draft, collecting, preparing, ready and live sprints keep their content until someone finishes or deletes them. Only draft sprints can be deleted.
-- **No account deletion, no "leave workspace" for members, no workspace deletion.** Accounts and email addresses are kept indefinitely. Removed members' entries stay in the sprint, anonymously.
+- **Account deletion and leaving (added 2026-09-29).** Members can leave a workspace and delete their account (recent passkey sign-in required); see `docs/ARCHITECTURE.md` → Leaving. There's still no way to delete a workspace others are in. Removed and departed members' entries stay in the sprint, anonymously.
 - `audit_events` (account ids and actions, no content) are never deleted.
 - Sprint rows (name, goal, dates) remain after a purge. Experiments and published recaps remain until the outcome window (730 days by default).
 - **Backups.** D1 Time Travel keeps restorable history for 7 or 30 days after any deletion. Workers Logs keep 3 or 7 days of request metadata. Resend's retention of sent messages is set by Resend. Exports and anything already sent to an AI provider are copies Muni can't recall.

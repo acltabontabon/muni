@@ -1,5 +1,7 @@
 /** Thin D1 helpers. Every query is a prepared statement with bound values. */
 export type DB = D1Database
+/** One SQL statement and its bound values, for `batch`. */
+export type Statement = [string, ...unknown[]]
 
 export async function one<T = Record<string, unknown>>(db: DB, sql: string, ...args: unknown[]): Promise<T | null> {
   return (await db.prepare(sql).bind(...args).first<T>()) ?? null
@@ -16,7 +18,7 @@ export async function count(db: DB, sql: string, ...args: unknown[]): Promise<nu
   return Number(r?.n ?? 0)
 }
 /** Runs statements in one transaction (D1 batches are atomic). */
-export async function batch(db: DB, stmts: [string, ...unknown[]][]): Promise<D1Result[]> {
+export async function batch(db: DB, stmts: Statement[]): Promise<D1Result[]> {
   if (!stmts.length) return []
   return db.batch(stmts.map(([sql, ...args]) => db.prepare(sql).bind(...args)))
 }

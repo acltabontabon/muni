@@ -1,7 +1,7 @@
 # The release demo
 
 `muni-demo.mp4` (1920×1200 at 60 fps) and `muni-demo.gif` (620 wide, for the release page) are a
-53-second reel of the real app. Every app frame in it is this build of Muni running locally, driven through
+75-second reel of the real app. Every app frame in it is this build of Muni running locally, driven through
 its own UI by [`web/e2e/demo.mjs`](../../web/e2e/demo.mjs), and never retouched. The reel around the
 footage is added by [`web/e2e/demo-reel.mjs`](../../web/e2e/demo-reel.mjs): Muni's paper, a
 chapter title per scene in Muni's type, the app in a window (a phone beside it where one was
@@ -22,21 +22,25 @@ new files.
 | 02 | *Make the page your own.* The same page in four characters’ rooms: Kape, Biyahe, Himig, Sibol | still frames, crossfaded, the room named in the window's bar | `/sprints/:id` in each world |
 | 03 | *Close collection whenever you’re ready.* Maya closes collection from the sprint bar: what it will do, then the closed state and *Start the retro…* | the camera moves to the control, then the confirmation | `/sprints/:id` (facilitator) |
 | 04 | *Gather them into themes.* Maya ticks four slips about staging, then names the theme in the empty pile waiting on the right, and it appears there with them inside | the camera follows the ticking, then crosses to the pile | `/sprints/:id/prepare` |
-| 05 | *Choose what matters, privately.* The retro's second step: four themes, the team's votes in; Maya moves on, which closes the vote and opens the most-voted topic | wide while the cursor goes to *Next: Talk*, then closer on the topic | `/sprints/:id/stage` (Choose → Talk) |
-| 06 | *Everyone answers. Nobody has to speak first.* “Who owns staging?”: the facilitator has asked how it showed up, five teammates have answered on their phones, and sharing turns the answers into counts and lines to talk about | still and wide, so what came back appears in place | `/sprints/:id/stage` (Talk) |
-| 07 | *Agree what to try next.* Priya comes back later: the finished sprint's page is its outcomes | | `/sprints/:id` (done) |
+| 05 | *Everyone arrives, on any screen.* The retro opens on Look back: the four steps at a glance; as Jonas, Tomás, Priya, Aiko and Sam open it, their faces light up in the rail and each arrival is said once | the camera moves up to the rail, where the faces and arrival lines are | `/sprints/:id/stage` (Look back) |
+| 06 | *Choose what matters most.* Why the team votes, in a line; beside the stage, Tomás spends his votes on his phone while the facilitator's count reaches 6 of 6; Maya moves on, which counts the vote and opens the top topic | the stage set aside, Tomás's phone beside it, in step | `/sprints/:id/stage` (Choose → Talk) and `/room` |
+| 07 | *Everyone answers. Nobody has to speak first.* “Who owns staging?”, the sun on the talk's horizon: Tomás answers the check-in on his phone and adds a line; the count reaches five; sharing turns the answers into counts and lines | stage and phone, in step | `/sprints/:id/stage` (Talk) and `/room` |
+| 08 | *Agree what to try next.* Maya turns the idea from the talk into an experiment and names Tomás; his phone asks, he says yes, and the stage says he owns it | stage and phone, in step | `/sprints/:id/stage` (Agree) and `/room` |
 | — | The mark, *Keep the thought. Bring it to the conversation.*, act.munimuni.app | drawn by the reel | |
 
 Chapters overlap by half a second. Everything behind them happens off camera, through the same UI.
 Six accounts are created with passkeys: Chromium's virtual authenticator, with PRF (Tomás's
 browser is a phone). The sprint is encrypted, as new sprints are by default, so each person writes
 their own thoughts in their own browser. The facilitator closes collection, groups the thoughts
-into themes on camera (the first) and off it (the other three), writes the opening questions, then runs the retro on the stage in its four steps. There she
-asks a check-in (answered in each teammate's own browser, so the lines are sealed), shares it,
-writes what the room will remember and an idea to try, proposes the experiments and ends the
-retro. Plain API calls are used only for things with no content in them: the
-workspace and its invitations, choosing Priya's character, attendance, votes and accepting
-ownership.
+into themes on camera (the first) and off it (the other three), writes the opening questions, then
+runs the retro on the stage in its four steps while the team opens it on their own screens. Where a
+chapter shows a phone beside the stage, both were filmed at the same moment, and the reel plays them
+in step (the capture writes `offsets.json`: when each phone shot started, measured from its stage
+shot). She asks a check-in (answered in each teammate's own browser, so the lines are sealed),
+shares it, writes what the room will remember and an idea to try, turns it into an experiment, and
+ends the retro after a second one off camera. Plain API calls are used only for things with no
+content in them: the workspace and its invitations, choosing characters, the other teammates'
+votes and the second owner's yes.
 
 ## Rebuilding it
 

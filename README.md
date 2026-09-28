@@ -22,9 +22,9 @@ Sprint content is end-to-end encrypted: the backend never sees what you write, o
 - **Passkeys only.** No email, password, or social sign-in — use a passkey to sign in. Losing all your passkeys means losing access to your account.
 - **Cloudflare only.** Runs on Cloudflare Workers; no other deployments are supported.
 - **English only** for now.
-- **Mostly Chromium.** Works on Safari and Firefox, but tested mainly on Chromium browsers.
+- **Browsers.** Tested on Chrome, Safari and Firefox, on desktop and on iPhone and Android.
 - **Encryption limits.** End-to-end encrypted sprints haven't been independently audited. Who wrote what is still recorded, so analysis of writing patterns could reveal authors in small teams.
-- **No account deletion yet.** You can't delete your account or purge finished sprints yourself.
+- **No self-service purge.** You can leave a workspace and delete your account, but not purge a finished sprint early or download everything you've written.
 
 ## For contributors and hosters
 

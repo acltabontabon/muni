@@ -1,14 +1,16 @@
 import { Hono } from 'hono'
 import type { HonoEnv } from '../env'
 import { config } from '../lib/config'
-import { RECENT_AUTH_MS, clearSessionCookies, loadSession, readCookie, requireAuth, revokeSession, securityEvent, sessionCookie, checkOrigin, type Auth } from '../lib/auth'
+import { RECENT_AUTH_MS, clearSessionCookies, loadSession, readCookie, requireAuth, requireRecentAuth, revokeSession, securityEvent, sessionCookie, checkOrigin, type Auth } from '../lib/auth'
 import { sha256Hex } from '../lib/crypto'
 import { all, batch, one, run } from '../lib/db'
-import { bad } from '../lib/errors'
+import { AppError, bad } from '../lib/errors'
 import { clientClass, limit } from '../lib/ratelimit'
 import { maskEmail, nonempty } from '../lib/util'
 import { accountByEmail, emailOf, setAccountEmail } from '../lib/accounts'
 import { INTRO, introName, isAvatarId } from '../lib/avatars'
+import { deleteAccount, free, openSprints, standing } from '../lib/departure'
+import { revokeLive } from '../lib/live'
 
 export const auth = new Hono<HonoEnv>()
 
@@ -96,6 +98,42 @@ auth.patch('/api/auth/me', async (c) => {
   if (!sets.length) throw bad('nothing to change')
   await run(c.env.DB, `UPDATE accounts SET ${sets.join(', ')} WHERE id = ?`, ...args, a.account.id)
   return c.json(await buildMe(c.env, a.account.id, a))
+})
+
+/**
+ * What deleting your account would do: per workspace, whether it goes with you (no one else is in
+ * it) or what you'd need to hand on first (ownership, or sprints you facilitate).
+ */
+auth.get('/api/auth/me/deletion', async (c) => {
+  const a = await requireAuth(c, config(c.env), c.env.DB)
+  const workspaces = await standing(c.env.DB, a.account.id)
+  return c.json({ can_delete: workspaces.every(free), workspaces })
+})
+
+/**
+ * Deletes your account, after a recent sign-in. Workspaces only you are in go with it; in the
+ * others, what nobody has seen yet is deleted and what the team has seen stays, tied to no one
+ * (lib/departure.ts). Every session ends. The passkey ids come back so this device can tell its
+ * password manager they're no longer any use.
+ */
+auth.delete('/api/auth/me', async (c) => {
+  const cfg = config(c.env)
+  const a = await requireAuth(c, cfg, c.env.DB)
+  requireRecentAuth(a)
+  const body = (await c.req.json().catch(() => ({}))) as { confirm?: unknown }
+  if (body.confirm !== true) throw bad('confirm that you want to delete your account')
+  const me = a.account.id
+  const workspaces = await standing(c.env.DB, me)
+  if (!workspaces.every(free)) throw new AppError(409, 'not_free', 'hand on what others depend on first', { workspaces: workspaces.filter((w) => !free(w)) })
+  const [email, creds, open] = await Promise.all([
+    emailOf(c.env.DB, me),
+    all<{ credential_id: string }>(c.env.DB, 'SELECT credential_id FROM webauthn_credentials WHERE account_id = ?', me),
+    openSprints(c.env.DB, me),
+  ])
+  await batch(c.env.DB, deleteAccount(me, email, workspaces.filter((w) => w.sole).map((w) => w.workspace_id)))
+  await Promise.all(open.map((id) => revokeLive(c.env, id, me)))
+  clearSessionCookies(c, cfg)
+  return c.json({ ok: true, rp_id: cfg.webauthn.rpId, credential_ids: creds.map((r) => r.credential_id) })
 })
 
 /**

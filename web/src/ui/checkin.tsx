@@ -251,7 +251,8 @@ export function AddToDiscussion({ sprintId, accountId, topic, titleOf, mine, pau
       setState('idle')
     }
   }
-  const here = mine.filter((m) => m.theme_id === topic)
+  // Once shared, what you added reads in the room's list (marked as yours there); here, only what's still waiting.
+  const here = mine.filter((m) => m.theme_id === topic && !m.released)
   return (
     <section className="ad">
       {open ? (
@@ -284,7 +285,7 @@ export function AddToDiscussion({ sprintId, accountId, topic, titleOf, mine, pau
         <ul className="ad-mine" aria-label="What you added">
           {here.map((m) => (
             <li key={m.id} data-shared={m.released || undefined}>
-              <span className="ad-mine-state">{m.released ? 'Shared' : 'Waiting to be shared'}{m.kind ? ` · ${kindWord(m.kind)}` : ''}</span>
+              <span className="ad-mine-state">Waiting for the facilitator to share it{m.kind ? ` · ${kindWord(m.kind)}` : ''}</span>
               <p className={clsx('ad-mine-text')}>{m.body}</p>
             </li>
           ))}

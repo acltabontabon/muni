@@ -6,7 +6,7 @@ import { config } from '../lib/config'
 import { requireFacilitator, requireMember, requireParticipant, requireSprint, type SprintCtx } from '../lib/auth'
 import { uuid } from '../lib/crypto'
 import { all, audit, count, one, run } from '../lib/db'
-import { AppError, bad, conflict, forbidden, notFound, unprocessable } from '../lib/errors'
+import { AppError, bad, conflict, forbidden, notFound } from '../lib/errors'
 import { hint } from '../lib/live'
 import { addDays } from '../lib/util'
 
@@ -35,6 +35,16 @@ export interface ExperimentRow {
   created_at: number
 }
 export const expView = (r: ExperimentRow) => ({ ...r, owner_accepted: Number(r.owner_accepted) === 1, reviewed_at: r.reviewed_at ? new Date(r.reviewed_at).toISOString() : null, created_at: new Date(r.created_at).toISOString() })
+
+/**
+ * A nudge, not a gate: a change that reads like an intention is refused with advice (422 `vague`)
+ * unless the facilitator says to keep it as written (`accept_vague: true`). A room mid-retro must
+ * never be stuck because its wording didn't pass a phrase list.
+ */
+function checkVague(change: string, body: Record<string, unknown>) {
+  const v = vague(change)
+  if (v && body.accept_vague !== true) throw new AppError(422, 'vague', v)
+}
 
 function vague(change: string): string | null {
   const c = change.toLowerCase()
@@ -66,8 +76,7 @@ commitments.post('/api/sprints/:sprintId/experiments', async (c) => {
   const encrypted = isEncrypted(ctx.sprint)
   // The "too vague" check reads the text, so for encrypted sprints it runs on the facilitator's device.
   const change = content(encrypted, body.change_to_try, 500, 'The change to try', true)!
-  const v = encrypted ? null : vague(change)
-  if (v) throw unprocessable(v)
+  if (!encrypted) checkVague(change, body)
   const signal = content(encrypted, body.success_signal, 300, 'The success signal', true)!
   const db = c.env.DB
   const n = await count(db, 'SELECT count(*) AS n FROM experiments WHERE sprint_id = ?', ctx.sprint.id)
@@ -100,8 +109,7 @@ commitments.patch('/api/sprints/:sprintId/experiments/:experimentId', async (c) 
   const body = (await c.req.json().catch(() => ({}))) as Record<string, unknown>
   if (body.change_to_try !== undefined) {
     const ch = content(isEncrypted(ctx.sprint), body.change_to_try, 500, 'The change to try', true)!
-    const v = isEncrypted(ctx.sprint) ? null : vague(ch)
-    if (v) throw unprocessable(v)
+    if (!isEncrypted(ctx.sprint)) checkVague(ch, body)
     await run(db, 'UPDATE experiments SET change_to_try=?, updated_at=? WHERE id=?', ch, Date.now(), eid)
   }
   if (body.success_signal !== undefined) await run(db, 'UPDATE experiments SET success_signal=?, updated_at=? WHERE id=?', content(isEncrypted(ctx.sprint), body.success_signal, 300, 'The success signal', true), Date.now(), eid)

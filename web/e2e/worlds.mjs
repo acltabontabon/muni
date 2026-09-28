@@ -161,7 +161,7 @@ try {
         await page.waitForLoadState('networkidle')
         check(`No world on ${path.split('/').slice(1).join('/').replace(/[0-9a-f-]{36}/, ':id')}`, (await world(page)) === null)
       }
-      check('Shared pages show initials, not the portrait', (await page.locator('[data-account-trigger] [data-portrait]').count()) === 0)
+      check('Shared pages keep Muni’s look, and your face is still yours in the menu', (await page.locator('[data-account-trigger] [data-portrait="bola"]').count()) === 1)
       await page.goto(`${BASE}/`)
       await page.waitForSelector('.passage')
       check('…and the portrait on your own page', (await page.locator('[data-account-trigger] [data-portrait="bola"]').count()) === 1)
@@ -180,7 +180,7 @@ try {
       await page.locator('[aria-label="Show one category"] [role=radio]', { hasText: 'Keep' }).click()
       const before = await page.locator('.passage').count()
       await page.locator('[data-account-trigger]').click()
-      await page.locator('button:has-text("Change character")').click()
+      await page.locator('[data-radix-popper-content-wrapper] button:has-text("Character")').click()
       await page.locator('[role=dialog] .w-tile').first().waitFor()
       await page.locator('[role=dialog] [role=radio][aria-label^="Himig"]').click()
       await page.locator('[role=dialog] button:has-text("Choose Himig")').click()

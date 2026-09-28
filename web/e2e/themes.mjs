@@ -77,6 +77,8 @@ const piles = (page) => page.locator('.sort-pile:not(.sort-pile--ghost)')
 try {
   const { ctx, page, errors } = await open(maya)
   await page.getByRole('heading', { name: /Group into themes/ }).waitFor()
+  // The heading shows before the thoughts arrive; wait for the table itself.
+  await page.locator('.sort-loose .sort-slip').first().waitFor()
   check('The page names what it’s for, and that it’s optional', /Optional/.test(await page.locator('.sort-head').innerText()))
   check('First visit: how it works, in three numbered lines', (await page.locator('.sort-steps li').count()) === 3 && /Tap the thoughts that belong together/.test(await page.locator('.sort-steps').innerText()))
   check('The sprint stays at two lines, so the sorting starts near the top', (await page.locator('.sbar[data-slim]').count()) === 1 && (await page.locator('.sort-slip').first().boundingBox()).y < 600, `${Math.round((await page.locator('.sort-slip').first().boundingBox()).y)}px`)

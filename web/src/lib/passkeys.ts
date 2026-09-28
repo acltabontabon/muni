@@ -139,6 +139,17 @@ async function forgetUnknown(credentialID: string) {
   }
 }
 
+/** After the account is deleted: ask the password manager to stop offering its passkeys (where supported). */
+export async function forgetDeletedPasskeys(rpID: string, credentialIDs: string[]) {
+  for (const credentialID of credentialIDs) {
+    try {
+      await sendSignal({ signalName: 'unknownCredential', rpID, credentialID })
+    } catch {
+      /* not supported here; the passkey stays in the password manager and simply won't work */
+    }
+  }
+}
+
 /** Sign in with a passkey: the browser's own passkey sheet opens now and lists this site's passkeys. */
 export async function signInWithPasskey(): Promise<Me> {
   const optionsJSON = withPrf(await post<PublicKeyCredentialRequestOptionsJSON>('/api/auth/passkey/login/options', {}))

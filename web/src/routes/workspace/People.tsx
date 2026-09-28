@@ -15,6 +15,7 @@ import { shortDate } from '@/lib/schedule'
 import { Button, Dialog, useDocumentTitle, useToast } from '@/ui'
 import { InviteDialog, sentence } from '@/ui/invite-email'
 import { InviteQrDialog } from '@/ui/invite-qr'
+import { LeaveWorkspaceDialog } from '@/ui/departure'
 import { SectionActions, SectionError, SectionPending, useWorkspaceShell } from './Layout'
 
 /** A directory this long gets a way to find someone. */
@@ -32,6 +33,7 @@ export function initials(name: string) {
   const first = (w: string | undefined) => (w ? ([...w].find((c) => /\p{L}/u.test(c)) ?? '') : '')
   return (first(words[0]) + (words.length > 1 ? first(words[1]) : '')).toUpperCase() || '·'
 }
+const list = (names: string[]) => (names.length <= 1 ? names.join('') : `${names.slice(0, -1).join(', ')} and ${names[names.length - 1]}`)
 const fold = (s: string) => s.normalize('NFD').replace(/\p{M}/gu, '').toLowerCase()
 
 export function WorkspacePeople() {
@@ -47,7 +49,15 @@ export function WorkspacePeople() {
   const links = useResource<JoinLinkInfo[]>(`${base}/join-links`)
   const sprints = useResource<SprintSummary[]>(`${base}/sprints`)
   const [inviting, setInviting] = useState<'email' | 'qr' | null>(null)
-  const [removing, setRemoving] = useState<MemberInfo | null>(null)
+  const [removing, setRemovingState] = useState<MemberInfo | null>(null)
+  /** Sprints the server said the removal would strand (when the page's list was out of date). */
+  const [refused, setRefused] = useState<{ id: string; name: string }[]>([])
+  const setRemoving = (m: MemberInfo | null) => {
+    setRemovingState(m)
+    setRefused([])
+  }
+  const blockedBy = refused.length ? refused : (removing?.facilitating ?? [])
+  const [leaving, setLeaving] = useState(false)
   const [query, setQuery] = useState('')
   const [busy, setBusy] = useState<string | null>(null)
 
@@ -99,7 +109,22 @@ export function WorkspacePeople() {
   const sprintName = (id: string) => sprints.data?.find((s) => s.id === id)?.name ?? 'a sprint'
 
   const manage = (m: MemberInfo) =>
-    owner && !m.is_you ? (
+    m.is_you ? (
+      <Popover.Root>
+        <Popover.Trigger asChild>
+          <button type="button" className="icon-btn person-menu" aria-label="Your membership">
+            <MoreHorizontal className="size-4" />
+          </button>
+        </Popover.Trigger>
+        <Popover.Portal>
+          <Popover.Content align="end" sideOffset={4} className="menu-panel anim-rise">
+            <Popover.Close asChild>
+              <button type="button" className="menu-item menu-item--danger" onClick={() => setLeaving(true)}>Leave workspace…</button>
+            </Popover.Close>
+          </Popover.Content>
+        </Popover.Portal>
+      </Popover.Root>
+    ) : owner ? (
       <Popover.Root>
         <Popover.Trigger asChild>
           <button type="button" className="icon-btn person-menu" aria-label={`Manage ${m.display_name}`} disabled={busy === m.account_id}>
@@ -301,20 +326,50 @@ export function WorkspacePeople() {
         sprints={facilitating}
         onChanged={() => store.invalidate(base)}
       />
-      <Dialog open={!!removing} onOpenChange={(o) => !o && setRemoving(null)} title={`Remove ${removing?.display_name ?? ''}?`} description="They lose access to this workspace immediately, including any sprint in progress.">
-        <p className="text-sm text-ink-soft">Thoughts they already submitted stay in their sprints, still without their name. They can be invited again later.</p>
+      <LeaveWorkspaceDialog open={leaving} onClose={() => setLeaving(false)} workspace={{ id: ws.id, name: ws.name }} />
+      <Dialog
+        open={!!removing}
+        onOpenChange={(o) => !o && setRemoving(null)}
+        title={`Remove ${removing?.display_name ?? ''}?`}
+        description={blockedBy.length ? undefined : 'They lose access to this workspace immediately, including any sprint in progress.'}
+      >
+        {blockedBy.length ? (
+          <>
+            <p className="text-[15px]">
+              {removing?.display_name} facilitates {list(blockedBy.map((f) => f.name))}, and others are in {blockedBy.length === 1 ? 'it' : 'them'}. Removing them now would leave {blockedBy.length === 1 ? 'that sprint' : 'those sprints'} without anyone to run {blockedBy.length === 1 ? 'it' : 'them'} — and an encrypted sprint without its key.
+            </p>
+            <p className="mt-2 text-sm text-ink-soft">Ask them to choose another facilitator in the sprint’s setup. Then you can remove them.</p>
+          </>
+        ) : (
+          <p className="text-sm text-ink-soft">Thoughts they already submitted stay in their sprints, still without their name. They can be invited again later.</p>
+        )}
         <div className="mt-6 flex justify-end gap-2">
-          <Button variant="ghost" onClick={() => setRemoving(null)}>Cancel</Button>
-          <Button
-            variant="danger"
-            onClick={async () => {
-              const m = removing
-              setRemoving(null)
-              if (m) await act(m.account_id, () => del(`${base}/members/${m.account_id}`), `${m.display_name} was removed`)
-            }}
-          >
-            Remove
-          </Button>
+          <Button variant="ghost" onClick={() => setRemoving(null)}>{blockedBy.length ? 'Close' : 'Cancel'}</Button>
+          {blockedBy.length ? null : (
+            <Button
+              variant="danger"
+              onClick={async () => {
+                const m = removing
+                if (!m) return
+                try {
+                  await del(`${base}/members/${m.account_id}`)
+                  setRemoving(null)
+                  toast(`${m.display_name} was removed`)
+                  await changed()
+                } catch (e) {
+                  // Facilitation may have changed since the page loaded: say why, here, and keep the dialog open.
+                  if (e instanceof ApiError && e.code === 'facilitating') setRefused((e.details.sprints as { id: string; name: string }[]) ?? [])
+                  else {
+                    setRemoving(null)
+                    toast(e instanceof ApiError ? (e.status === 0 ? 'You’re offline, so nothing changed.' : sentence(e.message)) : 'Couldn’t make that change', 'danger')
+                  }
+                  store.invalidate(base)
+                }
+              }}
+            >
+              Remove
+            </Button>
+          )}
         </div>
       </Dialog>
     </>

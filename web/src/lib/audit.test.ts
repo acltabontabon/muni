@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest'
 import { describeAction, describeEvent } from './audit'
 import type { AuditEvent } from '@/api/types'
 
-const ev = (action: string, meta: Record<string, unknown> = {}, extra: Partial<AuditEvent> = {}): AuditEvent => ({ id: 1, sprint_id: null, actor_name: 'Maya', action, meta, created_at: '2026-09-27T00:00:00Z', ...extra })
+const ev = (action: string, meta: Record<string, unknown> = {}, extra: Partial<AuditEvent> = {}): AuditEvent => ({ id: 1, sprint_id: null, actor_name: 'Maya', actor_gone: false, action, meta, created_at: '2026-09-27T00:00:00Z', ...extra })
 
 describe('activity wording', () => {
   it('turns lifecycle transitions into what happened', () => {
@@ -29,7 +29,8 @@ describe('activity wording', () => {
     expect(JSON.stringify(d)).not.toContain('acc-123')
   })
 
-  it('attributes system actions to Muni', () => {
+  it('attributes system actions to Muni, and a deleted account’s to someone', () => {
     expect(describeEvent(ev('retention.purged', {}, { actor_name: null })).who).toBe('Muni')
+    expect(describeEvent(ev('account.deleted', {}, { actor_name: null, actor_gone: true })).who).toBe('Someone')
   })
 })

@@ -19,13 +19,13 @@ async function liveSprint(owner: User, members: User[], ws: string) {
 const propose = (u: User, s: string, body: Record<string, unknown>) => post(`/api/sprints/${s}/experiments`, u, { change_to_try: CHANGE, success_signal: SIGNAL, ...body })
 
 describe('commitments', () => {
-  it('rejects vague experiments with a nudge towards a concrete change', async () => {
+  it('nudges vague experiments towards a concrete change, and keeps them when the facilitator says so', async () => {
     const { owner, members, ws } = await team(1)
     const { s, theme } = await liveSprint(owner, members, ws)
     for (const change of ['communicate better', 'We should try harder next time', 'be more careful', 'Improve communication across the team', 'Fix it']) {
       const r = await propose(owner, s, { change_to_try: change })
       expect(r.status, change).toBe(422)
-      expect(r.body.code).toBe('unprocessable')
+      expect(r.body.code).toBe('vague')
       expect(r.body.error).toContain('reads as an intention rather than a change')
       expect(r.body.error).toContain('For example')
     }
@@ -35,8 +35,13 @@ describe('commitments', () => {
     expect(ok.status).toBe(200)
     expect(ok.body).toHaveLength(1)
     expect(ok.body[0]).toMatchObject({ change_to_try: CHANGE, success_signal: SIGNAL, theme_id: theme, theme_title: 'Review turnaround', status: 'proposed', owner_account_id: null, owner_name: null, owner_accepted: false, review_on: '2026-10-11' })
-    // Editing into vagueness is refused the same way.
+    // Editing into vagueness is nudged the same way.
     expect((await patch(`/api/sprints/${s}/experiments/${ok.body[0].id}`, owner, { change_to_try: 'do better' })).status).toBe(422)
+    // Advice, not a gate: the room keeps its own words when it says so.
+    const kept = await propose(owner, s, { change_to_try: 'For next sprint be better', accept_vague: true })
+    expect(kept.status).toBe(200)
+    expect(kept.body.map((e: { change_to_try: string }) => e.change_to_try)).toContain('For next sprint be better')
+    expect((await patch(`/api/sprints/${s}/experiments/${ok.body[0].id}`, owner, { change_to_try: 'do better', accept_vague: true })).status).toBe(200)
     // Not before the retro.
     const early = await sprint(owner, members, ws, 'collecting')
     expect((await propose(owner, early, {})).status).toBe(409)
