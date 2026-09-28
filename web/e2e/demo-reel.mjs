@@ -57,8 +57,8 @@ const CHAPTERS = [
   { id: 'close', kicker: 'The facilitator, when the team is ready', title: 'Close collection <em>whenever you’re ready</em>.', shot: '05-close', label: 'Sprint 14 · Harbor', length: len('05-close'), from: 0.35, cut: 0.6,
     camera: [[0, 1, 1060, 160], [0.4, 1, 1060, 160], [1.5, 1.2, 1060, 160], [2.2, 1.24, 640, 400], [4.5, 1.24, 640, 400], [5.4, 1.12, 1060, 200], [99, 1.12, 1060, 200]] },
   { id: 'themes', kicker: 'Before the retro, if it helps', title: 'Gather them into <em>themes</em>.', shot: '06-themes', label: 'Themes · Sprint 14', length: len('06-themes'), from: 0.6,
-    // Picking up in the loose column; down to the tray at the screen's foot to name the theme; across to where it appears.
-    camera: [[0, 1, 640, 420], [0.7, 1.12, 330, 470], [5.6, 1.12, 330, 470], [6.3, 1.08, 640, 758, 640, 640], [9.2, 1.08, 640, 758, 640, 640], [9.9, 1.12, 1010, 330], [99, 1.12, 1010, 330]] },
+    // Selecting slips on the left; across to the empty pile, named where the theme then appears.
+    camera: [[0, 1, 640, 420], [0.7, 1.12, 330, 470], [4.7, 1.12, 330, 470], [6.0, 1.12, 1000, 280], [99, 1.12, 1000, 280]] },
   { id: 'choose', kicker: 'The retro, in four steps', title: 'Choose what matters, <em>privately</em>.', shot: '07-choose', label: 'The stage · Sprint 14', length: len('07-choose'),
     // Wide while the cursor goes to the step's one button in the corner; closer once the talk opens.
     camera: [[0, 1, 576, 360], [2.4, 1, 576, 360], [3.4, 1.08, 470, 260], [99, 1.1, 470, 260]] },

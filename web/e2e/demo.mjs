@@ -271,14 +271,13 @@ async function write(page, sprintId, text, category) {
 async function group(page, skip = 0) {
   const titled = (title) => page.waitForFunction((t) => [...document.querySelectorAll('textarea[aria-label="Theme title"]')].some((f) => f.value === t), title, { timeout: 15000 })
   for (const t of THEMES.slice(skip)) {
-    for (const e of t.entries) await page.locator('.sort-loose .sort-thought-inner', { hasText: e }).click()
-    await page.locator('.sort-tray button:has-text("New theme")').click()
+    for (const e of t.entries) await page.locator('.sort-loose .sort-slip-btn', { hasText: e }).click()
     await page.fill('.sort-tray input[aria-label="New theme title"]', t.title)
     await page.click('.sort-tray button:has-text("Create")')
     await titled(t.title)
   }
   for (const t of THEMES.slice(skip)) {
-    const chapter = page.locator('.sort-chapter').filter({ has: page.locator(`textarea[aria-label="Theme title"]`) }).nth(THEMES.indexOf(t))
+    const chapter = page.locator('.sort-pile:not(.sort-pile--ghost)').nth(THEMES.indexOf(t))
     const q = chapter.locator('textarea[aria-label="Opening question"]')
     await q.fill(t.question)
     await q.press('Enter')
@@ -414,7 +413,7 @@ try {
   // 06 · Maya gathers thoughts into themes (optional, and worth it here): the first on camera.
   await maya.click('a:has-text("Group into themes")')
   await maya.waitForURL(/prepare$/)
-  await maya.waitForSelector('.sort-loose .sort-thought-inner:has-text("Three PRs waited")', { timeout: 15000 })
+  await maya.waitForSelector('.sort-loose .sort-slip-btn:has-text("Three PRs waited")', { timeout: 15000 })
   await maya.evaluate(() => document.fonts.ready)
   // Down to the table: the loose thoughts and the (still empty) themes.
   await maya.evaluate(() => window.scrollTo(0, document.querySelector('.sort').getBoundingClientRect().top + window.scrollY - 90))
@@ -424,21 +423,23 @@ try {
   await film(maya, '06-themes', async () => {
     await sleep(500)
     for (const e of THEMES[0].entries) {
-      const thought = maya.locator('.sort-loose .sort-thought-inner', { hasText: e })
+      const thought = maya.locator('.sort-loose .sort-slip-btn', { hasText: e })
       await reveal(maya, thought)
       await tc.to(thought, 520, 0.62, 0.5)
       await sleep(90)
       await tc.click()
       await sleep(260)
     }
+    // Across to the empty pile, where the theme will appear, and name it there.
     await sleep(350)
-    await tc.to(maya.locator('.sort-tray button:has-text("New theme")'), 650)
+    const ghost = maya.locator('.sort-pile--ghost input[aria-label="New theme title"]')
+    await tc.to(ghost, 700, 0.3, 0.5)
     await sleep(120)
     await tc.click()
     await sleep(250)
     await maya.keyboard.type(THEMES[0].title, { delay: 55 })
     await sleep(300)
-    await tc.to(maya.locator('.sort-tray button:has-text("Create")'), 500)
+    await tc.to(maya.locator('.sort-pile--ghost button:has-text("Create")'), 500)
     await sleep(100)
     await tc.click()
     await maya.waitForFunction((t) => [...document.querySelectorAll('textarea[aria-label="Theme title"]')].some((f) => f.value === t), THEMES[0].title, { timeout: 15000 })
@@ -449,10 +450,10 @@ try {
   })
   await tc.hide()
   await group(maya, 1)
-  const first = maya.locator('.sort-chapter').first().locator('textarea[aria-label="Opening question"]')
+  const first = maya.locator('.sort-pile:not(.sort-pile--ghost)').first().locator('textarea[aria-label="Opening question"]')
   await first.fill(THEMES[0].question)
   await first.press('Enter')
-  await maya.locator('.sort-chapter').first().locator('.sort-saved').waitFor({ timeout: 10000 })
+  await maya.locator('.sort-pile:not(.sort-pile--ghost)').first().locator('.sort-saved').waitFor({ timeout: 10000 })
   log('grouped')
   await maya.click('button:has-text("Start the retro…")')
   await maya.click('[role=dialog] button:text-is("Start the retro")')

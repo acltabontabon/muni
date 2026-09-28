@@ -149,9 +149,8 @@ try {
   check('After the reveal, Maya can open the sprint', mk2.my_wraps.length === 1)
 
   // A theme created in preparation is sealed too.
-  await owner.click('button:has-text("New theme")')
-  await owner.fill('input[aria-label="New theme title"]', `Synthetic-${tag} staging ownership`)
-  await owner.click('.sort-new-form button:has-text("Add")')
+  await owner.fill('.sort-pile--ghost input[aria-label="New theme title"]', `Synthetic-${tag} staging ownership`)
+  await owner.click('.sort-pile--ghost button:has-text("Create")')
   await owner.waitForTimeout(800)
   const themes = (await owner.evaluate(async (id) => (await fetch(`/api/sprints/${id}/themes`, { headers: { 'x-muni-client': '5' } }).then((r) => r.json())), sprintId)).themes
   check('Theme titles are stored as envelopes', themes.length === 1 && themes[0].title.startsWith('e1.'))

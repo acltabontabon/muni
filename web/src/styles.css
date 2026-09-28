@@ -814,6 +814,16 @@ p.sbar-name { font-size: clamp(1.25rem, 1.05rem + 0.8vw, 1.6rem); }
   .sbar[data-compact]:not([data-open]) .sbar-name { display: -webkit-box; overflow: hidden; -webkit-box-orient: vertical; -webkit-line-clamp: 2; font-size: 1.3rem; }
   .sbar[data-compact]:not([data-open]) .sbar-status { margin-top: 0.3rem; font-size: 13.5px; gap: 0.1rem 0.7rem; }
 }
+/* Slim, at every width: pages that are a working surface of their own (Themes) keep the sprint to two lines. */
+.sbar[data-slim] { margin-bottom: 1rem; }
+.sbar[data-slim] .sbar-when { display: inline; }
+.sbar[data-slim] .sbar-toggle { display: inline-flex; align-items: center; min-height: 2.75rem; margin: -0.8rem 0; color: var(--ink); text-decoration: underline; text-decoration-color: var(--line-strong); text-underline-offset: 4px; }
+.sbar[data-slim]:not([data-open]) :is(.sbar-kicker, .sbar-line, .sbar-notes, .sbar-role, .sbar-consequence, .sbar-quiet, .sbar-access, .sbar-progress, .sbar-facts) { display: none; }
+.sbar[data-slim]:not([data-open]) .sbar-top { grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 0.75rem; text-align: left; }
+.sbar[data-slim]:not([data-open]) .sbar-control { padding: 0; border: 0; }
+.sbar[data-slim]:not([data-open]) .sbar-button { width: auto; min-height: 2.75rem; margin-top: 0; padding: 0.4rem 1.1rem; font-size: 14px; }
+.sbar[data-slim]:not([data-open]) .sbar-name { font-size: 1.3rem; }
+.sbar[data-slim]:not([data-open]) .sbar-status { margin-top: 0.2rem; font-size: 13.5px; gap: 0.1rem 0.7rem; }
 /* The journal's evening follows the bar instead of reaching up to the header. */
 .journal-scene.journal-scene--under-bar { margin-top: 0; }
 
@@ -1279,76 +1289,86 @@ p.sbar-name { font-size: clamp(1.25rem, 1.05rem + 0.8vw, 1.6rem); }
 .whatsnew strong { font-weight: 600; color: var(--ink); }
 
 /* ── Themes: the facilitator's sorting table ───────────────────────────────────────────────
-   Loose thoughts as passages on the left, themes as numbered chapters on the right, no cards: the
-   words on the page, a category as a word in the margin, rules between. Picking thoughts up marks
-   them with a rubric edge; one tray at the foot of the screen says where they can go. A title and
-   an opening question are edited where they're read. */
-.sort-head { max-width: 44rem; margin-top: 2.5rem; }
+   Thoughts are slips of paper with a round check: obviously something to pick. Themes are piles on
+   the table, numbered in italic, that light up and say "Add here" while slips are selected; the
+   next pile waits at the end, empty, with its name field open. Nothing to discover: the first
+   visit has three numbered lines, and every action is a word on a button. */
+.sort-head { max-width: 46rem; margin-top: 1.25rem; }
 .sort-title { font-family: var(--font-display); font-weight: 600; font-size: clamp(1.8rem, 1.3rem + 1.8vw, 2.5rem); line-height: 1.05; letter-spacing: -0.035em; }
 .sort-title em { font-family: var(--font-wordmark); font-style: italic; font-weight: 400; letter-spacing: -0.01em; color: var(--accent-ink); }
-.sort-lede { margin-top: 0.7rem; font-size: 1.0625rem; line-height: 1.55; color: var(--ink-soft); text-wrap: pretty; }
+.sort-lede { margin-top: 0.55rem; font-size: 1.0625rem; line-height: 1.55; color: var(--ink-soft); text-wrap: pretty; }
 .sort-warn { margin-top: 0.8rem; font-size: 14px; color: var(--warn); }
-.sort-tally { display: flex; align-items: center; gap: 1rem; margin-top: 1.4rem; font-size: 14px; color: var(--ink-soft); }
+.sort-tally { display: flex; align-items: center; gap: 1rem; margin-top: 1.2rem; font-size: 14px; color: var(--ink-soft); }
 .sort-tally strong { font-weight: 600; color: var(--ink); font-variant-numeric: tabular-nums; }
 .sort-tally-line { position: relative; flex: none; width: 9rem; height: 1px; background: var(--line-strong); }
 .sort-tally-line span { position: absolute; left: 0; top: -1px; height: 3px; border-radius: 2px; background: var(--ink); transition: width 400ms var(--ease-out-soft); }
 
-.sort { display: grid; grid-template-columns: minmax(0, 1fr); gap: 3rem; margin-top: 2.75rem; padding-bottom: 7rem; }
-.sort > * { min-width: 0; }
-@media (min-width: 1024px) { .sort { grid-template-columns: minmax(0, 0.95fr) minmax(0, 1.25fr); gap: 4.5rem; } }
-.sort-col-title { font-size: 12px; font-weight: 600; letter-spacing: 0.12em; text-transform: uppercase; color: var(--ink-faint); }
-.sort-col-title span { margin-left: 0.35rem; font-family: var(--font-wordmark); font-style: italic; font-size: 15px; font-weight: 400; letter-spacing: 0; text-transform: none; color: var(--ink-soft); }
-.sort-hint { margin-top: 0.35rem; font-size: 14px; color: var(--ink-faint); }
-.sort-empty { margin-top: 1rem; padding-top: 1rem; border-top: 1px solid var(--line); font-family: var(--font-wordmark); font-style: italic; color: var(--ink-soft); }
-@media (min-width: 1024px) { .sort-loose { position: sticky; top: 5rem; align-self: start; max-height: calc(100dvh - 6rem); overflow-y: auto; padding-right: 0.5rem; padding-bottom: 5.5rem; } }
+/* The first visit: how it works, in three lines. */
+.sort-steps { display: flex; flex-wrap: wrap; gap: 0.6rem 1.8rem; margin: 1.3rem 0 0; padding: 0; list-style: none; counter-reset: none; }
+.sort-steps li { display: flex; align-items: center; gap: 0.6rem; font-size: 15px; color: var(--ink); }
+.sort-steps span { display: grid; place-items: center; flex: none; width: 1.75rem; height: 1.75rem; border: 1.5px solid var(--accent); border-radius: 999px; font-family: var(--font-wordmark); font-style: italic; font-size: 15px; color: var(--accent-ink); }
 
-/* A thought: the category a word in the margin, then the words. */
-.sort-list { margin: 0.9rem 0 0; padding: 0; list-style: none; }
-.sort-thought { border-top: 1px solid var(--line); }
-.sort-thought:first-child { border-top: 0; }
-.sort-thought-inner { display: grid; grid-template-columns: 5.5rem minmax(0, 1fr); column-gap: 1rem; width: 100%; padding: 0.9rem 0.6rem 0.95rem; border-radius: 10px; text-align: left; color: var(--ink); transition: background-color 140ms ease, box-shadow 140ms ease; }
-button.sort-thought-inner { cursor: grab; }
-button.sort-thought-inner:hover { background: color-mix(in oklab, var(--ink) 4%, transparent); }
-button.sort-thought-inner:active { cursor: grabbing; }
-.sort-thought[data-picked] .sort-thought-inner { background: color-mix(in oklab, var(--accent-soft) 70%, transparent); box-shadow: inset 3px 0 0 var(--accent); }
-.sort-cat { padding-top: 0.2rem; font-family: var(--font-wordmark); font-style: italic; font-size: 14px; line-height: 1.3; text-align: right; color: var(--c, var(--ink-faint)); }
-.sort-words { display: grid; gap: 0.35rem; min-width: 0; }
-.sort-text { font-size: 16px; line-height: 1.55; overflow-wrap: anywhere; white-space: pre-wrap; }
+.sort { display: grid; grid-template-columns: minmax(0, 1fr); gap: 2.5rem; margin-top: 2rem; padding-bottom: 9rem; }
+.sort > * { min-width: 0; }
+@media (min-width: 1024px) { .sort { grid-template-columns: minmax(0, 1fr) minmax(0, 1.15fr); gap: 3.5rem; } }
+.sort-col-title { margin-bottom: 0.9rem; font-size: 12px; font-weight: 600; letter-spacing: 0.12em; text-transform: uppercase; color: var(--ink-faint); }
+.sort-col-title span { margin-left: 0.35rem; font-family: var(--font-wordmark); font-style: italic; font-size: 15px; font-weight: 400; letter-spacing: 0; text-transform: none; color: var(--ink-soft); }
+.sort-empty { padding: 1.2rem 0; border-top: 1px solid var(--line); font-family: var(--font-wordmark); font-style: italic; color: var(--ink-soft); }
+@media (min-width: 1024px) { .sort-loose { position: sticky; top: 5rem; align-self: start; max-height: calc(100dvh - 6rem); overflow-y: auto; margin: -0.4rem; padding: 0.4rem 0.4rem 5.5rem; } }
+
+/* A slip: a check, the words, the category as a word. */
+.sort-slips { display: grid; gap: 0.55rem; margin: 0; padding: 0; list-style: none; }
+.sort-slip { position: relative; display: flex; align-items: stretch; gap: 0.4rem; }
+.sort-slip-btn { display: grid; flex: 1; grid-template-columns: auto minmax(0, 1fr); column-gap: 0.85rem; min-width: 0; padding: 0.85rem 1rem 0.9rem 0.9rem; border-radius: 12px; border-left: 3px solid var(--c, var(--line-strong)); background: var(--card); box-shadow: 0 0 0 1px var(--line), 0 1px 0 rgb(0 0 0 / 0.03); text-align: left; color: var(--ink); cursor: pointer; transition: box-shadow 140ms ease, background-color 140ms ease, transform 140ms var(--ease-out-soft); }
+.sort-slip-btn--still { grid-template-columns: minmax(0, 1fr); cursor: default; }
+button.sort-slip-btn:hover { box-shadow: 0 0 0 1px var(--line-strong), 0 3px 10px -6px rgb(0 0 0 / 0.25); transform: translateY(-1px); }
+button.sort-slip-btn:active { transform: translateY(0); }
+.sort-check { display: grid; place-items: center; width: 1.35rem; height: 1.35rem; margin-top: 0.1rem; border: 1.5px solid var(--line-strong); border-radius: 999px; color: var(--card); transition: background-color 140ms ease, border-color 140ms ease; }
+button.sort-slip-btn:hover .sort-check { border-color: var(--accent); }
+.sort-slip[data-picked] .sort-slip-btn { background: color-mix(in oklab, var(--accent) 9%, var(--card)); box-shadow: 0 0 0 2px var(--accent); }
+.sort-slip[data-picked] .sort-check { border-color: var(--accent); background: var(--accent); }
+.sort-slip-body { display: grid; gap: 0.3rem; min-width: 0; }
+.sort-slip-text { font-size: 16px; line-height: 1.5; overflow-wrap: anywhere; white-space: pre-wrap; }
+.sort-slip-meta { display: flex; flex-wrap: wrap; gap: 0.1rem 0.8rem; font-size: 13px; color: var(--ink-faint); }
+.sort-slip-cat { font-family: var(--font-wordmark); font-style: italic; font-size: 14px; color: var(--c, var(--ink-faint)); }
 .sort-context { display: grid; gap: 0.15rem; font-size: 14px; line-height: 1.45; color: var(--ink-soft); }
 .sort-context i { font-family: var(--font-wordmark); color: var(--ink-faint); margin-right: 0.3rem; }
-.sort-period { font-size: 12.5px; color: var(--ink-faint); }
-.sort-thought[data-compact] .sort-thought-inner { grid-template-columns: 4.25rem minmax(0, 1fr); padding: 0.6rem 0.5rem 0.65rem; }
-.sort-thought[data-compact] .sort-text { font-size: 15px; }
-.sort-thought[data-compact] .sort-cat { font-size: 13px; }
+/* In a pile: smaller slips, each with its own "Take out". */
+.sort-slips--in { gap: 0.4rem; margin-top: 0.8rem; }
+.sort-slips--in .sort-slip-btn { padding: 0.6rem 0.8rem 0.65rem 0.7rem; }
+.sort-slips--in .sort-slip-text { font-size: 15px; }
+.sort-slips--in .sort-check { width: 1.2rem; height: 1.2rem; }
+.sort-takeout { display: inline-flex; flex: none; align-items: center; gap: 0.3rem; padding: 0 0.7rem; border-radius: 10px; font-size: 13px; color: var(--ink-soft); transition: color 140ms ease, background-color 140ms ease, opacity 140ms ease; }
+.sort-takeout:hover { color: var(--ink); background: color-mix(in oklab, var(--ink) 6%, transparent); }
+@media (hover: hover) and (pointer: fine) {
+  .sort-takeout { position: absolute; top: 0.35rem; right: 0.35rem; min-height: 2rem; background: var(--card); box-shadow: 0 0 0 1px var(--line); opacity: 0; }
+  .sort-slip:hover .sort-takeout, .sort-takeout:focus-visible { opacity: 1; }
+}
 
-/* A theme: a chapter on a rule, numbered in the margin. */
-.sort-themes-head { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 0.5rem 1rem; min-height: 2.5rem; }
-.sort-new { display: inline-flex; align-items: center; gap: 0.35rem; min-height: 2.5rem; font-size: 14.5px; color: var(--ink); text-decoration: underline; text-decoration-color: var(--line-strong); text-underline-offset: 4px; }
-.sort-new:hover { text-decoration-color: var(--accent); }
-.sort-new-form { display: flex; align-items: center; gap: 0.5rem; }
-.sort-new-form .sort-field { width: 14rem; border-bottom-color: var(--line-strong); }
-.sort-chapters { margin: 1rem 0 0; padding: 0; list-style: none; }
-.sort-chapter { position: relative; margin-bottom: 2.6rem; padding-top: 1.1rem; border-top: 1px solid var(--ink); transition: outline-color 140ms ease; outline: 1.5px dashed transparent; outline-offset: 10px; border-radius: 1px; }
-.sort-chapter[data-over] { outline-color: var(--accent); }
-.sort-chapter[data-parked] { opacity: 0.62; }
-.sort-chapter-head { display: flex; align-items: flex-start; gap: 0.9rem; }
-.sort-chapter-n { flex: none; padding-top: 0.3rem; font-family: var(--font-wordmark); font-style: italic; font-size: 1.05rem; color: var(--accent-ink); font-variant-numeric: tabular-nums; }
-.sort-chapter-title { font-family: var(--font-display); font-size: clamp(1.35rem, 1.1rem + 0.8vw, 1.65rem); font-weight: 600; line-height: 1.2; letter-spacing: -0.025em; }
-.sort-chapter-meta { display: flex; flex-wrap: wrap; align-items: center; gap: 0.2rem 0.9rem; margin-top: 0.3rem; font-size: 13px; color: var(--ink-soft); }
+/* A theme: a pile on the table. */
+.sort-piles { display: grid; gap: 1.1rem; margin: 0; padding: 0; list-style: none; }
+.sort-pile { position: relative; padding: 1.05rem 1.15rem 1.15rem; border-radius: 16px; background: color-mix(in oklab, var(--ink) 3%, var(--paper)); box-shadow: inset 0 0 0 1px var(--line); transition: box-shadow 160ms ease, background-color 160ms ease; }
+.sort-pile[data-parked] { opacity: 0.62; }
+.sort-pile[data-target], .sort-pile[data-over] { background: color-mix(in oklab, var(--accent) 6%, var(--paper)); box-shadow: inset 0 0 0 1.5px var(--accent); }
+.sort-pile-head { display: flex; align-items: flex-start; gap: 0.8rem; }
+.sort-pile-n { flex: none; padding-top: 0.2rem; font-family: var(--font-wordmark); font-style: italic; font-size: 1.3rem; line-height: 1.2; color: var(--accent-ink); font-variant-numeric: tabular-nums; }
+.sort-pile-title { font-family: var(--font-display); font-size: clamp(1.3rem, 1.1rem + 0.7vw, 1.55rem); font-weight: 600; line-height: 1.2; letter-spacing: -0.025em; }
+.sort-pile-meta { display: flex; flex-wrap: wrap; align-items: center; gap: 0.2rem 0.9rem; margin-top: 0.25rem; font-size: 13px; color: var(--ink-soft); }
+.sort-pile-add { display: flex; align-items: center; justify-content: center; gap: 0.45rem; width: 100%; min-height: 2.9rem; margin: 0.9rem 0 0.1rem; border: 1.5px dashed var(--accent); border-radius: 12px; background: color-mix(in oklab, var(--accent) 9%, transparent); font-size: 15px; font-weight: 500; color: var(--accent-ink); animation: rise 180ms var(--ease-out-soft) both; }
+.sort-pile-add:hover { background: color-mix(in oklab, var(--accent) 16%, transparent); }
 .sort-mix { display: inline-flex; flex-wrap: wrap; gap: 3px; }
 .sort-mix i { width: 7px; height: 7px; border-radius: 999px; }
 .sort-mark { font-size: 11px; font-weight: 650; letter-spacing: 0.1em; text-transform: uppercase; color: var(--ink-faint); }
 .sort-mark--flag { color: var(--accent-ink); }
 .sort-saved { color: var(--status-ink); animation: fade 160ms ease-out both; }
-.sort-menu { flex: none; margin-top: 0.1rem; }
-.sort-question { display: flex; flex-wrap: wrap; align-items: baseline; gap: 0.15rem 0.7rem; margin: 0.9rem 0 0.2rem calc(1.05rem + 0.9rem + 0.4ch); }
+.sort-menu { flex: none; margin-top: -0.1rem; }
+.sort-question { display: flex; flex-wrap: wrap; align-items: baseline; gap: 0.15rem 0.7rem; margin: 0.8rem 0 0; }
 .sort-question-lead { flex: none; font-size: 11px; font-weight: 650; letter-spacing: 0.12em; text-transform: uppercase; color: var(--ink-faint); }
-.sort-question-text { flex: 1; min-width: 12rem; font-family: var(--font-wordmark); font-style: italic; font-size: 1.12rem; line-height: 1.45; color: var(--ink); }
-.sort-list--in { margin: 0.4rem 0 0 calc(1.05rem + 0.9rem + 0.4ch - 0.5rem); }
-.sort-drop { margin: 0.8rem 0 0 calc(1.05rem + 0.9rem + 0.4ch); padding: 1rem 1.1rem; border: 1px dashed var(--line-strong); border-radius: 10px; font-size: 14px; color: var(--ink-faint); }
-.sort-later { margin: 0.8rem 0 0 calc(1.05rem + 0.9rem + 0.4ch); padding-left: 0.9rem; border-left: 2px solid var(--line); font-size: 15px; line-height: 1.5; color: var(--ink-soft); }
+.sort-question-text { flex: 1; min-width: 12rem; font-family: var(--font-wordmark); font-style: italic; font-size: 1.1rem; line-height: 1.45; color: var(--ink); }
+.sort-drop { margin-top: 0.8rem; padding: 0.9rem 1rem; border: 1px dashed var(--line-strong); border-radius: 12px; font-size: 14px; color: var(--ink-faint); }
+.sort-later { margin-top: 0.8rem; padding-left: 0.9rem; border-left: 2px solid var(--line); font-size: 15px; line-height: 1.5; color: var(--ink-soft); }
 .sort-later p + p { margin-top: 0.3rem; }
-.sort-summary, .sort-notes { margin: 0.7rem 0 0 calc(1.05rem + 0.9rem + 0.4ch); }
+.sort-summary, .sort-notes { margin-top: 0.7rem; }
 .sort-summary { font-size: 15px; color: var(--ink-soft); }
 .sort-notes-toggle { display: inline-flex; align-items: center; gap: 0.35rem; min-height: 2.25rem; font-size: 14px; color: var(--ink-soft); text-decoration: underline; text-decoration-color: var(--line-strong); text-underline-offset: 4px; }
 .sort-notes-toggle:hover { color: var(--ink); }
@@ -1358,43 +1378,47 @@ button.sort-thought-inner:active { cursor: grabbing; }
 .sort-note > span { font-size: 12.5px; font-weight: 600; color: var(--ink-soft); }
 .sort-note .sort-field { font-size: 15px; line-height: 1.5; border-bottom-color: var(--line-strong); }
 
+/* The next theme, waiting for its name. */
+.sort-pile--ghost { background: transparent; box-shadow: none; border: 1.5px dashed var(--line-strong); }
+.sort-pile--ghost[data-ready] { border-color: var(--accent); background: color-mix(in oklab, var(--accent) 5%, transparent); }
+.sort-ghost { display: flex; flex-wrap: wrap; align-items: center; gap: 0.6rem 0.8rem; }
+.sort-ghost .sort-field { flex: 1 1 12rem; border-bottom-color: var(--line-strong); }
+.sort-ghost-hint { margin: 0.45rem 0 0 calc(1.3rem + 0.8rem + 0.4ch); font-size: 13.5px; color: var(--ink-faint); }
+
 /* Text edited where it's read. */
 .sort-field { display: block; width: 100%; padding: 0.1rem 0; border: 0; border-bottom: 1px solid transparent; border-radius: 0; background: transparent; color: inherit; font: inherit; letter-spacing: inherit; resize: none; field-sizing: content; transition: border-color 140ms ease; }
 .sort-field::placeholder { color: var(--ink-faint); opacity: 1; }
-/* Fields that are a title or a question keep that type. */
-.sort-field.sort-chapter-title { font-family: var(--font-display); font-size: clamp(1.35rem, 1.1rem + 0.8vw, 1.65rem); font-weight: 600; line-height: 1.2; letter-spacing: -0.025em; }
-.sort-field.sort-question-text { font-family: var(--font-wordmark); font-style: italic; font-size: 1.12rem; line-height: 1.45; }
+.sort-field.sort-pile-title { font-family: var(--font-display); font-size: clamp(1.3rem, 1.1rem + 0.7vw, 1.55rem); font-weight: 600; line-height: 1.2; letter-spacing: -0.025em; }
+.sort-field.sort-question-text { font-family: var(--font-wordmark); font-style: italic; font-size: 1.1rem; line-height: 1.45; }
 .sort-field:hover { border-bottom-color: var(--line-strong); }
 .sort-field:focus, .sort-field:focus-visible { outline: none; border-bottom-color: var(--ink-soft); }
 
-.sort-invite { margin-top: 1rem; padding-top: 1.1rem; border-top: 1px dashed var(--line-strong); }
-.sort-invite-line { font-family: var(--font-wordmark); font-style: italic; font-size: 1.2rem; line-height: 1.45; color: var(--ink-soft); }
 .sort-merge { display: grid; gap: 0.2rem; margin: 0.5rem 0 0; padding: 0; list-style: none; }
 .sort-merge button { display: flex; justify-content: space-between; gap: 1rem; width: 100%; min-height: 2.75rem; padding: 0.5rem 0.75rem; border-radius: 10px; text-align: left; }
 .sort-merge button:hover { background: color-mix(in oklab, var(--ink) 5%, transparent); }
 .sort-merge span { color: var(--ink-faint); font-variant-numeric: tabular-nums; }
 
-/* The tray: what's picked up, and where it can go. */
-.sort-tray { position: fixed; left: 0; right: 0; bottom: max(1rem, env(safe-area-inset-bottom)); z-index: 40; display: flex; align-items: center; gap: 0.6rem 1rem; width: min(60rem, calc(100% - 2rem)); margin-inline: auto; padding: 0.55rem 0.55rem 0.55rem 1.15rem; border-radius: 18px; background: var(--card); box-shadow: 0 0 0 1px var(--line), var(--shadow-float); animation: rise 200ms var(--ease-out-soft) both; }
+/* The bar at the foot of the screen: what's selected, a name field already open, the themes by name. */
+.sort-tray { position: fixed; left: 0; right: 0; bottom: max(1rem, env(safe-area-inset-bottom)); z-index: 40; display: flex; flex-wrap: wrap; align-items: center; gap: 0.55rem 1rem; width: min(52rem, calc(100% - 2rem)); margin-inline: auto; padding: 0.65rem 0.6rem 0.65rem 1.15rem; border-radius: 18px; background: var(--card); box-shadow: 0 0 0 1.5px var(--accent), var(--shadow-float); animation: rise 200ms var(--ease-out-soft) both; }
 .sort-tray-count { flex: none; font-size: 14.5px; }
 .sort-tray-count strong { font-weight: 650; font-variant-numeric: tabular-nums; }
-.sort-tray-count span { color: var(--ink-soft); }
-.sort-tray-targets { display: flex; flex: 1; gap: 0.4rem; min-width: 0; overflow-x: auto; scrollbar-width: none; padding: 0.15rem; }
-.sort-tray-to { display: inline-flex; flex: none; align-items: center; gap: 0.3rem; min-height: 2.5rem; max-width: 16rem; padding: 0.35rem 0.95rem; border: 1px solid var(--line-strong); border-radius: 999px; font-size: 14px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: var(--ink); transition: background-color 140ms, border-color 140ms; }
-.sort-tray-to:hover { border-color: var(--ink-soft); background: var(--paper); }
-.sort-tray-to--new { border-style: dashed; color: var(--ink-soft); }
+.sort-tray-new { display: flex; flex: 1 1 16rem; align-items: center; gap: 0.5rem; }
+.sort-tray-new .sort-field { padding: 0.35rem 0; border-bottom-color: var(--line-strong); font-size: 15px; }
+.sort-tray-targets { display: flex; flex: 1 1 100%; align-items: center; gap: 0.4rem; min-width: 0; overflow-x: auto; scrollbar-width: none; padding: 0.1rem 0; order: 3; }
+.sort-tray-or { flex: none; margin-right: 0.2rem; font-family: var(--font-wordmark); font-style: italic; font-size: 14px; color: var(--ink-faint); }
+.sort-tray-to { display: inline-flex; flex: none; align-items: center; min-height: 2.4rem; max-width: 16rem; padding: 0.3rem 0.9rem; border: 1px solid var(--line-strong); border-radius: 999px; font-size: 14px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: var(--ink); transition: background-color 140ms, border-color 140ms; }
+.sort-tray-to:hover { border-color: var(--accent); background: color-mix(in oklab, var(--accent) 10%, transparent); }
 .sort-tray-to--quiet { border-color: transparent; color: var(--ink-soft); text-decoration: underline; text-decoration-color: var(--line-strong); text-underline-offset: 4px; }
-.sort-tray-new { display: flex; flex: 1; align-items: center; gap: 0.5rem; }
-.sort-tray-new .sort-field { border-bottom-color: var(--line-strong); }
 @media (max-width: 639px) {
-  .sort-tray { flex-wrap: wrap; bottom: 0; width: 100%; border-radius: 18px 18px 0 0; padding: 0.7rem 0.75rem max(0.75rem, env(safe-area-inset-bottom)); }
+  .sort-steps { flex-direction: column; }
+  .sort-tray { bottom: 0; width: 100%; border-radius: 18px 18px 0 0; padding: 0.75rem 0.75rem max(0.75rem, env(safe-area-inset-bottom)); }
   .sort-tray-count { flex: 1; }
-  .sort-tray-targets { order: 3; flex-basis: 100%; }
-  .sort-thought-inner, .sort-thought[data-compact] .sort-thought-inner { grid-template-columns: minmax(0, 1fr); row-gap: 0.2rem; }
-  .sort-cat { text-align: left; padding-top: 0; }
-  .sort-cat:empty { display: none; }
-  .sort-question, .sort-list--in, .sort-drop, .sort-later, .sort-summary, .sort-notes { margin-left: 0; }
-  .sort-list--in { margin-left: -0.5rem; }
+  .sort-tray-new { order: 2; flex-basis: 100%; }
+  .sort-pile { padding: 0.95rem 0.9rem 1rem; }
+  .sort-ghost-hint { margin-left: 0; }
+  .sort-takeout span { display: none; }
+  .sort-takeout { min-width: 2.75rem; justify-content: center; }
+  .sort-tray-to { min-height: 2.75rem; }
 }
 
 /* ---------- The retro: four steps, one question each ----------

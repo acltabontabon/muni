@@ -35,8 +35,8 @@ those as highlights. The app's About → What's new and each GitHub release are 
   most?), talk (one topic at a time) and agree (what will we try?), on a shared screen while each
   person follows on their own device. Voting opens and closes with its step and the talk follows
   its order; the facilitator writes what the room will remember, and ideas to try, right on the
-  screen. If it helps, thoughts are gathered into themes first, on a calm sorting table — pick up
-  the ones that belong together, name them, give each an opening question.
+  screen. If it helps, thoughts are gathered into themes first, on a sorting table that needs no
+  explaining — tick the ones that belong together, name them, give each an opening question.
 - **A way in for everyone, without having to speak.** When it helps, the facilitator asks how a
   topic showed up — *I felt this*, *Not in my work*, *I’d need context* — or whether an idea would
   help. One tap answers, a line is optional, and answers stay private until the facilitator shares

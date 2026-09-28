@@ -188,24 +188,31 @@ and *Details* unfolds the rest, so the field and *Add to sprint* stay in the fir
 
 ## Themes: the sorting table
 
-The facilitator's optional work while collection is closed (`/sprints/:id/prepare`), under the same
-sprint bar. Not a form: a table where thoughts are sorted.
+The facilitator's optional work while collection is closed (`/sprints/:id/prepare`). It has to need
+no explaining: someone who has never seen it should know what to do in one look, and every action
+is a word on a button. The sprint bar is slim here (two lines, *Details* unfolds it), so the table
+starts near the top.
 
-- **Loose thoughts** sit on the left as passages — the words, the category as a word in Fraunces
-  italic in the margin, hairlines between — and stay in view (sticky) while the themes scroll.
-- **Picking up** a thought (a click, Enter or Space; loose or already in a theme) gives it a rubric
-  edge and a warm wash. **One tray** at the foot of the screen then says where they can go: an
-  existing theme (named in full), a new one (named in the tray), or back among the loose. Dragging
-  a thought onto a theme does the same. No checkboxes, no menu per thought.
-- **Themes are chapters** on an ink rule, numbered in Fraunces italic rubric: the title and the
-  *Open with* question are edited where they're read (Enter or leaving the field saves, Escape puts
-  it back, a quiet *Saved*); the thoughts inside are always in view; the notes (a neutral summary, a
-  draft experiment) fold away; park, flag, merge and remove are in one ⋯ menu, and removing says
-  that its thoughts go back, exactly as written.
-- A thin **tally** line under the heading fills as thoughts find a theme (*6 of 12 thoughts in 2
-  themes*). With no themes yet, one italic line invites: pick up a few that belong together.
-- On a phone the columns stack, the margin word sits above the thought, and the tray is a sheet
-  along the bottom edge whose destinations scroll sideways.
+- **Thoughts are slips**: small paper cards with a round check on the left, the category as an
+  italic word under the words and as a thin coloured edge, never colour alone. Tapping one (or Enter,
+  Space) fills the check and warms the slip. That's the one gesture on the page.
+- **Three numbered lines** under the heading say it all on the first visit: tap the thoughts that
+  belong together, name them, give the theme an opening question if you like. They give way to the
+  tally (*4 of 6 thoughts in 2 themes*) once the first theme exists.
+- **Themes are piles** on the table: a soft panel, numbered in Fraunces italic rubric, with the title
+  and the *Open with* question edited where they're read (Enter or leaving saves, Escape puts it
+  back, a quiet *Saved*), and their slips inside. While slips are selected, every pile lights up and
+  says **Add 2 selected thoughts here**, where the eye already is. A slip in a pile has its own
+  **Take out** (on hover with a mouse, always on touch).
+- **The next pile is always waiting**: an empty dashed pile at the end, its name field open
+  (*Name your first theme*, then *Name a theme for these 3* while slips are selected). Naming it
+  makes the theme, with whatever is selected.
+- **The bar at the foot** appears with a selection: the count, a name field already open, *or add to*
+  every theme by name, *Take out* when something selected is in a theme, and a clear (Esc). On a
+  phone it's a sheet along the bottom edge with 44px targets.
+- Rarer things stay out of the way in each pile's ⋯ menu: notes (a neutral summary, a draft
+  experiment), park, flag, merge and remove — which says its thoughts go back, exactly as written.
+  Dragging a slip onto a pile still works for those who reach for it.
 
 ## The retro: four steps
 

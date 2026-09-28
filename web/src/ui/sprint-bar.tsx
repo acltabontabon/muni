@@ -117,6 +117,7 @@ export function SprintBar({
   view = 'sprint',
   extra,
   compact,
+  slim,
 }: {
   s: BarSprint
   plan: Plan
@@ -131,6 +132,8 @@ export function SprintBar({
    * screen. "Details" unfolds the rest.
    */
   compact?: boolean
+  /** Two lines at every width, until Details unfolds it (a working surface like Themes). */
+  slim?: boolean
 }) {
   const [open, setOpen] = useState(false)
   const when = retroShort(s.retro_at, s.timezone)
@@ -141,7 +144,7 @@ export function SprintBar({
   const hasControl = !!(plan.control || secondary.length || plan.more.length)
   const Name = view === 'sprint' ? 'h1' : 'p'
   return (
-    <section className="sbar" aria-labelledby={`sbar-${s.id}`} data-phase={plan.phase} data-compact={compact || undefined} data-open={open || undefined}>
+    <section className="sbar" aria-labelledby={`sbar-${s.id}`} data-phase={plan.phase} data-compact={compact || slim || undefined} data-slim={slim || undefined} data-open={open || undefined}>
       <div className="sbar-top">
         <div className="sbar-id">
           <p className="sbar-kicker">
@@ -156,8 +159,8 @@ export function SprintBar({
               {plan.status}
             </span>
             {facts.length ? <span className="sbar-facts">{facts.join(' · ')}</span> : null}
-            {compact && when && plan.phase !== 'live' && plan.phase !== 'done' ? <span className="sbar-when">{when.replace(/^retro /, 'retro planned ')}</span> : null}
-            {compact ? (
+            {(compact || slim) && when && plan.phase !== 'live' && plan.phase !== 'done' ? <span className="sbar-when">{when.replace(/^retro /, 'retro planned ')}</span> : null}
+            {compact || slim ? (
               <button type="button" className="sbar-toggle" aria-expanded={open} onClick={() => setOpen((o) => !o)}>
                 {open ? 'Less' : 'Details'}
               </button>
