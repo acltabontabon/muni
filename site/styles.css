@@ -318,7 +318,7 @@ em { font-family: var(--font-serif); font-style: italic; font-weight: 400; font-
     radial-gradient(50% 45% at 72% 62%, var(--glow), transparent 70%),
     radial-gradient(35% 30% at 20% 70%, var(--glow-2), transparent 70%);
   filter: blur(10px);
-  animation: drift 22s ease-in-out infinite alternate;
+  animation: drift 22s ease-in-out 2 alternate forwards;
 }
 .hero-inner { width: 100%; max-width: var(--max); margin: 0 auto; padding: 120px var(--gutter) 64px; }
 .hero .kicker { margin-bottom: 28px; }
@@ -398,7 +398,7 @@ em { font-family: var(--font-serif); font-style: italic; font-weight: 400; font-
 .ripple.late { animation-delay: 0.35s; }
 
 .scroll-cue { position: absolute; left: 50%; bottom: 22px; width: 24px; height: 38px; margin-left: -12px; border-radius: 12px; border: 1px solid var(--line-strong); }
-.scroll-cue span { position: absolute; left: 50%; top: 8px; width: 3px; height: 7px; margin-left: -1.5px; border-radius: 2px; background: var(--soft); animation: cue 2.2s var(--ease) infinite; }
+.scroll-cue span { position: absolute; left: 50%; top: 8px; width: 3px; height: 7px; margin-left: -1.5px; border-radius: 2px; background: var(--soft); animation: cue 2.2s var(--ease) 5 forwards; }
 
 /* ── The scene: the sprint, played by scrolling ───────────────────── */
 

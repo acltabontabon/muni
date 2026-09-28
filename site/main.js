@@ -66,8 +66,12 @@
   let heroVisible = true
   if (drops && !reduced) {
     const cats = ['proud', 'keep', 'improve', 'stop', 'try', 'improve', 'keep']
+    // A dozen thoughts land, then the water is still: nothing on the page moves forever.
+    let left = 12
     const spawn = () => {
+      if (left <= 0) return clearInterval(dropping)
       if (!heroVisible || document.hidden) return
+      left--
       const d = document.createElement('span')
       d.className = 'drop'
       const x = 6 + Math.random() * 88
@@ -92,7 +96,7 @@
       setTimeout(() => d.remove(), t * 1000 + 100)
     }
     setTimeout(spawn, 900)
-    setInterval(spawn, 2600)
+    const dropping = setInterval(spawn, 2600)
     new IntersectionObserver(([e]) => (heroVisible = e.isIntersecting)).observe(hero)
   }
 
@@ -103,6 +107,7 @@
   const tilesEl = field.querySelector('.tiles')
   const axis = field.querySelector('.axis')
   const statusText = field.querySelector('.field-status-text')
+  const lock = field.querySelector('.lock')
   const captions = [...scene.querySelectorAll('.caption')]
   const railTicks = [...scene.querySelectorAll('.rail i')]
 
@@ -205,10 +210,14 @@
 
   let lastStep = -1
   let lastSky = ''
+  const themeColor = document.querySelector('meta[name="theme-color"]')
   const setSky = (sky) => {
     if (sky === lastSky) return
     lastSky = sky
     root.dataset.sky = sky
+    // The browser's chrome follows once the sky has finished changing (read once, not every frame).
+    clearTimeout(setSky.t)
+    setSky.t = setTimeout(() => (themeColor.content = getComputedStyle(root).getPropertyValue('--bg').trim()), 950)
   }
 
   const renderScene = (p) => {
@@ -265,7 +274,7 @@
       s === 1 ? '25 thoughts · sealed until collection closes' :
       s === 2 ? '25 thoughts · one batch, random order' :
       '25 thoughts · 5 themes · 10 ungrouped'
-    field.querySelector('.lock').style.opacity = s === 1 ? '1' : '0.35'
+    lock.style.opacity = s === 1 ? '1' : '0.35'
 
     // The sky follows the sprint into the evening.
     setSky(p < 0.44 ? 'day' : p < 0.8 ? 'dusk' : 'night')
@@ -273,8 +282,7 @@
 
   /* ── The room: a slight tilt that settles as it comes into view. ─ */
   const stage = document.querySelector('.stage')
-  const renderStage = () => {
-    const r = stage.getBoundingClientRect()
+  const renderStage = (r) => {
     const t = clamp(1 - (r.top - innerHeight * 0.15) / (innerHeight * 0.75))
     stage.style.setProperty('--tilt', `${((1 - t) * 10).toFixed(2)}deg`)
     stage.style.setProperty('--sc', (0.94 + t * 0.06).toFixed(4))
@@ -355,16 +363,15 @@
   let queued = false
   const frame = () => {
     queued = false
+    // Every layout read first, then every write: one layout per frame, never a forced one.
     const r = scene.getBoundingClientRect()
+    const sr = stage.getBoundingClientRect()
     const total = r.height - innerHeight
     const inScene = r.top <= innerHeight * 0.5 && r.bottom >= innerHeight * 0.5
+    const sky = inScene ? null : skyAt()
     if (r.bottom > 0 && r.top < innerHeight) renderScene(clamp(-r.top / total))
-    if (!inScene) {
-      const sky = skyAt()
-      if (sky) setSky(sky)
-    }
-    renderStage()
-    document.querySelector('meta[name="theme-color"]').content = getComputedStyle(root).getPropertyValue('--bg').trim()
+    if (sky) setSky(sky)
+    if (sr.bottom > 0 && sr.top < innerHeight) renderStage(sr)
   }
   const queue = () => {
     if (!queued) {
@@ -372,7 +379,7 @@
       requestAnimationFrame(frame)
     }
   }
-  /* ── Both sides of one retro: four steps as tabs, playing on their own while on screen. ──
+  /* ── Both sides of one retro: the steps as tabs, played through once while on screen. ──
      Hover, focus or a click hands control to the reader; nothing runs while it's hidden. */
   const duo = document.querySelector('.duo')
   if (duo) {
@@ -396,8 +403,10 @@
       schedule()
     }
     const playing = () => visible && !held && !stopped
+    // It plays through once, to the recap, and rests there: nothing on the page moves forever.
     const schedule = () => {
       clearTimeout(timer)
+      if (at === tabs.length - 1) stopped = true
       duo.toggleAttribute('data-playing', playing())
       if (playing()) timer = setTimeout(() => show(at + 1), DUR)
     }
