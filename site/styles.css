@@ -568,10 +568,6 @@ em { font-family: var(--font-serif); font-style: italic; font-weight: 400; font-
 .stage-kicker { font-family: var(--font-mono); font-size: 11px; letter-spacing: 0.14em; text-transform: uppercase; color: var(--accent); }
 .stage-title { font-size: clamp(1.7rem, 3.2vw, 2.6rem); font-weight: 600; letter-spacing: -0.035em; margin-top: 8px; }
 .stage-question { color: var(--soft); margin-top: 6px; font-size: clamp(0.98rem, 1.3vw, 1.12rem); max-width: 60ch; }
-.obs-grid { margin-top: 28px; columns: 3 260px; column-gap: 14px; }
-.obs { break-inside: avoid; margin-bottom: 14px; padding: 16px 18px; border-radius: 14px; background: var(--surface); border: 1px solid var(--line); font-size: 15.5px; line-height: 1.5; }
-.obs p { color: var(--ink); }
-.obs .obs-more { margin-top: 10px; font-size: 13.5px; color: var(--soft); }
 .cat { display: inline-flex; align-items: center; gap: 7px; margin-bottom: 8px; font-size: 12px; color: var(--soft); }
 .cat::before { content: ''; width: 7px; height: 7px; border-radius: 50%; background: var(--c); }
 .c-proud { --c: var(--c-proud); }
@@ -580,24 +576,6 @@ em { font-family: var(--font-serif); font-style: italic; font-weight: 400; font-
 .c-stop { --c: var(--c-stop); }
 .c-try { --c: var(--c-try); }
 
-.voice {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 12px 16px;
-  margin-top: 12px;
-  padding: 12px 14px 12px 18px;
-  border-radius: 999px;
-  border: 1px solid var(--line-strong);
-  background: color-mix(in srgb, var(--surface) 80%, transparent);
-  width: fit-content;
-  max-width: 100%;
-}
-.voice-dot { width: 9px; height: 9px; border-radius: 50%; background: var(--accent); box-shadow: 0 0 0 0 var(--accent); animation: ping 2.4s var(--ease) infinite; }
-.voice-text { font-size: 16px; }
-.voice-text b { font-weight: 600; display: inline-block; transition: opacity 300ms var(--ease), transform 400ms var(--ease); }
-.voice-text b.swap { opacity: 0; transform: translateY(6px); }
-.voice-actions { display: flex; gap: 6px; }
 .chip { display: inline-flex; align-items: center; gap: 8px; padding: 5px 8px 5px 12px; border-radius: 999px; border: 1px solid var(--line); font-size: 12.5px; color: var(--soft); }
 kbd { font-family: var(--font-mono); font-size: 11px; padding: 1px 6px; border-radius: 5px; background: var(--surface-2); border: 1px solid var(--line); color: var(--faint); }
 
@@ -610,7 +588,6 @@ kbd { font-family: var(--font-mono); font-size: 11px; padding: 1px 6px; border-r
   .stage { transform: none !important; border-radius: 14px; }
   .stage-phases { display: none; }
   .stage-timer { margin-left: auto; }
-  .voice { border-radius: 18px; }
 }
 
 /* ── Decide ───────────────────────────────────────────────────────── */
@@ -801,3 +778,112 @@ kbd { font-family: var(--font-mono); font-size: 11px; padding: 1px 6px; border-r
 }
 .tile q { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; margin-top: 8px; font-size: 12.5px; line-height: 1.4; color: var(--soft); quotes: '“' '”'; }
 @media (max-width: 860px) { .tile q { display: none; } }
+
+/* ── The problem: how a retro usually goes, in four small scenes ─────────── */
+.problem { position: relative; padding: clamp(100px, 14vh, 170px) 0 clamp(70px, 10vh, 120px); }
+.problem .display { max-width: 16ch; }
+.problem .lede { margin-top: 20px; }
+.woes { list-style: none; padding: 0; margin: clamp(48px, 7vw, 88px) 0 0; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: clamp(48px, 6vw, 80px) clamp(32px, 5vw, 72px); }
+.woe h3 { margin-top: 26px; font-size: clamp(1.25rem, 1.8vw, 1.5rem); font-weight: 600; letter-spacing: -0.02em; }
+.woe > p { margin-top: 10px; max-width: 46ch; color: var(--soft); }
+.woe > p.woe-fix { display: flex; align-items: baseline; gap: 14px; margin-top: 18px; padding-top: 14px; border-top: 1px solid var(--line); color: var(--ink); }
+.woe-fix span { flex: none; font-family: var(--font-mono); font-size: 11px; letter-spacing: 0.14em; text-transform: uppercase; color: var(--accent); }
+.woe-art { position: relative; display: grid; place-items: center; height: 220px; padding: 24px; overflow: hidden; border-radius: 22px; background: var(--surface); border: 1px solid var(--line); box-shadow: var(--shadow); }
+
+/* Memory: a sprint of notes, the early ones fading by retro day. */
+.fade-days { display: flex; align-items: flex-end; gap: clamp(6px, 1.2vw, 12px); height: 120px; }
+.fade-days span { display: flex; flex-direction: column-reverse; gap: 6px; transition: opacity 2.2s var(--ease), filter 2.2s var(--ease); transition-delay: calc(400ms + var(--d) * 160ms); }
+.fade-days i { display: block; width: clamp(18px, 2.6vw, 28px); height: 18px; border-radius: 5px; background: color-mix(in srgb, var(--accent) 22%, var(--surface)); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent) 45%, transparent); }
+.woe.in .fade-days span { opacity: clamp(0.08, calc((var(--d) - 5) / 4), 1); filter: blur(clamp(0px, calc((6 - var(--d)) * 0.5px), 2px)); }
+.fade-days .today i { background: var(--accent); }
+.fade-axis { display: flex; gap: 0; width: 100%; max-width: 380px; margin-top: 14px; padding-top: 8px; border-top: 1px solid var(--line-strong); font-family: var(--font-mono); font-size: 10.5px; letter-spacing: 0.1em; text-transform: uppercase; color: var(--faint); }
+.fade-axis span { flex: 1; }
+.fade-axis b { font-weight: 500; color: var(--accent); }
+.woe[data-woe='memory'] .woe-art { grid-template-rows: 1fr auto; }
+
+/* Voices: a call where two tiles talk and seven stay muted. */
+.call { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; width: min(100%, 300px); }
+.call-tile { position: relative; display: grid; place-items: center; height: 46px; border-radius: 10px; background: var(--surface-2); border: 1px solid var(--line); font-family: var(--font-mono); font-size: 12px; color: var(--faint); }
+.call-tile:not(.talk)::before { content: ''; position: absolute; right: 7px; bottom: 7px; width: 8px; height: 8px; border: 1.5px solid var(--faint); border-radius: 50%; opacity: 0.8; }
+.call-tile:not(.talk)::after { content: ''; position: absolute; right: 11px; bottom: 5.5px; width: 1.5px; height: 12px; background: var(--faint); transform: rotate(45deg); opacity: 0.8; }
+.call-tile.talk { color: var(--ink); border-color: var(--accent); box-shadow: 0 0 0 0 var(--accent); }
+.woe.in .call-tile.talk { animation: speak 1.4s var(--ease) 4; }
+.woe.in .call-tile.talk:nth-child(5) { animation-delay: 0.7s; }
+@keyframes speak { 0% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--accent) 55%, transparent); } 100% { box-shadow: 0 0 0 10px transparent; } }
+
+/* Names: the candid note, crossed out and softened because a name is on it. */
+.memo { display: grid; gap: 6px; width: min(100%, 310px); padding: 18px 22px 16px; border-radius: 6px; background: var(--paper); border: 1px solid var(--paper-edge); box-shadow: var(--shadow); transform: rotate(-1.5deg); }
+.memo p { font-family: var(--font-serif); font-size: 18px; line-height: 1.35; color: var(--ink); }
+.memo-said { text-decoration: line-through transparent 1.5px; transition: text-decoration-color 600ms var(--ease) 800ms, color 600ms var(--ease) 800ms; }
+.memo-meant { opacity: 0; transform: translateY(6px); transition: opacity 700ms var(--ease) 1.9s, transform 700ms var(--ease) 1.9s; }
+.woe.in .memo-said { color: var(--faint); text-decoration-color: var(--c-stop); }
+.woe.in .memo-meant { opacity: 1; transform: none; }
+.memo-name { margin-top: 8px; font-size: 12.5px; color: var(--soft); }
+
+/* Actions: the same item, agreed three times, never ticked. */
+.actions { list-style: none; padding: 0; margin: 0; display: grid; gap: 10px; width: min(100%, 320px); }
+.actions li { display: flex; align-items: center; gap: 10px; padding: 10px 12px; border-radius: 10px; background: var(--surface-2); border: 1px solid var(--line); font-size: 14.5px; color: var(--soft); opacity: 0; transform: translateY(8px); transition: opacity 600ms var(--ease), transform 600ms var(--ease); }
+.actions li:nth-child(2) { transition-delay: 500ms; }
+.actions li:nth-child(3) { transition-delay: 1000ms; }
+.actions i { flex: none; width: 15px; height: 15px; border-radius: 4px; border: 1.5px solid var(--line-strong); }
+.actions span { margin-left: auto; font-family: var(--font-mono); font-size: 11px; color: var(--faint); }
+.woe.in .actions li { opacity: 1; transform: none; }
+.problem-bridge { max-width: 40ch; margin-top: clamp(56px, 8vw, 96px); font-size: clamp(1.25rem, 2.2vw, 1.75rem); line-height: 1.35; letter-spacing: -0.02em; }
+.problem-bridge em { font-family: var(--font-serif); font-style: italic; color: var(--accent); }
+.problem-bridge a { font-size: 0.7em; letter-spacing: 0; color: var(--accent-ink); white-space: nowrap; }
+.still, .still * { transition: none !important; animation: none !important; }
+@media (max-width: 760px) { .woes { grid-template-columns: 1fr; } }
+
+/* The stage: a check-in, asked and then shared, and the thoughts as they were written. */
+.stage-phases li i { margin-right: 3px; font-family: var(--font-serif); font-style: italic; color: var(--accent); }
+.moment { display: grid; margin-top: 22px; min-height: 176px; }
+.moment > * { grid-area: 1 / 1; align-self: start; transition: opacity 500ms var(--ease), transform 600ms var(--ease); }
+.moment[data-moment='asked'] .moment-shared, .moment[data-moment='shared'] .moment-asked { opacity: 0; transform: translateY(6px); }
+.moment-asked { font-size: 15px; color: var(--soft); }
+.moment-asked em { font-family: var(--font-serif); font-size: 1.15em; color: var(--ink); }
+.moment-pill { display: inline-block; margin-right: 10px; padding: 3px 10px; border-radius: 999px; background: var(--accent-soft); color: var(--accent-ink); font-size: 12px; font-weight: 600; }
+.moment-shared { padding-top: 14px; border-top: 1px solid var(--accent); }
+.moment-label { font-family: var(--font-mono); font-size: 11px; letter-spacing: 0.14em; text-transform: uppercase; color: var(--accent); }
+.moment-tally { margin-top: 6px; font-size: clamp(1.1rem, 2vw, 1.55rem); font-weight: 600; letter-spacing: -0.02em; }
+.moment-tally i { margin: 0 8px; font-style: normal; font-weight: 400; color: var(--faint); }
+.moment-tally span { white-space: nowrap; }
+.moment-lines { list-style: none; padding: 0; margin: 10px 0 0; }
+.moment-lines li { display: grid; grid-template-columns: 8.5rem minmax(0, 1fr); gap: 14px; padding: 8px 0; border-top: 1px solid var(--line); font-size: 15px; line-height: 1.45; }
+.moment-lines li:first-child { border-top: 0; }
+.moment-lines span { font-family: var(--font-serif); font-style: italic; font-size: 14px; text-align: right; color: var(--faint); }
+.obs-list { list-style: none; padding: 0; margin: 22px 0 0; columns: 2 280px; column-gap: 36px; }
+.obs-list li { display: grid; grid-template-columns: 4.6rem minmax(0, 1fr); gap: 12px; padding: 10px 0; border-top: 1px solid var(--line); break-inside: avoid; font-size: 15px; line-height: 1.5; }
+.obs-list .cat { display: block; margin: 0; padding-top: 1px; font-family: var(--font-serif); font-style: italic; font-size: 14px; text-align: right; color: var(--c); }
+.obs-list .cat::before { display: none; }
+@media (max-width: 760px) {
+  .moment { min-height: 230px; }
+  .moment-lines li, .obs-list li { grid-template-columns: minmax(0, 1fr); gap: 2px; }
+  .moment-lines span, .obs-list .cat { text-align: left; }
+}
+
+/* ── Quiet ways in: the phone in everyone's hand, drawn in the app's own paper and ink ─ */
+.quiet { position: relative; padding: clamp(90px, 13vh, 160px) 0; }
+.quiet .display { max-width: 17ch; }
+.quiet .lede { margin-top: 24px; }
+.quiet-points { list-style: none; padding: 0; margin: 32px 0 0; display: grid; gap: 14px; max-width: 46ch; }
+.quiet-points li { padding-left: 18px; border-left: 2px solid var(--line-strong); color: var(--soft); }
+.quiet-points b { font-weight: 600; color: var(--ink); }
+.phone { justify-self: center; width: min(320px, 100%); padding: 11px; border-radius: 46px; background: var(--bg-2); border: 1px solid var(--line-strong); box-shadow: 0 50px 90px -40px rgb(0 0 0 / 0.7), var(--shadow); }
+.phone-screen { --p-ink: #1f1b16; --p-soft: #5d554b; --p-faint: #8d8477; --p-line: #ddd5c8; --p-accent: #a4452a; min-height: 600px; padding: 30px 18px 22px; border-radius: 36px; background: #f4efe6; color: var(--p-ink); font-size: 14px; }
+.phone-sprint { font-size: 12px; font-weight: 600; }
+.phone-sprint span { margin-left: 6px; font-weight: 400; color: var(--p-accent); }
+.phone-title { margin-top: 14px; font-size: 22px; font-weight: 600; letter-spacing: -0.03em; }
+.phone-ask { margin-top: 14px; padding: 14px 12px 12px; border-radius: 16px; background: color-mix(in srgb, var(--p-accent) 8%, #fbf8f3); box-shadow: 0 0 0 1px color-mix(in srgb, var(--p-accent) 32%, transparent); }
+.phone-q { font-size: 16px; font-weight: 600; letter-spacing: -0.01em; }
+.phone-choice { display: flex; align-items: center; gap: 9px; margin-top: 8px; padding: 11px 12px; border-radius: 13px; border: 1px solid var(--p-line); background: #fbf8f3; font-weight: 500; transition: background-color 400ms var(--ease) 900ms, border-color 400ms var(--ease) 900ms, box-shadow 400ms var(--ease) 900ms; }
+.phone-choice i { position: relative; flex: none; width: 17px; height: 17px; border-radius: 50%; border: 1.5px solid var(--p-line); transition: background-color 300ms var(--ease) 900ms, border-color 300ms var(--ease) 900ms; }
+.phone.in .pick { border-color: var(--p-accent); background: color-mix(in srgb, var(--p-accent) 16%, #fbf8f3); box-shadow: inset 0 0 0 1px var(--p-accent); }
+.phone.in .pick i { border-color: var(--p-accent); background: var(--p-accent); }
+.phone.in .pick i::after { content: ''; position: absolute; left: 5px; top: 2px; width: 4px; height: 8px; border: solid #fff; border-width: 0 2px 2px 0; transform: rotate(45deg); }
+.phone-status { margin-top: 10px; font-size: 12px; color: var(--p-soft); opacity: 0; transition: opacity 500ms var(--ease) 1.5s; }
+.phone.in .phone-status { opacity: 1; }
+.phone-add { display: block; margin-top: 14px; padding: 11px 12px; border: 1px dashed #c9bfb0; border-radius: 13px; font-size: 13.5px; color: var(--p-soft); }
+.phone-thoughts { margin-top: 20px; font-size: 10.5px; font-weight: 600; letter-spacing: 0.12em; text-transform: uppercase; color: var(--p-faint); }
+.phone-thoughts span { margin-left: 4px; font-family: var(--font-serif); font-style: italic; font-size: 13px; font-weight: 400; letter-spacing: 0; text-transform: none; }
+.phone-thought { margin-top: 10px; font-size: 13.5px; line-height: 1.45; }
+.phone-thought b { display: block; font-family: var(--font-serif); font-style: italic; font-weight: 400; font-size: 12.5px; color: #3a5a8a; }

@@ -281,23 +281,33 @@
   }
 
   // A check-in: asked on everyone's phone, then shared — counts and lines, never names.
-  const voice = document.querySelector('[data-voice]')
-  const rest = document.querySelector('[data-voice-rest]')
-  const turns = [['On everyone’s phone', ' — How did this show up for you?'], ['4 felt this', ' · 1 not in their work · 1 needs context']]
-  let turn = 0
+  const moment = document.querySelector('.moment')
   let stageVisible = false
   new IntersectionObserver(([e]) => (stageVisible = e.isIntersecting), { threshold: 0.3 }).observe(stage)
-  if (!reduced) {
-    setInterval(() => {
-      if (!stageVisible || document.hidden) return
-      voice.classList.add('swap')
-      setTimeout(() => {
-        turn = (turn + 1) % turns.length
-        voice.textContent = turns[turn][0]
-        rest.textContent = turns[turn][1]
-        voice.classList.remove('swap')
-      }, 320)
-    }, 3400)
+  if (!reduced && moment) {
+    const turn = () => {
+      const asked = moment.dataset.moment === 'asked'
+      if (stageVisible && !document.hidden) moment.dataset.moment = asked ? 'shared' : 'asked'
+      setTimeout(turn, moment.dataset.moment === 'asked' ? 2600 : 5600)
+    }
+    setTimeout(turn, 5600)
+  }
+
+  /* ── The problem, and the phone: each little scene plays once, as it comes into view. ─ */
+  const scenes = [...document.querySelectorAll('.woe, .phone')]
+  if (reduced) scenes.forEach((el) => el.classList.add('in', 'still'))
+  else {
+    const seen = new IntersectionObserver(
+      (entries) => {
+        for (const e of entries) {
+          if (!e.isIntersecting) continue
+          e.target.classList.add('in')
+          seen.unobserve(e.target)
+        }
+      },
+      { threshold: 0.45 },
+    )
+    scenes.forEach((el) => seen.observe(el))
   }
   // The timer counts down from a deadline, like the real one.
   const timerEl = document.querySelector('[data-timer]')

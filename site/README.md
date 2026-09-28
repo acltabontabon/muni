@@ -23,6 +23,16 @@ worker; the app's PWA is scoped to act.munimuni.app.
 
 ## What's on the page
 
+In order: the headline; **the problem** — four small scenes of how a retro usually goes (early
+thoughts fading by retro day, two voices and seven muted tiles, a candid note softened because a
+name is on it, the same action item agreed three sprints running), each with what Muni does
+about it; the pinned **how it works** scene; **the retro** (a mock of the stage in its four
+steps, with a check-in that's asked, then shared as counts and lines); **quiet ways in** (the
+phone: a one-tap check-in and *Add to this discussion*, drawn in the app's own paper and ink);
+agreeing experiments; the next sprint's look back; privacy; open source; the name. The mocks
+mirror the app as it is — change them when the stage, the phone or the words change. Each
+little scene plays once when it comes into view; with reduced motion, each shows its final state.
+
 The pinned "how it works" scene uses the demo team's 25 thoughts as the app stores them
 (category, rough timing, theme), so its counts — 5 themes of 6 · 1 · 5 · 2 · 1 and 10
 ungrouped — are true to the product. The privacy section links to the app's Privacy & data page

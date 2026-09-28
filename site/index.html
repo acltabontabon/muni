@@ -65,6 +65,7 @@
       <span class="wordmark">muni</span>
     </a>
     <nav aria-label="Sections">
+      <a href="#problem">Why</a>
       <a href="#how">How it works</a>
       <a href="#room">The retro</a>
       <a href="#privacy">Privacy</a>
@@ -97,6 +98,66 @@
       <a class="scroll-cue" href="#how" aria-label="Scroll to how it works"><span></span></a>
     </section>
 
+    <!-- ── The problem: how a retro usually goes ───────────────────── -->
+    <section class="problem" id="problem" data-sky="day" aria-labelledby="problem-title">
+      <div class="container">
+        <p class="kicker">The problem</p>
+        <h2 id="problem-title" class="display">Friday, 3 pm. <em>The retro.</em></h2>
+        <p class="lede">Two weeks of work, one hour, a grid of faces on a call. You’ve probably been in this one.</p>
+        <ol class="woes">
+          <li class="woe" data-woe="memory">
+            <div class="woe-art" aria-hidden="true">
+              <div class="fade-days">
+                <span style="--d:0"><i></i><i></i></span><span style="--d:1"><i></i></span><span style="--d:2"><i></i><i></i><i></i></span><span style="--d:3"><i></i></span><span style="--d:4"><i></i><i></i></span>
+                <span style="--d:5"><i></i></span><span style="--d:6"><i></i><i></i></span><span style="--d:7"><i></i></span><span style="--d:8"><i></i><i></i></span><span style="--d:9" class="today"><i></i></span>
+              </div>
+              <div class="fade-axis"><span>Week 1</span><span>Week 2</span><b>Retro</b></div>
+            </div>
+            <h3>Monday’s lesson is gone by Friday.</h3>
+            <p>Asked what went well, everyone remembers the last three days. The thing that actually hurt, in week one, never comes up.</p>
+            <p class="woe-fix"><span>With Muni</span> Write it down the moment it happens — a line is enough, on your phone.</p>
+          </li>
+          <li class="woe" data-woe="voices">
+            <div class="woe-art" aria-hidden="true">
+              <div class="call">
+                <span class="call-tile talk">JW</span><span class="call-tile">AT</span><span class="call-tile">PN</span>
+                <span class="call-tile">SO</span><span class="call-tile talk">MR</span><span class="call-tile">TI</span>
+                <span class="call-tile">BO</span><span class="call-tile">ID</span><span class="call-tile">KL</span>
+              </div>
+            </div>
+            <h3>Two people talk. Seven are muted tiles.</h3>
+            <p>The others have something to say. There’s never a good moment to unmute and say it.</p>
+            <p class="woe-fix"><span>With Muni</span> Everyone answers a check-in in one tap, or adds a thought without taking the floor.</p>
+          </li>
+          <li class="woe" data-woe="names">
+            <div class="woe-art" aria-hidden="true">
+              <div class="memo">
+                <p class="memo-said">Reviews here are a rubber stamp.</p>
+                <p class="memo-meant">Reviews could maybe be a bit faster?</p>
+                <span class="memo-name">— Ben, in front of his lead</span>
+              </div>
+            </div>
+            <h3>The hard thing gets softened.</h3>
+            <p>When everyone can see who said it, the candid version turns into something safe — or nothing at all.</p>
+            <p class="woe-fix"><span>With Muni</span> Thoughts stay sealed until collection closes, then show up together, without names.</p>
+          </li>
+          <li class="woe" data-woe="actions">
+            <div class="woe-art" aria-hidden="true">
+              <ul class="actions">
+                <li><i></i>Improve code reviews <span>Sprint 11</span></li>
+                <li><i></i>Improve code reviews <span>Sprint 12</span></li>
+                <li><i></i>Improve code reviews <span>Sprint 13</span></li>
+              </ul>
+            </div>
+            <h3>Agreed three times. Revisited never.</h3>
+            <p>Action items are vague, have no owner, and nobody looks at them again — so the same problem comes back every sprint.</p>
+            <p class="woe-fix"><span>With Muni</span> One to three experiments, each with an owner who said yes — and they open the next retro.</p>
+          </li>
+        </ol>
+        <p class="problem-bridge">So Muni starts the retro <em>before</em> the meeting, lets everyone in, and remembers what you agreed. <a href="#how">Here’s how <span aria-hidden="true">→</span></a></p>
+      </div>
+    </section>
+
     <!-- ── The sprint, played by scrolling ──────────────────────────── -->
     <section class="scene" id="how" aria-labelledby="how-title">
       <h2 id="how-title" class="sr-only">How Muni works</h2>
@@ -105,7 +166,7 @@
           <li class="caption" data-step="0">
             <p class="kicker"><span class="num">01</span> During the sprint</p>
             <h3>Set it down while it’s <em>fresh</em>.</h3>
-            <p>A thought takes ten seconds to write on Tuesday and is gone by Friday. Muni keeps a quiet place open all sprint — on your phone, between tasks. If the signal drops, it waits and sends when you’re back, and tells you plainly when a thought has reached the sprint.</p>
+            <p>A thought takes ten seconds to write on Tuesday and is gone by Friday. Muni keeps a quiet place open all sprint — on your phone, between tasks, in a room of your own if you pick one of eight characters. If the signal drops, it waits and sends when you’re back, and tells you plainly when a thought has reached the sprint.</p>
           </li>
           <li class="caption" data-step="1">
             <p class="kicker"><span class="num">02</span> Sealed</p>
@@ -113,14 +174,14 @@
             <p>Not the facilitator, not your manager. Until collection closes, the only thoughts you can see are your own — and you can still change them.</p>
           </li>
           <li class="caption" data-step="2">
-            <p class="kicker"><span class="num">03</span> Opening the sprint</p>
+            <p class="kicker"><span class="num">03</span> Collection closes</p>
             <h3>One batch. Random order. <em>No names.</em></h3>
-            <p>Everything is revealed at once, shuffled. Shared screens never show who wrote a thought, or anything that ties one person’s thoughts together.</p>
+            <p>When the facilitator closes collection, everyone’s thoughts appear at once, shuffled. Nothing on screen says who wrote a thought, or ties one person’s thoughts together.</p>
           </li>
           <li class="caption" data-step="3">
             <p class="kicker"><span class="num">04</span> Before the retro</p>
             <h3>Thoughts become <em>themes</em>.</h3>
-            <p>If it helps, the facilitator gathers them into themes by hand, each with a question to open it. The original words are never replaced.</p>
+            <p>If it helps, the facilitator ticks the thoughts that belong together and names them — a theme, with a question to open it. Every thought stays exactly as written.</p>
           </li>
         </ol>
         <div class="field" aria-hidden="true">
@@ -141,41 +202,79 @@
       <div class="container">
         <p class="kicker"><span class="num">05</span> The retro</p>
         <h2 id="room-title" class="display">One topic. <em>The actual words.</em></h2>
-        <p class="lede narrow">Four steps, each one question: did last time’s experiments help, what matters most, the talk, and what to try. Everyone votes privately on their phone; then the shared screen takes the topics in that order, with what people wrote at the centre — not a summary of it.</p>
+        <p class="lede narrow">The shared screen puts what people wrote at the centre, not a summary of it — and when a check-in is shared, what everyone answered lands right there in the topic, without names.</p>
 
-        <figure class="stage" aria-label="The Muni stage during a discussion">
+        <figure class="stage" aria-label="The Muni stage during the talk">
           <div class="stage-bar">
             <span class="stage-sprint"><svg width="18" height="18"><use href="#mark" /></svg> Sprint 42 — Billing export</span>
             <ol class="stage-phases">
-              <li>Look back</li><li>Choose</li><li class="on">Talk</li><li>Agree</li>
+              <li><i>1</i> Look back</li><li><i>2</i> Choose</li><li class="on"><i>3</i> Talk</li><li><i>4</i> Agree</li>
             </ol>
             <span class="stage-timer" data-timer>12:40</span>
           </div>
           <div class="stage-body">
             <p class="stage-kicker">Topic 1 of 3 · 5 votes</p>
             <p class="stage-title">PR review turnaround</p>
-            <p class="stage-question">What would make a first review arrive within a day without making reviews shallower?</p>
-            <div class="obs-grid">
-              <article class="obs"><span class="cat c-improve">Improve</span><p>PRs sat waiting for review for two or three days. I stopped opening small PRs because it wasn’t worth the wait.</p></article>
-              <article class="obs"><span class="cat c-improve">Improve</span><p>Reviews: I actually liked that reviews were slower this sprint — the comments were more thoughtful than the usual rubber stamp.</p></article>
-              <article class="obs"><span class="cat c-keep">Keep</span><p>The retro experiment (daily review window) helped: my two PRs were reviewed the same day.</p></article>
-              <article class="obs"><span class="cat c-improve">Improve</span><p>The daily review window didn’t change much for me — reviews still waited until someone had slack.</p></article>
-              <article class="obs"><span class="cat c-try">Try</span><p>Try a ‘review buddy’ pairing for the sprint so every PR has a named first reviewer.</p></article>
+            <p class="stage-question">What would make a first review arrive within a day, without making reviews shallower?</p>
+            <div class="moment" data-moment="shared">
+              <p class="moment-asked"><span class="moment-pill">On everyone’s phone</span> <em>How did this show up for you?</em></p>
+              <div class="moment-shared">
+                <p class="moment-label">How it showed up</p>
+                <p class="moment-tally"><span>4 felt this <i>·</i></span> <span>1 not in their work <i>·</i></span> <span>1 needs context</span></p>
+                <ul class="moment-lines">
+                  <li><span>I felt this</span>I stopped opening small PRs because it wasn’t worth the wait.</li>
+                  <li><span>Not in my work</span>Mobile PRs are tiny; they were reviewed within the hour.</li>
+                </ul>
+              </div>
             </div>
-            <div class="voice">
-              <span class="voice-dot"></span>
-              <span class="voice-text"><b data-voice>On everyone’s phone</b><span data-voice-rest> — How did this show up for you?</span></span>
-              <span class="voice-actions"><span class="chip">Share answers</span></span>
-            </div>
+            <ul class="obs-list">
+              <li><span class="cat c-improve">Improve</span><p>PRs sat waiting for review for two or three days.</p></li>
+              <li><span class="cat c-keep">Keep</span><p>The daily review window helped: my two PRs were reviewed the same day.</p></li>
+              <li><span class="cat c-improve">Improve</span><p>I liked that reviews were slower — the comments were more thoughtful than the usual rubber stamp.</p></li>
+              <li><span class="cat c-try">Try</span><p>A ‘review buddy’ for the sprint, so every PR has a named first reviewer.</p></li>
+            </ul>
           </div>
-          <figcaption class="sr-only">A discussion screen: the topic “PR review turnaround”, five original observations including two that disagree, and a check-in on everyone’s phone — how did this show up for you? — whose answers are then shared without names.</figcaption>
+          <figcaption class="sr-only">The stage during the talk: the topic “PR review turnaround”, its question, the shared answers to a check-in — 4 felt this, 1 not in their work, 1 needs context, with two lines people added — and the original thoughts, including two that disagree.</figcaption>
         </figure>
 
         <ul class="features">
-          <li><h3>A way in for the quiet</h3><p>When it helps, the facilitator asks how a topic showed up. One tap answers; a line is optional; nothing is shown until it’s shared, and never with a name. Nobody is called on.</p></li>
-          <li><h3>A companion on every phone</h3><p>Follow the stage, vote privately, answer a check-in in one tap, add to the discussion without your name, or say “I’ll own this” to an experiment.</p></li>
-          <li><h3>Disagreement stays visible</h3><p>Opposing views sit side by side in their own words. Nothing is averaged into a paragraph.</p></li>
+          <li><h3>Four steps, one question each</h3><p>Did last time’s experiments help? What matters most? Then the talk, topic by topic, and what to try. The steps open and close the vote themselves.</p></li>
+          <li><h3>Votes on every phone</h3><p>Everyone picks what to talk about first, privately. Nobody sees a count until the room moves on.</p></li>
+          <li><h3>Disagreement stays visible</h3><p>Opposing views sit side by side in their own words. Nothing is averaged into a paragraph, and nobody is called on.</p></li>
         </ul>
+      </div>
+    </section>
+
+    <!-- ── Quiet ways in: the phone in everyone's hand ─────────────── -->
+    <section class="quiet" id="quiet" data-sky="night" aria-labelledby="quiet-title">
+      <div class="container split">
+        <div>
+          <p class="kicker"><span class="num">06</span> Quiet ways in</p>
+          <h2 id="quiet-title" class="display">Everyone answers. <em>Nobody has to speak first.</em></h2>
+          <p class="lede">When it helps, the facilitator asks how a topic showed up for people. One tap is a whole answer; a line is optional. Nothing is shown until the facilitator shares it — and never with a name.</p>
+          <ul class="quiet-points">
+            <li><b>One tap is enough.</b> Writing and speaking stay optional, and nothing waits for everyone.</li>
+            <li><b>Private until shared.</b> The facilitator sees how many answered, never who.</li>
+            <li><b>Add without the floor.</b> An example, another view or a question, shared when the moment’s right.</li>
+            <li><b>A concern isn’t outvoted.</b> When an idea is checked, a concern stays beside the rest.</li>
+          </ul>
+        </div>
+        <div class="phone" data-inview aria-hidden="true">
+          <div class="phone-screen">
+            <p class="phone-sprint">Sprint 42 <span>3 · Talk</span></p>
+            <p class="phone-title">PR review turnaround</p>
+            <div class="phone-ask">
+              <p class="phone-q">How did this show up for you?</p>
+              <span class="phone-choice pick"><i></i>I felt this</span>
+              <span class="phone-choice"><i></i>Not in my work</span>
+              <span class="phone-choice"><i></i>I’d need context</span>
+              <p class="phone-status">Saved. You can change it until the answers are shared.</p>
+            </div>
+            <span class="phone-add">+ Add to this discussion</span>
+            <p class="phone-thoughts">The thoughts <span>5</span></p>
+            <p class="phone-thought"><b>Improve</b>PRs sat waiting for review for two or three days.</p>
+          </div>
+        </div>
       </div>
     </section>
 
@@ -183,7 +282,7 @@
     <section class="decide" data-sky="night" aria-labelledby="decide-title">
       <div class="container split">
         <div>
-          <p class="kicker"><span class="num">06</span> Agree</p>
+          <p class="kicker"><span class="num">07</span> Agree</p>
           <h2 id="decide-title" class="display">Leave with something to <em>try</em>.</h2>
           <p class="lede">One to three concrete changes, each with an owner who says yes, a sign that it helped, and a date to revisit.</p>
         </div>
@@ -205,7 +304,7 @@
     <!-- ── The loop ───────────────────────────────────────────────── -->
     <section class="loop" data-sky="dawn" aria-labelledby="loop-title">
       <div class="container">
-        <p class="kicker"><span class="num">07</span> Next sprint</p>
+        <p class="kicker"><span class="num">08</span> Next sprint</p>
         <h2 id="loop-title" class="display">And it begins again, with <em>“Last time, we said…”</em></h2>
         <div class="loop-art">
           <div class="outcomes">
