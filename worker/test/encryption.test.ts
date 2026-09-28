@@ -119,7 +119,7 @@ describe('encrypted sprints', () => {
     expect((await put(`/api/sprints/${s.id}/meeting/notes/${tv.id}`, fac.user, { takeaway: sealField(s.keys, s.id, 'takeaway', SYNTHETIC[3]) })).status).toBe(200)
     expect((await post(`/api/sprints/${s.id}/meeting/context`, maya.user, { theme_id: tv.id, body: 'Synthetic-7f3a context' })).status).toBe(400)
     expect((await post(`/api/sprints/${s.id}/meeting/context`, maya.user, { theme_id: tv.id, body: sealField(got, s.id, 'body', 'Synthetic-7f3a context'), idempotency_key: crypto.randomUUID() })).status).toBe(200)
-    await command(fac.user, s.id, { type: 'set_phase', phase: 'discover' })
+    await command(fac.user, s.id, { type: 'set_phase', phase: 'choose' })
     await command(fac.user, s.id, { type: 'set_topic', theme_id: tv.id })
     expect((await post(`/api/sprints/${s.id}/experiments`, fac.user, { change_to_try: SYNTHETIC[4], success_signal: 'x' })).status).toBe(400)
     const exp = await post(`/api/sprints/${s.id}/experiments`, fac.user, { change_to_try: sealField(s.keys, s.id, 'change_to_try', SYNTHETIC[4]), success_signal: sealField(s.keys, s.id, 'success_signal', 'Synthetic-7f3a signal'), theme_id: tv.id })

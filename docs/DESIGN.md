@@ -207,6 +207,29 @@ sprint bar. Not a form: a table where thoughts are sorted.
 - On a phone the columns stack, the margin word sits above the thought, and the tray is a sheet
   along the bottom edge whose destinations scroll sideways.
 
+## The retro: four steps
+
+A retro is a conversation, so the stage is built around four questions and gets out of the way:
+**Look back** (did last time's experiments help?), **Choose** (what matters most?), **Talk** (one
+topic at a time) and **Agree** (what will we try?). Each screen asks its question in the display
+face, with the one word that carries it in Fraunces italic — *try*, *most*, *start* — the same
+voice as the sorting table: thoughts as words with their category in the margin, experiments and
+topics as numbered lines on rules, never cards.
+
+The steps do their own housekeeping, so the facilitator never works the machinery. Choosing opens
+the vote; leaving it closes the vote and orders the topics; opening a topic starts its clock and
+counts it as discussed; moving on ends an invitation to speak; opening the retro marks you here.
+There's no reveal on the stage — everyone read every thought when collection closed — no quiet
+reading minute, no "mark as discussed", no menu of commands. What's left is where it's used: the
+next step in the rail's one button, the clock, voices and the two notes (*We'll remember*, *We
+could try*) in the talk's margin, the verdicts under last time's experiments, the ideas from the
+talk beside Agree.
+
+Presenting (**H**) removes every control, so the shared screen shows only the room's words. The
+phone carries the private things — your votes, whether you'll be invited to speak, what you add
+without your name — and nothing else. Changing any of this: `web/e2e/retro.mjs` walks the whole
+retro on a stage and two phones.
+
 ## Characters and worlds
 
 *Choose a character. Step into their world. Make room for your own thoughts.*
@@ -301,12 +324,11 @@ No glassmorphism, no gradients on text.
 2. Sprint setup — a single tall form with sections, not a wizard.
 3. Capture — full-width composer with category chips, sheet-like on mobile,
    "My entries" beneath.
-4. Preparation studio — two-pane: ungrouped entries left, themes right;
-   keyboard "move to theme" menu on every entry.
-5. Stage — fullscreen dark, chapter progress rail at the top, one idea per
-   screen, large type.
-6. Companion — phone-friendly, follows the stage, private votes and
-   "Ready to speak / Pass for now", with a visible "look around" toggle.
+4. Themes — the sorting table (see *Themes: the sorting table*).
+5. Stage — fullscreen dark, the four steps along the top, one question per screen, large type
+   (see *The retro: four steps*).
+6. Companion — each person's phone: follows the stage, private votes, invitations and passing,
+   adding without a name, saying yes to an experiment.
 7. Outcomes — experiments with owners and review dates, recap, exports.
 8. Settings — account and privacy on Account; the workspace's name, retention and activity in its
    Settings section.

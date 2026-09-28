@@ -308,7 +308,7 @@
     timerEl.textContent = `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`
   }, 1000)
 
-  /* ── Decide: the takeaway is written, then becomes an experiment. ─ */
+  /* ── Agree: what the room will remember is written, then becomes an experiment. ─ */
   const exp = document.querySelector('.experiment')
   const typed = exp.querySelector('.typed')
   const full = typed.dataset.text

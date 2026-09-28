@@ -131,6 +131,8 @@ try {
   await page.fill('.sort-new-form input', 'Reviews that wait')
   await page.click('.sort-new-form button:has-text("Add")')
   await page.locator('.sort-chapter').nth(1).waitFor()
+  // Bring the new theme into view first: a page that scrolls in the middle of a drag drops nothing.
+  await page.locator('.sort-chapter').nth(1).scrollIntoViewIfNeeded()
   await loose(page, 'Three PRs').dragTo(page.locator('.sort-chapter').nth(1))
   await page.waitForFunction(() => document.querySelectorAll('.sort-chapter')[1]?.querySelectorAll('.sort-thought').length === 1)
   check('Dragging a thought onto a theme puts it there', (await themes()).themes[1].entries.length === 1)

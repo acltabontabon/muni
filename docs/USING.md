@@ -41,6 +41,32 @@ change, with what it will do written under it:
 
 Anyone still writing when collection closes keeps their words on screen; nothing is sent.
 
+## The retro
+
+The facilitator opens the stage on a shared screen (**H** hides the controls for presenting);
+everyone else opens the retro on their own phone or laptop from the sprint's page. Opening it is
+being there: nobody takes attendance. The retro is four steps, each one question:
+
+1. **Look back** — did last time's experiments help? The facilitator records *Helped*, *Didn't
+   help*, *Inconclusive* or *Not tried yet*. Beside them: what this sprint was proud of or wants
+   to keep. A team's first retro skips straight to that.
+2. **Choose** — what matters most? Voting opens by itself: everyone votes privately on their phone
+   (three votes each by default, one per theme), and nobody sees a count until the step ends.
+   Without themes, there's nothing to choose between, and the retro goes straight to the talk.
+3. **Talk** — one topic at a time, in the vote's order, then whatever isn't in a theme. Moving here
+   closes the vote. Each topic has its question, its thoughts exactly as written, and a clock that's
+   guidance, never a cut-off. The facilitator can invite someone to speak — a random person who's
+   here and ready, never chosen by what they wrote; passing is one tap — and writes, on the
+   screen, *We'll remember* (a line the room agrees on) and *We could try* (an idea for Agree).
+   Anyone can add something to the topic without their name; it reaches the room when the
+   facilitator shows it. A topic the room opens counts as discussed.
+4. **Agree** — what will we try? The ideas from the talk wait here; one to three become
+   experiments, each with an owner who says yes on their own phone. **End the retro** takes
+   everyone to the sprint's outcomes, which stay editable.
+
+The facilitator moves on with **Next** (or →); the steps at the top go back. Changing topic or
+step ends an open invitation to speak.
+
 ## What the dots mean
 
 | | |

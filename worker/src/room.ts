@@ -1,7 +1,7 @@
 /**
  * MeetingRoom — one Durable Object per sprint.
  *
- * Authoritative for live meeting coordination only: phase, current topic,
+ * Authoritative for live meeting coordination only: step, current topic,
  * timer deadline, controller, attendance, speaking round, version. Everything
  * with content (entries, themes, notes, votes, experiments) lives in D1 and is
  * composed into snapshots by the Worker. Sockets carry hints — a resource
@@ -11,8 +11,11 @@
  */
 import { shuffle } from './lib/crypto'
 
-export const PHASES = ['arrive', 'remember', 'discover', 'discuss', 'decide', 'leave'] as const
+/** The retro's four steps: did last time's experiments help, what matters most, talk it through, agree what to try. */
+export const PHASES = ['look_back', 'choose', 'talk', 'agree'] as const
 export type Phase = (typeof PHASES)[number]
+/** Sessions stored before the four steps keep going, at the step that replaced theirs. */
+const LEGACY: Record<string, Phase> = { arrive: 'look_back', remember: 'look_back', discover: 'choose', discuss: 'talk', decide: 'agree', leave: 'agree' }
 
 export interface AgendaItem {
   theme_id: string
@@ -28,7 +31,6 @@ export interface MeetingState {
   timer_ends_at: number | null
   timer_remaining_secs: number | null
   timer_total_secs: number | null
-  quiet_reading: boolean
   controller_account_id: string | null
   controller_seen_at: number | null
   started_at: number
@@ -59,7 +61,7 @@ export interface RoomState {
 }
 
 export type Command =
-  | { type: 'set_phase'; phase: string }
+  | { type: 'set_phase'; phase: string; agenda?: AgendaItem[]; topic?: string | null }
   | { type: 'set_topic'; theme_id: string | null }
   | { type: 'set_agenda'; items: AgendaItem[] }
   | { type: 'set_plan'; plan: Record<string, number> }
@@ -73,17 +75,17 @@ export type Command =
   | { type: 'speaking_next' }
   | { type: 'speaking_open_floor' }
   | { type: 'speaking_end' }
-  | { type: 'quiet_reading'; secs: number }
 
 interface Attachment {
   a: string // account id
   f: boolean // facilitator
 }
 
+/** Minutes per step for a retro of `totalMin`. Only the talk is timed (per topic); the rest is a guide. */
 export function defaultPlan(totalMin: number): Record<string, number> {
   const f = totalMin / 45
   const m = (x: number) => Math.max(1, Math.round(x * f))
-  return { arrive: m(2), remember: m(7), discover: m(5), discuss: m(24), decide: m(5), leave: m(2) }
+  return { look_back: m(5), choose: m(5), talk: m(28), agree: m(7) }
 }
 
 export class MeetingRoom implements DurableObject {
@@ -98,7 +100,10 @@ export class MeetingRoom implements DurableObject {
 
   // ---------- storage ----------
   private async meeting(): Promise<MeetingState | null> {
-    return (await this.ctx.storage.get<MeetingState>('meeting')) ?? null
+    const m = (await this.ctx.storage.get<MeetingState & { quiet_reading?: boolean }>('meeting')) ?? null
+    if (m && !(PHASES as readonly string[]).includes(m.phase)) m.phase = LEGACY[m.phase] ?? 'look_back'
+    if (m) delete m.quiet_reading
+    return m
   }
   private async attendance(): Promise<Record<string, Attendance>> {
     return (await this.ctx.storage.get<Record<string, Attendance>>('attendance')) ?? {}
@@ -227,14 +232,13 @@ export class MeetingRoom implements DurableObject {
     const m: MeetingState = {
       sprint_id: String(body.sprint_id),
       version: 1,
-      phase: 'arrive',
+      phase: 'look_back',
       current_theme_id: null,
       agenda: Array.isArray(body.agenda) ? (body.agenda as AgendaItem[]) : [],
       plan: (body.plan as Record<string, number>) ?? defaultPlan(45),
       timer_ends_at: null,
       timer_remaining_secs: null,
       timer_total_secs: null,
-      quiet_reading: false,
       controller_account_id: typeof body.controller === 'string' ? body.controller : null,
       controller_seen_at: Date.now(),
       started_at: Date.now(),
@@ -251,7 +255,7 @@ export class MeetingRoom implements DurableObject {
     if (!m) return Response.json({ ok: true })
     m.ended_at = m.ended_at ?? Date.now()
     m.cancelled = cancelled
-    m.phase = cancelled ? m.phase : 'leave'
+    m.phase = cancelled ? m.phase : 'agree'
     m.timer_ends_at = null
     m.version += 1
     const sp = await this.speaking()
@@ -279,8 +283,18 @@ export class MeetingRoom implements DurableObject {
     const now = Date.now()
     let speaking = await this.speaking()
     let action = 'meeting.command'
-    const clearQuiet = () => {
-      m.quiet_reading = false
+    /** A topic's timebox: the talk's minutes shared across the first three topics, running from the moment it opens. Guidance, not a cut-off. */
+    // Invitations to speak belong to a topic: moving on ends the round, so nobody is left invited to a conversation that's over.
+    const endRound = () => {
+      if (speaking && speaking.status !== 'ended') speaking.status = 'ended'
+    }
+    const openTopic = (id: string | null) => {
+      endRound()
+      m.current_theme_id = id
+      const per = Math.floor(((m.plan.talk ?? 28) * 60) / Math.min(3, Math.max(1, m.agenda.length)))
+      m.timer_ends_at = id ? now + per * 1000 : null
+      m.timer_remaining_secs = null
+      m.timer_total_secs = id ? per : null
     }
     switch (cmd.type) {
       case 'take_control':
@@ -288,23 +302,21 @@ export class MeetingRoom implements DurableObject {
         break
       case 'set_phase': {
         if (!(PHASES as readonly string[]).includes(cmd.phase)) return Response.json({ error: 'unknown phase', code: 'bad_request' }, { status: 400 })
+        if (m.phase !== cmd.phase) endRound()
         m.phase = cmd.phase as Phase
-        const mins = m.plan[cmd.phase] ?? 5
-        m.timer_ends_at = null
-        m.timer_remaining_secs = mins * 60
-        m.timer_total_secs = mins * 60
-        clearQuiet()
+        if (Array.isArray(cmd.agenda)) m.agenda = cmd.agenda.slice(0, 40).map((i) => ({ theme_id: String(i.theme_id), reason: null }))
+        // Only the talk keeps a clock: arriving there opens its first topic (when one is given), anywhere else the clock stops.
+        if (m.phase === 'talk' && cmd.topic !== undefined && !m.current_theme_id) openTopic(cmd.topic)
+        else if (m.phase !== 'talk') {
+          m.timer_ends_at = null
+          m.timer_remaining_secs = null
+          m.timer_total_secs = null
+        }
         action = 'meeting.phase_changed'
         break
       }
       case 'set_topic': {
-        m.current_theme_id = cmd.theme_id ?? null
-        const topics = Math.min(3, Math.max(1, m.agenda.length))
-        const per = Math.floor(((m.plan.discuss ?? 24) * 60) / topics)
-        m.timer_ends_at = null
-        m.timer_remaining_secs = per
-        m.timer_total_secs = per
-        clearQuiet()
+        openTopic(cmd.theme_id ?? null)
         action = 'meeting.topic_changed'
         break
       }
@@ -326,7 +338,6 @@ export class MeetingRoom implements DurableObject {
         m.timer_ends_at = now + secs * 1000
         m.timer_remaining_secs = null
         m.timer_total_secs = secs
-        clearQuiet()
         break
       }
       case 'timer_pause':
@@ -352,17 +363,7 @@ export class MeetingRoom implements DurableObject {
         m.timer_ends_at = null
         m.timer_remaining_secs = null
         m.timer_total_secs = null
-        clearQuiet()
         break
-      case 'quiet_reading': {
-        const secs = Math.min(600, Math.max(15, Math.round(cmd.secs)))
-        m.quiet_reading = true
-        m.timer_ends_at = now + secs * 1000
-        m.timer_remaining_secs = null
-        m.timer_total_secs = secs
-        action = 'meeting.quiet_reading'
-        break
-      }
       case 'speaking_start': {
         const eligible = shuffle(this.eligible(participants, await this.attendance(), includeFac))
         speaking = { id: crypto.randomUUID(), ordering: eligible, cursor: 0, current_account_id: eligible[0] ?? null, status: eligible.length ? 'active' : 'exhausted' }

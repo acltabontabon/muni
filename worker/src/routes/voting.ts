@@ -66,6 +66,29 @@ export async function latestClosedTotals(db: D1Database, sprintId: string): Prom
   return out
 }
 
+/** Opens a round at this grouping revision. The partial unique index (one open round per sprint) makes a concurrent second open a no-op: false. */
+export async function openRound(db: D1Database, sprintId: string, budget: number): Promise<boolean> {
+  const res = await run(db, 'INSERT OR IGNORE INTO vote_rounds (id, sprint_id, budget, grouping_revision, opened_at) SELECT ?, id, ?, grouping_revision, ? FROM sprints WHERE id = ?', uuid(), budget, Date.now(), sprintId)
+  return !!res.meta.changes
+}
+
+/** Closes (or cancels) the open round; a close orders the themes by its totals, parked last. False when none was open. */
+export async function closeRound(db: D1Database, sprintId: string, status: 'closed' | 'cancelled', reason: string | null = null): Promise<boolean> {
+  const res = await run(db, "UPDATE vote_rounds SET status = ?, cancel_reason = ?, closed_at = ? WHERE sprint_id = ? AND status = 'open'", status, reason, Date.now(), sprintId)
+  if (!res.meta.changes) return false
+  if (status === 'closed') {
+    const rows = await all<{ id: string }>(
+      db,
+      `SELECT t.id FROM themes t LEFT JOIN votes v ON v.theme_id = t.id AND v.round_id = (SELECT id FROM vote_rounds WHERE sprint_id = ? AND status='closed' ORDER BY closed_at DESC LIMIT 1)
+       WHERE t.sprint_id = ? GROUP BY t.id ORDER BY t.parked, count(v.theme_id) DESC, t.position`,
+      sprintId,
+      sprintId,
+    )
+    await batch(db, rows.map((r, i): [string, ...unknown[]] => ['UPDATE themes SET position = ?, order_reason = NULL WHERE id = ?', i, r.id]))
+  }
+  return true
+}
+
 voting.get('/api/sprints/:sprintId/votes', async (c) => {
   const ctx = await requireSprint(c, config(c.env), c.env.DB, c.req.param('sprintId'))
   requireParticipant(ctx)
@@ -80,9 +103,7 @@ voting.post('/api/sprints/:sprintId/votes/rounds', async (c) => {
   const budget = Number(body.budget ?? ctx.sprint.vote_budget)
   if (!(budget >= 1 && budget <= 10)) throw bad('votes per person must be between 1 and 10')
   if (!(await count(c.env.DB, 'SELECT count(*) AS n FROM themes WHERE sprint_id = ? AND parked = 0', ctx.sprint.id))) throw conflict('there are no themes to vote on yet')
-  // The partial unique index (one open round per sprint) makes a concurrent second open a no-op.
-  const res = await run(c.env.DB, 'INSERT OR IGNORE INTO vote_rounds (id, sprint_id, budget, grouping_revision, opened_at) SELECT ?, id, ?, grouping_revision, ? FROM sprints WHERE id = ?', uuid(), budget, Date.now(), ctx.sprint.id)
-  if (!res.meta.changes) throw conflict('a voting round is already open')
+  if (!(await openRound(c.env.DB, ctx.sprint.id, budget))) throw conflict('a voting round is already open')
   await audit(c.env.DB, ctx.sprint.workspace_id, ctx.sprint.id, ctx.auth.account.id, 'votes.round_opened', { budget })
   await hint(c.env, ctx.sprint.id, 'votes')
   return c.json(await votingState(c.env.DB, ctx))
@@ -127,19 +148,8 @@ voting.post('/api/sprints/:sprintId/votes/rounds/close', async (c) => {
   const status = body.action === 'close' ? 'closed' : body.action === 'cancel' ? 'cancelled' : null
   if (!status) throw bad('action must be close or cancel')
   const db = c.env.DB
-  const res = await run(db, "UPDATE vote_rounds SET status = ?, cancel_reason = ?, closed_at = ? WHERE sprint_id = ? AND status = 'open'", status, body.reason ? (isEncrypted(ctx.sprint) ? content(true, body.reason, 200, 'The reason', false) : String(body.reason).slice(0, 200)) : null, Date.now(), ctx.sprint.id)
-  if (!res.meta.changes) throw conflict('no voting round is open')
-  if (status === 'closed') {
-    // Suggest an order from totals; parked themes sink; flags are kept.
-    const rows = await all<{ id: string }>(
-      db,
-      `SELECT t.id FROM themes t LEFT JOIN votes v ON v.theme_id = t.id AND v.round_id = (SELECT id FROM vote_rounds WHERE sprint_id = ? AND status='closed' ORDER BY closed_at DESC LIMIT 1)
-       WHERE t.sprint_id = ? GROUP BY t.id ORDER BY t.parked, count(v.theme_id) DESC, t.position`,
-      ctx.sprint.id,
-      ctx.sprint.id,
-    )
-    await batch(db, rows.map((r, i): [string, ...unknown[]] => ['UPDATE themes SET position = ?, order_reason = NULL WHERE id = ?', i, r.id]))
-  }
+  const reason = body.reason ? (isEncrypted(ctx.sprint) ? content(true, body.reason, 200, 'The reason', false) : String(body.reason).slice(0, 200)) : null
+  if (!(await closeRound(db, ctx.sprint.id, status, reason ?? null))) throw conflict('no voting round is open')
   await audit(db, ctx.sprint.workspace_id, ctx.sprint.id, ctx.auth.account.id, 'votes.round_closed', { status })
   await hint(c.env, ctx.sprint.id, 'votes')
   await hint(c.env, ctx.sprint.id, 'themes')

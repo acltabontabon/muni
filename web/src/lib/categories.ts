@@ -39,22 +39,19 @@ export const STATUS_LABEL: Record<string, string> = {
   archived: 'Archived',
 }
 
+/** The retro's four steps, each one question. */
 export const PHASE_LABEL: Record<string, string> = {
-  arrive: 'Arrive',
-  remember: 'Remember',
-  discover: 'Discover',
-  discuss: 'Discuss',
-  decide: 'Decide',
-  leave: 'Leave',
+  look_back: 'Look back',
+  choose: 'Choose',
+  talk: 'Talk',
+  agree: 'Agree',
 }
 
 export const PHASE_HINT: Record<string, string> = {
-  arrive: 'Settle in. Who’s here?',
-  remember: 'Last time, we said…',
-  discover: 'Here’s what this sprint left us.',
-  discuss: 'One theme, enough room to think.',
-  decide: 'What will we try next?',
-  leave: 'Read it back, then go.',
+  look_back: 'Did last time’s experiments help?',
+  choose: 'What matters most?',
+  talk: 'One topic at a time.',
+  agree: 'What will we try?',
 }
 
 export const OUTCOME_LABEL: Record<string, string> = {

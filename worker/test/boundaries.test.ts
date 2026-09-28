@@ -232,6 +232,6 @@ describe('participant-triggered room recovery', () => {
     expect(snap.status).toBe(200)
     expect(snap.body.you_control).toBe(false)
     expect((await roomState(s)).meeting.controller_account_id).toBeNull()
-    expect((await command(owner, s, { type: 'set_phase', phase: 'remember' })).status).toBe(200)
+    expect((await command(owner, s, { type: 'set_phase', phase: 'choose' })).status).toBe(200)
   })
 })

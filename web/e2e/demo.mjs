@@ -457,66 +457,59 @@ try {
   await maya.click('button:has-text("Start the retro…")')
   await maya.click('[role=dialog] button:text-is("Start the retro")')
   await maya.waitForURL(/stage$/)
-  await maya.setViewportSize({ width: 1152, height: 720 }) // a big-screen layout: film it a little closer (four themes in a row)
+  await maya.setViewportSize({ width: 1152, height: 720 }) // a big-screen layout: film it a little closer
   for (const k of Object.keys(PEOPLE)) must(await api(p[k], 'POST', `/api/sprints/${sprintId}/meeting/attendance`, { present: true }), 'attendance')
-  for (let i = 0; i < 5 && !(await maya.locator('text=This sprint').count()); i++) {
-    await maya.keyboard.press('ArrowRight')
-    await sleep(1000)
-  }
+  await maya.locator('.retro-title').waitFor()
+  // Choose: moving there opens the vote; everyone votes on their own phone.
+  await maya.click('.retro-rail-end button:has-text("Next: Choose")')
+  await maya.locator('.retro-title', { hasText: 'What matters' }).waitFor()
   const ids = must(await api(maya, 'GET', `/api/sprints/${sprintId}/themes`), 'themes').themes.map((t) => t.id)
-  must(await api(maya, 'POST', `/api/sprints/${sprintId}/votes/rounds`, {}), 'open voting')
   for (const [k, list] of Object.entries(VOTES)) for (const i of list) must(await api(p[k], 'POST', `/api/sprints/${sprintId}/votes`, { theme_id: ids[i], cast: true }), 'vote')
-  must(await api(maya, 'POST', `/api/sprints/${sprintId}/votes/rounds/close`, { action: 'close' }), 'close voting')
   await maya.reload()
-  const open = maya.locator('button:has-text("Open the sprint")')
-  await open.waitFor()
+  const next = maya.locator('.retro-rail-end button', { hasText: 'Next: Talk' })
+  await next.waitFor()
   await maya.evaluate(() => document.fonts.ready)
   await sleep(1500)
 
-  // 07 · The room sees them for the first time: folded, then opened — in themes, with the votes.
+  // 07 · What matters most, privately: moving on closes the vote, and the talk starts where it points.
   const sc = cursorOf(maya)
-  await sc.show(620, 560)
-  await film(maya, '07-reveal', async () => {
-    await sleep(600)
-    await sc.to(open, 800, 0.4, 0.55)
+  await sc.show(620, 520)
+  await film(maya, '07-choose', async () => {
+    await sleep(900)
+    await sc.to(next, 900, 0.5, 0.55)
     await sleep(150)
     await sc.click()
-    await sleep(500)
-    await sc.glide(800, 470, 700)
-    await sleep(2200)
+    await maya.locator('.retro-talk-title').waitFor()
+    await sc.glide(760, 430, 700)
+    await sleep(2400)
   })
   await sc.hide()
 
-  // To the first topic, with a takeaway and an invitation to speak; then present it.
-  await maya.click('button:has-text("Top three → agenda")')
+  // On the first topic: what the room will remember and an idea to try, written on the screen; an invitation to speak; then present it.
+  await maya.fill('textarea[aria-label="We’ll remember"]', TAKEAWAY)
+  await maya.keyboard.press('Enter')
+  await maya.locator('.retro-saved').first().waitFor()
+  await maya.fill('textarea[aria-label="We could try"]', EXPERIMENTS[0].change)
+  await maya.keyboard.press('Enter')
+  await maya.locator('.retro-saved').first().waitFor()
+  await maya.click('.retro-voice-do button:has-text("Invite someone")')
   await sleep(600)
-  await maya.keyboard.press('ArrowRight')
-  await maya.click(`button:has-text("${THEMES[0].title}")`)
-  await maya.waitForSelector('text=Capture a takeaway')
-  await maya.click('button:has-text("Capture a takeaway")')
-  await maya.fill('textarea[aria-label="Takeaway"]', TAKEAWAY)
-  await maya.fill('input[aria-label="What could we try"]', EXPERIMENTS[0].change)
-  await maya.click('button:has-text("Save takeaway")')
-  await maya.waitForSelector(`text=${TAKEAWAY}`)
-  await maya.click('button:has-text("Invite a voice")')
-  await sleep(600)
-  await maya.keyboard.press(' ') // the timer runs
   await maya.keyboard.press('h') // present on this screen
   await maya.mouse.move(1100, 690)
   await sleep(2000)
 
-  // 08 · Discuss, one topic at a time.
-  await film(maya, '08-discuss', async () => {
+  // 08 · Talk it through, one topic at a time.
+  await film(maya, '08-talk', async () => {
     await sleep(2100)
     await maya.keyboard.press('n') // the next voice is invited
     await sleep(3000)
   })
-  log('discussed')
+  log('talked')
 
-  // Decide: two experiments, each owner says yes. Then complete the retro and publish the recap.
+  // Agree: two experiments, each owner says yes. Then end the retro and publish the recap.
   await maya.keyboard.press('h')
   await maya.setViewportSize({ width: 1280, height: 800 })
-  await maya.keyboard.press('ArrowRight')
+  await maya.click('.retro-steps button:has-text("Agree")')
   await maya.waitForSelector('#ex-change')
   const members = must(await api(maya, 'GET', `/api/sprints/${sprintId}`), 'sprint').participants
   for (const e of EXPERIMENTS) {
@@ -525,12 +518,13 @@ try {
     await maya.selectOption('#ex-owner', members.find((m) => m.display_name === PEOPLE[e.owner]).account_id)
     await maya.selectOption('#ex-theme', { label: THEMES[e.theme].title })
     await maya.click('button:has-text("Propose this experiment")')
-    await maya.waitForSelector(`text=${e.change}`)
+    await maya.locator('.retro-exp', { hasText: e.change }).waitFor()
+    await maya.waitForFunction(() => document.querySelector('#ex-change')?.value === '')
   }
   const exps = must(await api(maya, 'GET', `/api/sprints/${sprintId}/experiments`), 'experiments')
   for (const e of EXPERIMENTS) must(await api(p[e.owner], 'POST', `/api/sprints/${sprintId}/experiments/${exps.find((x) => x.owner_name === PEOPLE[e.owner]).id}/accept`, { accept: true }), 'accept ownership')
-  await maya.keyboard.press('ArrowRight')
-  await maya.click('button:has-text("Complete the retro")')
+  await maya.click('.retro-end button:has-text("End the retro")')
+  await maya.click('[role=dialog] button:has-text("End the retro")')
   await maya.waitForURL(new RegExp(`/sprints/${sprintId}$`))
   await maya.fill('textarea[aria-label="Recap (Markdown)"]', RECAP)
   await maya.click('button:has-text("Publish")')

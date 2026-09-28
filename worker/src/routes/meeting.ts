@@ -15,6 +15,7 @@ import { hint, room, roomCall, roomSocketHeaders } from '../lib/live'
 import type { RoomState } from '../room'
 import { PHASES } from '../room'
 import { ensureRoom } from './sprints'
+import { closeRound, openRound } from './voting'
 
 export const meeting = new Hono<HonoEnv>()
 
@@ -48,11 +49,13 @@ export async function snapshot(env: HonoEnv['Bindings'], ctx: SprintCtx) {
   const unreleased = ctx.isFacilitator ? (await count(db, 'SELECT count(*) AS n FROM context_additions WHERE sprint_id = ? AND released_batch IS NULL', ctx.sprint.id)) > 0 : null
   const mine = await all<{ id: string; theme_id: string | null; body: string; released_batch: number | null }>(db, 'SELECT id, theme_id, body, released_batch FROM context_additions WHERE sprint_id = ? AND author_account_id = ? ORDER BY created_at LIMIT 100', ctx.sprint.id, me)
   const controller = m.controller_account_id ? people.find((p) => p.account_id === m.controller_account_id) : null
+  // Choosing needs something to choose between: without themes the retro goes from looking back to talking.
+  const themed = (await count(db, 'SELECT count(*) AS n FROM themes WHERE sprint_id = ? AND parked = 0', ctx.sprint.id)) > 0
   return {
     session_id: `${ctx.sprint.id}:${m.started_at}`,
     version: m.version,
     phase: m.phase,
-    phases: [...PHASES],
+    phases: PHASES.filter((p) => themed || p !== 'choose'),
     plan: m.plan,
     current_theme_id: m.current_theme_id,
     agenda: m.agenda,
@@ -61,7 +64,6 @@ export async function snapshot(env: HonoEnv['Bindings'], ctx: SprintCtx) {
     controller_name: controller?.display_name ?? null,
     you_control: m.controller_account_id === me,
     controller_stale: !m.controller_account_id || !rs.connected.includes(m.controller_account_id),
-    quiet_reading: m.quiet_reading && !!m.timer_ends_at && m.timer_ends_at > now,
     opening_question: ctx.sprint.opening_question,
     attendance: people.map((p) => ({
       account_id: p.account_id,
@@ -107,13 +109,45 @@ meeting.post('/api/sprints/:sprintId/meeting/command', async (c) => {
   const ctx = await requireSprint(c, config(c.env), c.env.DB, c.req.param('sprintId'))
   requireFacilitator(ctx)
   if (ctx.sprint.status !== 'live') throw conflict('the retro isn’t live')
-  const body = (await c.req.json().catch(() => ({}))) as { expected_version?: number; command?: { type?: string; theme_id?: string; discussed?: boolean; phase?: string; items?: unknown } }
+  const body = (await c.req.json().catch(() => ({}))) as { expected_version?: number; command?: { type?: string; theme_id?: string; discussed?: boolean; phase?: string; items?: unknown; agenda?: unknown; topic?: string | null } }
   const cmd = body.command ?? {}
   const db = c.env.DB
   // 'ungrouped' is a pseudo-topic: the stage opens the ungrouped pool directly.
+  // A topic the room opens counts as discussed: there's no separate "mark as discussed" to remember.
+  const opened = async (themeId: string) => {
+    await run(db, 'INSERT INTO discussion_notes (theme_id, sprint_id, discussed, updated_at) VALUES (?,?,1,?) ON CONFLICT(theme_id) DO UPDATE SET discussed=1, updated_at=excluded.updated_at', themeId, ctx.sprint.id, Date.now())
+    await hint(c.env, ctx.sprint.id, 'themes')
+  }
   if (cmd.type === 'set_topic' && cmd.theme_id && cmd.theme_id !== 'ungrouped') {
     if (!(await count(db, 'SELECT count(*) AS n FROM themes WHERE id = ? AND sprint_id = ?', cmd.theme_id, ctx.sprint.id))) throw notFound('theme not found')
-    await run(db, 'INSERT OR IGNORE INTO discussion_notes (theme_id, sprint_id, updated_at) VALUES (?,?,?)', cmd.theme_id, ctx.sprint.id, Date.now())
+    await opened(cmd.theme_id)
+  }
+  // Steps carry their own housekeeping. Choosing opens the vote (once: coming back shows the result);
+  // leaving it closes the vote, which orders the themes; talking follows that order, from the top.
+  delete cmd.agenda
+  delete cmd.topic
+  if (cmd.type === 'set_phase') {
+    const themed = await count(db, 'SELECT count(*) AS n FROM themes WHERE sprint_id = ? AND parked = 0', ctx.sprint.id)
+    if (cmd.phase === 'choose' && themed && !(await count(db, "SELECT count(*) AS n FROM vote_rounds WHERE sprint_id = ? AND status IN ('open', 'closed')", ctx.sprint.id))) {
+      if (await openRound(db, ctx.sprint.id, ctx.sprint.vote_budget)) {
+        await audit(db, ctx.sprint.workspace_id, ctx.sprint.id, ctx.auth.account.id, 'votes.round_opened', { budget: ctx.sprint.vote_budget })
+        await hint(c.env, ctx.sprint.id, 'votes')
+      }
+    }
+    if (cmd.phase === 'talk' || cmd.phase === 'agree') {
+      if (await closeRound(db, ctx.sprint.id, 'closed')) {
+        await audit(db, ctx.sprint.workspace_id, ctx.sprint.id, ctx.auth.account.id, 'votes.round_closed', { status: 'closed' })
+        await hint(c.env, ctx.sprint.id, 'votes')
+        await hint(c.env, ctx.sprint.id, 'themes')
+      }
+    }
+    if (cmd.phase === 'talk') {
+      const order = await all<{ id: string }>(db, 'SELECT id FROM themes WHERE sprint_id = ? AND parked = 0 ORDER BY position, created_at', ctx.sprint.id)
+      const loose = await count(db, 'SELECT count(*) AS n FROM entries e LEFT JOIN theme_entries te ON te.entry_id = e.id WHERE e.sprint_id = ? AND te.theme_id IS NULL', ctx.sprint.id)
+      cmd.agenda = order.map((t) => ({ theme_id: t.id }))
+      cmd.topic = order[0]?.id ?? (loose ? 'ungrouped' : null)
+      if (order[0]) await opened(order[0].id)
+    }
   }
   if (cmd.type === 'set_agenda' && Array.isArray(cmd.items)) {
     const valid = new Set((await all<{ id: string }>(db, 'SELECT id FROM themes WHERE sprint_id = ?', ctx.sprint.id)).map((t) => t.id))

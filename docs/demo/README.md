@@ -22,8 +22,8 @@ new files.
 | 02 | *Make the page your own.* The same page in four characters’ rooms: Kape, Biyahe, Himig, Sibol | still frames, crossfaded, the room named in the window's bar | `/sprints/:id` in each world |
 | 03 | *Close collection whenever you’re ready.* Maya closes collection from the sprint bar: what it will do, then the closed state and *Start the retro…* | the camera moves to the control, then the confirmation | `/sprints/:id` (facilitator) |
 | 04 | *Gather them into themes.* Maya picks up four thoughts about staging on the sorting table, names the theme from the tray, and it appears with them inside | the camera follows the picking, the tray at the screen's foot, then the new theme | `/sprints/:id/prepare` |
-| 05 | *Everyone’s thoughts, together. No names.* The shared screen: folded, then opened into four themes with their votes | | `/sprints/:id/stage` (Discover) |
-| 06 | *Talk it through, one topic at a time.* Discussing “Who owns staging?”: its question, a takeaway, an invitation to speak that moves to the next person | | `/sprints/:id/stage?mode=present` |
+| 05 | *Choose what matters, privately.* The retro's second step: four themes, the team's votes in; Maya moves on, which closes the vote and opens the most-voted topic | wide while the cursor goes to *Next: Talk*, then closer on the topic | `/sprints/:id/stage` (Choose → Talk) |
+| 06 | *Talk it through, one topic at a time.* “Who owns staging?”, presented: its question and thoughts, what the room will remember and an idea to try, an invitation to speak that moves to the next person | | `/sprints/:id/stage?mode=present` |
 | 07 | *Agree what to try next.* Priya comes back later: the finished sprint's page is its outcomes | | `/sprints/:id` (done) |
 | — | The mark, *Keep the thought. Bring it to the conversation.*, act.munimuni.app | drawn by the reel | |
 
@@ -31,10 +31,11 @@ Chapters overlap by half a second. Everything behind them happens off camera, th
 Six accounts are created with passkeys: Chromium's virtual authenticator, with PRF (Tomás's
 browser is a phone). The sprint is encrypted, as new sprints are by default, so each person writes
 their own thoughts in their own browser. The facilitator closes collection, groups the thoughts
-into themes on camera (the first) and off it (the other three), writes the opening questions, then runs the retro on the stage. There she adds a
-takeaway, invites voices and proposes the experiments. Plain API calls are used only for things
-with no content in them: the workspace and its invitations, choosing Priya's character, attendance,
-votes and accepting ownership.
+into themes on camera (the first) and off it (the other three), writes the opening questions, then runs the retro on the stage in its four steps. There she
+writes what the room will remember and an idea to try, invites voices, proposes the experiments
+and ends the retro. Plain API calls are used only for things with no content in them: the
+workspace and its invitations, choosing Priya's character, attendance, votes and accepting
+ownership.
 
 ## Rebuilding it
 

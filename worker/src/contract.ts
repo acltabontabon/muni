@@ -6,7 +6,8 @@
 export type Category = 'proud' | 'keep' | 'improve' | 'stop' | 'try'
 export type Period = 'early' | 'middle' | 'late'
 export type SprintStatus = 'draft' | 'collecting' | 'preparing' | 'ready' | 'live' | 'completed' | 'archived'
-export type Phase = 'arrive' | 'remember' | 'discover' | 'discuss' | 'decide' | 'leave'
+/** The retro's four steps. */
+export type Phase = 'look_back' | 'choose' | 'talk' | 'agree'
 
 export interface ErrorBody {
   error: string
@@ -260,6 +261,8 @@ export interface ThemeView {
   context: ContextNote[]
   votes: number | null
   takeaway: string
+  /** An idea to try, noted while talking; Agree turns ideas into experiments. */
+  could_try: string
   discussed: boolean
 }
 export interface GroupingView {
@@ -346,7 +349,6 @@ export interface StageSnapshot {
   controller_name: string | null
   you_control: boolean
   controller_stale: boolean
-  quiet_reading: boolean
   opening_question: string | null
   attendance: AttendeeView[]
   speaking: SpeakingView | null
@@ -377,7 +379,6 @@ export type Command =
   | { type: 'speaking_open_floor' }
   | { type: 'speaking_end' }
   | { type: 'release_context' }
-  | { type: 'quiet_reading'; secs: number }
   | { type: 'mark_discussed'; theme_id: string; discussed: boolean }
 
 export interface Experiment {

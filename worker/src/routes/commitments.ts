@@ -121,6 +121,8 @@ commitments.patch('/api/sprints/:sprintId/experiments/:experimentId', async (c) 
   if (body.outcome_note !== undefined) await run(db, 'UPDATE experiments SET outcome_note=?, updated_at=? WHERE id=?', content(isEncrypted(ctx.sprint), body.outcome_note, 500, 'Outcome note', false), Date.now(), eid)
   await audit(db, ctx.sprint.workspace_id, ctx.sprint.id, ctx.auth.account.id, 'experiment.updated', { experiment_id: eid })
   await hint(c.env, ctx.sprint.id, 'commitments')
+  // A verdict is usually given at the next retro, looking back: that retro's screens follow too.
+  for (const r of await all<{ id: string }>(db, "SELECT id FROM sprints WHERE workspace_id = ? AND status = 'live' AND id <> ?", ctx.sprint.workspace_id, ctx.sprint.id)) await hint(c.env, r.id, 'commitments')
   return c.json(await listFor(db, ctx.sprint.id))
 })
 

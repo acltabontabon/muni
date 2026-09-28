@@ -283,7 +283,7 @@ const browser = await chromium.launch()
   await a.page.evaluate(() => window.dispatchEvent(new Event('offline')))
   await a.page.waitForSelector('text=Reconnecting to the retro', { timeout: 20000 }).catch(() => {})
   const bar = (await a.page.locator('text=Reconnecting to the retro').count()) === 1
-  const disabled = await a.page.locator('button:has-text("Mark me present"), button:has-text("I’m here")').first().isDisabled().catch(() => false)
+  const disabled = await a.page.locator('.retro-ready input').isDisabled().catch(() => false)
   check('Lost connection shows "Reconnecting" and disables live actions', bar && disabled, `bar=${bar} disabled=${disabled}`)
   await a.page.screenshot({ path: `${OUT}/5-retro-reconnecting.png` })
   await ctx.setOffline(false)
