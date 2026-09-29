@@ -16,7 +16,7 @@ import { clientLabel, requireAuth, requireMember, requireParticipant, requireRec
 import { randomToken } from '../lib/crypto'
 import { all, audit, count, one, run } from '../lib/db'
 import { AppError, bad, conflict, forbidden, notFound } from '../lib/errors'
-import { limit } from '../lib/ratelimit'
+import { accountBucket, limit } from '../lib/ratelimit'
 import { isEncrypted, passkeyWrap, publicKey, recoveryBlob, wrapped } from '../lib/sealed'
 import { isObject, jsonBody } from '../lib/util'
 
@@ -153,7 +153,7 @@ keys.put('/api/me/devices/:id', async (c) => {
   const existing = await one<DeviceRow>(db, 'SELECT * FROM device_unlocks WHERE id = ?', id)
   if (existing && existing.account_id !== a.account.id) throw conflict('that device id is taken')
   if (existing) return c.json({ created: false, key_version: existing.key_version })
-  await limit(db, `device-add:${a.account.id}`, 30, 60 * 60_000)
+  await limit(db, accountBucket('device-add', a.account.id), 30, 60 * 60_000)
   const replaces = typeof body.replaces === 'string' && UUID.test(body.replaces) ? body.replaces : null
   const replaced = replaces ? await run(db, 'DELETE FROM device_unlocks WHERE id = ? AND account_id = ?', replaces, a.account.id) : null
   const held = await count(db, 'SELECT count(*) AS n FROM device_unlocks WHERE account_id = ?', a.account.id)
@@ -177,7 +177,7 @@ keys.put('/api/me/devices/:id', async (c) => {
 keys.post('/api/me/devices/:id/unlock', async (c) => {
   const a = await requireAuth(c, config(c.env), c.env.DB)
   const db = c.env.DB
-  await limit(db, `device-unlock:${a.account.id}`, 120, 10 * 60_000)
+  await limit(db, accountBucket('device-unlock', a.account.id), 120, 10 * 60_000)
   const d = await one<DeviceRow>(db, 'SELECT * FROM device_unlocks WHERE id = ? AND account_id = ?', c.req.param('id'), a.account.id)
   if (!d) throw new AppError(404, 'device_unknown', 'this device can’t unlock your account any more')
   const ok = a.credentialRef ? await one(db, 'SELECT 1 AS x FROM webauthn_credentials WHERE id = ? AND account_id = ? AND created_at <= ?', a.credentialRef, a.account.id, d.bound_at) : null

@@ -22,6 +22,15 @@ export async function underLimit(db: D1Database, bucket: string, max: number, wi
   return (await count(db, 'SELECT count(*) AS n FROM rate_events WHERE bucket = ? AND at > ?', bucket, Date.now() - windowMs)) < max
 }
 
+/** Counts an event that has happened (after `underLimit` said it fit). */
+export async function record(db: D1Database, bucket: string): Promise<void> {
+  await run(db, 'INSERT INTO rate_events (bucket, at) VALUES (?, ?)', bucket, Date.now())
+}
+
+/** Buckets that count one account's own actions. They name the account, so they go with it. */
+export const ACCOUNT_BUCKETS = ['join-req', 'device-add', 'device-unlock', 'pk-reauth', 'pk-reg', 'invite-mail', 'workspace-new'] as const
+export const accountBucket = (kind: (typeof ACCOUNT_BUCKETS)[number], accountId: string) => `${kind}:${accountId}`
+
 export function clientClass(req: Request): string {
   const cf = req.headers.get('cf-connecting-ip')
   if (cf) return cf

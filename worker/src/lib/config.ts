@@ -15,6 +15,8 @@ export interface Config {
   brevoApiKey?: string
   allowDemoSeed: boolean
   entryMaxChars: number
+  /** Emails the server sends a day in all, below the provider's quota so it's never exhausted. */
+  emailDailyLimit: number
   /** New accounts per network and in total per day (nothing else slows abuse). */
   signupsPerNetworkDaily: number
   signupsDailyLimit: number
@@ -33,6 +35,7 @@ export interface ConfigVars {
   BREVO_API_KEY?: string
   ALLOW_DEMO_SEED?: string
   ENTRY_MAX_CHARS?: string
+  EMAIL_DAILY_LIMIT?: string
   SIGNUPS_PER_NETWORK_DAILY?: string
   SIGNUPS_DAILY_LIMIT?: string
   WEBAUTHN_RP_ID?: string
@@ -74,6 +77,8 @@ export function config(vars: ConfigVars): Config {
     brevoApiKey: vars.BREVO_API_KEY,
     allowDemoSeed,
     entryMaxChars: num(vars.ENTRY_MAX_CHARS, 2000),
+    // Resend's free tier sends 100 a day and Brevo's 300: stay below the smaller by default.
+    emailDailyLimit: num(vars.EMAIL_DAILY_LIMIT, 80),
     // New accounts per network and in total per 24 h: with passkeys only, nothing else slows abuse.
     signupsPerNetworkDaily: num(vars.SIGNUPS_PER_NETWORK_DAILY, 10),
     signupsDailyLimit: num(vars.SIGNUPS_DAILY_LIMIT, 200),

@@ -42,7 +42,7 @@ import {
 import { randomToken, sha256Hex, uuid } from '../lib/crypto'
 import { all, batch, one, run } from '../lib/db'
 import { AppError, bad, notFound } from '../lib/errors'
-import { clientClass, limit, underLimit } from '../lib/ratelimit'
+import { accountBucket, clientClass, limit, underLimit } from '../lib/ratelimit'
 import { nonempty } from '../lib/util'
 import { newAccountStatement } from '../lib/accounts'
 import { buildMe } from './auth'
@@ -289,7 +289,7 @@ async function verifyAssertion(db: D1Database, cfg: Config, response: Authentica
 passkeys.post('/api/auth/passkey/reauth/options', async (c) => {
   const cfg = config(c.env)
   const a = await requireAuth(c, cfg, c.env.DB)
-  await limit(c.env.DB, `pk-reauth:${a.account.id}`, 30, 10 * 60_000)
+  await limit(c.env.DB, accountBucket('pk-reauth', a.account.id), 30, 10 * 60_000)
   const body = await readJson(c)
   const owned = await all<CredentialRow>(c.env.DB, 'SELECT * FROM webauthn_credentials WHERE account_id = ?', a.account.id)
   const creds = typeof body.credential === 'string' ? owned.filter((k) => k.id === body.credential) : owned
@@ -330,7 +330,7 @@ passkeys.post('/api/auth/passkey/register/options', async (c) => {
   const cfg = config(c.env)
   const a = await requireAuth(c, cfg, c.env.DB)
   requireRecentAuth(a)
-  await limit(c.env.DB, `pk-reg:${a.account.id}`, 20, 60 * 60_000)
+  await limit(c.env.DB, accountBucket('pk-reg', a.account.id), 20, 60 * 60_000)
   const creds = await all<CredentialRow>(c.env.DB, 'SELECT * FROM webauthn_credentials WHERE account_id = ?', a.account.id)
   if (creds.length >= MAX_PASSKEYS) throw failed('too_many_passkeys', `an account can have up to ${MAX_PASSKEYS} passkeys — remove one first`, 409)
   const acct = (await one<{ display_name: string }>(c.env.DB, 'SELECT display_name FROM accounts WHERE id = ?', a.account.id))!

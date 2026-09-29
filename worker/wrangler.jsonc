@@ -29,9 +29,11 @@
     "PUBLIC_ORIGIN": "http://localhost:8787",
     "EMAIL_PROVIDER": "console",
     "ALLOW_DEMO_SEED": "true",
-    // Local development creates many throwaway accounts from one address (and e2e runs do).
+    // Local development creates many throwaway accounts from one address (and e2e runs do), and
+    // sends their invitations to the development inbox.
     "SIGNUPS_PER_NETWORK_DAILY": "100000",
     "SIGNUPS_DAILY_LIMIT": "100000",
+    "EMAIL_DAILY_LIMIT": "100000",
     // Passkeys: the RP ID defaults to PUBLIC_ORIGIN's host (localhost). The Vite dev server is a
     // second origin on the same RP ID; listed explicitly because origins never come from requests.
     "WEBAUTHN_EXTRA_ORIGINS": "http://localhost:5173"

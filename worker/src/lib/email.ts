@@ -6,7 +6,8 @@
  */
 import type { Config } from './config'
 import { run } from './db'
-import { setupRequired } from './errors'
+import { quota, setupRequired } from './errors'
+import { record, underLimit } from './ratelimit'
 
 export interface Mail {
   to: string
@@ -14,7 +15,17 @@ export interface Mail {
   body: string
 }
 
+/** Every email the server sends, counted against EMAIL_DAILY_LIMIT (kept below the provider's own quota). */
+const SENT = 'email-sent'
+
 export async function sendMail(cfg: Config, db: D1Database, mail: Mail): Promise<void> {
+  if (cfg.email !== 'none' && !(await underLimit(db, SENT, cfg.emailDailyLimit, 86_400_000)))
+    throw quota(`the daily email limit (${cfg.emailDailyLimit}) is reached, so this wasn’t sent`)
+  await deliver(cfg, db, mail)
+  await record(db, SENT)
+}
+
+async function deliver(cfg: Config, db: D1Database, mail: Mail): Promise<void> {
   switch (cfg.email) {
     case 'console': {
       // Development inbox: stored in D1 so `wrangler dev` and tests can read it. Never in production.

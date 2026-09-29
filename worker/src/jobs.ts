@@ -7,13 +7,24 @@ import type { Context } from 'hono'
 import type { AppEnv } from './env'
 import { config } from './lib/config'
 import { uuid } from './lib/crypto'
-import { all, one, run } from './lib/db'
+import { all, one, run, type Statement } from './lib/db'
 import { sendMail, templates } from './lib/email'
+import { AppError } from './lib/errors'
 import { addDays, daysBetween, resolveLocal } from './lib/util'
 
 export async function enqueue(db: D1Database, kind: string, payload: Record<string, unknown>, runAt: number, key: string | null): Promise<void> {
-  await run(db, 'INSERT OR IGNORE INTO jobs (id, kind, payload, idempotency_key, run_at, created_at) VALUES (?,?,?,?,?,?)', uuid(), kind, JSON.stringify(payload), key, runAt, Date.now())
+  await run(db, ...enqueueStatement(kind, payload, runAt, key))
 }
+/** `enqueue` as a statement, to queue a job in the same transaction as what it follows from. */
+export const enqueueStatement = (kind: string, payload: Record<string, unknown>, runAt: number, key: string | null): Statement => [
+  'INSERT OR IGNORE INTO jobs (id, kind, payload, idempotency_key, run_at, created_at) VALUES (?,?,?,?,?,?)',
+  uuid(),
+  kind,
+  JSON.stringify(payload),
+  key,
+  runAt,
+  Date.now(),
+]
 
 /** Runs due jobs after the response is sent; bounded so a request never does unbounded work. */
 export function runSoon(c: Context, env: AppEnv, max = 5) {
@@ -63,7 +74,8 @@ async function execute(env: AppEnv, job: JobRow) {
   } catch (e) {
     // Never log payloads: they may contain an email address.
     const summary = String(e instanceof Error ? e.message : e).slice(0, 500)
-    if (job.attempts >= job.max_attempts) {
+    // Over the day's email limit, retrying in a few minutes changes nothing: it fails now, saying why.
+    if (job.attempts >= job.max_attempts || (e instanceof AppError && e.code === 'quota')) {
       await run(env.DB, "UPDATE jobs SET status='failed', finished_at=?, locked_at=NULL, last_error=?, payload=CASE WHEN kind='email' THEN '{}' ELSE payload END WHERE id=?", Date.now(), summary, job.id)
     } else {
       const backoff = 15_000 * 2 ** Math.min(job.attempts, 6)

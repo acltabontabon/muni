@@ -19,9 +19,9 @@ import { checkOrigin, loadSession, readCookie, requireAuth, requireMember, sessi
 import { randomToken, sha256Hex, uuid } from '../lib/crypto'
 import { all, audit, batch, count, one, run } from '../lib/db'
 import { AppError, bad, conflict, forbidden, notFound } from '../lib/errors'
-import { clientClass, limit } from '../lib/ratelimit'
+import { grantChecker, mayGrant, mayRevoke } from '../lib/grants'
+import { accountBucket, clientClass, limit } from '../lib/ratelimit'
 import { jsonBody } from '../lib/util'
-import { canInvite } from './workspaces'
 
 export const join = new Hono<HonoEnv>()
 
@@ -68,31 +68,11 @@ async function liveLink(db: D1Database, token: string): Promise<LinkRow | null> 
   return one<LinkRow>(db, 'SELECT * FROM join_links WHERE token_hash = ? AND revoked_at IS NULL AND expires_at > ?', await sha256Hex(token), Date.now())
 }
 
-/**
- * Who may create a link for a scope, see its requests and decide them: for a sprint, that
- * sprint's facilitator while it's unfinished (as for adding participants); for the workspace,
- * owners and active facilitators (as for email invitations). Re-evaluated on every decision.
+/*
+ * Who may create a link for a scope, and see and decide its requests: whoever may grant that scope
+ * (lib/grants.ts) — the workspace's owners, or a sprint's facilitator while it's unfinished.
+ * Re-evaluated on every decision. Owners may also turn off any link.
  */
-async function canManage(db: D1Database, workspaceId: string, sprintId: string | null, accountId: string, role: string): Promise<boolean> {
-  if (!sprintId) return canInvite(db, workspaceId, accountId, role)
-  const n = await count(
-    db,
-    `SELECT count(*) AS n FROM sprint_participants sp JOIN sprints s ON s.id = sp.sprint_id
-      WHERE sp.sprint_id = ? AND s.workspace_id = ? AND sp.account_id = ? AND sp.is_facilitator = 1 AND s.status NOT IN ('completed','archived')`,
-    sprintId, workspaceId, accountId,
-  )
-  return n > 0
-}
-
-/** `canManage` for many rows of one request: each scope (the workspace, or one sprint) is asked once. */
-function manageChecker(db: D1Database, workspaceId: string, accountId: string, role: string) {
-  const seen = new Map<string, Promise<boolean>>()
-  return (sprintId: string | null) => {
-    const k = sprintId ?? ''
-    if (!seen.has(k)) seen.set(k, canManage(db, workspaceId, sprintId, accountId, role))
-    return seen.get(k)!
-  }
-}
 
 async function isMemberOf(db: D1Database, workspaceId: string, sprintId: string | null, accountId: string): Promise<boolean> {
   const m = await count(db, 'SELECT count(*) AS n FROM memberships WHERE workspace_id = ? AND account_id = ? AND revoked_at IS NULL', workspaceId, accountId)
@@ -139,8 +119,8 @@ join.post('/api/workspaces/:workspaceId/join-links', async (c) => {
     if (!sp) throw notFound('sprint not found')
     if (['completed', 'archived'].includes(sp.status)) throw conflict('this sprint is finished')
   }
-  if (!(await canManage(c.env.DB, m.workspaceId, sprintId, m.auth.account.id, m.role)))
-    throw forbidden(sprintId ? 'only this sprint’s facilitator can invite people to it' : 'only owners and facilitators can invite')
+  if (!(await mayGrant(c.env.DB, m.workspaceId, sprintId, m.auth.account.id, m.role)))
+    throw forbidden(sprintId ? 'only this sprint’s facilitator can invite people to it' : 'only an owner can invite people to the workspace')
   await limit(c.env.DB, `join-link:${m.workspaceId}`, 30, 24 * HOUR)
   const now = Date.now()
   // One team QR per scope; personal links are one per person, as many as needed.
@@ -166,7 +146,8 @@ join.post('/api/workspaces/:workspaceId/join-links', async (c) => {
 join.get('/api/workspaces/:workspaceId/join-links', async (c) => {
   const m = await requireMember(c, config(c.env), c.env.DB, c.req.param('workspaceId'))
   const rows = await all<LinkRow>(c.env.DB, 'SELECT * FROM join_links WHERE workspace_id = ? AND revoked_at IS NULL AND expires_at > ? ORDER BY created_at DESC LIMIT 50', m.workspaceId, Date.now())
-  const may = manageChecker(c.env.DB, m.workspaceId, m.auth.account.id, m.role)
+  // The links someone may turn off: an owner sees every live way in.
+  const may = grantChecker(c.env.DB, m.workspaceId, m.auth.account.id, m.role, mayRevoke)
   const allowed = await Promise.all(rows.map((l) => may(l.sprint_id)))
   return c.json(await Promise.all(rows.filter((_, i) => allowed[i]).map((l) => linkView(c.env.DB, l))))
 })
@@ -176,7 +157,7 @@ join.delete('/api/workspaces/:workspaceId/join-links/:linkId', async (c) => {
   const m = await requireMember(c, config(c.env), c.env.DB, c.req.param('workspaceId'))
   const l = await one<LinkRow>(c.env.DB, 'SELECT * FROM join_links WHERE id = ? AND workspace_id = ?', c.req.param('linkId'), m.workspaceId)
   if (!l) throw notFound('invite link not found')
-  if (!(await canManage(c.env.DB, m.workspaceId, l.sprint_id, m.auth.account.id, m.role))) throw forbidden('you can’t manage this invite link')
+  if (!(await mayRevoke(c.env.DB, m.workspaceId, l.sprint_id, m.auth.account.id, m.role))) throw forbidden('you can’t manage this invite link')
   const r = await run(c.env.DB, 'UPDATE join_links SET revoked_at = ? WHERE id = ? AND revoked_at IS NULL', Date.now(), l.id)
   if (r.meta.changes) await audit(c.env.DB, m.workspaceId, l.sprint_id, m.auth.account.id, 'join_link.revoked', { link_id: l.id })
   return c.json({ ok: true })
@@ -210,7 +191,7 @@ join.post('/api/join/preview', async (c) => {
 join.post('/api/join/request', async (c) => {
   const cfg = config(c.env)
   const a = await requireAuth(c, cfg, c.env.DB)
-  await limit(c.env.DB, `join-req:${a.account.id}`, 20, HOUR)
+  await limit(c.env.DB, accountBucket('join-req', a.account.id), 20, HOUR)
   const link = await liveLink(c.env.DB, await tokenOf(c))
   if (!link) throw new AppError(410, 'link_invalid', 'this invite code has expired or been turned off — ask for a new one')
   // Managers see this name next to the verified email address, so it's chosen first.
@@ -254,7 +235,7 @@ join.post('/api/join/request', async (c) => {
  */
 async function redeemDirect(db: D1Database, link: LinkRow, accountId: string, now: number) {
   const creatorRole = await one<{ role: string }>(db, 'SELECT role FROM memberships WHERE workspace_id = ? AND account_id = ? AND revoked_at IS NULL', link.workspace_id, link.created_by)
-  if (!creatorRole || !(await canManage(db, link.workspace_id, link.sprint_id, link.created_by, creatorRole.role)))
+  if (!(await mayGrant(db, link.workspace_id, link.sprint_id, link.created_by, creatorRole?.role ?? null)))
     throw new AppError(410, 'link_invalid', 'this invite link no longer works — ask for a new one')
   const redemption = uuid()
   const won = 'EXISTS (SELECT 1 FROM join_links WHERE id = ? AND redemption_id = ?)'
@@ -330,7 +311,7 @@ join.get('/api/workspaces/:workspaceId/join-requests', async (c) => {
       WHERE r.workspace_id = ? AND r.status = 'pending' AND r.created_at > ? ORDER BY r.created_at LIMIT 100`,
     Date.now(), m.workspaceId, Date.now() - REQUEST_TTL_MS,
   )
-  const may = manageChecker(c.env.DB, m.workspaceId, m.auth.account.id, m.role)
+  const may = grantChecker(c.env.DB, m.workspaceId, m.auth.account.id, m.role)
   const allowed = await Promise.all(rows.map((r) => may(r.sprint_id)))
   const out = []
   for (const [i, r] of rows.entries()) {
@@ -358,7 +339,7 @@ async function decide(c: DecideCtx, verdict: 'approved' | 'declined') {
   const m = await requireMember(c, config(c.env), c.env.DB, c.req.param('workspaceId'))
   const req = await one<RequestRow>(c.env.DB, 'SELECT * FROM join_requests WHERE id = ? AND workspace_id = ?', c.req.param('requestId'), m.workspaceId)
   if (!req) throw notFound('request not found')
-  if (!(await canManage(c.env.DB, m.workspaceId, req.sprint_id, m.auth.account.id, m.role))) throw forbidden('you can’t decide requests for this invite')
+  if (!(await mayGrant(c.env.DB, m.workspaceId, req.sprint_id, m.auth.account.id, m.role))) throw forbidden('you can’t decide requests for this invite')
   if (req.account_id === m.auth.account.id) throw forbidden('someone else has to decide your own request')
   const now = Date.now()
   // Only this batch's own decision (matched by its random nonce) adds anyone, in one transaction:

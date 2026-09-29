@@ -82,7 +82,14 @@ export async function runJobs() {
 }
 
 export async function inviteToken(email: string): Promise<string> {
-  await runJobs()
+  // The request that queued the mail may be sending it right now (after its response, in waitUntil):
+  // wait until nothing is on its way to this address, then read the newest mail.
+  const sending = () => env.DB.prepare("SELECT count(*) AS n FROM jobs WHERE kind = 'email' AND status IN ('queued','running') AND json_extract(payload, '$.to') = ?").bind(email).first<{ n: number }>()
+  for (let i = 0; i < 80; i++) {
+    await runJobs()
+    if (!(await sending())?.n) break
+    await sleep(25)
+  }
   const m = await lastMailTo(email)
   const line = m?.body.split('\n').find((l) => l.trim().startsWith('http://localhost:5173/invite#'))
   if (!line) throw new Error('no invite mail')

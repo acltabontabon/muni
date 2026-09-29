@@ -10,6 +10,7 @@ import { jsonBody, maskEmail, nonempty } from '../lib/util'
 import { accountByEmail, emailOf, setAccountEmail } from '../lib/accounts'
 import { INTRO, introName, isAvatarId } from '../lib/avatars'
 import { deleteAccount, free, openSprints, standing } from '../lib/departure'
+import { mayGrant } from '../lib/grants'
 import { revokeLive } from '../lib/live'
 
 export const auth = new Hono<HonoEnv>()
@@ -210,16 +211,22 @@ interface InviteRow {
   email: string
   sprint_id: string | null
   workspace_name: string
+  invited_by: string
+  inviter_role: string | null
 }
+/** A live invitation — which includes that whoever sent it may still invite into its scope (lib/grants.ts). */
 async function liveInvite(db: D1Database, token: string): Promise<InviteRow | null> {
   if (!token || token.length > 128) return null
-  return one<InviteRow>(
+  const inv = await one<InviteRow>(
     db,
-    `SELECT i.id, i.workspace_id, i.email, i.sprint_id, w.name AS workspace_name FROM invitations i JOIN workspaces w ON w.id = i.workspace_id
-     WHERE i.token_hash = ? AND i.accepted_at IS NULL AND i.revoked_at IS NULL AND i.expires_at > ?`,
+    `SELECT i.id, i.workspace_id, i.email, i.sprint_id, w.name AS workspace_name, i.invited_by, m.role AS inviter_role
+       FROM invitations i JOIN workspaces w ON w.id = i.workspace_id
+       LEFT JOIN memberships m ON m.workspace_id = i.workspace_id AND m.account_id = i.invited_by AND m.revoked_at IS NULL
+      WHERE i.token_hash = ? AND i.accepted_at IS NULL AND i.revoked_at IS NULL AND i.expires_at > ?`,
     await sha256Hex(token),
     Date.now(),
   )
+  return inv && (await mayGrant(db, inv.workspace_id, inv.sprint_id, inv.invited_by, inv.inviter_role)) ? inv : null
 }
 
 /**

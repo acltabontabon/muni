@@ -1,14 +1,15 @@
 import { Hono } from 'hono'
 import type { HonoEnv } from '../env'
 import { config } from '../lib/config'
-import { requireMember, requireOwner } from '../lib/auth'
+import { requireAuth, requireMember, requireOwner } from '../lib/auth'
 import { randomToken, sha256Hex, uuid } from '../lib/crypto'
-import { all, audit, batch, bool, count, one, run } from '../lib/db'
+import { all, audit, auditStmt, batch, bool, count, one, run } from '../lib/db'
 import { AppError, bad, conflict, forbidden, notFound } from '../lib/errors'
 import { templates } from '../lib/email'
-import { limit } from '../lib/ratelimit'
+import { mayGrant, mayRevoke } from '../lib/grants'
+import { accountBucket, limit } from '../lib/ratelimit'
 import { jsonBody, nonempty, normalizeEmail } from '../lib/util'
-import { enqueue, runSoon } from '../jobs'
+import { enqueueStatement, runSoon } from '../jobs'
 import { revokeLive } from '../lib/live'
 import { deleteWorkspaces, facilitated, openSprints, revokeMembership, standing } from '../lib/departure'
 import { EMAIL_OF_A } from '../lib/accounts'
@@ -21,18 +22,18 @@ export async function loadWorkspace(env: HonoEnv['Bindings'], id: string, role: 
   return { id: w.id, name: w.name, role, retention_days: w.retention_days, outcome_retention_days: w.outcome_retention_days, is_demo: bool(w.is_demo), created_at: new Date(w.created_at).toISOString() }
 }
 
-export async function canInvite(db: D1Database, workspaceId: string, accountId: string, role: string) {
-  if (role === 'owner') return true
-  const n = await count(db, `SELECT count(*) AS n FROM sprint_participants sp JOIN sprints s ON s.id = sp.sprint_id WHERE s.workspace_id = ? AND sp.account_id = ? AND sp.is_facilitator = 1 AND s.status NOT IN ('completed','archived')`, workspaceId, accountId)
-  return n > 0
-}
+const DAY = 86_400_000
+/** New workspaces one account may make a day: plenty for people, a brake on making many to invite from. */
+export const WORKSPACES_DAILY = 10
+/** Invitation emails one account may send a day, across all its workspaces. */
+export const INVITE_EMAILS_DAILY = 20
 
 workspaces.post('/api/workspaces', async (c) => {
   const cfg = config(c.env)
-  const { requireAuth } = await import('../lib/auth')
   const a = await requireAuth(c, cfg, c.env.DB)
   const body = await jsonBody<{ name?: string }>(c)
   const name = nonempty(body.name, 80, 'Workspace name')
+  await limit(c.env.DB, accountBucket('workspace-new', a.account.id), WORKSPACES_DAILY, DAY, (s) => new AppError(429, 'rate_limited', `you’ve made ${WORKSPACES_DAILY} workspaces today, the most one person can — try again tomorrow`, { retry_after_seconds: s }))
   const id = uuid()
   await batch(c.env.DB, [
     ['INSERT INTO workspaces (id, name, created_at) VALUES (?,?,?)', id, name, Date.now()],
@@ -45,17 +46,18 @@ workspaces.post('/api/workspaces', async (c) => {
 workspaces.get('/api/workspaces/:workspaceId', async (c) => {
   const m = await requireMember(c, config(c.env), c.env.DB, c.req.param('workspaceId'))
   const isOwner = m.role === 'owner'
-  // Independent reads travel to the database together. Pending invitations are read alongside and
-  // returned only to someone who may invite.
-  const [workspace, rows, can_invite, invitations, fac] = await Promise.all([
+  // Independent reads travel to the database together. Pending invitations, with the addresses they
+  // went to, and who a removal would strand a sprint for, are an owner's to see; nobody else is told.
+  const [workspace, rows, pending, fac] = await Promise.all([
     loadWorkspace(c.env, m.workspaceId, m.role),
     all<{ id: string; display_name: string; email: string | null; role: string; created_at: number }>(c.env.DB, `SELECT a.id, a.display_name, ${EMAIL_OF_A} AS email, m.role, m.created_at FROM memberships m JOIN accounts a ON a.id = m.account_id WHERE m.workspace_id = ? AND m.revoked_at IS NULL ORDER BY m.created_at`, m.workspaceId),
-    canInvite(c.env.DB, m.workspaceId, m.auth.account.id, m.role),
-    all<{ id: string; email: string; sprint_id: string | null; expires_at: number; created_at: number }>(c.env.DB, 'SELECT id, email, sprint_id, expires_at, created_at FROM invitations WHERE workspace_id = ? AND accepted_at IS NULL AND revoked_at IS NULL AND expires_at > ? ORDER BY created_at DESC LIMIT 100', m.workspaceId, Date.now()),
-    // Owners see who a removal would strand a sprint for; nobody else is told.
+    isOwner
+      ? all<{ id: string; email: string; sprint_id: string | null; expires_at: number; created_at: number }>(c.env.DB, 'SELECT id, email, sprint_id, expires_at, created_at FROM invitations WHERE workspace_id = ? AND accepted_at IS NULL AND revoked_at IS NULL AND expires_at > ? ORDER BY created_at DESC LIMIT 100', m.workspaceId, Date.now())
+      : Promise.resolve([]),
     isOwner ? facilitated(c.env.DB, { workspaceId: m.workspaceId }) : Promise.resolve([]),
   ])
-  const pending = can_invite ? invitations : []
+  // Inviting to the workspace is an owner's; a sprint's facilitator invites from the sprint.
+  const can_invite = isOwner
   return c.json({
     workspace,
     members: rows.map((r) => ({ account_id: r.id, display_name: r.display_name, email: isOwner ? r.email : null, role: r.role, joined_at: new Date(r.created_at).toISOString(), is_you: r.id === m.auth.account.id, facilitating: fac.filter((f) => f.account_id === r.id).map((f) => ({ id: f.id, name: f.name })) })),
@@ -83,46 +85,63 @@ workspaces.patch('/api/workspaces/:workspaceId', async (c) => {
   return c.json(await loadWorkspace(c.env, m.workspaceId, m.role))
 })
 
-/** Invite by email. Sends a link; joining requires verifying that exact address. */
+/**
+ * Invite by email: a single-use link, sent to that address. Into the workspace, it's an owner's
+ * call; into a sprint (which also makes them a member), that sprint's facilitator's, while it's
+ * unfinished (lib/grants.ts). Whether an address belongs to a member is something only owners
+ * learn — they see members' addresses anyway: an owner inviting a member just adds them, and for
+ * anyone else an invitation is made and sent either way.
+ */
 workspaces.post('/api/workspaces/:workspaceId/invitations', async (c) => {
   const cfg = config(c.env)
-  const m = await requireMember(c, cfg, c.env.DB, c.req.param('workspaceId'))
-  if (!(await canInvite(c.env.DB, m.workspaceId, m.auth.account.id, m.role))) throw forbidden('only owners and facilitators can invite')
+  const db = c.env.DB
+  const m = await requireMember(c, cfg, db, c.req.param('workspaceId'))
+  const me = m.auth.account.id
   const body = await jsonBody<{ email?: unknown; sprint_id?: unknown }>(c)
   const email = normalizeEmail(body.email)
   if (!email) throw bad('enter a valid email address')
   if (body.sprint_id !== undefined && body.sprint_id !== null && typeof body.sprint_id !== 'string') throw bad('sprint_id must be an id')
-  await limit(c.env.DB, `invite:${m.workspaceId}`, 60, 3_600_000)
-  if (body.sprint_id) {
-    // Adding someone to a sprint is the facilitator's call for that sprint (as with POST /participants),
-    // and only while it's unfinished. Facilitating one sprint, or owning the workspace, doesn't open
-    // other sprints — otherwise anyone could invite themselves into a sprint they aren't part of.
-    const sp = await one<{ status: string }>(c.env.DB, 'SELECT status FROM sprints WHERE id = ? AND workspace_id = ?', body.sprint_id, m.workspaceId)
+  const sprintId = body.sprint_id || null
+  if (sprintId) {
+    // Facilitating one sprint, or owning the workspace, doesn't open other sprints — otherwise anyone
+    // could invite themselves into a sprint they aren't part of.
+    const sp = await one<{ status: string }>(db, 'SELECT status FROM sprints WHERE id = ? AND workspace_id = ?', sprintId, m.workspaceId)
     if (!sp) throw notFound('sprint not found')
-    const fac = await count(c.env.DB, 'SELECT count(*) AS n FROM sprint_participants WHERE sprint_id = ? AND account_id = ? AND is_facilitator = 1', body.sprint_id, m.auth.account.id)
-    if (!fac) throw forbidden('only this sprint’s facilitator can add people to it')
     if (['completed', 'archived'].includes(sp.status)) throw conflict('this sprint is finished')
+    if (!(await mayGrant(db, m.workspaceId, sprintId, me, m.role))) throw forbidden('only this sprint’s facilitator can add people to it')
+  } else if (!(await mayGrant(db, m.workspaceId, null, me, m.role))) throw forbidden('only an owner can invite people to the workspace')
+  if (m.role === 'owner') {
+    const existing = await one<{ id: string }>(db, 'SELECT ae.account_id AS id FROM account_emails ae JOIN memberships mm ON mm.account_id = ae.account_id WHERE ae.email = ? AND mm.workspace_id = ? AND mm.revoked_at IS NULL', email, m.workspaceId)
+    if (existing) {
+      if (sprintId) await run(db, 'INSERT OR IGNORE INTO sprint_participants (sprint_id, account_id, is_facilitator, created_at) VALUES (?,?,0,?)', sprintId, existing.id, Date.now())
+      return c.json({ invitation_id: '00000000-0000-0000-0000-000000000000', email, already_member: true })
+    }
   }
-  const existing = await one<{ id: string }>(c.env.DB, 'SELECT ae.account_id AS id FROM account_emails ae JOIN memberships mm ON mm.account_id = ae.account_id WHERE ae.email = ? AND mm.workspace_id = ? AND mm.revoked_at IS NULL', email, m.workspaceId)
-  if (existing) {
-    if (body.sprint_id) await run(c.env.DB, 'INSERT OR IGNORE INTO sprint_participants (sprint_id, account_id, is_facilitator, created_at) VALUES (?,?,0,?)', body.sprint_id, existing.id, Date.now())
-    return c.json({ invitation_id: '00000000-0000-0000-0000-000000000000', email, already_member: true })
-  }
+  // Every invitation is an email with the inviter's name and the workspace's in it: limited per
+  // workspace, and per person across all their workspaces.
+  await limit(db, `invite:${m.workspaceId}`, 60, 3_600_000)
+  await limit(db, accountBucket('invite-mail', me), INVITE_EMAILS_DAILY, DAY, (s) => new AppError(429, 'rate_limited', `you’ve sent ${INVITE_EMAILS_DAILY} invitations today, the most one person can — send more tomorrow, or share an invite link instead`, { retry_after_seconds: s }))
   const token = randomToken(32)
   const id = uuid()
-  await run(c.env.DB, 'INSERT INTO invitations (id, workspace_id, email, token_hash, invited_by, sprint_id, expires_at, created_at, role) VALUES (?,?,?,?,?,?,?,?,\'member\')', id, m.workspaceId, email, await sha256Hex(token), m.auth.account.id, body.sprint_id ?? null, Date.now() + 14 * 86_400_000, Date.now())
-  const ws = await one<{ name: string }>(c.env.DB, 'SELECT name FROM workspaces WHERE id = ?', m.workspaceId)
-  const mail = templates.invitation(email, ws?.name ?? 'your team', m.auth.account.display_name, `${cfg.publicOrigin}/invite#${token}`)
-  await enqueue(c.env.DB, 'email', { to: mail.to, subject: mail.subject, body: mail.body }, Date.now(), `invite:${id}`)
+  const now = Date.now()
+  const ws = await one<{ name: string }>(db, 'SELECT name FROM workspaces WHERE id = ?', m.workspaceId)
+  const link = `${cfg.publicOrigin}/invite#${token}`
+  const mail = templates.invitation(email, ws?.name ?? 'your team', m.auth.account.display_name, link)
+  await batch(db, [
+    ["INSERT INTO invitations (id, workspace_id, email, token_hash, invited_by, sprint_id, expires_at, created_at, role) VALUES (?,?,?,?,?,?,?,?,'member')", id, m.workspaceId, email, await sha256Hex(token), me, sprintId, now + 14 * DAY, now],
+    enqueueStatement('email', { to: mail.to, subject: mail.subject, body: mail.body }, now, `invite:${id}`),
+    auditStmt(m.workspaceId, sprintId, me, 'invitation.sent', { invitation_id: id }),
+  ])
   runSoon(c, c.env)
-  await audit(c.env.DB, m.workspaceId, body.sprint_id ?? null, m.auth.account.id, 'invitation.sent', { invitation_id: id })
-  // The inviter may copy the link too; it still only works for this address.
-  return c.json({ invitation_id: id, email, already_member: false, link: `${cfg.publicOrigin}/invite#${token}` })
+  // The inviter may copy the link too; like the email, it admits whoever uses it first.
+  return c.json({ invitation_id: id, email, already_member: false, link })
 })
 
+/** Withdraw an invitation: an owner, or whoever may invite into its scope. */
 workspaces.delete('/api/workspaces/:workspaceId/invitations/:invitationId', async (c) => {
   const m = await requireMember(c, config(c.env), c.env.DB, c.req.param('workspaceId'))
-  if (!(await canInvite(c.env.DB, m.workspaceId, m.auth.account.id, m.role))) throw forbidden('only owners and facilitators can manage invitations')
+  const inv = await one<{ sprint_id: string | null }>(c.env.DB, 'SELECT sprint_id FROM invitations WHERE id = ? AND workspace_id = ?', c.req.param('invitationId'), m.workspaceId)
+  if (inv && !(await mayRevoke(c.env.DB, m.workspaceId, inv.sprint_id, m.auth.account.id, m.role))) throw forbidden('only an owner, or the sprint’s facilitator, can withdraw this invitation')
   await run(c.env.DB, 'UPDATE invitations SET revoked_at = ? WHERE id = ? AND workspace_id = ? AND accepted_at IS NULL', Date.now(), c.req.param('invitationId'), m.workspaceId)
   return c.json({ ok: true })
 })
