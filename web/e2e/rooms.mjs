@@ -109,7 +109,7 @@ for (const W of WORLDS) try {
     check('Reading order: the sprint, heading, field, action', !!(tab && heading && f && save) && before(tab, f) && before(heading, f) && f.bottom <= save.top + 1, order.map((b) => (b ? `${Math.round(b.left)},${Math.round(b.top)}` : 'missing')).join(' → '))
     const dom = await page.evaluate(() => ['.room-bar .sbar-name', '.room-heading', 'textarea[name="thought"]', '.room-save', '.mine'].map((q) => document.querySelector(q)).reduce((ok, el, i, l) => ok && !!el && (i === 0 || !!(l[i - 1].compareDocumentPosition(el) & Node.DOCUMENT_POSITION_FOLLOWING)), true))
     check('…and the same order for a screen reader', dom)
-    check('The sprint bar is part of the room, and names the sprint', (await page.locator('.room .room-bar .sbar').count()) === 1 && (await page.locator('.sbar-name').innerText()).trim() === name && (await page.locator('main h1').count()) === 1)
+    check('The sprint bar is part of the room, and names the sprint', (await page.locator('.room .room-bar .sbar').count()) === 1 && (await page.locator('.sbar-name').textContent()).trim() === name && (await page.locator('main h1').count()) === 1)
     check('…with its state and the planned retro, said once (no second sprint label)', /collecting/i.test(await page.locator('.sbar-state').innerText()) && /Planned/i.test(await page.locator('.sbar-progress').innerText()) && (await page.locator('.room-tab').count()) === 0)
     check('…drawn in the room’s own type', await page.evaluate(() => getComputedStyle(document.querySelector('.sbar-name')).fontFamily === getComputedStyle(document.querySelector('.room-heading')).fontFamily))
     check('The heading labels the field', (await page.locator('label[for="thought-field"]').innerText()) === HEADING[W])

@@ -634,7 +634,7 @@ button.room-tab[data-state='open'] { background: color-mix(in oklab, var(--ink) 
 /* ── Bola: the court after everyone leaves ───────────────────────────────────────────────── */
 
 :root[data-world='bola'], .w-scope[data-world='bola'] {
-  /* Sun-warmed chalk, muted clay, deep court green. */
+  /* Sun-warmed concrete, a lane of sun-faded clay, and court green paint for the lines. */
   --paper: #f1ebe1;
   --card: #faf6ef;
   --card-2: #e7ded0;
@@ -652,12 +652,17 @@ button.room-tab[data-state='open'] { background: color-mix(in oklab, var(--ink) 
   --font-world-display: 'Archivo Variable', 'Archivo', system-ui, sans-serif;
   --font-world-em: 'Archivo Variable', 'Archivo', system-ui, sans-serif;
   --font-world-meta: 'Archivo Variable', 'Archivo', system-ui, sans-serif;
-  --bo-green: #2e5c49;
-  --bo-clay: #c07458;
+  --bo-line: #2e5c49;
+  --bo-paint: #e6c4ac;
   --bo-field: #fdfbf7;
+  --bo-plate: #1f2a24;
+  --bo-plate-ink: #f3efe6;
+  --bo-lit: #2e5c49;
+  --bo-lit-ink: #f3efe6;
+  --bo-light: rgb(255 204 150 / 0.34);
 }
 :root.dark[data-world='bola'], .dark .w-scope[data-world='bola'] {
-  /* The court under one floodlight, long after the game. */
+  /* The court under one floodlight, long after the game: chalk lines, the lane gone to rust. */
   --paper: #121614;
   --card: #1a201d;
   --card-2: #212824;
@@ -675,59 +680,89 @@ button.room-tab[data-state='open'] { background: color-mix(in oklab, var(--ink) 
   --font-world-display: 'Archivo Variable', 'Archivo', system-ui, sans-serif;
   --font-world-em: 'Archivo Variable', 'Archivo', system-ui, sans-serif;
   --font-world-meta: 'Archivo Variable', 'Archivo', system-ui, sans-serif;
-  --bo-green: #4d8a6e;
-  --bo-clay: #9a5a43;
+  --bo-line: rgb(235 231 223 / 0.62);
+  --bo-paint: #35251d;
   --bo-field: #1d2420;
+  --bo-plate: #2a322e;
+  --bo-plate-ink: #ebe7df;
+  --bo-lit: #6fa88b;
+  --bo-lit-ink: #121614;
+  --bo-light: rgb(236 232 208 / 0.075);
 }
 
 @scope ([data-world='bola']) to ([data-world]:not([data-world='bola'])) {
-  /* Strong horizontals: one weighted rule opens the page, the sprint and the question stand on the
-     left, the composer on the right, and saved thoughts line up beneath in an even grid. */
+  /* The free-throw line: the question on the left, the composer standing in the paint on the
+     right, and the circle between them. Saved thoughts line up beneath on painted lines. */
   :scope {
     --room-heading-font: 'Archivo Variable', 'Archivo', system-ui, sans-serif;
-    --room-heading-weight: 720;
+    --room-heading-weight: 740;
     --room-heading-size: clamp(2.2rem, 1.3rem + 3cqi, 3.35rem);
-    --room-heading-track: -0.028em;
+    --room-heading-track: -0.03em;
     --room-heading-leading: 0.98;
     --room-field-bg: var(--bo-field);
-    --room-field-radius: 4px;
-    --room-opt-radius: 4px;
+    --room-field-line: color-mix(in oklab, var(--ink) 24%, var(--bo-paint));
+    --room-field-radius: 3px;
+    --room-opt-radius: 3px;
   }
-  .app-bg { background: var(--paper); }
-  .room-heading { font-stretch: 116%; }
+  /* Sun-warmed concrete, and the low sun (at night, one floodlight) falling from the far side of
+     the court. Painted once; nothing moves. */
+  .app-bg { background: radial-gradient(84rem 46rem at 86% -10rem, var(--bo-light), transparent 72%), var(--paper); }
+  .room-heading { font-stretch: 118%; }
   .room-tab-kicker { font-family: 'Archivo Variable', system-ui, sans-serif; font-stretch: 88%; font-size: 12.5px; letter-spacing: 0.1em; }
   .room-tab-name { font-family: 'Archivo Variable', system-ui, sans-serif; font-size: 16px; font-weight: 650; }
 
   .bola-room { display: grid; gap: 3.5rem; }
-  .bola-opening { position: relative; overflow: hidden; padding-top: 1.4rem; border-top: 5px solid var(--bo-green); }
-  .bola-arc { position: absolute; left: 0; bottom: 0; display: none; width: 30rem; height: 12rem; fill: none; stroke: var(--bo-clay); stroke-width: 3.5; stroke-linecap: square; opacity: 0.55; pointer-events: none; }
-  .bola-opening .room-writer { position: relative; }
-  .bola-opening .room-sheet { padding: 1.25rem; border-radius: 6px; background: var(--card); box-shadow: 0 0 0 1px var(--line-strong); }
+  .bola-opening { position: relative; display: grid; grid-template-columns: minmax(0, 1fr); }
+  .bola-opening > .room-writer { grid-row: 1; grid-column: 1 / -1; min-width: 0; }
+  .bola-circle { display: none; }
 
+  /* The paint: one flat field of sun-faded clay. Its near edge is the free-throw line. */
+  .bola-opening .room-sheet { position: relative; padding: 1.4rem 1.25rem 1.25rem; background: var(--bo-paint); box-shadow: inset 0 3px 0 var(--bo-line); }
+  .bola-opening .room-draft { color: var(--ink-soft); }
+  .bola-opening .room-link { color: var(--ink); text-decoration-color: color-mix(in oklab, var(--ink) 38%, transparent); }
+  .bola-opening .room-opt { border-color: color-mix(in oklab, var(--ink) 16%, transparent); background: color-mix(in oklab, var(--bo-field) 62%, var(--bo-paint)); color: var(--ink); }
+  .bola-opening .room-opt:hover, .bola-opening .room-opt[aria-expanded='true'], .bola-opening .room-opt[data-state='open'] { border-color: color-mix(in oklab, var(--ink) 34%, transparent); background: var(--bo-field); }
+  .bola-opening .room-opt[data-set] { border-color: color-mix(in oklab, var(--c, var(--ink-faint)) 55%, transparent); background: var(--bo-field); }
+  .bola-opening .room-context { background: color-mix(in oklab, var(--bo-field) 50%, var(--bo-paint)); border-radius: 3px; }
+  .bola-opening .room-context label, .bola-opening .room-context-label { color: var(--ink); }
+  .bola-opening .room-save { border-radius: 3px; }
+  .bola-opening .room-save:disabled { background: color-mix(in oklab, var(--ink) 12%, var(--bo-paint)); color: color-mix(in oklab, var(--ink) 62%, var(--bo-paint)); opacity: 1; }
+  .bola-opening .room-sheet--state { padding: 1.6rem 1.5rem; }
+
+  /* Saved thoughts line up like players on the lane: a hairline each, with its painted block. */
   .bola-grid { min-width: 0; }
-  .bola-grid .mine-head { padding-top: 0.9rem; border-top: 2px solid var(--ink); }
-  .bola-grid .mine-title { font-weight: 700; font-stretch: 110%; letter-spacing: -0.015em; }
-  .bola-grid .passages { display: grid; grid-template-columns: minmax(0, 1fr); gap: 0 2.25rem; margin-top: 1.5rem; }
-  .bola-grid .passage { padding: 0.95rem 0 1.6rem; border-top: 2px solid var(--ink-faint); }
-  .bola-grid .passage:first-child { padding-top: 0.95rem; border-top: 2px solid var(--ink-faint); }
+  .bola-grid .mine-head { padding-top: 1rem; box-shadow: inset 0 3px 0 var(--bo-line); }
+  .bola-grid .mine-title { font-weight: 740; font-stretch: 118%; letter-spacing: -0.02em; }
+  .bola-grid .passages { display: grid; grid-template-columns: minmax(0, 1fr); gap: 0 2.5rem; margin-top: 1.75rem; }
+  .bola-grid .passage, .bola-grid .passage:first-child { padding: 1.05rem 0 1.7rem; border-top: 0; background: linear-gradient(var(--bo-line), var(--bo-line)) 0 0 / 1.75rem 4px no-repeat, linear-gradient(var(--line-strong), var(--line-strong)) 0 0 / 100% 1px no-repeat; }
   .bola-grid .passage-mark { font-size: 12.5px; font-variant-numeric: tabular-nums; }
   .bola-grid .passage-mark .cat { font-style: normal; font-stretch: 88%; font-size: 12.5px; font-weight: 650; letter-spacing: 0.08em; text-transform: uppercase; }
   .bola-grid .passage-mark .cat::before { height: 3px; width: 10px; border-radius: 0; }
 
   @container room (min-width: 40rem) {
-    .bola-opening .room-sheet { padding: 1.6rem 1.75rem 1.5rem; }
+    .bola-opening .room-sheet { padding: 1.9rem 2rem 1.6rem; }
     .bola-grid .passages { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-    .bola-grid .passage:nth-child(2) { padding-top: 0.95rem; }
   }
+  /* Wide: the question stands at the line, the circle reaching toward it from the lane's edge. */
   @container room (min-width: 60rem) {
-    .bola-opening { padding-top: 1.75rem; }
-    .bola-opening .room-writer { display: grid; grid-template-columns: minmax(0, 5fr) minmax(0, 7fr); column-gap: clamp(2.5rem, 4cqi, 4.5rem); align-items: start; }
-    .bola-opening .room-head { margin: 0; padding-bottom: 12rem; }
-    .bola-arc { display: block; }
+    .bola-opening { --bo-r: 7.25rem; grid-template-columns: minmax(0, 5fr) minmax(0, 7fr); column-gap: clamp(3.5rem, 6cqi, 6rem); }
+    .bola-opening > .room-writer { display: grid; grid-template-columns: subgrid; align-items: start; }
+    .bola-opening .room-head { margin: 0; padding: 1.6rem 1.5rem 0 0; }
+    .bola-opening .room-sheet { min-height: calc(var(--bo-r) * 2 + 5rem); padding: 2.25rem 2.25rem 1.75rem 2.75rem; box-shadow: inset 3px 0 0 var(--bo-line); }
+    .bola-circle { display: block; grid-row: 1; grid-column: 2; align-self: start; width: calc(var(--bo-r) * 2); height: calc(var(--bo-r) * 2); margin: 3.5rem 0 0 calc(-1 * var(--bo-r)); overflow: visible; fill: none; stroke: var(--bo-line); stroke-width: 3px; vector-effect: non-scaling-stroke; pointer-events: none; }
+    .bola-circle circle { vector-effect: non-scaling-stroke; }
+    .bola-opening > .room-writer .room-sheet { z-index: 1; }
+    /* The lane's marks, where players line up along it: short painted ticks on both long edges. */
+    .bola-opening .room-sheet::before, .bola-opening .room-sheet::after { content: ''; position: absolute; left: 38%; width: calc(34% + 3px); height: 0.7rem; pointer-events: none; background: linear-gradient(var(--bo-line), var(--bo-line)) 0 0 / 3px 100% no-repeat, linear-gradient(var(--bo-line), var(--bo-line)) 50% 0 / 3px 100% no-repeat, linear-gradient(var(--bo-line), var(--bo-line)) 100% 0 / 3px 100% no-repeat; }
+    .bola-opening .room-sheet::before { top: -0.7rem; }
+    .bola-opening .room-sheet::after { bottom: -0.7rem; }
+    /* Between collecting and the retro the lane holds a line or two: a shorter lane, a smaller circle. */
+    .room[data-mode='state'] .bola-opening { --bo-r: 4.75rem; }
+    .room[data-mode='state'] .bola-opening .room-sheet { min-height: calc(var(--bo-r) * 2 + 3rem); }
+    .room[data-mode='state'] .bola-circle { margin-top: 1.5rem; }
   }
   @container room (min-width: 74rem) {
     .bola-grid .passages { grid-template-columns: repeat(3, minmax(0, 1fr)); }
-    .bola-grid .passage:nth-child(3) { padding-top: 0.95rem; }
   }
 }
 
@@ -1241,32 +1276,39 @@ button.room-tab[data-state='open'] { background: color-mix(in oklab, var(--ink) 
 }
 
 @scope ([data-world='bola']) to ([data-world]:not([data-world='bola'])) {
-  /* A scoreboard over the court: the sprint's name set wide and heavy, and its three periods as
-     panels — the one being played lit in court green. The green rule below opens the court. */
-  .sbar { padding-bottom: 0.4rem; }
-  .bola-room > .room-bar { margin-bottom: -1.25rem; }
+  /* The liga's scoreboard: the sprint's name in board lettering (condensed capitals), and its three
+     periods on hand-flipped plates, a seam across each numeral. The one being played is lit in
+     court green; one already played has faded in the sun; the next isn't hung yet. */
+  .sbar { --room-heading-weight: 800; --room-heading-track: 0.004em; padding-bottom: 0.25rem; }
+  .bola-room > .room-bar { margin-bottom: -1rem; }
   .sbar-kicker { font-size: 12.5px; font-weight: 650; font-stretch: 88%; letter-spacing: 0.12em; text-transform: uppercase; }
-  .sbar-name { font-size: clamp(2.1rem, 1.25rem + 2.8cqi, 3.2rem); font-weight: 760; font-stretch: 116%; line-height: 0.98; letter-spacing: -0.03em; }
+  .sbar-name { font-size: clamp(2.05rem, 1.25rem + 2.7cqi, 3.15rem); font-stretch: 74%; line-height: 0.96; text-transform: uppercase; }
   .sbar-state { font-size: 13px; font-stretch: 88%; letter-spacing: 0.09em; text-transform: uppercase; }
   .sbar-dot { border-radius: 0; }
   .sbar-control { border-color: var(--ink); }
   @container sbar (min-width: 52rem) { .sbar-control { border-left-width: 2px; } }
   .sbar-role { font-stretch: 88%; letter-spacing: 0.12em; }
-  .sbar-button { border-radius: 4px; font-stretch: 95%; font-size: 14px; letter-spacing: 0.05em; text-transform: uppercase; }
-  .sbar-progress { counter-reset: period; gap: 6px; margin-top: 1.6rem; }
-  .sbar-progress li { counter-increment: period; grid-template-rows: auto auto auto; row-gap: 0.2rem; padding: 0.75rem 0.9rem 0.85rem; background: var(--card); box-shadow: inset 0 0 0 1px var(--line-strong); }
+  .sbar-button { border-radius: 3px; font-stretch: 95%; font-size: 14px; letter-spacing: 0.05em; text-transform: uppercase; }
+
+  .sbar-progress { counter-reset: period; gap: 1rem 1.75rem; margin-top: 1.9rem; }
+  .sbar-progress li { counter-increment: period; grid-template-columns: auto minmax(0, 1fr); grid-template-rows: auto auto; align-content: center; column-gap: 0.9rem; row-gap: 0.2rem; padding: 0; }
   .sbar-progress li::before { display: none; }
-  .sbar-mark { width: auto; height: auto; justify-self: start; background: none; box-shadow: none; font: 800 1.7rem/1 'Archivo Variable', system-ui, sans-serif; font-stretch: 120%; font-variant-numeric: tabular-nums; color: var(--line-strong); }
-  .sbar-mark::after { content: counter(period); }
-  .sbar-progress [data-state='done'] .sbar-mark { background: none; color: var(--ink-soft); }
-  .sbar-progress [data-state='now'] { background: var(--bo-green); box-shadow: none; }
-  .sbar-progress [data-state='now'] :is(.sbar-mark, .sbar-stop, .sbar-detail) { color: var(--bo-field); }
-  .sbar-progress [data-state='now'] .sbar-mark { box-shadow: none; }
-  .sbar-progress [data-state='now'] .sbar-mark::after { content: counter(period); width: auto; height: auto; border-radius: 0; background: none; }
-  .sbar-stop { font-size: 12.5px; font-weight: 720; font-stretch: 90%; letter-spacing: 0.09em; text-transform: uppercase; }
+  .sbar-mark, .sbar-progress [data-state] .sbar-mark { grid-row: 1 / span 2; align-self: center; width: 2.6rem; height: 3.1rem; margin: 0; border-radius: 3px; background: color-mix(in oklab, var(--bo-plate) 14%, var(--paper)); box-shadow: none; color: var(--ink-soft); font: 800 1.6rem/1 'Archivo Variable', system-ui, sans-serif; font-stretch: 92%; font-variant-numeric: tabular-nums; }
+  .sbar-mark::after, .sbar-progress [data-state] .sbar-mark::after { content: counter(period); width: auto; height: auto; border-radius: 0; background: none; }
+  /* The hinge: every plate is two leaves, the numeral split across them. */
+  .sbar-mark::before { content: ''; position: absolute; left: 0; right: 0; top: calc(50% - 0.5px); height: 1px; background: color-mix(in oklab, var(--ink) 16%, transparent); }
+  .sbar-progress [data-state='now'] .sbar-mark { background: var(--bo-lit); color: var(--bo-lit-ink); }
+  .sbar-progress [data-state='now'] .sbar-mark::before { background: rgb(0 0 0 / 0.3); }
+  .sbar-progress [data-state='next'] .sbar-mark { background: none; color: var(--ink-faint); outline: 1.5px dashed var(--line-strong); outline-offset: -1.5px; }
+  .sbar-progress [data-state='next'] .sbar-mark::before { left: 6px; right: 6px; background: var(--line); }
+  .sbar-stop { align-self: end; font-size: 12.5px; font-weight: 720; font-stretch: 90%; letter-spacing: 0.09em; text-transform: uppercase; }
   .sbar-progress [data-state='next'] .sbar-stop { font-weight: 650; }
-  .sbar-detail { font-size: 13px; }
-  @container sbar (max-width: 21rem) { .sbar-progress li { grid-template-columns: 2.2rem minmax(0, 1fr); } }
+  .sbar-detail { align-self: start; font-size: 13px; }
+  @container sbar (max-width: 30rem) {
+    .sbar-progress { gap: 0.75rem; }
+    .sbar-progress li { grid-template-columns: minmax(0, 1fr); grid-template-rows: auto auto auto; row-gap: 0.15rem; }
+    .sbar-mark, .sbar-progress [data-state] .sbar-mark { grid-row: auto; width: 2.1rem; height: 2.5rem; margin-bottom: 0.45rem; font-size: 1.3rem; }
+  }
 }
 
 @scope ([data-world='pahina']) to ([data-world]:not([data-world='pahina'])) {
@@ -1420,10 +1462,7 @@ button.room-tab[data-state='open'] { background: color-mix(in oklab, var(--ink) 
 }
 @scope ([data-world='bola']) to ([data-world]:not([data-world='bola'])) {
   @container room (max-width: 39.99rem) {
-    .bola-opening .room-sheet { padding: 0; border-radius: 0; background: none; box-shadow: none; }
-    .sbar-progress { gap: 0; }
-    .sbar-progress li { padding: 0.55rem 0.6rem 0.65rem; box-shadow: inset -1px 0 0 var(--line-strong); background: none; }
-    .sbar-progress li:last-child { box-shadow: none; }
+    .bola-opening .room-sheet { padding: 1.25rem 1rem 1rem; }
   }
 }
 @scope ([data-world='porma']) to ([data-world]:not([data-world='porma'])) {

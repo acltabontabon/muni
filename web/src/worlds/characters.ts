@@ -115,7 +115,7 @@ export const CHARACTERS: Record<AvatarId, Character> = {
     portrait: 'Braids under a headband, an original jersey, and a wide, completely confident grin.',
     world: {
       name: 'The court after everyone leaves',
-      summary: 'Painted lines, warm concrete, and a quiet court once the game is over.',
+      summary: 'The free-throw line on an empty court: a painted lane to write in, and the low sun on warm concrete.',
       heading: 'What’s worth talking about?',
       invitations: ['The game’s over. Replay one moment.', 'No scoreboard here. Just what happened.', 'Say what you saw from the sideline.'],
       empty: 'The court is open. Your first thought has home advantage.',
