@@ -17,7 +17,7 @@ const check = (name, ok, detail = '') => {
   console.log(`${ok ? 'PASS' : 'FAIL'}  ${name}${detail ? ` — ${detail}` : ''}`)
 }
 
-/** A signed-in account with one collecting sprint. `keepLocal` turns on device storage. */
+/** A signed-in account with one collecting sprint. `keepLocal` turns on device storage for that account. */
 async function account(ctx, { keepLocal = true, name = 'Ana Reyes' } = {}) {
   const page = await ctx.newPage()
   await page.goto(`${BASE}/signin`)
@@ -35,7 +35,8 @@ async function account(ctx, { keepLocal = true, name = 'Ana Reyes' } = {}) {
       const d = (n) => new Date(Date.now() + n * 86400000).toISOString().slice(0, 10)
       const s = await post(`/api/workspaces/${ws.id}/sprints`, { name: 'Sprint 43 — Search relevance', timezone: 'Asia/Manila', starts_on: d(-4), ends_on: d(9), retro_date: d(10), retro_time: '14:00', retro_duration_min: 45, participant_ids: [me.account_id], facilitator_id: me.account_id, reminders_enabled: false })
       await post(`/api/sprints/${s.id}/transition`, { to: 'collecting', confirm: true })
-      localStorage.setItem('muni.prefs', JSON.stringify({ lastWorkspace: ws.id, keepLocal }))
+      // Keeping drafts on the device is each account's own choice (prefs.keepLocalFor).
+      localStorage.setItem('muni.prefs', JSON.stringify({ lastWorkspace: ws.id, keepLocalFor: keepLocal ? [me.account_id] : [] }))
       return { email, accountId: me.account_id, workspaceId: ws.id, sprintId: s.id }
     },
     { keepLocal, name },

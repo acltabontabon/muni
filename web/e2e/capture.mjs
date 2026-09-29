@@ -25,7 +25,7 @@ async function account(prefix, name) {
   const jar = new Map()
   const req = async (method, path, body) => {
     const csrf = jar.get('muni_csrf')
-    const r = await fetch(BASE + path, { method, headers: { 'content-type': 'application/json', origin: BASE, 'x-muni-client': '5', cookie: [...jar].map(([k, v]) => `${k}=${v}`).join('; '), ...(csrf ? { 'x-csrf-token': csrf } : {}) }, body: body ? JSON.stringify(body) : undefined })
+    const r = await fetch(BASE + path, { method, headers: { 'content-type': 'application/json', origin: BASE, cookie: [...jar].map(([k, v]) => `${k}=${v}`).join('; '), ...(csrf ? { 'x-csrf-token': csrf } : {}) }, body: body ? JSON.stringify(body) : undefined })
     for (const c of r.headers.getSetCookie?.() ?? []) {
       const [kv] = c.split(';')
       const i = kv.indexOf('=')

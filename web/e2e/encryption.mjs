@@ -18,7 +18,7 @@ const SECRET = `Synthetic-${tag}: the staging database fell over on Wednesday`
 async function api(page, method, path, body) {
   return page.evaluate(async ([m, p, b]) => {
     const csrf = document.cookie.match(/muni_csrf=([^;]+)/)?.[1] ?? ''
-    const r = await fetch(p, { method: m, headers: { 'content-type': 'application/json', 'x-csrf-token': csrf, 'x-muni-client': '5' }, body: b ? JSON.stringify(b) : undefined })
+    const r = await fetch(p, { method: m, headers: { 'content-type': 'application/json', 'x-csrf-token': csrf }, body: b ? JSON.stringify(b) : undefined })
     return { status: r.status, body: await r.json().catch(() => null) }
   }, [method, path, body])
 }
@@ -99,7 +99,7 @@ try {
   await maya.click('button:has-text("Add to sprint")')
   await maya.waitForSelector('text=/^Added/', { timeout: 10000 })
   check('No request body contains the thought’s text', sent.length > 0 && sent.every((b) => !b.includes('staging database')), `${sent.length} requests`)
-  const raw = await maya.evaluate(async (id) => (await fetch(`/api/sprints/${id}/entries/mine`, { headers: { 'x-muni-client': '5' } }).then((r) => r.json())), sprintId)
+  const raw = await maya.evaluate(async (id) => (await fetch(`/api/sprints/${id}/entries/mine`).then((r) => r.json())), sprintId)
   check('The server returns only an envelope', raw.length === 1 && raw[0].body.startsWith('e1.') && !raw[0].body.includes('staging') && raw[0].impact === null)
   check('Maya sees her own thought, decrypted', (await maya.locator(`text=${SECRET}`).count()) === 1)
 
@@ -118,7 +118,7 @@ try {
     const error = saved ? null : await maya.locator('.passage form [role=alert]').innerText().catch(() => null)
     check(`${label}: editing a thought in an encrypted sprint saves`, saved && (await maya.locator(`text=${words}`).count()) === 1, error ?? '')
     check(`${label}: …and no request carries the edited words`, sent.length > 0 && sent.every((b) => !b.includes(words.slice(-24)) && !b.includes(impact)), `${sent.length} requests`)
-    const stored = await maya.evaluate(async (id) => (await fetch(`/api/sprints/${id}/entries/mine`, { headers: { 'x-muni-client': '5' } }).then((r) => r.json())), sprintId)
+    const stored = await maya.evaluate(async (id) => (await fetch(`/api/sprints/${id}/entries/mine`).then((r) => r.json())), sprintId)
     check(`${label}: …stored as one envelope, the context inside it`, stored.length === 1 && stored[0].body.startsWith('e1.') && stored[0].impact === null && (await maya.locator('.passage .passage-context', { hasText: impact }).count()) === 1)
   }
   await editIn('Journal', `Synthetic-${tag}: edited, the staging database recovered on Thursday`, 'Synthetic impact: one lost morning')
@@ -152,7 +152,7 @@ try {
   await owner.fill('.sort-pile--ghost input[aria-label="New theme title"]', `Synthetic-${tag} staging ownership`)
   await owner.click('.sort-pile--ghost button:has-text("Create")')
   await owner.waitForTimeout(800)
-  const themes = (await owner.evaluate(async (id) => (await fetch(`/api/sprints/${id}/themes`, { headers: { 'x-muni-client': '5' } }).then((r) => r.json())), sprintId)).themes
+  const themes = (await owner.evaluate(async (id) => (await fetch(`/api/sprints/${id}/themes`).then((r) => r.json())), sprintId)).themes
   check('Theme titles are stored as envelopes', themes.length === 1 && themes[0].title.startsWith('e1.'))
   check('…and shown decrypted', (await owner.locator('textarea[aria-label="Theme title"]').first().inputValue().catch(() => '')) === `Synthetic-${tag} staging ownership`)
 

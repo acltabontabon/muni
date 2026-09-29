@@ -216,7 +216,7 @@ async function reveal(page, locator) {
 async function api(page, method, path, body) {
   return page.evaluate(async ([m, p, b]) => {
     const csrf = document.cookie.match(/(?:^|; )(?:__Host-)?muni_csrf=([^;]+)/)?.[1] ?? ''
-    const r = await fetch(p, { method: m, headers: { 'content-type': 'application/json', 'x-csrf-token': csrf, 'x-muni-client': '5' }, body: b ? JSON.stringify(b) : undefined })
+    const r = await fetch(p, { method: m, headers: { 'content-type': 'application/json', 'x-csrf-token': csrf }, body: b ? JSON.stringify(b) : undefined })
     return { status: r.status, body: await r.json().catch(() => null) }
   }, [method, path, body])
 }
