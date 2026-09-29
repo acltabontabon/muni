@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useRef, useState, type KeyboardEvent } from 'react'
 import { clsx } from 'clsx'
 import { Check, Plus } from 'lucide-react'
 import { ApiError, del, newKey, post, put } from '@/api/client'
@@ -106,6 +106,7 @@ export function CheckinAsk({ c, sprintId, accountId, paused, onSaved, heading }:
   const [noteState, setNoteState] = useState<'idle' | 'saving' | 'saved'>('idle')
   const [showPrivacy] = useState(() => !privacy.explained && !c.mine)
   const mine = c.mine
+  const choices = useRef<HTMLDivElement>(null)
   const send = async (body: Record<string, unknown>) => onSaved(await put<CheckinView>(`/api/sprints/${sprintId}/checkins/${c.id}/response`, body))
   const fail = (e: unknown) => setError(e instanceof ApiError ? e.message : 'Didn’t save — check your connection and try again.')
   const choose = async (choice: string) => {
@@ -120,6 +121,18 @@ export function CheckinAsk({ c, sprintId, accountId, paused, onSaved, heading }:
     } finally {
       setPending(null)
     }
+  }
+  // The answers are one stop for Tab (the one given, else the first); arrows move between them and
+  // choose, as radio buttons do. While an answer is saving, arrows wait for it.
+  const stop = mine?.choice ?? ask.choices[0].id
+  const onArrow = (e: KeyboardEvent<HTMLButtonElement>, i: number) => {
+    const step = e.key === 'ArrowRight' || e.key === 'ArrowDown' ? 1 : e.key === 'ArrowLeft' || e.key === 'ArrowUp' ? -1 : 0
+    if (!step) return
+    e.preventDefault()
+    if (pending || paused) return
+    const to = (i + step + ask.choices.length) % ask.choices.length
+    choices.current?.querySelectorAll<HTMLButtonElement>('[role="radio"]')[to]?.focus()
+    void choose(ask.choices[to].id)
   }
   const saveNote = async () => {
     setNoteState('saving')
@@ -153,11 +166,11 @@ export function CheckinAsk({ c, sprintId, accountId, paused, onSaved, heading }:
       {heading ? <p className="ci-for">{heading}</p> : null}
       <p className="ci-question">{ask.question}</p>
       {c.kind === 'action' && c.could_try ? <p className="ci-subject">“{c.could_try}”</p> : null}
-      <div className="ci-choices" role="radiogroup" aria-label={ask.question}>
-        {ask.choices.map((x) => {
+      <div ref={choices} className="ci-choices" role="radiogroup" aria-label={ask.question}>
+        {ask.choices.map((x, i) => {
           const on = mine?.choice === x.id
           return (
-            <button key={x.id} role="radio" aria-checked={on} className="ci-choice" data-pending={pending === x.id || undefined} disabled={paused || (!!pending && pending !== x.id)} onClick={() => choose(x.id)}>
+            <button key={x.id} role="radio" aria-checked={on} tabIndex={x.id === stop ? 0 : -1} className="ci-choice" data-pending={pending === x.id || undefined} disabled={paused || (!!pending && pending !== x.id)} onClick={() => choose(x.id)} onKeyDown={(e) => onArrow(e, i)}>
               <span className="ci-mark" aria-hidden>{on ? <Check className="size-4" strokeWidth={2.5} /> : null}</span>
               {x.label}
             </button>
