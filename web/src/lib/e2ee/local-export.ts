@@ -1,10 +1,12 @@
 /**
  * Summaries for encrypted sprints, written on this device from what it has decrypted. The server
  * can't build them (it can't read the content). Same rules as the server's exports: no authors,
- * no timestamps, no individual votes; raw notes only on explicit request.
+ * no timestamps, no individual votes; raw notes only on explicit request. Also the recap's first
+ * draft, for every sprint.
  */
 import type { Experiment, GroupingView, SprintDetail } from '@/api/types'
 import { categoryMeta, OUTCOME_LABEL } from '@/lib/categories'
+import { shortDate } from '@/lib/schedule'
 import { isLocked } from './keyring'
 
 const text = (s: string | null | undefined) => (s && !isLocked(s) ? s : s ? '[not readable on this device]' : '')
@@ -57,14 +59,32 @@ export function rawMarkdown(s: SprintDetail, g: GroupingView | null): string {
   return out
 }
 
-/** A starting point for the recap, from the meeting record. Everything stays editable. */
+/** Someone's words inside Muni's own Markdown: nothing in them changes how it reads (lib/markdown.ts). */
+const md = (s: string) => s.replace(/[\\`*_[\]]/g, '\\$&')
+
+/**
+ * A starting point for the recap, from the retro's record — written on this device for every sprint,
+ * and saved only when the facilitator saves it. Markdown the recap page shows as it reads here:
+ * a heading, what was talked about, what the room kept, what the team will try (numbered, each
+ * with its owner) and what wasn't reached. Everything stays editable.
+ */
 export function recapDraft(s: SprintDetail, g: GroupingView | null, exps: Experiment[]): string {
-  const discussed = (g?.themes ?? []).filter((t) => t.takeaway || t.discussed)
-  let out = `# ${s.name} — retro recap\n\n`
-  if (discussed.length) out += `${endSentence(`We talked about ${listTitles(discussed.map((t) => text(t.title)))}`)}\n\n` + discussed.filter((t) => t.takeaway).map((t) => `- ${text(t.title)}: ${text(t.takeaway)}`).join('\n') + '\n\n'
-  const agreed = exps.filter((e) => e.status !== 'proposed')
-  out += agreed.length ? `We agreed to try:\n\n${agreed.map((e) => `- ${text(e.change_to_try)}${e.owner_name ? ` (${e.owner_name})` : ''} — we’ll know by: ${text(e.success_signal)}; revisit ${e.review_on}`).join('\n')}\n` : 'No experiments this time.\n'
-  return out
+  const themes = (g?.themes ?? []).filter((t) => !t.parked)
+  const discussed = themes.filter((t) => t.discussed || t.takeaway || t.could_try)
+  let out = `# ${md(s.name)} — retro recap\n\n`
+  if (s.goal) out += `Sprint goal: ${md(s.goal)}\n\n`
+  if (discussed.length) {
+    out += `${md(endSentence(`We talked about ${listTitles(discussed.map((t) => text(t.title)))}`))}\n\n`
+    const kept = discussed.filter((t) => t.takeaway || t.could_try)
+    if (kept.length) out += `## What we’ll remember\n\n${kept.map((t) => `- **${md(text(t.title))}:** ${[t.takeaway ? md(endSentence(text(t.takeaway))) : '', t.could_try ? `We could try: ${md(endSentence(text(t.could_try)))}` : ''].filter(Boolean).join(' ')}`).join('\n')}\n\n`
+  }
+  if (exps.length) {
+    const owner = (e: Experiment) => (!e.owner_name ? 'No owner yet.' : e.owner_accepted ? `Owner: ${md(e.owner_name)}.` : `Waiting for ${md(e.owner_name)} to say yes.`)
+    out += `## What we’ll try\n\n${exps.map((e, i) => `${i + 1}. **${md(text(e.change_to_try))}** — we’ll know it helped if ${md(endSentence(text(e.success_signal)))} ${owner(e)} Back on ${shortDate(e.review_on)}.`).join('\n')}\n\n`
+  } else out += 'No experiments this time.\n\n'
+  const missed = discussed.length ? themes.filter((t) => !discussed.includes(t)) : []
+  if (missed.length) out += `## Not reached\n\n${missed.map((t) => `- ${md(text(t.title))}`).join('\n')}\n\n`
+  return out.trimEnd() + '\n'
 }
 
 export function download(name: string, body: string, type = 'text/markdown') {

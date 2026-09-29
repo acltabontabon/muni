@@ -1,11 +1,14 @@
-import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react'
+import { Fragment, useCallback, useEffect, useRef, useState, type FormEvent } from 'react'
 import { Navigate, useParams } from 'react-router'
 import { Download } from 'lucide-react'
 import { ApiError, get, patch, post, put } from '@/api/client'
 import type { CheckinView, Experiment, GroupingView, Recap, SprintDetail, StageSnapshot, ThemeView } from '@/api/types'
 import { OUTCOME_LABEL } from '@/lib/categories'
 import { useKeysEpoch } from '@/lib/e2ee/E2eeProvider'
-import { Button, Help, Select, Spinner, Textarea, useToast } from '@/ui'
+import { hasPlaceholder, isLocked, LOCKED } from '@/lib/e2ee/keyring'
+import { follow } from '@/lib/forms'
+import { parseMarkdown, type Inline } from '@/lib/markdown'
+import { Button, Dialog, ErrorText, Help, Select, Spinner, Textarea, useToast } from '@/ui'
 import { ExperimentEditor } from '@/ui/experiments'
 import { Face } from '@/ui/faces'
 import { CheckinResult } from '@/ui/checkin'
@@ -20,6 +23,9 @@ export function OutcomesRedirect() {
 
 const longDate = (iso: string) => new Date(iso).toLocaleDateString(undefined, { weekday: 'long', day: 'numeric', month: 'long' })
 const minutesBetween = (a: string, b: string) => Math.max(1, Math.round((Date.parse(b) - Date.parse(a)) / 60000))
+/** The longest recap the server keeps. */
+const RECAP_MAX = 20_000
+const DECIDED = ['helped', 'did_not_help', 'inconclusive', 'not_tried']
 
 /**
  * A finished sprint, as its recap: when the retro was and who was there; what the team will try
@@ -34,40 +40,52 @@ export function OutcomesView({ s, onCount, refresh = 0 }: { s: SprintDetail; onC
   const [themes, setThemes] = useState<ThemeView[]>([])
   const [meeting, setMeeting] = useState<StageSnapshot | null>(null)
   const [checkins, setCheckins] = useState<CheckinView[]>([])
+  /** The last read failed. With nothing shown yet it takes the page; otherwise it's a line above what was read before. */
   const [error, setError] = useState('')
   const countRef = useRef(onCount)
   countRef.current = onCount
+  // Reads overlap (hints, unlocking): only the newest one's answer is shown.
+  const seq = useRef(0)
   const load = useCallback(async () => {
+    const my = ++seq.current
     try {
-      const [e, r] = await Promise.all([get<Experiment[]>(`/api/sprints/${sprintId}/experiments`), get<Recap>(`/api/sprints/${sprintId}/recap`)])
-      setExps(e)
-      setRecap(r)
-      countRef.current?.(e.filter((x) => x.status !== 'proposed').length)
-      // The retro's own record: optional (a sprint finished without a live retro has none, and
-      // retention removes themes after a while), so each part simply stays out when it's missing.
-      const [g, m, c] = await Promise.all([
+      // The retro's own record is optional (a sprint finished without a live retro has none, and
+      // retention removes themes after a while): each part simply stays out when it's missing.
+      const record = Promise.all([
         get<GroupingView>(`/api/sprints/${sprintId}/themes`).catch(() => null),
         get<StageSnapshot>(`/api/sprints/${sprintId}/meeting`).catch(() => null),
         get<CheckinView[]>(`/api/sprints/${sprintId}/checkins`).catch(() => []),
       ])
+      const [e, r] = await Promise.all([get<Experiment[]>(`/api/sprints/${sprintId}/experiments`), get<Recap>(`/api/sprints/${sprintId}/recap`)])
+      if (my !== seq.current) return
+      setExps(e)
+      setRecap(r)
+      setError('')
+      countRef.current?.(e.filter((x) => x.status !== 'proposed').length)
+      const [g, m, c] = await record
+      if (my !== seq.current) return
       setThemes((g?.themes ?? []).filter((t) => !t.parked))
       setMeeting(m && !m.cancelled ? m : null)
       setCheckins(c)
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : 'Couldn’t load the recap')
+      if (my === seq.current) setError(err instanceof ApiError ? err.message : 'Couldn’t load the recap')
     }
   }, [sprintId])
   const keysEpoch = useKeysEpoch()
   useEffect(() => {
     load()
   }, [load, keysEpoch, refresh])
-  if (error) return <p className="text-ink-soft" role="alert">{error}</p>
-  if (!recap) return <div className="grid place-items-center py-16"><Spinner /></div>
+  if (!recap) return error ? <p className="text-ink-soft" role="alert">{error}</p> : <div className="grid place-items-center py-16"><Spinner /></div>
 
   const fac = s.is_facilitator
   const talked = themes.filter((t) => t.discussed || t.takeaway || t.could_try)
   return (
     <div className="recap">
+      {error ? (
+        <p className="text-sm text-ink-soft" role="status">
+          Couldn’t check for changes just now, so this may be out of date. <button type="button" className="underline underline-offset-2" onClick={() => void load()}>Try again</button>
+        </p>
+      ) : null}
       <RecapHead s={s} meeting={meeting} topics={talked.length} experiments={exps.length} />
 
       <section className="recap-block" aria-labelledby="recap-try">
@@ -137,14 +155,20 @@ function ExperimentLine({ e, n, s, onChange }: { e: Experiment; n: number; s: Sp
   const toast = useToast()
   const owner = s.participants.find((p) => p.account_id === e.owner_account_id)
   const mine = !!owner?.is_you
-  const decided = ['helped', 'did_not_help', 'inconclusive', 'not_tried'].includes(e.status)
+  const decided = DECIDED.includes(e.status)
+  /** The answer on its way (one at a time: a second press never sends twice). */
+  const [answering, setAnswering] = useState<boolean | null>(null)
   const answer = async (accept: boolean) => {
+    if (answering !== null) return
+    setAnswering(accept)
     try {
       await post(`/api/sprints/${s.id}/experiments/${e.id}/accept`, { accept })
       if (accept) toast('You own this experiment')
       onChange()
     } catch (err) {
-      toast(err instanceof ApiError ? err.message : 'Couldn’t save', 'danger')
+      toast(err instanceof ApiError ? (err.status === 0 ? 'You’re offline, so your answer wasn’t sent.' : sentence(err.message)) : 'Couldn’t save', 'danger')
+    } finally {
+      setAnswering(null)
     }
   }
   return (
@@ -161,8 +185,8 @@ function ExperimentLine({ e, n, s, onChange }: { e: Experiment; n: number; s: Sp
           <div className="recap-ask">
             <p><strong>Will you own this?</strong> Saying yes means you keep it moving — not that you do it all yourself.</p>
             <div className="flex gap-2">
-              <Button size="sm" variant="primary" onClick={() => answer(true)}>I’ll own this</Button>
-              <Button size="sm" variant="ghost" onClick={() => answer(false)}>Not me</Button>
+              <Button size="sm" variant="primary" busy={answering === true} disabled={answering !== null} onClick={() => answer(true)}>I’ll own this</Button>
+              <Button size="sm" variant="ghost" busy={answering === false} disabled={answering !== null} onClick={() => answer(false)}>Not me</Button>
             </div>
           </div>
         ) : null}
@@ -188,6 +212,7 @@ function ExperimentLine({ e, n, s, onChange }: { e: Experiment; n: number; s: Sp
 /** One topic in a line: its votes, and what the room kept from it. */
 function TopicLine({ t, n, most, checkins }: { t: ThemeView; n: number; most: number; checkins: CheckinView[] }) {
   const reached = t.discussed || !!t.takeaway || !!t.could_try
+  const votes = t.votes ?? 0
   return (
     <li className="recap-topic" data-reached={reached || undefined}>
       <span className="recap-topic-n">{n}</span>
@@ -202,52 +227,67 @@ function TopicLine({ t, n, most, checkins }: { t: ThemeView; n: number; most: nu
           </div>
         ))}
       </div>
-      <span className="recap-topic-votes" aria-label={`${t.votes ?? 0} votes`}>
-        <b>{t.votes ?? 0}</b>
-        <i><span style={{ width: `${((t.votes ?? 0) / most) * 100}%` }} /></i>
+      <span className="recap-topic-votes">
+        <b>{votes}<span className="sr-only"> {votes === 1 ? 'vote' : 'votes'}</span></b>
+        <i aria-hidden><span style={{ width: `${(votes / most) * 100}%` }} /></i>
       </span>
     </li>
   )
 }
 
 /**
- * The facilitator's recap: shown as written, set as text (paragraphs, lists, headings). The
- * facilitator writes it here — filled in from the retro's record, then theirs to edit — and
- * publishes it to everyone in the sprint.
+ * The facilitator's recap: shown as written, set as text (lib/markdown.ts). The facilitator writes
+ * it here and publishes it to everyone in the sprint. "Fill in from the record" drafts it on this
+ * device, for every sprint, and never saves by itself; it asks before replacing what's written.
  */
 function RecapText({ s, recap, exps, onSaved }: { s: SprintDetail; recap: Recap; exps: Experiment[]; onSaved: (r: Recap) => void }) {
   const toast = useToast()
   const fac = s.is_facilitator
-  const encrypted = s.encryption === 'e1'
   const [draft, setDraft] = useState(recap.body)
   const [open, setOpen] = useState(fac && !recap.published_at)
-  const [busy, setBusy] = useState(false)
-  useEffect(() => setDraft((d) => d || recap.body), [recap.body])
+  const [busy, setBusy] = useState<null | 'save' | 'publish' | 'fill'>(null)
+  const [replacing, setReplacing] = useState(false)
+  // What the draft was last filled from: a draft still as it was follows newer text (another tab,
+  // or this device unlocking), and one showing "can't be shown" always does.
+  const loaded = useRef(recap.body)
+  useEffect(() => {
+    const prev = loaded.current
+    loaded.current = recap.body
+    setDraft((d) => follow(d, prev, recap.body))
+  }, [recap.body])
   if (!fac && !recap.exists) return null
+  const unreadable = hasPlaceholder(draft)
   const save = async (publish: boolean) => {
-    setBusy(true)
+    setBusy(publish ? 'publish' : 'save')
     try {
       const r = await put<Recap>(`/api/sprints/${s.id}/recap`, { body: draft, publish: publish || undefined })
+      // What was sent is what's saved now (as the server keeps it, trimmed).
+      loaded.current = draft
       onSaved(r)
       toast(publish ? 'Recap published to everyone in the sprint' : 'Saved')
       if (publish) setOpen(false)
     } catch (err) {
       toast(err instanceof ApiError ? err.message : 'Couldn’t save', 'danger')
     } finally {
-      setBusy(false)
+      setBusy(null)
     }
   }
   const fill = async () => {
-    if (encrypted) {
-      const g = await get<GroupingView>(`/api/sprints/${s.id}/themes`).catch(() => null)
+    setReplacing(false)
+    setBusy('fill')
+    try {
+      // The record this device can read; without themes (none, or retention removed them) the draft is shorter.
+      const g = await get<GroupingView>(`/api/sprints/${s.id}/themes`).catch((e) => {
+        if (e instanceof ApiError && e.status === 0) throw e
+        return null
+      })
       setDraft(recapDraft(s, g, exps))
       toast('Filled in from the retro’s record. Save to keep it.')
-      return
+    } catch (err) {
+      toast(err instanceof ApiError && err.status === 0 ? 'You’re offline, so it couldn’t be filled in. What’s written is unchanged.' : 'Couldn’t fill it in just now. What’s written is unchanged.', 'danger')
+    } finally {
+      setBusy(null)
     }
-    const r = await put<Recap>(`/api/sprints/${s.id}/recap`, {})
-    onSaved(r)
-    setDraft(r.body)
-    toast('Filled in from the retro’s record')
   }
   return (
     <section className="recap-block" aria-labelledby="recap-words">
@@ -255,55 +295,77 @@ function RecapText({ s, recap, exps, onSaved }: { s: SprintDetail; recap: Recap;
         <h2 id="recap-words" className="recap-h">In the facilitator’s <em>words</em></h2>
         <p className="recap-note">{recap.published_at ? `Published ${new Date(recap.published_at).toLocaleDateString(undefined, { day: 'numeric', month: 'short' })}.` : fac ? 'Not published yet — only you can see it.' : ''}</p>
       </header>
-      {recap.exists && recap.body.trim() && !open ? <div className="recap-letter"><Prose text={recap.published_at || fac ? recap.body : ''} /></div> : null}
+      {recap.exists && recap.body.trim() && !open ? (
+        isLocked(recap.body) ? <p className="recap-letter italic text-ink-soft">{LOCKED.slice(1)}</p> : <div className="recap-letter"><Prose text={recap.body} /></div>
+      ) : null}
       {fac ? (
         open ? (
-          <div className="recap-write">
-            <Textarea rows={14} value={draft} onChange={(e) => setDraft(e.target.value)} className="font-mono text-sm" aria-label="Recap (Markdown)" placeholder="Start from the retro’s record, then make it yours." />
-            <Help>Headings with #, lists with -. Publishing shows it to everyone in the sprint; nothing is emailed.</Help>
-            <div className="mt-3 flex flex-wrap items-center gap-2">
-              <Button size="sm" variant="ghost" onClick={fill}>Fill in from the record</Button>
-              <span className="flex-1" />
-              {recap.published_at ? <Button size="sm" variant="ghost" onClick={() => setOpen(false)}>Cancel</Button> : null}
-              <Button size="sm" busy={busy} onClick={() => save(false)}>Save draft</Button>
-              <Button size="sm" variant="primary" busy={busy} onClick={() => save(true)}>{recap.published_at ? 'Publish changes' : 'Publish'}</Button>
+          unreadable ? (
+            <div className="recap-write">
+              <p className="text-sm text-ink-soft" role="status">This device can’t show the recap yet — it doesn’t have the sprint’s key. Once it’s unlocked, the recap appears here to edit.</p>
+              {recap.published_at ? <Button size="sm" variant="ghost" className="mt-3" onClick={() => setOpen(false)}>Cancel</Button> : null}
             </div>
-          </div>
+          ) : (
+            <div className="recap-write">
+              <Textarea rows={14} value={draft} onChange={(e) => setDraft(e.target.value)} maxLength={RECAP_MAX} className="font-mono text-sm" aria-label="Recap (Markdown)" placeholder="Start from the retro’s record, then make it yours." />
+              <Help>Headings with #, lists with - or 1., **bold** and _italics_. Publishing shows it to everyone in the sprint; nothing is emailed.</Help>
+              <div className="mt-3 flex flex-wrap items-center gap-2">
+                <Button size="sm" variant="ghost" busy={busy === 'fill'} disabled={!!busy} onClick={() => (draft.trim() ? setReplacing(true) : void fill())}>Fill in from the record</Button>
+                <span className="flex-1" />
+                {recap.published_at ? <Button size="sm" variant="ghost" onClick={() => setOpen(false)}>Cancel</Button> : null}
+                <Button size="sm" busy={busy === 'save'} disabled={!!busy} onClick={() => save(false)}>Save draft</Button>
+                <Button size="sm" variant="primary" busy={busy === 'publish'} disabled={!!busy} onClick={() => save(true)}>{recap.published_at ? 'Publish changes' : 'Publish'}</Button>
+              </div>
+            </div>
+          )
         ) : (
           <button className="recap-edit" onClick={() => setOpen(true)}>{recap.exists ? 'Edit the recap' : 'Write the recap'}</button>
         )
       ) : null}
+      <Dialog open={replacing} onOpenChange={(o) => !o && setReplacing(false)} title="Replace what’s written?" description="Filling in from the retro’s record replaces the text in the box with a fresh draft. Nothing is saved until you save it.">
+        <div className="mt-6 flex justify-end gap-2">
+          <Button variant="ghost" onClick={() => setReplacing(false)}>Keep what’s written</Button>
+          <Button variant="primary" onClick={() => void fill()}>Replace it</Button>
+        </div>
+      </Dialog>
     </section>
   )
 }
 
-/** Markdown, lightly: headings, lists and paragraphs — enough for a recap, and never raw HTML. */
+/** A recap, as text: never raw HTML, and only web links are followed. */
 function Prose({ text }: { text: string }) {
-  const blocks: ReactNode[] = []
-  let list: string[] = []
-  let para: string[] = []
-  const flush = () => {
-    if (para.length) blocks.push(<p key={blocks.length}>{para.join(' ')}</p>)
-    if (list.length) blocks.push(<ul key={blocks.length}>{list.map((l, i) => <li key={i}>{l}</li>)}</ul>)
-    para = []
-    list = []
-  }
-  for (const raw of text.split('\n')) {
-    const line = raw.trim()
-    if (!line) flush()
-    else if (/^#{1,3}\s/.test(line)) {
-      flush()
-      blocks.push(<h3 key={blocks.length}>{line.replace(/^#+\s*/, '')}</h3>)
-    } else if (/^[-*]\s/.test(line)) {
-      if (para.length) { const p = para; para = []; blocks.push(<p key={blocks.length}>{p.join(' ')}</p>) }
-      list.push(line.replace(/^[-*]\s+/, ''))
-    } else {
-      if (list.length) { const l = list; list = []; blocks.push(<ul key={blocks.length}>{l.map((x, i) => <li key={i}>{x}</li>)}</ul>) }
-      para.push(line)
-    }
-  }
-  flush()
-  return <>{blocks}</>
+  return (
+    <>
+      {parseMarkdown(text).map((b, i) =>
+        b.t === 'h' ? (
+          b.level === 3 ? <h3 key={i}><Inlines c={b.c} /></h3> : <h4 key={i}><Inlines c={b.c} /></h4>
+        ) : b.t === 'p' ? (
+          <p key={i}><Inlines c={b.c} /></p>
+        ) : b.t === 'hr' ? (
+          <hr key={i} />
+        ) : b.t === 'ul' ? (
+          <ul key={i}>{b.items.map((c, j) => <li key={j}><Inlines c={c} /></li>)}</ul>
+        ) : (
+          <ol key={i} start={b.start === 1 ? undefined : b.start}>{b.items.map((c, j) => <li key={j}><Inlines c={c} /></li>)}</ol>
+        ),
+      )}
+    </>
+  )
+}
+
+function Inlines({ c }: { c: Inline[] }) {
+  return (
+    <>
+      {c.map((n, i) =>
+        n.t === 'text' ? <Fragment key={i}>{n.v}</Fragment>
+        : n.t === 'br' ? <br key={i} />
+        : n.t === 'code' ? <code key={i}>{n.v}</code>
+        : n.t === 'strong' ? <strong key={i}><Inlines c={n.c} /></strong>
+        : n.t === 'em' ? <em key={i}><Inlines c={n.c} /></em>
+        : <a key={i} href={n.href} target="_blank" rel="noopener noreferrer nofollow"><Inlines c={n.c} /></a>,
+      )}
+    </>
+  )
 }
 
 function Downloads({ s, exps, recap }: { s: SprintDetail; exps: Experiment[]; recap: Recap }) {
@@ -311,7 +373,7 @@ function Downloads({ s, exps, recap }: { s: SprintDetail; exps: Experiment[]; re
   const themes = () => get<GroupingView>(`/api/sprints/${s.id}/themes`).catch(() => null)
   return (
     <footer className="recap-downloads">
-      <span>Take it with you <em>— no names, times or votes{encrypted ? '; not encrypted once saved' : ''}</em></span>
+      <span>Take it with you <em>— no authors, times or individual votes: only totals, and experiment owners by name{encrypted ? '. Not encrypted once saved' : ''}</em></span>
       {encrypted ? (
         <>
           <button onClick={async () => download(fileName(s, 'summary', 'md'), summaryMarkdown(s, await themes(), exps, recap.exists ? recap.body : null))}><Download className="size-3.5" aria-hidden /> Summary .md</button>
@@ -329,35 +391,72 @@ function Downloads({ s, exps, recap }: { s: SprintDetail; exps: Experiment[]; re
   )
 }
 
+/**
+ * What happened with an experiment: a verdict and a short note. Only what was changed here is sent,
+ * so a newer note (the owner's, another tab's) is never overwritten by an older copy. A verdict
+ * can't be taken back to "still running" (the server keeps it once given), so that isn't offered
+ * after one.
+ */
 function OutcomeForm({ e, sprintId, onSaved }: { e: Experiment; sprintId: string; onSaved: () => void }) {
+  const toast = useToast()
+  const decided = DECIDED.includes(e.status)
+  const noteLocked = isLocked(e.outcome_note)
   const [status, setStatus] = useState(e.status)
   const [note, setNote] = useState(e.outcome_note ?? '')
-  const toast = useToast()
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState('')
+  const loaded = useRef({ status: e.status, note: e.outcome_note ?? '' })
+  useEffect(() => {
+    const prev = loaded.current
+    const fresh = { status: e.status, note: e.outcome_note ?? '' }
+    loaded.current = fresh
+    setStatus((v) => follow(v, prev.status, fresh.status))
+    setNote((v) => follow(v, prev.note, fresh.note))
+  }, [e.status, e.outcome_note])
+  const changes: Record<string, string> = {}
+  if (status !== e.status && status !== 'accepted') changes.status = status
+  if (!noteLocked && note !== (e.outcome_note ?? '')) changes.outcome_note = note
+  const submit = async (ev: FormEvent) => {
+    ev.preventDefault()
+    if (busy || !Object.keys(changes).length) return
+    setBusy(true)
+    setError('')
+    try {
+      await patch(`/api/sprints/${sprintId}/experiments/${e.id}`, changes)
+      toast(changes.status ? 'Outcome saved' : 'Note saved')
+      onSaved()
+    } catch (err) {
+      setError(err instanceof ApiError ? (err.status === 0 ? 'You’re offline, so it wasn’t saved. It’s still here.' : sentence(err.message)) : 'Couldn’t save it — try again.')
+    } finally {
+      setBusy(false)
+    }
+  }
   return (
-    <form
-      className="recap-outcome"
-      onSubmit={async (ev) => {
-        ev.preventDefault()
-        await patch(`/api/sprints/${sprintId}/experiments/${e.id}`, { status: status === 'accepted' ? undefined : status, outcome_note: note })
-        toast('Outcome saved')
-        onSaved()
-      }}
-    >
-      <div>
-        <label className="block text-xs text-ink-soft" htmlFor={`st-${e.id}`}>What happened?</label>
-        <Select id={`st-${e.id}`} value={status} onChange={(ev) => setStatus(ev.target.value)} className="h-9 py-1 text-sm">
-          <option value="accepted">Still running</option>
-          <option value="helped">Helped</option>
-          <option value="did_not_help">Didn’t help</option>
-          <option value="inconclusive">Inconclusive</option>
-          <option value="not_tried">Not tried yet</option>
-        </Select>
-      </div>
-      <div className="min-w-48 flex-1">
-        <label className="block text-xs text-ink-soft" htmlFor={`nt-${e.id}`}>Short note</label>
-        <input id={`nt-${e.id}`} className="h-9 w-full rounded-xl border border-line bg-card px-3 text-sm" value={note} onChange={(ev) => setNote(ev.target.value)} maxLength={500} placeholder="What did we learn, even if it failed?" />
-      </div>
-      <Button size="sm" type="submit">Save</Button>
-    </form>
+    <>
+      <form className="recap-outcome" onSubmit={submit}>
+        <div>
+          <label className="block text-xs text-ink-soft" htmlFor={`st-${e.id}`}>What happened?</label>
+          <Select id={`st-${e.id}`} value={status} onChange={(ev) => setStatus(ev.target.value)} className="h-9 py-1 text-sm">
+            {decided ? null : <option value="accepted">Still running</option>}
+            <option value="helped">Helped</option>
+            <option value="did_not_help">Didn’t help</option>
+            <option value="inconclusive">Inconclusive</option>
+            <option value="not_tried">Not tried yet</option>
+          </Select>
+        </div>
+        <div className="min-w-48 flex-1">
+          <label className="block text-xs text-ink-soft" htmlFor={`nt-${e.id}`}>Short note</label>
+          <input id={`nt-${e.id}`} className="h-9 w-full rounded-xl border border-line bg-card px-3 text-sm disabled:opacity-60" value={noteLocked ? '' : note} disabled={noteLocked} onChange={(ev) => setNote(ev.target.value)} maxLength={500} placeholder={noteLocked ? 'Can’t be shown on this device' : 'What did we learn, even if it failed?'} />
+        </div>
+        <Button size="sm" type="submit" busy={busy} disabled={!Object.keys(changes).length}>Save</Button>
+      </form>
+      <ErrorText>{error}</ErrorText>
+    </>
   )
+}
+
+/** Server messages are lower-case fragments; show them as sentences. */
+function sentence(m: string) {
+  const t = m.trim()
+  return t ? t[0].toUpperCase() + t.slice(1) + (/[.!?]$/.test(t) ? '' : '.') : t
 }
