@@ -23,11 +23,19 @@ import { useLive } from '@/lib/live'
 import { useKeysEpoch } from '@/lib/e2ee/E2eeProvider'
 import { isLocked } from '@/lib/e2ee/keyring'
 import { Button, Dialog, EmptyState, Input, Spinner, useDocumentTitle, useToast } from '@/ui'
+import { menuKeys } from '@/ui/menu-keys'
 import { AppShell } from '@/ui/shell'
 import { SprintBar, useSprintControl } from '@/ui/sprint-bar'
 import { sprintPlan } from '@/lib/lifecycle'
 
-type Structural = (fn: (reason?: string) => Promise<unknown>) => Promise<void>
+/** A change to the themes: its answer is the whole sorting table, as it is after the change. */
+type Change = (reason?: string) => Promise<GroupingView>
+/** Makes a change and shows its answer. Throws what the server said. */
+type Apply = (fn: Change, reason?: string) => Promise<void>
+/** A change to the theme set; true once it's made (after asking why, if a vote was open). */
+type Structural = (fn: Change) => Promise<boolean>
+
+const problem = (e: unknown) => (e instanceof ApiError ? (e.status === 0 ? 'You’re offline, so nothing changed.' : e.message) : 'Couldn’t save')
 
 export function Prepare() {
   const { sprintId = '' } = useParams()
@@ -35,65 +43,135 @@ export function Prepare() {
   const toast = useToast()
   const [s, setS] = useState<SprintDetail | null>(null)
   const [g, setG] = useState<GroupingView | null>(null)
+  /** The last read failed. It takes the page only while nothing has been read. */
   const [error, setError] = useState('')
   /** Thoughts picked up (loose or in a theme), waiting to be put somewhere. */
   const [picked, setPicked] = useState<Set<string>>(new Set())
-  const [pendingReset, setPendingReset] = useState<{ run: (reason: string) => Promise<void> } | null>(null)
+  const [pendingReset, setPendingReset] = useState<{ run: (reason: string) => Promise<boolean>; cancel: () => void } | null>(null)
   const [resetReason, setResetReason] = useState('')
   useDocumentTitle(s ? `${s.name} · themes` : 'Themes')
 
+  // Answers can arrive out of order (a reload and a change's own answer): a table older than the
+  // one on screen is never shown over it.
+  const asked = useRef(0)
+  const shown = useRef(0)
+  const show = useCallback((ticket: number, view: GroupingView | null) => {
+    if (ticket < shown.current) return
+    shown.current = ticket
+    setG(view)
+    if (!view) return
+    // What was picked up and has since gone (moved elsewhere, another tab) is let go.
+    const ids = new Set([...view.ungrouped, ...view.themes.flatMap((t) => t.entries)].map((e) => e.id))
+    setPicked((p) => (p.size && [...p].some((id) => !ids.has(id)) ? new Set([...p].filter((id) => ids.has(id))) : p))
+  }, [])
+
   const load = useCallback(async () => {
+    const ticket = ++asked.current
     try {
-      const d = await get<SprintDetail>(`/api/sprints/${sprintId}`)
+      // Asked together; the themes are set aside when the sprint says there are none to sort yet.
+      const [d, view] = await Promise.all([get<SprintDetail>(`/api/sprints/${sprintId}`), get<GroupingView>(`/api/sprints/${sprintId}/themes`).catch((e: unknown) => e)])
       setS(d)
-      if (!d.is_facilitator) {
-        setError('Only the facilitator prepares themes.')
-        return
-      }
-      if (['draft', 'collecting'].includes(d.status)) {
-        setG(null)
-        return
-      }
-      const view = await get<GroupingView>(`/api/sprints/${sprintId}/themes`)
-      setG(view)
-      // What was picked up and has since gone (moved elsewhere, another tab) is let go.
-      const ids = new Set([...view.ungrouped, ...view.themes.flatMap((t) => t.entries)].map((e) => e.id))
-      setPicked((p) => (p.size && [...p].some((id) => !ids.has(id)) ? new Set([...p].filter((id) => ids.has(id))) : p))
+      if (!d.is_facilitator || ['draft', 'collecting'].includes(d.status)) show(ticket, null)
+      else if (view instanceof Error) throw view
+      else show(ticket, view as GroupingView)
+      setError('')
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : 'Couldn’t load')
+      setError(err instanceof ApiError ? (err.status === 0 ? 'You’re offline. The themes show again when Muni can be reached.' : err.message) : 'Couldn’t load')
     }
-  }, [sprintId])
+  }, [sprintId, show])
+  // Hints that come close together (a vote closing says "votes" and "themes") make one more read, not several.
+  const reading = useRef<Promise<void> | null>(null)
+  const again = useRef(false)
+  const reload = useCallback(() => {
+    if (reading.current) {
+      again.current = true
+      return
+    }
+    reading.current = (async () => {
+      do {
+        again.current = false
+        await load()
+      } while (again.current)
+      reading.current = null
+    })()
+  }, [load])
   const keysEpoch = useKeysEpoch()
   useEffect(() => {
     load()
   }, [load, keysEpoch])
-  useLive(sprintId, () => load())
+
+  // Each change this tab makes is followed by one "themes" hint about it — already in the change's
+  // own answer, so it's not read again. (Expected for a few seconds; a change that failed sent none.)
+  const echoes = useRef<number[]>([])
+  const ownEcho = () => {
+    const now = Date.now()
+    echoes.current = echoes.current.filter((t) => t > now)
+    return echoes.current.shift() !== undefined
+  }
+  useLive(sprintId, (r) => {
+    if (r === 'commitments' || r === 'checkins' || (r === 'themes' && ownEcho())) return
+    reload()
+  })
   const control = useSprintControl({ id: sprintId, status: s?.status, encryption: s?.encryption }, { online: navigator.onLine, onChanged: (d) => { setS(d); load() } })
+
+  const apply: Apply = useCallback(
+    async (fn, reason) => {
+      const ticket = ++asked.current
+      echoes.current.push(Date.now() + 5000)
+      try {
+        show(ticket, await fn(reason))
+      } catch (err) {
+        echoes.current.pop()
+        throw err
+      }
+    },
+    [show],
+  )
 
   /** Runs a change to the theme set; if a voting round is open, asks why first (participants see it). */
   const structural: Structural = useCallback(
     async (fn) => {
       try {
-        await fn()
-        await load()
+        await apply(fn)
+        return true
       } catch (err) {
-        if (err instanceof ApiError && err.status === 409 && /voting round is open/.test(err.message)) {
-          setPendingReset({ run: async (reason) => { await fn(reason); await load() } })
-        } else toast(err instanceof ApiError ? err.message : 'Couldn’t save', 'danger')
+        if (err instanceof ApiError && err.status === 409 && /voting round is open/.test(err.message))
+          return new Promise<boolean>((resolve) =>
+            setPendingReset({
+              run: async (reason) => {
+                try {
+                  await apply(fn, reason)
+                  resolve(true)
+                  return true
+                } catch (e) {
+                  toast(problem(e), 'danger')
+                  resolve(false)
+                  return false
+                }
+              },
+              cancel: () => resolve(false),
+            }),
+          )
+        toast(problem(err), 'danger')
+        return false
       }
     },
-    [load, toast],
+    [apply, toast],
   )
 
+  /** Once a change with them is made, the thoughts it moved are no longer picked up (anything picked meanwhile stays). */
+  const letGo = (ids: string[]) => setPicked((p) => new Set([...p].filter((id) => !ids.includes(id))))
   const putInto = async (themeId: string | null, ids: string[]) => {
     if (!ids.length) return
-    setPicked(new Set())
-    if (themeId) return structural((reason) => patch(`/api/sprints/${sprintId}/themes/${themeId}`, { entry_ids: ids, reset_voting_reason: reason }))
-    return structural((reason) => post(`/api/sprints/${sprintId}/themes/ungroup`, { entry_ids: ids, reset_voting_reason: reason }))
+    const done = themeId
+      ? await structural((reason) => patch<GroupingView>(`/api/sprints/${sprintId}/themes/${themeId}`, { entry_ids: ids, reset_voting_reason: reason }))
+      : await structural((reason) => post<GroupingView>(`/api/sprints/${sprintId}/themes/ungroup`, { entry_ids: ids, reset_voting_reason: reason }))
+    if (done) letGo(ids)
   }
-  const newTheme = (title: string, ids: string[]) => {
-    setPicked(new Set())
-    return structural((reason) => post(`/api/sprints/${sprintId}/themes`, { title, entry_ids: ids, reset_voting_reason: reason }))
+  const newTheme = async (title: string, ids: string[]) => {
+    const done = await structural((reason) => post<GroupingView>(`/api/sprints/${sprintId}/themes`, { title, entry_ids: ids, reset_voting_reason: reason }))
+    if (done) letGo(ids)
+    return done
   }
   const toggle = (id: string) => setPicked((p) => { const n = new Set(p); if (n.has(id)) n.delete(id); else n.add(id); return n })
   useEffect(() => {
@@ -105,14 +183,19 @@ export function Prepare() {
     return () => window.removeEventListener('keydown', onKey)
   }, [])
 
-  if (error)
+  const sealed = !!s && ['draft', 'collecting'].includes(s.status)
+  if (s && !s.is_facilitator)
     return (
       <AppShell>
-        <EmptyState title="Themes">{error}</EmptyState>
+        <EmptyState title="Themes">Only the facilitator prepares themes.</EmptyState>
       </AppShell>
     )
-  if (!s)
-    return (
+  if (!s || (!g && !sealed))
+    return error ? (
+      <AppShell>
+        <EmptyState title="Themes" action={<Button onClick={() => void load()}>Try again</Button>}>{error}</EmptyState>
+      </AppShell>
+    ) : (
       <AppShell wide>
         <div className="grid place-items-center py-20"><Spinner /></div>
       </AppShell>
@@ -155,6 +238,11 @@ export function Prepare() {
           <Tally total={g.total_entries} grouped={grouped} themes={themes.length} />
         )}
         {g.voting_open ? <p className="sort-warn">A vote is open. Changing the themes will ask you to reset it.</p> : null}
+        {error ? (
+          <p className="mt-3 text-sm text-ink-soft" role="status">
+            Couldn’t check for changes just now, so this may be out of date. <button type="button" className="underline underline-offset-2" onClick={() => void load()}>Try again</button>
+          </p>
+        ) : null}
       </header>
 
       <div className="sort">
@@ -174,7 +262,7 @@ export function Prepare() {
           <ol className="sort-piles">
             {themes.map((t, i) => {
               const addable = pickedIds.filter((id) => homeOf(id) !== t.id)
-              return <Pile key={t.id} t={t} n={i + 1} all={themes} sprintId={sprintId} canEdit={canEdit} picked={picked} onToggle={toggle} addable={addable.length} onAdd={() => putInto(t.id, addable)} onTakeOut={(id) => putInto(null, [id])} onDropEntry={(id) => putInto(t.id, [id])} structural={structural} onChange={load} />
+              return <Pile key={t.id} t={t} n={i + 1} all={themes} sprintId={sprintId} canEdit={canEdit} picked={picked} onToggle={toggle} addable={addable.length} onAdd={() => putInto(t.id, addable)} onTakeOut={(id) => putInto(null, [id])} onDropEntry={(id) => putInto(t.id, [id])} structural={structural} apply={apply} />
             })}
             {canEdit ? <GhostPile n={themes.length + 1} first={!themes.length} selected={picked.size} onCreate={(title) => newTheme(title, pickedIds)} /> : null}
           </ol>
@@ -185,11 +273,12 @@ export function Prepare() {
         <Tray count={picked.size} themes={themes} homes={homes} onPut={(tid) => putInto(tid, pickedIds)} onNew={(title) => newTheme(title, pickedIds)} onLoose={homes.size === 1 && homes.has(null) ? null : () => putInto(null, pickedIds)} onClear={() => setPicked(new Set())} />
       ) : null}
 
-      <Dialog open={!!pendingReset} onOpenChange={(o) => !o && setPendingReset(null)} title="A vote is open" description="Changing the themes now cancels the round; people keep their unused votes for the next one. Say why in a few words — participants see it.">
+      <Dialog open={!!pendingReset} onOpenChange={(o) => { if (!o) { pendingReset?.cancel(); setPendingReset(null) } }} title="A vote is open" description="Changing the themes now cancels the round; people keep their unused votes for the next one. Say why in a few words — participants see it.">
         <Input value={resetReason} onChange={(e) => setResetReason(e.target.value)} placeholder="e.g. merged two overlapping themes" maxLength={200} autoFocus />
         <div className="mt-4 flex justify-end gap-2">
-          <Button variant="ghost" onClick={() => setPendingReset(null)}>Keep the vote as it is</Button>
-          <Button variant="primary" disabled={!resetReason.trim()} onClick={async () => { const r = pendingReset; setPendingReset(null); await r?.run(resetReason); setResetReason('') }}>Reset the vote and continue</Button>
+          <Button variant="ghost" onClick={() => { pendingReset?.cancel(); setPendingReset(null) }}>Keep the vote as it is</Button>
+          {/* A change that fails says so; its reason stays typed for the next try. */}
+          <Button variant="primary" disabled={!resetReason.trim()} onClick={async () => { const r = pendingReset; setPendingReset(null); if (await r?.run(resetReason.trim())) setResetReason('') }}>Reset the vote and continue</Button>
         </div>
       </Dialog>
     </AppShell>
@@ -253,7 +342,7 @@ function Slip({ e, canEdit, picked, onToggle, onTakeOut }: { e: SharedEntry; can
 }
 
 /** A theme as a pile: its number and name, its opening question, its slips. While thoughts are selected, it offers to take them. */
-function Pile({ t, n, all, sprintId, canEdit, picked, onToggle, addable, onAdd, onTakeOut, onDropEntry, structural, onChange }: { t: ThemeView; n: number; all: ThemeView[]; sprintId: string; canEdit: boolean; picked: Set<string>; onToggle: (id: string) => void; addable: number; onAdd: () => void; onTakeOut: (id: string) => void; onDropEntry: (id: string) => void; structural: Structural; onChange: () => void }) {
+function Pile({ t, n, all, sprintId, canEdit, picked, onToggle, addable, onAdd, onTakeOut, onDropEntry, structural, apply }: { t: ThemeView; n: number; all: ThemeView[]; sprintId: string; canEdit: boolean; picked: Set<string>; onToggle: (id: string) => void; addable: number; onAdd: () => void; onTakeOut: (id: string) => void; onDropEntry: (id: string) => void; structural: Structural; apply: Apply }) {
   const toast = useToast()
   const uid = useId()
   const [over, setOver] = useState(false)
@@ -265,15 +354,20 @@ function Pile({ t, n, all, sprintId, canEdit, picked, onToggle, addable, onAdd, 
     if ((field === 'draft_experiment' ? t.draft_experiment ?? '' : t[field]) === value) return
     if (field === 'title' && !value.trim()) return
     try {
-      await patch(`/api/sprints/${sprintId}/themes/${t.id}`, { [field]: value })
+      await apply(() => patch<GroupingView>(`/api/sprints/${sprintId}/themes/${t.id}`, { [field]: value }))
       setSaved(field)
       window.setTimeout(() => setSaved((f) => (f === field ? null : f)), 1800)
-      onChange()
     } catch (e) {
-      toast(e instanceof ApiError ? e.message : 'Couldn’t save', 'danger')
+      toast(problem(e), 'danger')
     }
   }
-  const flag = (k: 'parked' | 'needs_attention', v: boolean) => patch(`/api/sprints/${sprintId}/themes/${t.id}`, { [k]: v }).then(onChange)
+  const flag = async (k: 'parked' | 'needs_attention', v: boolean) => {
+    try {
+      await apply(() => patch<GroupingView>(`/api/sprints/${sprintId}/themes/${t.id}`, { [k]: v }))
+    } catch (e) {
+      toast(problem(e), 'danger')
+    }
+  }
   const mix = Object.entries(t.category_mix).filter(([, c]) => c > 0)
   const hasNotes = !!(t.summary || t.draft_experiment)
   return (
@@ -369,7 +463,7 @@ function Pile({ t, n, all, sprintId, canEdit, picked, onToggle, addable, onAdd, 
         <ul className="sort-merge">
           {all.filter((x) => x.id !== t.id).map((x) => (
             <li key={x.id}>
-              <button type="button" onClick={() => { setMerging(false); structural((reason) => post(`/api/sprints/${sprintId}/themes/${t.id}/merge`, { into_theme_id: x.id, reset_voting_reason: reason })) }}>
+              <button type="button" onClick={() => { setMerging(false); void structural((reason) => post<GroupingView>(`/api/sprints/${sprintId}/themes/${t.id}/merge`, { into_theme_id: x.id, reset_voting_reason: reason })) }}>
                 {x.title} <span>{x.entry_count}</span>
               </button>
             </li>
@@ -379,7 +473,7 @@ function Pile({ t, n, all, sprintId, canEdit, picked, onToggle, addable, onAdd, 
       <Dialog open={removing} onOpenChange={setRemoving} title={`Remove “${t.title}”?`} description="Its thoughts go back to be sorted, exactly as written. Its title, question and notes are removed.">
         <div className="mt-6 flex justify-end gap-2">
           <Button variant="ghost" onClick={() => setRemoving(false)}>Keep it</Button>
-          <Button variant="danger" onClick={() => { setRemoving(false); structural((reason) => del(`/api/sprints/${sprintId}/themes/${t.id}`, { reset_voting_reason: reason })) }}>Remove the theme</Button>
+          <Button variant="danger" onClick={() => { setRemoving(false); void structural((reason) => del<GroupingView>(`/api/sprints/${sprintId}/themes/${t.id}`, { reset_voting_reason: reason })) }}>Remove the theme</Button>
         </div>
       </Dialog>
     </li>
@@ -387,17 +481,37 @@ function Pile({ t, n, all, sprintId, canEdit, picked, onToggle, addable, onAdd, 
 }
 
 /**
+ * A new theme's name, kept until the theme exists: if creating it fails, the name (and what was
+ * selected for it) stay as they were. One creation at a time.
+ */
+function useNewTheme(onCreate: (title: string) => Promise<boolean>) {
+  const [title, setTitle] = useState('')
+  const [busy, setBusy] = useState(false)
+  const submit = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!title.trim() || busy) return
+    setBusy(true)
+    try {
+      if (await onCreate(title.trim())) setTitle('')
+    } finally {
+      setBusy(false)
+    }
+  }
+  return { title, setTitle, busy, submit }
+}
+
+/**
  * The next theme, waiting for a name: an empty pile with its field always open. Naming it makes a
  * theme of whatever is selected (or an empty one to fill after).
  */
-function GhostPile({ n, first, selected, onCreate }: { n: number; first: boolean; selected: number; onCreate: (title: string) => void }) {
-  const [title, setTitle] = useState('')
+function GhostPile({ n, first, selected, onCreate }: { n: number; first: boolean; selected: number; onCreate: (title: string) => Promise<boolean> }) {
+  const { title, setTitle, busy, submit } = useNewTheme(onCreate)
   return (
     <li className="sort-pile sort-pile--ghost" data-ready={selected > 0 || undefined}>
-      <form className="sort-ghost" onSubmit={(e) => { e.preventDefault(); if (!title.trim()) return; onCreate(title.trim()); setTitle('') }}>
+      <form className="sort-ghost" onSubmit={submit}>
         <span className="sort-pile-n" aria-hidden>{String(n).padStart(2, '0')}</span>
         <input className="sort-field sort-pile-title" value={title} onChange={(e) => setTitle(e.target.value)} maxLength={80} aria-label="New theme title" placeholder={selected ? `Name a theme for ${selected === 1 ? 'it' : `these ${selected}`}` : first ? 'Name your first theme' : 'Name another theme'} />
-        <Button size="sm" type="submit" variant={selected ? 'primary' : 'secondary'} disabled={!title.trim()}>{selected ? `Create with ${selected}` : 'Create'}</Button>
+        <Button size="sm" type="submit" variant={selected ? 'primary' : 'secondary'} busy={busy} disabled={!title.trim()}>{selected ? `Create with ${selected}` : 'Create'}</Button>
       </form>
       <p className="sort-ghost-hint">{selected ? `The ${selected === 1 ? 'selected thought goes' : `${selected} selected thoughts go`} into it.` : first ? 'Tap some thoughts first — or name it now and add them after.' : 'Or add selected thoughts to a theme above.'}</p>
     </li>
@@ -411,10 +525,13 @@ function Field({ value, onSave, label, className, placeholder, max, multiline, w
   useEffect(() => {
     if (!focused.current) setV(value)
   }, [value])
+  // What this device can't show can't be edited here either: it's never saved back in place of the real words.
+  const locked = isLocked(value)
   const common = {
     'aria-label': label,
-    className: clsx('sort-field', className),
-    value: v,
+    className: clsx('sort-field', className, locked && 'italic text-ink-soft'),
+    value: locked ? value.slice(1) : v,
+    readOnly: locked,
     placeholder,
     maxLength: max,
     onFocus: () => (focused.current = true),
@@ -438,7 +555,7 @@ function Field({ value, onSave, label, className, placeholder, max, multiline, w
   return <input {...common} onChange={(e) => setV(e.target.value)} />
 }
 
-/** A theme's rarer actions, each named. */
+/** A theme's rarer actions, each named. Arrow keys move between them. */
 function ThemeMenu({ items }: { items: { label: string; run: () => void; danger?: boolean }[] }) {
   const [open, setOpen] = useState(false)
   return (
@@ -449,7 +566,7 @@ function ThemeMenu({ items }: { items: { label: string; run: () => void; danger?
         </button>
       </Popover.Trigger>
       <Popover.Portal>
-        <Popover.Content align="end" sideOffset={4} collisionPadding={12} className="menu-panel anim-rise" role="menu" aria-label="More for this theme">
+        <Popover.Content align="end" sideOffset={4} collisionPadding={12} className="menu-panel anim-rise" role="menu" aria-label="More for this theme" onKeyDown={menuKeys}>
           {items.map((it) => (
             <button key={it.label} type="button" role="menuitem" className={clsx('menu-item', it.danger && 'menu-item--danger')} onClick={() => { setOpen(false); it.run() }}>
               {it.label}
@@ -465,15 +582,15 @@ function ThemeMenu({ items }: { items: { label: string; run: () => void; danger?
  * What's selected, and where it can go: one bar at the foot of the screen, with the new theme's
  * name field already open, every theme named, and "Take out" when something selected is in a theme.
  */
-function Tray({ count, themes, homes, onPut, onNew, onLoose, onClear }: { count: number; themes: ThemeView[]; homes: Set<string | null>; onPut: (themeId: string) => void; onNew: (title: string) => void; onLoose: (() => void) | null; onClear: () => void }) {
-  const [title, setTitle] = useState('')
+function Tray({ count, themes, homes, onPut, onNew, onLoose, onClear }: { count: number; themes: ThemeView[]; homes: Set<string | null>; onPut: (themeId: string) => void; onNew: (title: string) => Promise<boolean>; onLoose: (() => void) | null; onClear: () => void }) {
+  const { title, setTitle, busy, submit } = useNewTheme(onNew)
   const targets = themes.filter((t) => !(homes.size === 1 && homes.has(t.id)))
   return (
     <div className="sort-tray" role="region" aria-label="Put the selected thoughts in a theme">
       <p className="sort-tray-count" aria-live="polite"><strong>{count}</strong> selected</p>
-      <form className="sort-tray-new" onSubmit={(e) => { e.preventDefault(); if (!title.trim()) return; onNew(title.trim()); setTitle('') }}>
+      <form className="sort-tray-new" onSubmit={submit}>
         <input className="sort-field" placeholder="Name a new theme" aria-label="New theme title" value={title} maxLength={80} onChange={(e) => setTitle(e.target.value)} />
-        <Button size="sm" type="submit" variant="primary" disabled={!title.trim()}>Create</Button>
+        <Button size="sm" type="submit" variant="primary" busy={busy} disabled={!title.trim()}>Create</Button>
       </form>
       {targets.length || onLoose ? (
         <div className="sort-tray-targets">
