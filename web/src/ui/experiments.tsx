@@ -1,4 +1,4 @@
-import { useState, type FormEvent } from 'react'
+import { useEffect, useRef, useState, type FormEvent } from 'react'
 import { ApiError, post } from '@/api/client'
 import type { Participant } from '@/api/types'
 import { Button, ErrorText, Help, Input, Label, Select, Textarea } from '@/ui'
@@ -8,17 +8,32 @@ import { Button, ErrorText, Help, Input, Label, Select, Textarea } from '@/ui'
  * it. Wording that reads like an intention ("be better") gets a suggestion, never a wall: the
  * facilitator can sharpen it or keep it as written, because a room mid-retro must never be stuck.
  */
-export function ExperimentEditor({ sprintId, participants, themes, defaultThemeId, defaultText, existingCount, onSaved }: { sprintId: string; participants: Participant[]; themes: { id: string; title: string }[]; defaultThemeId?: string; defaultText?: string; existingCount: number; onSaved: () => void }) {
-  const [change, setChange] = useState(defaultText ?? '')
+export function ExperimentEditor({ sprintId, participants, themes, defaultThemeId, defaultText, seed, existingCount, onSaved }: { sprintId: string; participants: Participant[]; themes: { id: string; title: string }[]; defaultThemeId?: string; defaultText?: string; /** An idea to start from ("Use this idea"): fills the change and its theme in place, keeping the rest of what's typed. */ seed?: { text: string; themeId: string } | null; existingCount: number; onSaved: () => void }) {
+  const [change, setChange] = useState(seed?.text ?? defaultText ?? '')
   const [signal, setSignal] = useState('')
   const [owner, setOwner] = useState('')
   const [review, setReview] = useState('')
-  const [theme, setTheme] = useState(defaultThemeId ?? '')
+  const [theme, setTheme] = useState(seed?.themeId ?? defaultThemeId ?? '')
   const [error, setError] = useState('')
   const [busy, setBusy] = useState(false)
   const [override, setOverride] = useState(false)
   /** The suggestion shown for the wording that's in the box now; saving again keeps it as written. */
   const [nudged, setNudged] = useState<string | null>(null)
+  const box = useRef<HTMLTextAreaElement>(null)
+  const [seeded, setSeeded] = useState(seed)
+  if (seed !== seeded) {
+    setSeeded(seed)
+    if (seed) {
+      setChange(seed.text)
+      setTheme(seed.themeId)
+    }
+  }
+  useEffect(() => {
+    const el = box.current
+    if (!seed || !el) return
+    el.focus()
+    el.setSelectionRange(el.value.length, el.value.length)
+  }, [seed])
   const nudge = nudged !== null && nudged === change ? vague(change) : null
   const fromTheme = themes.find((t) => t.id === theme)
   const submit = async (e: FormEvent) => {
@@ -66,7 +81,7 @@ export function ExperimentEditor({ sprintId, participants, themes, defaultThemeI
       </div>
       <div>
         <Label htmlFor="ex-change">What will the team do differently?</Label>
-        <Textarea id="ex-change" rows={2} autoFocus={!!defaultText} value={change} onChange={(e) => setChange(e.target.value)} placeholder="For the next sprint, review open PRs for 15 minutes right after standup." maxLength={500} required aria-describedby="ex-change-help" />
+        <Textarea id="ex-change" ref={box} rows={2} autoFocus={!!defaultText} value={change} onChange={(e) => setChange(e.target.value)} placeholder="For the next sprint, review open PRs for 15 minutes right after standup." maxLength={500} required aria-describedby="ex-change-help" />
         {nudge ? (
           <div id="ex-change-help" className="exp-nudge" role="status">
             <p><strong>This reads more like a hope than a change.</strong> What will someone actually do, and when? For example: “For the next sprint, review open PRs for 15 minutes right after standup.”</p>
