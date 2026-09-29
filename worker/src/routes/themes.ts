@@ -132,8 +132,9 @@ async function roomForTheme(db: D1Database, sprintId: string) {
   if ((await count(db, 'SELECT count(*) AS n FROM themes WHERE sprint_id = ?', sprintId)) >= MAX_THEMES) throw conflict(`${MAX_THEMES} themes is the limit — merge some first`)
 }
 
+/** Moves thoughts into a theme in one statement, however many: only this sprint's thoughts move. */
 const assign = (sprintId: string, themeId: string, entryIds: string[]): [string, ...unknown[]][] =>
-  entryIds.map((eid) => ['INSERT INTO theme_entries (entry_id, theme_id) SELECT id, ? FROM entries WHERE id = ? AND sprint_id = ? ON CONFLICT(entry_id) DO UPDATE SET theme_id = excluded.theme_id', themeId, eid, sprintId])
+  entryIds.length ? [['INSERT INTO theme_entries (entry_id, theme_id) SELECT id, ? FROM entries WHERE sprint_id = ? AND id IN (SELECT value FROM json_each(?)) ON CONFLICT(entry_id) DO UPDATE SET theme_id = excluded.theme_id', themeId, sprintId, JSON.stringify(entryIds)]] : []
 
 themes.get('/api/sprints/:sprintId/themes', async (c) => {
   const ctx = await requireSprint(c, config(c.env), c.env.DB, c.req.param('sprintId'))
@@ -188,7 +189,7 @@ themes.post('/api/sprints/:sprintId/themes/ungroup', async (c) => {
   const body = await jsonBody<{ entry_ids?: unknown; reset_voting_reason?: string }>(c)
   const entryIds = idList(body.entry_ids, 'entry_ids')
   const stmts = await structuralChange(c.env.DB, ctx, body.reset_voting_reason)
-  for (const eid of entryIds) stmts.push(['DELETE FROM theme_entries WHERE entry_id = ? AND entry_id IN (SELECT id FROM entries WHERE sprint_id = ?)', eid, ctx.sprint.id])
+  if (entryIds.length) stmts.push(['DELETE FROM theme_entries WHERE entry_id IN (SELECT value FROM json_each(?)) AND entry_id IN (SELECT id FROM entries WHERE sprint_id = ?)', JSON.stringify(entryIds), ctx.sprint.id])
   await batch(c.env.DB, stmts)
   await hint(c.env, ctx.sprint.id, 'themes')
   return c.json(await grouping(c.env, ctx))

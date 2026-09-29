@@ -84,7 +84,8 @@ token, three variables and an optional fourth) and recovery are in [RELEASING.md
 the repository it names; for your own fork, change that guard.
 
 Pull-request workflows never receive these: `ci.yml` runs with a read-only token and no secrets.
-To check any deployment from outside: `node scripts/verify-deploy.mjs https://<your domain> <version>`.
+To check any deployment from outside, from the repository root:
+`node scripts/verify-deploy.mjs https://<your domain> <version>`.
 
 ## Operations
 
@@ -101,3 +102,34 @@ To check any deployment from outside: `node scripts/verify-deploy.mjs https://<y
   hosted act.munimuni.app: its operator, contact address and providers. Change those for your
   deployment, and check the rest against [`privacy-claims.md`](privacy-claims.md) — for example if you
   use Brevo.
+
+## Before real teams rely on it
+
+- **Rate-limit the doors at the edge.** Muni's own limits are counted in D1, so every request in a
+  flood still reads and writes the database (a sign-in attempt stores a challenge, a new address a
+  counter) — from enough addresses, that uses up the Free plan's daily D1 write allowance and stops
+  the app for everyone until it resets. Put a Cloudflare WAF rate-limiting rule (or a Workers Rate
+  Limiting binding) in front of `/api/auth/*`, `/api/join/*` and `/api/invitations/*`, generous
+  enough for a team behind one address.
+- **Plan for headroom.** The Workers Paid plan gives D1 far more room for reads and writes, the
+  30-day Time Travel window and 7 days of logs. It's the safer choice once a team depends on it.
+- **Get told when something breaks.** Alert on the Worker's 5xx rate (Workers Logs, or Logpush to
+  wherever you keep alerts) and on failed jobs — undelivered invitations and reminders stay in the
+  `jobs` table with `status = 'failed'` and a short `last_error` for 90 days. From `worker/`:
+
+  ```bash
+  pnpm exec wrangler d1 execute DB --remote --config wrangler.production.jsonc \
+    --command "SELECT kind, count(*) AS n FROM jobs WHERE status = 'failed' GROUP BY kind"
+  ```
+
+- **Bookmark before migrating, and rehearse a restore.** Before `pnpm migrate:remote`, record where
+  the database stands, so a bad migration has a known point to go back to:
+
+  ```bash
+  pnpm exec wrangler d1 time-travel info DB --config wrangler.production.jsonc   # prints a bookmark
+  ```
+
+  Rehearse one restore before you need it — in a quiet window, or on a separate test deployment —
+  with `pnpm exec wrangler d1 time-travel restore DB --bookmark=<bookmark> --config
+  wrangler.production.jsonc`, so the steps and the time they take are known. A restore replaces
+  the whole database, including anything written since the bookmark.

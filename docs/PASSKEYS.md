@@ -16,7 +16,7 @@ independently reviewed** (§8, §9).
 | | Proves | Stored as | Granted by |
 | --- | --- | --- | --- |
 | **Authentication** | control of one of the account's passkeys | `sessions` (token hash, `auth_method = 'passkey'`), `webauthn_credentials` (public key) | `/api/auth/passkey/login/verify`, `/api/auth/passkey/signup/verify` (and `/reauth/verify`, which rotates a session) |
-| **Membership** | permission to reach a workspace or sprint | `memberships`, `sprint_participants` | accepting an emailed invitation link, a manager approving a team-QR request, or redeeming a personal link — always signed in with a passkey |
+| **Membership** | permission to reach a workspace or sprint | `memberships`, `sprint_participants` | accepting an emailed invitation link, a workspace owner (or, for a sprint's code, that sprint's facilitator) approving a team-QR request, or redeeming a personal link — always signed in with a passkey |
 | **Content access** | possession of decryption keys | in memory only; the server holds public keys and wraps it can't open; the device holds an envelope it can't open alone | a passkey's PRF output (in the browser), this device's envelope after signing in, or the recovery key; teammates' devices ([ENCRYPTION.md](ENCRYPTION.md) §4) |
 
 Signing in never grants membership. An invitation is permission to join, never a sign-in: every
@@ -85,8 +85,9 @@ never signs anyone in, can't be added by hand, and can be removed in Account →
 which only stops that mail.
 
 ### Invitations
-- **Team QR** (approval): anyone with the code asks, a manager approves (seeing the name, the
-  address if the account has one, account age, "no email on this account").
+- **Team QR** (approval): anyone with the code asks; a workspace owner approves — or, for a
+  sprint's code, that sprint's facilitator while it's unfinished (`lib/grants.ts`) — seeing the
+  name, the address if the account has one, account age, "no email on this account".
 - **Personal link** (`mode = 'direct'`): for one person; single use; 24 h or 7 days; joins
   whoever redeems it first *while signed in*, as `member`. Redemption, membership, sprint seat
   and audit are one transaction keyed on a random redemption id, so racing people/tabs get exactly

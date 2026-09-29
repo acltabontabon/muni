@@ -15,6 +15,13 @@ export const setupRequired = (m: string) => new AppError(503, 'setup_required', 
 export const quota = (m: string) => new AppError(503, 'quota', m)
 
 /**
+ * Platform capacity, in the words D1 and Workers use for it: a full database, an overloaded or
+ * queued one, a daily or rate limit. Not every D1_ERROR — a missing column or a bad query is a bug,
+ * and a bug has to read as one (and be logged), not pass for a usage limit.
+ */
+const LIMITS = /exceeded|quota|overloaded|too many (requests|queued)|rate.?limit|daily .*limit|limit (reached|exceeded)/i
+
+/**
  * What an unexpected failure tells the person who asked, claiming no more than is known. A
  * constraint the database enforced (a race lost) is a conflict. Quota and platform limits are a
  * recoverable 503 that says a change may not have been saved — never that nothing was, which a
@@ -22,7 +29,7 @@ export const quota = (m: string) => new AppError(503, 'quota', m)
  */
 export function failure(message: string, method: string): { status: 409 | 500 | 503; error: string; code: string } {
   if (/constraint failed|SQLITE_CONSTRAINT/i.test(message)) return { status: 409, error: 'something changed while you were working — reload and try again', code: 'conflict' }
-  if (/D1_ERROR|too many requests|exceeded|quota|limit/i.test(message)) {
+  if (LIMITS.test(message)) {
     const reading = ['GET', 'HEAD'].includes(method.toUpperCase())
     return { status: 503, error: reading ? 'Muni is at its usage limit right now — try again in a little while.' : 'Muni is at its usage limit right now, so this may not have been saved — try again in a little while.', code: 'quota' }
   }

@@ -320,10 +320,11 @@
   // The timer counts down from a deadline, like the real one.
   const timerEl = document.querySelector('[data-timer]')
   const deadline = Date.now() + (12 * 60 + 40) * 1000
-  setInterval(() => {
+  const countdown = setInterval(() => {
     if (!stageVisible) return
     const s = Math.max(0, Math.round((deadline - Date.now()) / 1000))
     timerEl.textContent = `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`
+    if (s === 0) clearInterval(countdown) // time's up: 0:00 stays, and nothing ticks on
   }, 1000)
 
   /* ── Agree: what the room will remember is written, then becomes an experiment. ─ */

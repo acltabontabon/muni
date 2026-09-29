@@ -39,7 +39,7 @@ export async function snapshot(env: HonoEnv['Bindings'], ctx: SprintCtx, known?:
       db.prepare('SELECT a.id AS account_id, a.display_name, a.avatar_id, sp.is_facilitator FROM sprint_participants sp JOIN accounts a ON a.id = sp.account_id WHERE sp.sprint_id = ? ORDER BY sp.is_facilitator DESC, a.display_name').bind(sid),
       db.prepare('SELECT theme_id FROM discussion_notes WHERE sprint_id = ? AND discussed = 1').bind(sid),
       db.prepare('SELECT id, theme_id, body, kind, released_batch FROM context_additions WHERE sprint_id = ? AND author_account_id = ? ORDER BY created_at').bind(sid, me),
-      db.prepare('SELECT EXISTS (SELECT 1 FROM themes WHERE sprint_id = ? AND parked = 0) AS themed, EXISTS (SELECT 1 FROM context_additions WHERE sprint_id = ? AND released_batch IS NULL) AS waiting').bind(sid, sid),
+      db.prepare('SELECT (SELECT count(*) FROM themes WHERE sprint_id = ? AND parked = 0) >= 2 AS themed, EXISTS (SELECT 1 FROM context_additions WHERE sprint_id = ? AND released_batch IS NULL) AS waiting').bind(sid, sid),
     ]),
   ])
   let rs = first
@@ -74,7 +74,7 @@ export async function snapshot(env: HonoEnv['Bindings'], ctx: SprintCtx, known?:
     ? { running: true, ends_at: new Date(m.timer_ends_at).toISOString(), remaining_secs: Math.max(0, Math.round((m.timer_ends_at - now) / 1000)), total_secs: m.timer_total_secs ?? 0 }
     : { running: false, ends_at: null, remaining_secs: m.timer_remaining_secs ?? 0, total_secs: m.timer_total_secs ?? 0 }
   const controller = m.controller_account_id ? people.find((p) => p.account_id === m.controller_account_id) : null
-  // Choosing needs something to choose between: without themes the retro goes from looking back to talking.
+  // Choosing needs something to choose between: with fewer than two themes the retro goes from looking back to talking.
   const themed = bool(flags.themed)
   return {
     session_id: `${sid}:${m.started_at}`,
@@ -170,7 +170,7 @@ async function stepChanges(db: D1Database, ctx: SprintCtx, cmd: CommandBody, cur
   const sid = ctx.sprint.id
   const changed: Resource[] = []
   if (cmd.phase === 'choose') {
-    const s = await one<{ themed: number; voted: number }>(db, "SELECT EXISTS (SELECT 1 FROM themes WHERE sprint_id = ? AND parked = 0) AS themed, EXISTS (SELECT 1 FROM vote_rounds WHERE sprint_id = ? AND status IN ('open', 'closed')) AS voted", sid, sid)
+    const s = await one<{ themed: number; voted: number }>(db, "SELECT (SELECT count(*) FROM themes WHERE sprint_id = ? AND parked = 0) >= 2 AS themed, EXISTS (SELECT 1 FROM vote_rounds WHERE sprint_id = ? AND status IN ('open', 'closed')) AS voted", sid, sid)
     if (bool(s?.themed) && !bool(s?.voted) && (await openRound(db, sid, ctx.sprint.vote_budget))) {
       await audit(db, ctx.sprint.workspace_id, sid, ctx.auth.account.id, 'votes.round_opened', { budget: ctx.sprint.vote_budget })
       changed.push('votes')

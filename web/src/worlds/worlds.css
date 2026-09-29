@@ -269,6 +269,8 @@ button.room-tab[data-state='open'] { background: color-mix(in oklab, var(--ink) 
 .room .mine-title { font-family: var(--room-heading-font, var(--font-display)); }
 /* In a grid of entries, a shorter entry keeps its lines together at the top of its cell. */
 .room .passage { align-content: start; }
+/* A thought not sent yet keeps its inset off the status rule, whatever padding a world gives its passages. */
+.room .passage:is([data-state='queued'], [data-state='sending'], [data-state='attention']) { padding-left: 0.85rem; padding-right: 0.5rem; }
 /* Editing a thought in place: the same field and the same two named controls as writing one. */
 .room .journal-field { border: 1px solid var(--room-field-line, var(--line-strong)); border-radius: calc(var(--room-field-radius, 12px) * 0.8); background: var(--room-field-bg, var(--card)); box-shadow: none; font-family: var(--room-field-font, var(--font-sans)); }
 .room .journal-field:hover { border-color: color-mix(in oklab, var(--ink-faint) 65%, var(--room-field-line, var(--line-strong))); box-shadow: none; }
@@ -611,7 +613,8 @@ button.room-tab[data-state='open'] { background: color-mix(in oklab, var(--ink) 
   .biyahe-log .passages-day::after { content: ''; flex: 1; height: 1px; background: var(--b-rule); }
   .biyahe-log .passage { padding: 0.95rem 0 1.05rem 1.25rem; border-top: 0; box-shadow: inset 1px 0 0 var(--line-strong); }
   .biyahe-log .passage:first-child { padding-top: 0.95rem; }
-  .biyahe-log .passage[data-state='queued'], .biyahe-log .passage[data-state='sending'], .biyahe-log .passage[data-state='attention'] { padding-left: 1.25rem; }
+  .biyahe-log .passage:is([data-state='queued'], [data-state='sending'], [data-state='attention']) { padding-left: 1.25rem; box-shadow: inset 2px 0 0 color-mix(in oklab, var(--status) 55%, transparent); }
+  .biyahe-log .passage[data-state='attention'] { box-shadow: inset 2px 0 0 var(--warn); }
   .biyahe-log .passage-mark { font-size: 13px; font-variant-numeric: tabular-nums; }
   .biyahe-log .passage-mark .cat { font-style: normal; font-size: 13px; font-weight: 600; }
   .biyahe-log .passage-text { font-size: 1.075rem; }
@@ -627,7 +630,7 @@ button.room-tab[data-state='open'] { background: color-mix(in oklab, var(--ink) 
     .biyahe-log > * { grid-column: 2; }
     .biyahe-log .passages-day { gap: 0; margin-left: calc(-1 * (var(--b-view) + var(--b-gap) * 2)); }
     .biyahe-log .passages-day h3 { width: calc(var(--b-view) + var(--b-gap) * 2); padding-left: 1.05rem; }
-    .biyahe-log .passage { padding-left: 1.5rem; }
+    .biyahe-log .passage, .biyahe-log .passage:is([data-state='queued'], [data-state='sending'], [data-state='attention']) { padding-left: 1.5rem; }
   }
 }
 
@@ -735,6 +738,8 @@ button.room-tab[data-state='open'] { background: color-mix(in oklab, var(--ink) 
   .bola-grid .mine-title { font-weight: 740; font-stretch: 118%; letter-spacing: -0.02em; }
   .bola-grid .passages { display: grid; grid-template-columns: minmax(0, 1fr); gap: 0 2.5rem; margin-top: 1.75rem; }
   .bola-grid .passage, .bola-grid .passage:first-child { padding: 1.05rem 0 1.7rem; border-top: 0; background: linear-gradient(var(--bo-line), var(--bo-line)) 0 0 / 1.75rem 4px no-repeat, linear-gradient(var(--line-strong), var(--line-strong)) 0 0 / 100% 1px no-repeat; }
+  .bola-grid .passage:is([data-state='queued'], [data-state='sending'], [data-state='attention']) { padding-left: 0.85rem; padding-right: 0.5rem; background: linear-gradient(90deg, color-mix(in oklab, var(--status) 6%, transparent), transparent 70%), linear-gradient(var(--line-strong), var(--line-strong)) 0 0 / 100% 1px no-repeat; }
+  .bola-grid .passage[data-state='attention'] { background: linear-gradient(90deg, color-mix(in oklab, var(--warn) 7%, transparent), transparent 75%), linear-gradient(var(--line-strong), var(--line-strong)) 0 0 / 100% 1px no-repeat; }
   .bola-grid .passage-mark { font-size: 12.5px; font-variant-numeric: tabular-nums; }
   .bola-grid .passage-mark .cat { font-style: normal; font-stretch: 88%; font-size: 12.5px; font-weight: 650; letter-spacing: 0.08em; text-transform: uppercase; }
   .bola-grid .passage-mark .cat::before { height: 3px; width: 10px; border-radius: 0; }
@@ -961,6 +966,8 @@ button.room-tab[data-state='open'] { background: color-mix(in oklab, var(--ink) 
 
   @container room (min-width: 40rem) {
     .himig-notes .passage { grid-template-columns: 7.5rem minmax(0, 1fr) auto; column-gap: 1.5rem; }
+    /* A thought not sent yet is inset; its margin gives that back so its words keep the column. */
+    .himig-notes .passage:is([data-state='queued'], [data-state='sending'], [data-state='attention']) { grid-template-columns: calc(7.5rem - 0.85rem) minmax(0, 1fr) auto; }
     .himig-notes .passage-mark { grid-column: 1; grid-row: 1 / span 2; flex-direction: column; align-items: flex-start; gap: 0.25rem; padding-top: 0.3rem; }
     .himig-notes .passage-mark .cat::before { display: block; margin: 0 0 0.4rem; }
     .himig-notes .passage-body { grid-column: 2; }
@@ -1059,6 +1066,8 @@ button.room-tab[data-state='open'] { background: color-mix(in oklab, var(--ink) 
   .porma-archive .passages { display: grid; grid-template-columns: minmax(0, 1fr); gap: 0.9rem; margin-top: 1.75rem; }
   .porma-archive .passage { padding: 1.15rem 1.25rem 1.3rem; border: 1px solid var(--line); background: var(--card); }
   .porma-archive .passage:first-child { padding-top: 1.15rem; border-top: 1px solid var(--line); }
+  .porma-archive .passage:is([data-state='queued'], [data-state='sending'], [data-state='attention']) { padding-inline: 1.25rem; background: linear-gradient(90deg, color-mix(in oklab, var(--status) 6%, transparent), transparent 70%), var(--card); }
+  .porma-archive .passage[data-state='attention'] { background: linear-gradient(90deg, color-mix(in oklab, var(--warn) 7%, transparent), transparent 75%), var(--card); }
   .porma-archive .passage-gone { padding: 1rem 1.25rem; border: 1px solid var(--line); }
   .porma-archive .passage-mark { font-family: var(--font-sans); font-size: 11.5px; letter-spacing: 0.1em; text-transform: uppercase; }
   .porma-archive .passage-mark .cat { font-size: 15px; letter-spacing: 0; text-transform: none; }
@@ -1470,6 +1479,8 @@ button.room-tab[data-state='open'] { background: color-mix(in oklab, var(--ink) 
     .porma-frame { padding: 1.9rem 0 1.4rem; border-width: 1px 0; background: none; box-shadow: none; }
     .porma-archive .passages { gap: 0; }
     .porma-archive .passage, .porma-archive .passage:first-child { padding: 1.1rem 0 1.2rem; border: 0; border-top: 1px solid var(--line); background: none; }
+    .porma-archive .passage:is([data-state='queued'], [data-state='sending'], [data-state='attention']), .porma-archive .passage:is([data-state='queued'], [data-state='sending'], [data-state='attention']):first-child { padding-left: 0.85rem; padding-right: 0.5rem; background: linear-gradient(90deg, color-mix(in oklab, var(--status) 6%, transparent), transparent 70%); }
+    .porma-archive .passage[data-state='attention'], .porma-archive .passage[data-state='attention']:first-child { background: linear-gradient(90deg, color-mix(in oklab, var(--warn) 7%, transparent), transparent 75%); }
   }
 }
 @scope ([data-world='sibol']) to ([data-world]:not([data-world='sibol'])) {

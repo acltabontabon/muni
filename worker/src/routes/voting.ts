@@ -86,7 +86,7 @@ export async function openRound(db: D1Database, sprintId: string, budget: number
   return !!res.meta.changes
 }
 
-/** Closes (or cancels) the open round; a close orders the themes by its totals, parked last. False when none was open. */
+/** Closes (or cancels) the open round; a close orders the themes by its totals — flagged first, parked last. False when none was open. */
 export async function closeRound(db: D1Database, sprintId: string, status: 'closed' | 'cancelled', reason: string | null = null): Promise<boolean> {
   const res = await run(db, "UPDATE vote_rounds SET status = ?, cancel_reason = ?, closed_at = ? WHERE sprint_id = ? AND status = 'open'", status, reason, Date.now(), sprintId)
   if (!res.meta.changes) return false
@@ -94,7 +94,7 @@ export async function closeRound(db: D1Database, sprintId: string, status: 'clos
     const rows = await all<{ id: string }>(
       db,
       `SELECT t.id FROM themes t LEFT JOIN votes v ON v.theme_id = t.id AND v.round_id = (SELECT id FROM vote_rounds WHERE sprint_id = ? AND status='closed' ORDER BY closed_at DESC LIMIT 1)
-       WHERE t.sprint_id = ? GROUP BY t.id ORDER BY t.parked, count(v.theme_id) DESC, t.position`,
+       WHERE t.sprint_id = ? GROUP BY t.id ORDER BY t.parked, t.needs_attention DESC, count(v.theme_id) DESC, t.position`,
       sprintId,
       sprintId,
     )

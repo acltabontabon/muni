@@ -5,6 +5,15 @@ import { useDocumentTitle } from '@/ui'
 import { DeviceControls } from '@/ui/menus'
 import { InfoShell } from '@/ui/shell'
 
+/** A link's #section, readable; a malformed one ("#%") is just no section. */
+const fragment = (hash: string) => {
+  try {
+    return decodeURIComponent(hash.slice(1))
+  } catch {
+    return ''
+  }
+}
+
 /**
  * Privacy & data: the one place Muni explains who can see what you write, what teammates and
  * facilitators can do, whether authorship is kept, what encryption protects and what Muni keeps.
@@ -38,7 +47,7 @@ export function Privacy() {
   const { hash } = useLocation()
   // Links like /privacy#visibility land on their section (the router doesn't scroll for us).
   useEffect(() => {
-    if (hash) document.getElementById(decodeURIComponent(hash.slice(1)))?.scrollIntoView()
+    if (hash) document.getElementById(fragment(hash))?.scrollIntoView()
   }, [hash])
   return (
     <InfoShell>

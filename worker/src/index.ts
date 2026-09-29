@@ -98,7 +98,8 @@ app.onError((err, c) => {
   // Quota and platform errors surface as a recoverable message, never as a false success.
   const msg = String(err instanceof Error ? err.message : err)
   const f = failure(msg, c.req.method)
-  if (f.code !== 'quota') console.error('request failed', { path: new URL(c.req.url).pathname, method: c.req.method, error: msg.slice(0, 300) })
+  // Logged either way: a limit reached is worth knowing about too. Messages carry no content.
+  console.error('request failed', { code: f.code, path: new URL(c.req.url).pathname, method: c.req.method, error: msg.slice(0, 300) })
   return c.json({ error: f.error, code: f.code }, f.status)
 })
 

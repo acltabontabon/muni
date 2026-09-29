@@ -49,6 +49,17 @@ const item = (over: Partial<OutboxItem> = {}): OutboxItem => ({
 const deps = (store: LocalStore, fetchImpl: typeof fetch, lock?: SyncDeps['lock']): SyncDeps => ({ store, fetch: fetchImpl, csrf: async () => 'csrf', now: () => clock, lock: lock ?? ((fn) => fn()) })
 
 describe('outbox', () => {
+  it('moves a thought to another sprint without touching the draft being written there', async () => {
+    const store = memoryStore()
+    const old = item({ sprintId: 'sp-closed', status: 'attention', reason: 'closed' })
+    await store.enqueue(old)
+    await store.putDraft({ accountId: 'acct-a', sprintId: 'sp-2', payload: { ...emptyPayload(), body: 'half a thought' }, updatedAt: clock })
+    const moved = item({ sprintId: 'sp-2' })
+    await store.replace(old.id, moved)
+    expect((await store.listOutbox('acct-a')).map((i) => i.id)).toEqual([moved.id])
+    expect((await store.getDraft('acct-a', 'sp-2'))?.payload.body).toBe('half a thought')
+  })
+
   it('sends a queued thought and forgets it only after the server accepts', async () => {
     const store = memoryStore()
     const { s, fetchImpl } = fakeServer()

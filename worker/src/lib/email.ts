@@ -13,7 +13,12 @@ export interface Mail {
   to: string
   subject: string
   body: string
+  /** The same key for every attempt at one message, so a retry after a slow reply isn't a second email. */
+  key?: string
 }
+
+/** Well inside the job runner's 25 s: a slow provider fails this attempt instead of outliving it. */
+const SEND_TIMEOUT = 20_000
 
 /** Every email the server sends, counted against EMAIL_DAILY_LIMIT (kept below the provider's own quota). */
 const SENT = 'email-sent'
@@ -36,8 +41,9 @@ async function deliver(cfg: Config, db: D1Database, mail: Mail): Promise<void> {
       if (!cfg.resendApiKey) throw setupRequired('email is not configured on this server (RESEND_API_KEY missing)')
       const r = await fetch('https://api.resend.com/emails', {
         method: 'POST',
-        headers: { authorization: `Bearer ${cfg.resendApiKey}`, 'content-type': 'application/json' },
+        headers: { authorization: `Bearer ${cfg.resendApiKey}`, 'content-type': 'application/json', ...(mail.key ? { 'idempotency-key': mail.key } : {}) },
         body: JSON.stringify({ from: cfg.emailFrom, to: [mail.to], subject: mail.subject, text: mail.body }),
+        signal: AbortSignal.timeout(SEND_TIMEOUT),
       })
       if (!r.ok) throw new Error(`resend: status ${r.status}`)
       return
@@ -50,6 +56,7 @@ async function deliver(cfg: Config, db: D1Database, mail: Mail): Promise<void> {
         method: 'POST',
         headers: { 'api-key': cfg.brevoApiKey, 'content-type': 'application/json', accept: 'application/json' },
         body: JSON.stringify({ sender, to: [{ email: mail.to }], subject: mail.subject, textContent: mail.body }),
+        signal: AbortSignal.timeout(SEND_TIMEOUT),
       })
       if (!r.ok) throw new Error(`brevo: status ${r.status}`)
       return

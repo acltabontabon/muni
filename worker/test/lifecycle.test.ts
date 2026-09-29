@@ -237,6 +237,10 @@ describe('lifecycle', () => {
     expect(failure('D1_ERROR: D1 DB is overloaded', 'GET').error).not.toMatch(/saved/)
     expect(failure('D1_ERROR: UNIQUE constraint failed: entries.id: SQLITE_CONSTRAINT', 'POST')).toMatchObject({ status: 409, code: 'conflict' })
     expect(failure('something else', 'POST')).toMatchObject({ status: 500, code: 'internal' })
+    // A bug inside D1 is a bug: never passed off as a usage limit.
+    expect(failure('D1_ERROR: no such column: entries.nope: SQLITE_ERROR', 'GET')).toMatchObject({ status: 500, code: 'internal' })
+    expect(failure('D1_ERROR: near "LIMIT": syntax error: SQLITE_ERROR', 'POST')).toMatchObject({ status: 500, code: 'internal' })
+    expect(failure('D1_ERROR: Too many requests queued', 'POST')).toMatchObject({ status: 503, code: 'quota' })
   })
 
   it('invites straight into a sprint', async () => {

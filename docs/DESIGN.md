@@ -168,8 +168,8 @@ always *planned* until the facilitator starts it; a passed date changes nothing 
 **The facilitator's control** sits in the bar's margin column behind a hairline — not a tinted box
 — under *You’re facilitating*: one ink button for the next change (*Open collection*, *Close
 collection…*, *Start the retro…*, or *Open the stage* while live), what it will do written under
-it, then quiet underlined links for the stage's optional work (*Group into themes (optional)*,
-*Present on this screen*) and *More* for routine and rare things (invite, edit details, reopen,
+it, then quiet underlined links for the stage's optional work (*Group into themes*, *Present on
+this screen*) and *More* for routine and rare things (invite, edit details, reopen,
 pause, archive). Changes that reveal, reopen, start or stop say exactly what they do before they
 happen. Participants never see the column; what they do next is the page itself.
 
@@ -212,8 +212,9 @@ starts near the top.
 - **The bar at the foot** appears with a selection: the count, a name field already open, *or add to*
   every theme by name, *Take out* when something selected is in a theme, and a clear (Esc). On a
   phone it's a sheet along the bottom edge with 44px targets.
-- Rarer things stay out of the way in each pile's ⋯ menu: notes (a neutral summary, a draft
-  experiment), park, flag, merge and remove — which says its thoughts go back, exactly as written.
+- Rarer things stay out of the way in each pile's ⋯ menu: park, flag (talked about first,
+  whatever the vote), merge and remove — which says its thoughts go back, exactly as written. The
+  table asks for nothing the retro doesn't show.
   Dragging a slip onto a pile still works for those who reach for it.
 
 ## The retro: four steps
@@ -349,13 +350,15 @@ words appear only in the characters' lore, with meanings in the chooser's note.
 
 ## Surfaces and depth
 
-Cards use a 1px `--line` border plus a very soft 1–2px shadow. Only the
-stage uses larger radii and a faint radial "glow" behind the current theme.
+Cards use a 1px `--line` border plus a very soft 1–2px shadow. The stage uses
+larger radii and no glow — just its deep surface. The only radial glow is the
+page's own: the faintest dusk (or moonlit) light at the top edge (`.app-bg`).
 No glassmorphism, no gradients on text.
 
 ## Motion
 
-- 160–240ms ease-out for state changes. Nothing loops.
+- 160–240ms ease-out for state changes. Nothing loops. The one longer motion is
+  the 260 ms fade when a character's room changes (see *Characters and worlds*).
 - Every animation is gated on `prefers-reduced-motion`; reduced motion swaps
   to opacity-only transitions.
 - Muni makes no sound.
@@ -365,15 +368,17 @@ No glassmorphism, no gradients on text.
 1. Workspace — one opening over Sprints (the current sprint as a chapter, then a ledger), People and
    Settings (see *The workspace*).
 2. Sprint setup — a single tall form with sections, not a wizard.
-3. Capture — full-width composer with the Category picker (a sheet on phones),
-   "My thoughts" beneath.
+3. A sprint's page — one page per sprint, for every stage (see *A sprint's page*): while
+   collection is open, the writer (Muni's journal or the person's character room, with the
+   Category picker — a sheet on phones) and their own thoughts; once it closes, everyone's
+   thoughts without names; once the retro is done, the recap — experiments with owners and
+   review dates, and the downloads. `/capture` and `/sprints/:id/outcomes` lead here.
 4. Themes — the sorting table (see *Themes: the sorting table*).
 5. Stage — fullscreen dark, the four steps along the top, one question per screen, large type
    (see *The retro: four steps*).
 6. Companion — each person's phone: follows the stage, private votes, check-ins,
    adding without a name, saying yes to an experiment.
-7. Outcomes — experiments with owners and review dates, recap, exports.
-8. Settings — account and privacy on Account; the workspace's name, retention and activity in its
+7. Settings — account and privacy on Account; the workspace's name, retention and activity in its
    Settings section.
 
 ## Accessibility

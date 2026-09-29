@@ -18,7 +18,7 @@ Try it at [act.munimuni.app](https://act.munimuni.app).
 - **Live retrospective.** Four steps — look back, choose, talk, agree — on a shared screen with everyone's phone alongside: quick private check-ins and additions let people take part without having to speak first, and one to three experiments come back first next sprint.
 - **Keeps writing offline.** Write without a connection; thoughts are sent when you're back. Drafts stay in the tab unless you choose to keep them on the device.
 
-Sprints are encrypted on your team's devices by default: thoughts, themes, notes, experiments and the recap are sealed before they reach Muni's servers, which don't hold the keys. Names, dates, categories and who wrote what stay readable to the server — never to teammates. A facilitator can set a sprint up without encryption, and that sprint says so. See [`docs/privacy-claims.md`](docs/privacy-claims.md) for each claim and its evidence.
+Sprints are encrypted on your team's devices by default: thoughts, themes, what the room remembers, experiments and the recap are sealed before they reach Muni's servers, which don't hold the keys. Names, dates, categories and who wrote what stay readable to the server — never to teammates. A facilitator can set a sprint up without encryption, and that sprint says so. See [`docs/privacy-claims.md`](docs/privacy-claims.md) for each claim and its evidence.
 
 ## What you should know
 

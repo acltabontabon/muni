@@ -503,7 +503,7 @@ try {
   await B.page.locator('.retro-vote', { hasText: 'Vote for this' }).first().click()
   await B.page.locator('.vote-purse', { hasText: /1 of 2/ }).waitFor({ timeout: 8000 }).catch(() => {})
   check('…and a vote spends one of them', /^1 of 2 votes left/.test(flat(await B.page.locator('.vote-purse').innerText())) && (await B.page.locator('.vote-purse-coins i[data-used]').count()) === 1)
-  check('The stage counts the facilitator’s own the same way', /Your own: 2 of 2 left/.test(await F.page.locator('.retro-margin').innerText()))
+  check('The stage takes no votes, not even the facilitator’s: theirs stay private too', /never on this screen/.test(await F.page.locator('.retro-margin').innerText()) && (await F.page.locator('.retro-main .retro-vote').count()) === 0)
   await shot(B.page, '19-two-topics-phone')
   // Paused from the sprint's page: the stage and the phones say so, calmly, and offer nothing to send.
   await mara.req('POST', `/api/sprints/${s15.id}/transition`, { to: 'ready' })

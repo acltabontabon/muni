@@ -34,7 +34,10 @@ change, with what it will do written under it:
   reveals every thought, without names, to everyone in the sprint, and stops adding and editing.
   It doesn't start the retro.
 - While closed: **Start the retro…** when the team is together, and, if it helps, **Group into
-  themes (optional)** first. **More → Reopen collection…** lets people write again until the retro
+  themes** first — each theme becomes a topic to vote on and talk through, and **Flag** puts one
+  first whatever the vote. Starting the retro gathers any thoughts left out of a theme into one
+  more topic, *Everything else* (or, with no themes at all, *Everything we wrote*), so every thought
+  is talked about the same way. **More → Reopen collection…** lets people write again until the retro
   starts; what was already revealed stays visible. Once the retro has started, collection can't
   be reopened.
 - While live: **Open the stage**; **More → Pause the retro…** if you need to stop. A paused retro
@@ -60,20 +63,25 @@ email or with the sprint's own code — while it's unfinished. Everyone joins as
 ## The retro
 
 The facilitator opens the stage on a shared screen (**H** hides the controls for presenting);
-everyone else opens the retro on their own phone or laptop from the sprint's page. Opening it is
+everyone else opens the retro on their own phone or laptop with **Join the retro** on the sprint's
+page. The stage never takes votes or answers, not even the facilitator's: theirs go on their own
+device too (**Your own votes and answers** on the stage, or **Vote and answer** on the sprint's
+page). Opening it is
 being there: each person's face lights up on the stage as they arrive (while the room gathers, the
 stage also says so, once), and the facilitator can mark someone present who joins without a device. The retro is four steps, each one question:
 
 1. **Look back** — did last time's experiments help? The facilitator records *Helped*, *Didn't
    help*, *Inconclusive* or *Not tried yet* (this retro's facilitator can, even if someone else
    ran the last one). Beside them: what this sprint was proud of or wants
-   to keep. A team's first retro skips straight to that.
+   to keep. A team's first retro skips straight to that. If the sprint has an opening question, it
+   is shown here while people arrive.
 2. **Choose** — what matters most? Voting opens by itself: everyone votes privately on their phone
    (three votes each by default, at most one per theme — so with two themes, two). Nobody sees how
    the votes fall until the step ends; the facilitator sees only how many people have voted, never
    who voted for what.
-   Without themes, there's nothing to choose between, and the retro goes straight to the talk.
-3. **Talk** — one topic at a time, in the vote's order, then whatever isn't in a theme. Moving here
+   With fewer than two topics, there's nothing to choose between, and the retro goes straight to
+   the talk (the steps are numbered to match).
+3. **Talk** — one topic at a time, flagged topics first, then in the vote's order. Moving here
    closes the vote. Each topic has its question, its thoughts exactly as written, and a clock that's
    guidance, never a cut-off. The facilitator writes, on the screen, *We'll remember* (what the room
    takes from it) and, if there is one, *We could try* (an idea for Agree). A topic can end with
@@ -93,8 +101,8 @@ stage also says so, once), and the facilitator can mark someone present who join
      what's waiting; your phone says whether yours is waiting or shared. If the room moves on while
      you're writing, your words stay, with the topic they were for.
 4. **Agree** — what will we try? The ideas from the talk wait here; one to three become
-   experiments, each with an owner who says yes on their own phone. **End the retro** takes
-   everyone to the sprint's recap.
+   experiments, each with an owner who says yes on their own phone. **End the retro** shows every
+   screen and phone that it's done, with the way to the sprint's page — now its recap.
 
 The facilitator moves on with **Next** (or →; ← goes back — a topic within the talk, otherwise a
 step; the arrow keys work only while nothing else — a dialog, a menu, a field — has them); the steps

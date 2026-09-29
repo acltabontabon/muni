@@ -69,6 +69,8 @@ export interface LocalStore {
   getOutbox(id: string): Promise<OutboxItem | null>
   /** Atomically stores a new submission and removes the draft it came from. */
   enqueue(item: OutboxItem): Promise<void>
+  /** Atomically swaps one submission for another (moved to another sprint); drafts are left alone. */
+  replace(oldId: string, item: OutboxItem): Promise<void>
   /** Read-modify-write inside one transaction. Returning null leaves the record unchanged. */
   updateOutbox(id: string, fn: (item: OutboxItem) => OutboxItem | null): Promise<OutboxItem | null>
   deleteOutbox(id: string): Promise<void>
@@ -110,6 +112,7 @@ export function memoryStore(): LocalStore {
     async listOutbox(a) { return [...outbox.values()].filter((i) => i.accountId === a).sort((x, y) => x.createdAt - y.createdAt).map(clone) },
     async getOutbox(id) { const i = outbox.get(id); return i ? clone(i) : null },
     async enqueue(item) { outbox.set(item.id, clone(item)); drafts.delete(draftKey(item.accountId, item.sprintId)) },
+    async replace(oldId, item) { outbox.set(item.id, clone(item)); outbox.delete(oldId) },
     async updateOutbox(id, fn) {
       const cur = outbox.get(id)
       if (!cur) return null
@@ -223,6 +226,12 @@ export function deviceStore(): LocalStore {
       await tx(['outbox', 'drafts'], 'readwrite', (t) => {
         t.objectStore('outbox').add(item)
         t.objectStore('drafts').delete(draftKey(item.accountId, item.sprintId))
+      })
+    },
+    async replace(oldId, item) {
+      await tx(['outbox'], 'readwrite', (t) => {
+        t.objectStore('outbox').add(item)
+        t.objectStore('outbox').delete(oldId)
       })
     },
     async updateOutbox(id, fn) {

@@ -6,6 +6,15 @@ import { APP_VERSION, RELEASES, releaseDate, type ReleaseNotes, type Span } from
 import { useDocumentTitle } from '@/ui'
 import { InfoShell } from '@/ui/shell'
 
+/** A link's #section, readable; a malformed one ("#%") is just no section. */
+const fragment = (hash: string) => {
+  try {
+    return decodeURIComponent(hash.slice(1))
+  } catch {
+    return ''
+  }
+}
+
 /**
  * About Muni: what it is, which version this is, the way to what's new, and the places that
  * actually exist for help and feedback. Public, like Privacy. Every link here is real: the website,
@@ -23,7 +32,7 @@ const BAYBAYIN = 'ᜋᜓᜈᜒ ᜋᜓᜈᜒ'
 export function About() {
   useDocumentTitle('About Muni')
   const { hash } = useLocation()
-  if (PRIVACY_SECTIONS.includes(decodeURIComponent(hash.slice(1)))) return <Navigate to={`/privacy${hash}`} replace />
+  if (PRIVACY_SECTIONS.includes(fragment(hash))) return <Navigate to={`/privacy${hash}`} replace />
   const latest = RELEASES[0]
   return (
     <InfoShell>

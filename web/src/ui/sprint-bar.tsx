@@ -11,8 +11,8 @@ import { useState, type ReactNode } from 'react'
 import { Link, useNavigate } from 'react-router'
 import * as Popover from '@radix-ui/react-popover'
 import { ArrowRight, Check, Info, MoreHorizontal } from 'lucide-react'
-import { ApiError, post } from '@/api/client'
-import type { SprintDetail } from '@/api/types'
+import { ApiError, get, post } from '@/api/client'
+import type { GroupingView, SprintDetail } from '@/api/types'
 import { confirmCopy, type Action, type Confirm, type Plan, type ProgressStop } from '@/lib/lifecycle'
 import { dateRange, retroShort } from '@/lib/schedule'
 import { useResources } from '@/lib/resource'
@@ -64,6 +64,7 @@ export function useSprintControl(s: Pick<BarSprint, 'id' | 'encryption'> & { sta
     if (busy) return
     setBusy(a.to)
     try {
+      if (a.to === 'live') await gatherLoose(s.id)
       const extra = s.encryption === 'e1' ? await encryptedTransition(s.id, s.status ?? '', a.to) : {}
       const d = await post<SprintDetail>(`/api/sprints/${s.id}/transition`, { to: a.to, confirm: !!a.confirm, ...extra })
       keyring.forgetSprint(s.id)
@@ -89,6 +90,23 @@ export function useSprintControl(s: Pick<BarSprint, 'id' | 'encryption'> & { sta
   return { run, busy, confirming, transition, cancel: () => setConfirming(null), online: opts.online }
 }
 export type SprintControl = ReturnType<typeof useSprintControl>
+
+/**
+ * Before the retro starts, thoughts nobody put in a theme become one theme of their own, so they're
+ * a topic like any other: voted on, with what the room remembers, questions on phones and additions.
+ * Without themes at all, that's every thought, as one topic. Best effort: if it can't be done (a vote
+ * already open, the theme cap), the retro starts anyway and they're talked about as they are.
+ */
+async function gatherLoose(sprintId: string) {
+  try {
+    const g = await get<GroupingView>(`/api/sprints/${sprintId}/themes`)
+    if (!g.can_edit || g.voting_open || !g.ungrouped.length) return
+    const all = !g.themes.length
+    await post(`/api/sprints/${sprintId}/themes`, { title: all ? 'Everything we wrote' : 'Everything else', question: all ? 'What stands out?' : '', entry_ids: g.ungrouped.map((e) => e.id) })
+  } catch {
+    // Not gathered: the stage still has them, under "Not in a theme".
+  }
+}
 
 /**
  * Encrypted sprints: closing collection is the reveal — this device seals the sprint's secret to

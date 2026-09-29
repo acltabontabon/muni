@@ -22,10 +22,14 @@ export async function jsonBody<T = Record<string, unknown>>(c: { req: { text: ()
 export const isObject = (v: unknown): v is Record<string, unknown> => !!v && typeof v === 'object' && !Array.isArray(v)
 
 /** An optional list of ids in a request: absent is empty; anything but a list of strings is a 400. */
+/** Longer than any list of ids a sprint can hold (every thought of every participant). */
+const MAX_IDS = 12_000
+
 export function idList(v: unknown, field: string): string[] {
   if (v === undefined || v === null) return []
-  if (!Array.isArray(v) || !v.every((x) => typeof x === 'string')) throw bad(`${field} must be a list of ids`)
-  return v
+  if (!Array.isArray(v) || !v.every((x) => typeof x === 'string' && x.length <= 64)) throw bad(`${field} must be a list of ids`)
+  if (v.length > MAX_IDS) throw bad(`${field} has too many ids`)
+  return [...new Set(v)]
 }
 
 /** A calendar date as YYYY-MM-DD that exists (no 2026-02-30). */

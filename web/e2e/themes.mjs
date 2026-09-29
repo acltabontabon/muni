@@ -4,7 +4,7 @@
  * always-open empty pile or in the bar at the foot of the screen, "Add here" on a pile while
  * something is selected, "Take out" on a slip in a theme, dragging, editing a title and an opening
  * question where they're read (Enter and leaving the field save; Escape puts it back), the ⋯ menu
- * (notes, flag, merge, remove), Escape to clear, who may open it, and phones. Synthetic accounts
+ * (flag, merge, remove), Escape to clear, who may open it, and phones. Synthetic accounts
  * and text only.
  *
  * Run against a production build served by the Worker (the dev-only session endpoint must exist):
@@ -79,7 +79,7 @@ try {
   await page.getByRole('heading', { name: /Group into themes/ }).waitFor()
   // The heading shows before the thoughts arrive; wait for the table itself.
   await page.locator('.sort-loose .sort-slip').first().waitFor()
-  check('The page names what it’s for, and that it’s optional', /Optional/.test(await page.locator('.sort-head').innerText()))
+  check('The page names what it’s for, and what happens to thoughts left out', /becomes a topic|become one topic/.test(await page.locator('.sort-head').innerText()))
   check('First visit: how it works, in three numbered lines', (await page.locator('.sort-steps li').count()) === 3 && /Tap the thoughts that belong together/.test(await page.locator('.sort-steps').innerText()))
   check('The sprint stays at two lines, so the sorting starts near the top', (await page.locator('.sbar[data-slim]').count()) === 1 && (await page.locator('.sort-slip').first().boundingBox()).y < 600, `${Math.round((await page.locator('.sort-slip').first().boundingBox()).y)}px`)
   check('Every thought is a slip with a visible check', (await page.locator('.sort-loose .sort-slip').count()) === 6 && (await page.locator('.sort-loose .sort-check').count()) === 6)
@@ -159,15 +159,12 @@ try {
   check('…in one request: its answer is the table, and its own hint isn’t read again', calls.length === 1 && calls[0].startsWith('PATCH '), calls.join(', '))
   if (SHOTS) await page.screenshot({ path: `${SHOTS}/themes-two.png`, fullPage: true })
 
-  // The ⋯ menu: notes, flag, merge, remove.
-  check('Notes stay out of the way until asked for', (await page.locator('.sort-notes').count()) === 0)
+  // The ⋯ menu: flag, merge, remove. Nothing asks for words the retro never shows.
   await pile(page, 1).getByRole('button', { name: 'More for this theme' }).click()
-  await page.getByRole('menuitem', { name: /Add notes/ }).click()
-  check('…and open from the menu', (await pile(page, 1).locator('textarea[aria-label="Summary"]').count()) === 1)
-  await pile(page, 1).getByRole('button', { name: 'More for this theme' }).click()
+  check('The menu has no notes to fill in', (await page.getByRole('menuitem', { name: /notes/i }).count()) === 0)
   await page.getByRole('menuitem', { name: /Flag/ }).click()
-  await pile(page, 1).locator('text=Flagged for the retro').waitFor()
-  check('Flag, from the theme’s menu', (await themes()).themes[1].needs_attention === true)
+  await pile(page, 1).locator('text=Flagged · talked about first').waitFor()
+  check('Flag, from the theme’s menu: it goes first in the talk, whatever the vote', (await themes()).themes[1].needs_attention === true)
   await pile(page, 1).getByRole('button', { name: 'More for this theme' }).click()
   await page.getByRole('menuitem', { name: /Merge/ }).click()
   await page.getByRole('dialog').getByRole('button', { name: /Who owns staging/ }).click()

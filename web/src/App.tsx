@@ -11,7 +11,7 @@ import { Companion } from './routes/Companion'
 import { Suspense, useState } from 'react'
 import { Spinner, useDocumentTitle } from './ui'
 import { EntranceShell, NameStep, PROGRESS } from './ui/entrance'
-import { lazyPart, Loading } from './ui/lazy'
+import { lazyPart, Loading, PageBoundary } from './ui/lazy'
 import { LeaveDialog } from './ui/menus'
 import { LocalProvider } from './lib/local/LocalProvider'
 import { ResourceProvider } from './lib/resource'
@@ -79,6 +79,12 @@ function NameGate() {
   )
 }
 
+/** A failure on one page stays on that page: going elsewhere starts afresh. */
+function RouteBoundary({ children }: { children: React.ReactNode }) {
+  const { pathname } = useLocation()
+  return <PageBoundary at={pathname}>{children}</PageBoundary>
+}
+
 export function App() {
   const { me } = useAuth()
   return (
@@ -88,6 +94,7 @@ export function App() {
     <WorldProvider>
     <LocalProvider key={me?.account_id ?? 'signed-out'} accountId={me?.account_id ?? null}>
     <ResourceProvider>
+    <RouteBoundary>
     <Suspense fallback={<Loading page />}>
     <Routes>
       <Route path="/signin" element={<SignIn />} />
@@ -123,6 +130,7 @@ export function App() {
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
     </Suspense>
+    </RouteBoundary>
     </ResourceProvider>
     </LocalProvider>
     </WorldProvider>

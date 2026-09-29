@@ -404,7 +404,7 @@ export function SprintSetup() {
                 <Label htmlFor="f-opening_question" hint="optional">Opening question for the retro</Label>
                 {/* One this device can't show yet stays as it is: it's never copied back over the real one. */}
                 <Input id="f-opening_question" value={questionLocked ? '' : f.opening_question} disabled={questionLocked} onChange={(e) => set('opening_question', e.target.value)} placeholder={questionLocked ? 'Can’t be shown on this device' : 'What’s one thing from this sprint you’d want a new teammate to know?'} maxLength={200} />
-                <Help>{questionLocked ? 'This device doesn’t have the sprint’s key yet, so the question can’t be shown or changed here. Saving leaves it as it is.' : 'Shown for a minute while people arrive. Skip it to go straight to the conversation.'}</Help>
+                <Help>{questionLocked ? 'This device doesn’t have the sprint’s key yet, so the question can’t be shown or changed here. Saving leaves it as it is.' : 'Shown on the stage’s first step, while people arrive. Leave it empty if the room doesn’t need one.'}</Help>
               </div>
               <div className="grid gap-4 sm:grid-cols-2">
                 <div>

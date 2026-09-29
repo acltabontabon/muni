@@ -1,8 +1,8 @@
 <!doctype html>
 <!--
-  Muni marketing site. Static, no build step: host this folder anywhere
-  (GitHub Pages at /muni, or the root of a custom domain). Every path is relative.
-  Set data-app-url to the app's address to turn the "Coming soon" buttons into links.
+  Muni marketing site. Static, no build step; every path is relative. Published at
+  munimuni.app by the "Publish munimuni.app" workflow (.github/workflows/pages.yml).
+  data-app-url is the app's address; the "Open Muni" links point there.
 -->
 <html lang="en" data-sky="day" data-app-url="https://act.munimuni.app">
 <head>
@@ -23,8 +23,11 @@
   <meta property="og:url" content="https://munimuni.app/" />
   <link rel="canonical" href="https://munimuni.app/" />
   <meta name="twitter:card" content="summary_large_image" />
+  <meta name="twitter:title" content="Muni — Good retros start before the meeting" />
+  <meta name="twitter:description" content="Capture thoughts throughout the sprint. Reflect together. Turn insights into action." />
   <meta name="twitter:image" content="https://munimuni.app/og.jpg" />
   <link rel="icon" href="favicon.svg" type="image/svg+xml" />
+  <link rel="apple-touch-icon" href="apple-touch-icon.png" />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,300..600;1,9..144,300..500&family=Geist+Mono:wght@400;500&family=Geist:wght@300..700&display=swap" rel="stylesheet" />
@@ -71,7 +74,7 @@
       <a href="#privacy">Privacy</a>
       <a href="#source">Open source</a>
     </nav>
-    <a class="btn btn-small app-link" href="#" data-soon="Coming soon">Open Muni</a>
+    <a class="btn btn-small app-link" href="https://act.munimuni.app" data-soon="Coming soon">Open Muni</a>
   </header>
 
   <main id="main">
@@ -90,7 +93,7 @@
         <div class="hero-foot reveal-up" style="--d: 220ms">
           <p class="lede">Capture thoughts throughout the sprint. Reflect together. Turn insights into action.</p>
           <div class="ctas">
-            <a class="btn btn-primary app-link" href="#" data-soon="Coming soon">Open Muni <span aria-hidden="true">→</span></a>
+            <a class="btn btn-primary app-link" href="https://act.munimuni.app" data-soon="Coming soon">Open Muni <span aria-hidden="true">→</span></a>
             <a class="btn btn-ghost" href="#how">See how it works</a>
           </div>
         </div>
@@ -449,8 +452,8 @@
             <p class="exp-change">For the next sprint, reserve a 15-minute daily review window right after standup.</p>
             <dl>
               <div><dt>We’ll know by</dt><dd>PRs wait less than one working day for a first review.</dd></div>
-              <div><dt>Owner</dt><dd><span class="avatar">M</span> Maya Reyes <span class="accepted">accepted</span></dd></div>
-              <div><dt>Revisit</dt><dd>Next retro</dd></div>
+              <div><dt>Owner</dt><dd><span class="avatar">M</span> Maya Reyes owns this</dd></div>
+              <div><dt>Back on</dt><dd>Oct 25</dd></div>
             </dl>
           </div>
         </div>
@@ -494,7 +497,7 @@
         <div class="facts">
           <div><h3>Sealed, then shared without names</h3><p>Until the facilitator closes collection, nobody on your team can read what you wrote — the facilitator included. Then the sprint sees every thought at once, in random order, without names.</p></div>
           <div><h3>Encrypted on your team’s devices</h3><p>Sprints are encrypted in the browser by default, before anything reaches Muni’s servers, and the servers don’t hold the keys to read them. A facilitator can set a sprint up without encryption, and it says so. Muni still knows who wrote each thought and when, and your wording can still give you away.</p></div>
-          <div><h3>No password, no email</h3><p>You sign in with a passkey — your fingerprint, face or screen lock. It’s the only way in: there’s no password or email to steal.</p></div>
+          <div><h3>No password, no email sign-in</h3><p>You sign in with a passkey — your fingerprint, face or screen lock. It’s the only way in: there’s no password to steal, and no email that can sign you in.</p></div>
           <div><h3>No ads, no trackers, no AI</h3><p>The app has no analytics, ad trackers or session recording, and no thought is sent to an AI service.</p></div>
         </div>
         <p class="privacy-more"><a class="btn btn-ghost" href="https://act.munimuni.app/privacy">How privacy works <span aria-hidden="true">→</span></a></p>
@@ -555,9 +558,9 @@ if (typeof v !== 'string' || !ENVELOPE_RE.test(v))
       <div class="container">
         <svg class="closing-mark" width="96" height="96" aria-hidden="true"><use href="#mark" /></svg>
         <h2 id="closing-title" class="display">Bring it to your <em>next sprint</em>.</h2>
-        <p class="closing-note">Join from your team’s QR code or an invite link with a passkey — no password, no email. Use it in the browser, or install it on your phone.</p>
+        <p class="closing-note">Join from your team’s QR code, a link or an emailed invitation, and sign in with a passkey — no password. Use it in the browser, or install it on your phone.</p>
         <div class="ctas center">
-          <a class="btn btn-primary app-link" href="#" data-soon="Coming soon">Open Muni <span aria-hidden="true">→</span></a>
+          <a class="btn btn-primary app-link" href="https://act.munimuni.app" data-soon="Coming soon">Open Muni <span aria-hidden="true">→</span></a>
           <a class="btn btn-ghost" href="#how">Watch the sprint again</a>
         </div>
       </div>

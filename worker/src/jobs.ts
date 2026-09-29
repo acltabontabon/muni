@@ -91,7 +91,7 @@ async function claim(db: D1Database): Promise<JobRow | 'lost' | null> {
 async function execute(env: AppEnv, job: JobRow) {
   const payload = JSON.parse(job.payload || '{}') as Record<string, unknown>
   try {
-    await Promise.race([dispatch(env, job.kind, payload), new Promise((_, rej) => setTimeout(() => rej(new Error('timed out')), 25_000))])
+    await Promise.race([dispatch(env, job.kind, payload, job.id), new Promise((_, rej) => setTimeout(() => rej(new Error('timed out')), 25_000))])
     // An email job's payload is the recipient's address and the message (an invitation's link is the
     // only copy of its token). Once it's sent or given up on, only the bookkeeping stays.
     await run(env.DB, "UPDATE jobs SET status='succeeded', finished_at=?, locked_at=NULL, payload=CASE WHEN kind='email' THEN '{}' ELSE payload END WHERE id=?", Date.now(), job.id)
@@ -108,11 +108,11 @@ async function execute(env: AppEnv, job: JobRow) {
   }
 }
 
-async function dispatch(env: AppEnv, kind: string, payload: Record<string, unknown>) {
+async function dispatch(env: AppEnv, kind: string, payload: Record<string, unknown>, jobId: string) {
   const cfg = config(env)
   switch (kind) {
     case 'email':
-      return sendMail(cfg, env.DB, { to: String(payload.to), subject: String(payload.subject ?? 'Muni'), body: String(payload.body ?? '') })
+      return sendMail(cfg, env.DB, { to: String(payload.to), subject: String(payload.subject ?? 'Muni'), body: String(payload.body ?? ''), key: `muni-job-${jobId}` })
     case 'reminder':
       return reminders(env, String(payload.sprint_id), String(payload.kind ?? 'day_before'))
     case 'retention':

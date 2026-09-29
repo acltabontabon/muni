@@ -683,6 +683,18 @@ export function LocalThought({ item, moveChoices, showDestination, onRemove }: {
     }
   }
   const sending = item.status === 'sending'
+  const [movingTo, setMovingTo] = useState<string | null>(null)
+  const move = async (o: Destination) => {
+    if (movingTo) return
+    setMovingTo(o.sprintId)
+    try {
+      await local.moveTo(item.id, o)
+    } catch (e) {
+      toast(e instanceof Error && e.message ? e.message : 'Couldn’t move it — try again.', 'danger')
+    } finally {
+      setMovingTo(null)
+    }
+  }
   const actions: MenuAction[] = [
     ...(canEdit ? [{ label: 'Edit', icon: <Pencil className="size-4" aria-hidden />, onSelect: () => setEditing(true), disabled: sending }] : []),
     { label: 'Copy text', icon: <Copy className="size-4" aria-hidden />, onSelect: copy },
@@ -721,7 +733,7 @@ export function LocalThought({ item, moveChoices, showDestination, onRemove }: {
               <div className="mt-2 flex flex-wrap items-center gap-2">
                 <CornerDownRight className="size-4 text-ink-faint" aria-hidden />
                 {others.map((o) => (
-                  <Button key={o.sprintId} size="sm" onClick={() => local.moveTo(item.id, o)}>Send to {o.sprintName} instead</Button>
+                  <Button key={o.sprintId} size="sm" busy={movingTo === o.sprintId} disabled={!!movingTo} onClick={() => void move(o)}>Send to {o.sprintName} instead</Button>
                 ))}
               </div>
             ) : null}

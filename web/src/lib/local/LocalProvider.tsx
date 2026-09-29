@@ -63,6 +63,8 @@ const channel = typeof BroadcastChannel !== 'undefined' ? new BroadcastChannel('
 // that outlives the clear — it's being torn down — compares against it and writes nothing back.
 let generation = 0
 export const localGeneration = () => generation
+// Thoughts being moved to another sprint right now (see moveTo).
+const moving = new Set<string>()
 
 export function hasDeviceStorage() {
   return typeof indexedDB !== 'undefined'
@@ -77,6 +79,10 @@ export function LocalProvider({ accountId, children }: { accountId: string | nul
   const [items, setItems] = useState<OutboxItem[]>([])
   const [sync, setSync] = useState<SyncState>('idle')
   const [recentlySubmitted, setRecent] = useState<string[]>([])
+  // Offline (or the server unreachable), waiting grows: 2 s, 4 s … up to a minute. Coming back
+  // online, to the foreground, or a key arriving still sends at once.
+  const [offlineUntil, setOfflineUntil] = useState<number | null>(null)
+  const offlineStreak = useRef(0)
   const store: LocalStore = keepLocal ? (device ??= deviceStore()) : memory
   const storeRef = useRef(store)
   storeRef.current = store
@@ -106,6 +112,11 @@ export function LocalProvider({ accountId, children }: { accountId: string | nul
       // and a send that doesn't answer in time is tried again later (its idempotency key keeps it single).
       const r = await flush({ store: storeRef.current, fetch: (i, init) => fetch(i, { ...init, signal: AbortSignal.timeout(20_000) }), csrf: async () => csrfToken() || null, notify: () => { reload(); channel?.postMessage('changed') }, seal: sealThought }, { force })
       setSync(r.state === 'ok' || r.state === 'locked' ? 'idle' : r.state)
+      if (r.state === 'offline') setOfflineUntil(Date.now() + Math.min(60_000, 1000 * 2 ** ++offlineStreak.current))
+      else if (r.state === 'ok') {
+        offlineStreak.current = 0
+        setOfflineUntil(null)
+      }
       if (r.submitted.length) setRecent((prev) => [...prev, ...r.submitted.map((s) => s.id)].slice(-20))
       if (r.state === 'offline') registerBackgroundSync()
       return r
@@ -159,9 +170,12 @@ export function LocalProvider({ accountId, children }: { accountId: string | nul
   useEffect(() => {
     const due = nextDue(items)
     if (due === null || sync === 'signed_out' || sync === 'upgrade') return
-    const t = window.setTimeout(() => run(), Math.max(1000, due - Date.now()))
+    // No connection at all: the browser says when it's back ('online' above), so no timer meanwhile.
+    if (sync === 'offline' && typeof navigator !== 'undefined' && navigator.onLine === false) return
+    const at = sync === 'offline' && offlineUntil ? Math.max(due, offlineUntil) : due
+    const t = window.setTimeout(() => run(), Math.max(1000, at - Date.now()))
     return () => window.clearTimeout(t)
-  }, [items, sync, run])
+  }, [items, sync, offlineUntil, run])
 
   // Another tab changed who keeps drafts here (e.g. turned it off): follow it rather than recreate the store.
   useEffect(() => {
@@ -214,15 +228,16 @@ export function LocalProvider({ accountId, children }: { accountId: string | nul
           const dev = (device ??= deviceStore())
           // Carry this tab's drafts and queue over, so turning it on never loses anything.
           if (accountId) {
-            for (const d of await memory.listDrafts(accountId)) await guard(() => dev.putDraft(d))
+            // The queue first: adding a queued thought clears its sprint's draft, so drafts come after.
             for (const i of await memory.listOutbox(accountId)) await guard(() => dev.enqueue(i))
+            for (const d of await memory.listDrafts(accountId)) await guard(() => dev.putDraft(d))
             await memory.clearAccount(accountId)
           }
         } else {
           if (accountId && device && !opts?.discard) {
             // Keep working in this tab: move what is here into memory before the device copy goes.
-            for (const d of await device.listDrafts(accountId)) await memory.putDraft(d)
             for (const i of await device.listOutbox(accountId)) await memory.enqueue(i)
+            for (const d of await device.listDrafts(accountId)) await memory.putDraft(d)
           }
           // Only this person's records go. Someone else who keeps drafts here keeps theirs; the
           // database itself is removed once nobody does.
@@ -253,12 +268,23 @@ export function LocalProvider({ accountId, children }: { accountId: string | nul
         channel?.postMessage('changed')
       },
       async moveTo(id, dest) {
-        const cur = await store.getOutbox(id)
-        if (!cur) return
-        // A new submission for the new destination; never backdated, never silently redirected.
-        await enqueue(dest, cur.payload)
-        await store.deleteOutbox(id)
-        await reload()
+        // One move at a time per thought: a second press while the first is on its way does nothing.
+        if (moving.has(id)) return
+        moving.add(id)
+        try {
+          const cur = await store.getOutbox(id)
+          if (!cur || cur.status === 'sending') return
+          const now = Date.now()
+          // A new submission for the new destination, never backdated, never silently redirected; it
+          // takes the old one's place in one step, and the draft being written there stays.
+          const item: OutboxItem = { ...cur, id: crypto.randomUUID(), workspaceId: dest.workspaceId, sprintId: dest.sprintId, sprintName: dest.sprintName, encrypted: dest.encrypted, revision: 1, status: 'queued', attempts: 0, nextAttemptAt: 0, sendingSince: null, reason: null, message: null, createdAt: now, updatedAt: now, v: RECORD_VERSION }
+          await guard(() => store.replace(id, item))
+          await reload()
+          channel?.postMessage('changed')
+        } finally {
+          moving.delete(id)
+        }
+        await run(true)
       },
       async retry() {
         if (accountId) for (const i of await store.listOutbox(accountId)) if (i.status === 'queued') await store.updateOutbox(i.id, (c) => ({ ...c, nextAttemptAt: 0 }))

@@ -16,6 +16,41 @@ those as highlights. The app's About → What's new and each GitHub release are 
 
 ## [Unreleased]
 
+### Changed
+
+- **A retro without themes is a full retro.** Starting the retro gathers any thoughts not in a theme
+  into one topic of their own — *Everything else*, or *Everything we wrote* when there are no themes
+  — so they get what every topic gets: notes the room keeps, questions on phones, additions without
+  names, and ideas that carry into Agree. The start dialog says what will happen.
+- **Choosing only when there’s a choice.** With fewer than two topics, the retro goes straight from
+  looking back to talking, and the steps are numbered to match.
+- **Votes stay private on the shared screen.** The stage no longer shows voting buttons, even to the
+  facilitator; everyone, facilitator included, votes and answers from their own device. The stage
+  links to that page for the facilitator, and the sprint’s page offers it while the retro runs.
+- **Flagging a theme means something.** A flagged theme is talked about first, whatever the vote.
+  The sorting table no longer asks for a summary or draft experiment the retro never showed.
+- **The opening question is shown.** A sprint’s opening question now appears on the retro’s first
+  step while people arrive.
+- Clearer words where the retro starts and ends: the stage opens for the facilitator, everyone else
+  sees *Join the retro* on the sprint’s page, and ending it shows every screen that it’s done.
+
+### Fixed
+
+- Thoughts still sending, or waiting to send, sat against their edge in some rooms (Himig, Kape,
+  Guhit, Bola, Pahina, Porma, Biyahe); they’re inset and tinted the same way everywhere now.
+- Offline, a thought waiting to send no longer retries every second; it waits longer each time, and
+  sends as soon as the connection is back.
+- *Send to another sprint instead* no longer clears the draft you were writing in that sprint, and
+  can’t send a thought twice when pressed twice.
+- Turning *Keep drafts on this device* on or off no longer loses a draft written beside a waiting
+  thought.
+- A page that fails to draw now says so and offers a reload, instead of going blank; a malformed
+  link to an About or Privacy section no longer breaks the page.
+- On a phone, the retro’s stage keeps its way to vote and add privately.
+- Server errors are no longer reported as “usage limit”, and every unexpected error is logged.
+- A slow email provider can no longer cause an invitation or reminder to be sent twice.
+- Moving many thoughts into a theme at once no longer risks hitting the database’s per-request limit.
+
 ## [1.0.0-rc.1] - 2026-09-29
 
 ### Added

@@ -1,9 +1,9 @@
 # Muni — architecture and privacy model
 
 Muni (from the Filipino *muni-muni*, to reflect) is a sprint-retrospective app built around one
-loop: capture observations while they are fresh → reveal the sprint's themes → choose worthwhile
-conversations → invite everyone to contribute → agree on a few experiments → revisit them next
-sprint.
+loop: capture thoughts while they are fresh → reveal them together, without names → look back at
+last time's experiments → choose what to talk about → talk → agree on one to three experiments →
+revisit them next sprint.
 
 This note describes the implementation in this repository and, above all, where the privacy
 boundary sits. The security review in [`security-review-2026-09.md`](security-review-2026-09.md)

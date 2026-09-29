@@ -44,7 +44,7 @@ revealed thoughts carry no author, neither in the response nor in the envelope.
 | Theme title, summary, question, draft experiment, order reason | `themes.*` | Field envelopes |
 | Discussion notes (takeaway, what happened, impact, could try, notes) | `discussion_notes.*`, returned in stage snapshots | Field envelopes |
 | Experiment change, success signal, outcome note; copied theme title | `experiments.*` | Field envelopes (copy is the theme's envelope) |
-| Recap | `recaps.body` | Field envelope; the server-side draft generator is refused |
+| Recap | `recaps.body` | Field envelope; drafted on the facilitator's device and saved as sent — the server never drafts one |
 | Opening question | `sprints.opening_question` | Field envelope |
 | Vote-reset reason typed by the facilitator | `vote_rounds.cancel_reason` | Field envelope (system reasons stay plain) |
 | Agenda reasons | Durable Object `meeting.agenda[].reason` | Opaque envelope (from themes) |

@@ -362,13 +362,20 @@ function SprintView({ sprintId }: { sprintId: string }) {
     } else {
       title = <>The retro is <em>happening</em> now</>
       if (participant && !fac) {
-        text = 'Vote, answer and add from this device. Nothing you send carries your name.'
+        text = 'Vote, answer and add from this device. Your votes, answers and additions never carry your name.'
         action = (
           <Link to={`/sprints/${sprintId}/room`} className="ws-btn ws-btn--primary">
             Join the retro <ArrowRight className="size-4" aria-hidden />
           </Link>
         )
-      } else text = fac ? 'Guide it from the stage. Your own companion for this device is there too.' : 'You’re not in this sprint’s retro.'
+      } else if (fac) {
+        text = 'You’re running it from the stage. Your own votes and answers go here, where nobody sees them — open this on your phone, or next to the stage.'
+        action = (
+          <Link to={`/sprints/${sprintId}/room`} className="ws-btn ws-btn--secondary">
+            Vote and answer <ArrowRight className="size-4" aria-hidden />
+          </Link>
+        )
+      } else text = 'You’re not in this sprint’s retro. The facilitator can add you to the next one.'
       lights = 3
     }
     const sheet = (

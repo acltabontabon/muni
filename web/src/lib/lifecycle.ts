@@ -137,14 +137,14 @@ export function sprintPlan(s: PlanInput, opts: { online?: boolean; now?: number 
         line =
           n === 0
             ? 'Collection is closed and no thoughts were added.'
-            : `${n === null || n === undefined ? 'The thoughts are' : n === 1 ? '1 thought is' : `${n} thoughts are`} in and visible to everyone in the sprint. Group them into themes if it helps, or start the retro when the team is together.`
+            : `${n === null || n === undefined ? 'The thoughts are' : n === 1 ? '1 thought is' : `${n} thoughts are`} in and visible to everyone in the sprint. Grouping them into themes gives the team topics to vote on; anything left out becomes one topic of its own.`
       } else line = 'Thoughts are read-only now. Next is the retro, which starts when the facilitator begins it.'
       if (can('live')) {
         control = { kind: 'transition', to: 'live', label: 'Start the retro…', confirm: 'start', then: `${base}/stage` }
-        consequence = 'Opens the retro on the shared screen and on everyone’s devices.'
+        consequence = s.theme_count ? 'Opens the stage for you. Everyone else sees Join the retro on the sprint’s page.' : 'Opens the stage for you, with every thought as one topic. Everyone else sees Join the retro on the sprint’s page.'
       }
       if (fac) {
-        secondary = [{ kind: 'link', href: `${base}/prepare`, label: s.theme_count ? 'Review themes' : 'Group into themes (optional)' }]
+        secondary = [{ kind: 'link', href: `${base}/prepare`, label: s.theme_count ? 'Review themes' : 'Group into themes' }]
         more = [...(can('collecting') ? [{ kind: 'transition', to: 'collecting', label: 'Reopen collection…', confirm: 'reopen' } as Action] : []), invite, edit]
         if (n === 0) notes.push(can('collecting') ? 'You can reopen collection, or hold the retro anyway; talking about why is useful too.' : 'You can still hold the retro; talking about why is useful too.')
         if (s.has_session && !can('collecting')) notes.push('The retro has started once, so collection can’t be reopened.')
@@ -225,8 +225,10 @@ export function confirmCopy(kind: Confirm, s: { retro_at: string; timezone: stri
       return {
         title: 'Start the retro?',
         body: [
-          'The retro opens on the stage for the shared screen, and on everyone’s devices.',
-          s.theme_count ? 'Collection can’t be reopened after this.' : 'Collection can’t be reopened after this. There are no themes: every thought is shown in the retro as it was written.',
+          'The stage opens here, for the shared screen. Everyone in the sprint sees Join the retro on its page, to vote and answer from their own device.',
+          s.theme_count
+            ? 'Any thoughts not in a theme become one more topic, “Everything else”. Collection can’t be reopened after this.'
+            : 'There are no themes, so every thought becomes one topic to talk through — there’s nothing to vote on. Collection can’t be reopened after this.',
         ],
         confirm: 'Start the retro',
         cancel: 'Not yet',

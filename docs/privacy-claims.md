@@ -2,13 +2,14 @@
 
 Every public statement about privacy, and what backs it. The explanation has one home:
 `web/src/routes/Privacy.tsx` (act.munimuni.app/privacy, reached from Account & settings, About and the
-sign-in). Elsewhere the app only states what matters at a decision point, in a line, and links there:
-the close-collection confirmation (`web/src/lib/lifecycle.ts`), opening collection and the encryption
-switch in sprint setup (`web/src/routes/SprintSetup.tsx`), the downloads line on Outcomes, and the note
-on a sprint set up without encryption (`EncryptionLine` in `web/src/ui/keys.tsx`). Recovery and key-change
-instructions in Account (`web/src/ui/security.tsx`, `keys.tsx`) are instructions, not claims. The
-marketing site's section is `site/index.html`; release notes (`CHANGELOG.md`) repeat only claims listed
-here. Change a claim and its evidence together; if the evidence goes away, the claim goes too.
+sign-in). Elsewhere the app only states what matters at a decision point, in a line: the
+close-collection confirmation (`web/src/lib/lifecycle.ts`), opening collection and the encryption
+switch in sprint setup (`web/src/routes/SprintSetup.tsx`), the downloads line in the sprint's recap on
+its page (`web/src/routes/Outcomes.tsx`), and the note on a sprint set up without encryption
+(`EncryptionLine` in `web/src/ui/keys.tsx`) — the one of these that links to the Privacy page.
+Recovery and key-change instructions in Account (`web/src/ui/security.tsx`, `keys.tsx`) are
+instructions, not claims. The marketing site's section is `site/index.html`; release notes
+(`CHANGELOG.md`) repeat only claims listed here. Change a claim and its evidence together; if the evidence goes away, the claim goes too.
 
 Kinds of evidence:
 
@@ -132,6 +133,6 @@ Last checked 2026-09-29, against `main` at 1.0.0-rc.1.
 | The key is held by the server only locked: per passkey (PRF wrap), by an optional recovery key, and per device by a share that opens nothing alone | Code + Test | `routes/keys.ts` (stores `p1.` wraps, the recovery blob and `device_unlocks` shares it can't open); `unlock.test.ts` D1 scan |
 | Muni can't recover a lost key | Code | Server holds only wraps it can't open (recovery blob, passkey wraps) and device shares that open nothing alone (`routes/keys.ts`) |
 | Devices won't share a key with a teammate whose key changed until confirmed | Test | `keyring.test.ts` “pins teammates’ keys on first use…” |
-| Encrypted sprints' exports and recap drafts are made in the browser | Test | `encryption.test.ts` (export, server recap → 409); `lib/e2ee/local-export.ts` |
+| Encrypted sprints' exports and recap drafts are made in the browser | Test + Code | `encryption.test.ts` (server export → 409; a recap saved without its text → 400, the server never drafts one); `routes/commitments.ts` (recap PUT takes only the text sent); `lib/e2ee/local-export.ts` |
 | What stays readable: names, goal, dates, people, categories, authorship, timing, counts | Code | `docs/ENCRYPTION.md` §2; `routes/*` store these as plain columns |
 | Depends on the genuine app being delivered; not audited | — | Stated limitation |

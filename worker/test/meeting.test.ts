@@ -123,6 +123,16 @@ describe('meeting', () => {
     expect((await command(owner, s, { type: 'set_phase', phase: 'talk' })).body.current_theme_id).toBe(themes[0])
   })
 
+  it('with one theme, skips choosing: there is nothing to choose between', async () => {
+    const { owner, members, ws } = await team(1)
+    const { s, themes } = await live(owner, members, ws, 1)
+    expect((await snap(owner, s)).body.phases).toEqual(['look_back', 'talk', 'agree'])
+    // Asked for anyway, no vote opens.
+    await command(owner, s, { type: 'set_phase', phase: 'choose' })
+    expect((await get(`/api/sprints/${s}/votes`, members[0])).body.current).toBeNull()
+    expect((await command(owner, s, { type: 'set_phase', phase: 'talk' })).body.current_theme_id).toBe(themes[0])
+  })
+
   it('without themes, goes from looking back to talking through the thoughts as they are', async () => {
     const { owner, members, ws } = await team(1)
     const s = await sprint(owner, members, ws, 'collecting')

@@ -9,9 +9,9 @@
  * them to a theme: every pile says "Add 2 here" while something is selected. A slip in a theme
  * has its own "Take out". Until the first theme exists, three numbered lines say all of this.
  * Dragging still works. A theme's title and opening question are edited where they're read; its
- * notes, park, flag, merge and remove live in its ⋯ menu. Thoughts stay exactly as written.
+ * park, flag (talked about first), merge and remove live in its ⋯ menu. Thoughts stay exactly as written.
  */
-import { useCallback, useEffect, useId, useRef, useState, useSyncExternalStore } from 'react'
+import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from 'react'
 import { useNavigate, useParams } from 'react-router'
 import { clsx } from 'clsx'
 import * as Popover from '@radix-ui/react-popover'
@@ -238,7 +238,7 @@ export function Prepare() {
       {bar}
       <header className="sort-head">
         <h1 className="sort-title">Group into <em>themes</em></h1>
-        <p className="sort-lede">Optional. Each theme becomes a topic in the retro. Thoughts stay exactly as written.</p>
+        <p className="sort-lede">Each theme becomes a topic the team votes on and talks through. Thoughts stay exactly as written; any you leave out become one topic, “Everything else”.</p>
         {canEdit && themes.length === 0 && loose.length ? (
           <ol className="sort-steps" aria-label="How">
             <li><span>1</span>Tap the thoughts that belong together</li>
@@ -355,14 +355,12 @@ function Slip({ e, canEdit, picked, onToggle, onTakeOut }: { e: SharedEntry; can
 /** A theme as a pile: its number and name, its opening question, its slips. While thoughts are selected, it offers to take them. */
 function Pile({ t, n, all, sprintId, canEdit, picked, onToggle, addable, onAdd, onTakeOut, onDropEntry, structural, apply }: { t: ThemeView; n: number; all: ThemeView[]; sprintId: string; canEdit: boolean; picked: Set<string>; onToggle: (id: string) => void; addable: number; onAdd: () => void; onTakeOut: (id: string) => void; onDropEntry: (id: string) => void; structural: Structural; apply: Apply }) {
   const toast = useToast()
-  const uid = useId()
   const [over, setOver] = useState(false)
-  const [notes, setNotes] = useState(false)
   const [merging, setMerging] = useState(false)
   const [removing, setRemoving] = useState(false)
   const [saved, setSaved] = useState<string | null>(null)
-  const save = async (field: 'title' | 'question' | 'summary' | 'draft_experiment', value: string) => {
-    if ((field === 'draft_experiment' ? t.draft_experiment ?? '' : t[field]) === value) return
+  const save = async (field: 'title' | 'question', value: string) => {
+    if (t[field] === value) return
     if (field === 'title' && !value.trim()) return
     try {
       await apply(() => patch<GroupingView>(`/api/sprints/${sprintId}/themes/${t.id}`, { [field]: value }))
@@ -380,7 +378,6 @@ function Pile({ t, n, all, sprintId, canEdit, picked, onToggle, addable, onAdd, 
     }
   }
   const mix = Object.entries(t.category_mix).filter(([, c]) => c > 0)
-  const hasNotes = !!(t.summary || t.draft_experiment)
   return (
     <li
       className="sort-pile"
@@ -405,16 +402,15 @@ function Pile({ t, n, all, sprintId, canEdit, picked, onToggle, addable, onAdd, 
             ) : null}
             {typeof t.votes === 'number' ? <span>{t.votes} {t.votes === 1 ? 'vote' : 'votes'}</span> : null}
             {t.parked ? <span className="sort-mark">Parked</span> : null}
-            {t.needs_attention ? <span className="sort-mark sort-mark--flag">Flagged for the retro</span> : null}
+            {t.needs_attention ? <span className="sort-mark sort-mark--flag">Flagged · talked about first</span> : null}
             {saved ? <span className="sort-saved" role="status">Saved</span> : null}
           </p>
         </div>
         {canEdit ? (
           <ThemeMenu
             items={[
-              { label: notes || hasNotes ? 'Notes' : 'Add notes…', run: () => setNotes(true) },
               { label: t.parked ? 'Bring back from parked' : 'Park — keep it out of the retro', run: () => flag('parked', !t.parked) },
-              { label: t.needs_attention ? 'Clear the flag' : 'Flag — discuss it whatever the vote', run: () => flag('needs_attention', !t.needs_attention) },
+              { label: t.needs_attention ? 'Clear the flag' : 'Flag — talk about it first, whatever the vote', run: () => flag('needs_attention', !t.needs_attention) },
               ...(all.length > 1 ? [{ label: 'Merge into another theme…', run: () => setMerging(true) }] : []),
               { label: 'Remove the theme…', run: () => setRemoving(true), danger: true },
             ]}
@@ -448,29 +444,6 @@ function Pile({ t, n, all, sprintId, canEdit, picked, onToggle, addable, onAdd, 
         </div>
       ) : null}
 
-      {canEdit && (notes || hasNotes) ? (
-        <div className="sort-notes">
-          <button type="button" className="sort-notes-toggle" aria-expanded={notes} aria-controls={`${uid}-notes`} onClick={() => setNotes((o) => !o)}>
-            {notes ? 'Fold the notes' : 'Notes'}
-            {!notes && hasNotes ? <span className="sort-notes-sum">· {[t.summary && 'summary', t.draft_experiment && 'a draft experiment'].filter(Boolean).join(', ')}</span> : null}
-          </button>
-          {notes ? (
-            <div id={`${uid}-notes`} className="sort-notes-body anim-rise">
-              <label className="sort-note">
-                <span>A neutral summary</span>
-                <Field multiline label="Summary" value={t.summary} max={500} placeholder="What was observed, in a sentence or two" onSave={(v) => save('summary', v)} />
-              </label>
-              <label className="sort-note">
-                <span>A draft experiment</span>
-                <Field label="Draft experiment" value={t.draft_experiment ?? ''} max={300} placeholder="Something the team could try (optional)" onSave={(v) => save('draft_experiment', v)} />
-              </label>
-            </div>
-          ) : null}
-        </div>
-      ) : !canEdit && t.summary ? (
-        <p className="sort-summary">{t.summary}</p>
-      ) : null}
-
       <Dialog open={merging} onOpenChange={setMerging} title={`Merge “${t.title}” into…`} description="Its thoughts and anything added in the retro move there; this theme’s own words are dropped.">
         <ul className="sort-merge">
           {all.filter((x) => x.id !== t.id).map((x) => (
@@ -482,7 +455,7 @@ function Pile({ t, n, all, sprintId, canEdit, picked, onToggle, addable, onAdd, 
           ))}
         </ul>
       </Dialog>
-      <Dialog open={removing} onOpenChange={setRemoving} title={`Remove “${t.title}”?`} description="Its thoughts go back to be sorted, exactly as written. Its title, question and notes are removed.">
+      <Dialog open={removing} onOpenChange={setRemoving} title={`Remove “${t.title}”?`} description="Its thoughts go back to be sorted, exactly as written. Its title and question are removed.">
         <div className="mt-6 flex justify-end gap-2">
           <Button variant="ghost" onClick={() => setRemoving(false)}>Keep it</Button>
           <Button variant="danger" onClick={() => { setRemoving(false); void structural((reason) => del<GroupingView>(`/api/sprints/${sprintId}/themes/${t.id}`, { reset_voting_reason: reason })) }}>Remove the theme</Button>
