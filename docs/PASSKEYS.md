@@ -161,7 +161,7 @@ Migrations live in `worker/migrations` and are applied in order.
 
 | Flow | Sent to | When |
 | --- | --- | --- |
-| Team invitation | the address a manager enters in "Invite by email" | when sent |
+| Team invitation | the address an owner (or a sprint's facilitator, for their sprint) enters in "Invite by email" | when sent; at most 20 a day per account, and `EMAIL_DAILY_LIMIT` a day in all |
 | Sprint reminders (midpoint, day before) | participants **who have an address** and haven't opted out | scheduled per sprint |
 
 Nothing else sends email, and no email signs anyone in.
