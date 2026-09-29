@@ -215,6 +215,36 @@ try {
   check('Facilitator later: no transition button, archiving in the menu', (await F.page.locator('.sbar-control .sbar-button').count()) === 0 && (await F.page.getByRole('button', { name: 'More' }).count()) === 1)
   await shot(F.page, '10-done-facilitator')
 
+  // ── Setup, edited: saved in the order the server takes it, and only what changed.
+  {
+    const cy = await account('Cy Ramos')
+    await join(mara, ws.id, cy)
+    const plan = (name) => ({ name, timezone: 'Asia/Manila', starts_on: d(-2), ends_on: d(9), retro_date: d(10), retro_time: '10:00', participant_ids: [mara.id, ben.id], facilitator_id: mara.id, reminders_enabled: false })
+    const h = await mara.req('POST', `/api/workspaces/${ws.id}/sprints`, plan(`Handover ${tag}`))
+    await F.page.goto(S(h.id, '/setup'))
+    await F.page.locator('#f-facilitator_id').selectOption(cy.id)
+    await F.page.getByRole('checkbox', { name: /Ben Okafor/ }).uncheck()
+    await F.page.locator('#f-name').fill(`Handed over ${tag}`)
+    await F.page.getByRole('button', { name: 'Save changes' }).click()
+    await F.page.waitForURL(`**/sprints/${h.id}`, { timeout: 10000 }).catch(() => {})
+    const after = await mara.req('GET', `/api/sprints/${h.id}`)
+    const who = after.participants.map((p) => p.account_id)
+    check('Setup: a facilitator who wasn’t in the sprint yet, someone taken off and a new name, in one save', after.name === `Handed over ${tag}` && after.participants.find((p) => p.is_facilitator)?.account_id === cy.id && !who.includes(ben.id) && who.includes(mara.id), `${after.name} · ${who.length} people`)
+
+    // A vote is open: changing anything but the budget still saves.
+    const v = await mara.req('POST', `/api/workspaces/${ws.id}/sprints`, plan(`Voting ${tag}`))
+    await mara.req('POST', `/api/sprints/${v.id}/transition`, { to: 'collecting' })
+    await mara.req('POST', `/api/sprints/${v.id}/transition`, { to: 'preparing', confirm: true })
+    await mara.req('POST', `/api/sprints/${v.id}/themes`, { title: 'Reviews that wait' })
+    await mara.req('POST', `/api/sprints/${v.id}/transition`, { to: 'ready', confirm: true })
+    await mara.req('POST', `/api/sprints/${v.id}/votes/rounds`, {})
+    await F.page.goto(S(v.id, '/setup'))
+    await F.page.locator('#f-goal').fill('Keep reviews moving')
+    await F.page.getByRole('button', { name: 'Save changes' }).click()
+    await F.page.waitForURL(`**/sprints/${v.id}`, { timeout: 10000 }).catch(() => {})
+    check('Setup: saving during an open vote works when the budget isn’t touched', (await mara.req('GET', `/api/sprints/${v.id}`)).goal === 'Keep reviews moving')
+  }
+
   // ── Workspace switching: "/" follows the workspace; the dropdown's entries are honest.
   await F.page.locator('header button[aria-label^="Workspace:"]').click()
   check('Workspace menu: no "Sprint guide", sprints listed as such', (await F.page.locator('text=Sprint guide').count()) === 0 && (await F.page.getByRole('link', { name: /Sprints/ }).count()) >= 1)
