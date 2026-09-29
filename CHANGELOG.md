@@ -16,6 +16,8 @@ those as highlights. The app's About → What's new and each GitHub release are 
 
 ## [Unreleased]
 
+## [1.0.0-rc.2] - 2026-09-30
+
 ### Added
 
 - **The first evening: a guide for new people.** A new account starts with a short prologue on what
@@ -136,5 +138,6 @@ those as highlights. The app's About → What's new and each GitHub release are 
   Muni says what that is. Deleting your account takes with it what nobody has seen yet; what the team
   saw stays, tied to no one.
 
-[unreleased]: https://github.com/acltabontabon/muni/compare/v1.0.0-rc.1...HEAD
+[unreleased]: https://github.com/acltabontabon/muni/compare/v1.0.0-rc.2...HEAD
+[1.0.0-rc.2]: https://github.com/acltabontabon/muni/compare/v1.0.0-rc.1...v1.0.0-rc.2
 [1.0.0-rc.1]: https://github.com/acltabontabon/muni/releases/tag/v1.0.0-rc.1
