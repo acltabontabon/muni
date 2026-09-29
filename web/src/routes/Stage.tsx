@@ -706,8 +706,20 @@ function Agree({ themes, experiments, controls, sprintId, participants, onChange
   const ideas = themes.filter((t) => t.could_try || t.takeaway)
   const tryable = ideas.filter((t) => t.could_try)
   const asking = useAsking(sprintId, checkins)
-  const [seed, setSeed] = useState<{ text: string; theme: string } | null>(null)
+  // The idea in the form: it fills the change in place, keeping whatever else was already typed there.
+  const [seed, setSeed] = useState<{ text: string; themeId: string } | null>(null)
   const [ending, setEnding] = useState(false)
+  // Ending takes a moment, and everyone's screen moves with it: once asked, it isn't asked twice.
+  const [closing, setClosing] = useState(false)
+  const end = async () => {
+    if (closing) return
+    setClosing(true)
+    try {
+      await onEnd()
+    } finally {
+      setClosing(false)
+    }
+  }
   const waiting = experiments.filter((e) => e.status === 'proposed')
   const sub = controls
     ? 'Agree on one to three small changes for the next sprint. Each gets an owner, who says yes on their phone. They come back at the start of the next retro.'
@@ -736,7 +748,7 @@ function Agree({ themes, experiments, controls, sprintId, participants, onChange
           )}
           {controls ? (
             <div className="retro-editor">
-              <ExperimentEditor key={seed ? `${seed.theme}:${seed.text}` : 'blank'} sprintId={sprintId} participants={participants} themes={themes.map((t) => ({ id: t.id, title: t.title }))} defaultText={seed?.text} defaultThemeId={seed?.theme} existingCount={experiments.length} onSaved={() => { setSeed(null); onChange() }} />
+              <ExperimentEditor sprintId={sprintId} participants={participants} themes={themes.map((t) => ({ id: t.id, title: t.title }))} seed={seed} existingCount={experiments.length} onSaved={() => { setSeed(null); onChange() }} />
             </div>
           ) : null}
         </div>
@@ -759,10 +771,11 @@ function Agree({ themes, experiments, controls, sprintId, participants, onChange
                       ) : controls && t.could_try ? (
                         <button
                           className="retro-idea-use"
-                          aria-pressed={seed?.theme === t.id}
-                          onClick={() => setSeed({ text: t.could_try, theme: t.id })}
+                          aria-pressed={seed?.themeId === t.id}
+                          // Already in the form: pressing again keeps what's been edited there.
+                          onClick={() => (seed?.themeId === t.id && seed.text === t.could_try ? undefined : setSeed({ text: t.could_try, themeId: t.id }))}
                         >
-                          {seed?.theme === t.id ? 'In the form — edit it there' : 'Use this idea'} <ArrowRight className="size-3.5" aria-hidden />
+                          {seed?.themeId === t.id ? 'In the form — edit it there' : 'Use this idea'} <ArrowRight className="size-3.5" aria-hidden />
                         </button>
                       ) : null}
                     </li>
@@ -781,12 +794,12 @@ function Agree({ themes, experiments, controls, sprintId, participants, onChange
           <span>When you’re done. Everyone moves to the sprint’s outcomes, where experiments can still be added and edited.</span>
         </div>
       ) : null}
-      <Dialog open={ending} onOpenChange={setEnding} title="End the retro?" description="Everyone’s screen moves to the sprint’s outcomes: what the team will try, and what it said.">
+      <Dialog open={ending} onOpenChange={(o) => !closing && setEnding(o)} title="End the retro?" description="Everyone’s screen moves to the sprint’s outcomes: what the team will try, and what it said.">
         {!experiments.length ? <p className="text-sm text-ink-soft">Nothing has been agreed to try yet. You can still add experiments on the outcomes page.</p> : null}
         {waiting.length ? <p className="text-sm text-ink-soft">{waiting.length === 1 ? 'One experiment is' : `${waiting.length} experiments are`} still waiting for an owner. They can still say yes afterwards.</p> : null}
         <div className="mt-5 flex justify-end gap-2">
-          <Button variant="ghost" onClick={() => setEnding(false)}>Not yet</Button>
-          <Button variant="primary" onClick={async () => { await onEnd(); setEnding(false) }}>End the retro</Button>
+          <Button variant="ghost" disabled={closing} onClick={() => setEnding(false)}>Not yet</Button>
+          <Button variant="primary" busy={closing} onClick={end}>End the retro</Button>
         </div>
       </Dialog>
     </section>
