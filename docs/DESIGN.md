@@ -183,8 +183,8 @@ motif.
 
 **Below the bar** the page is what this person does now: the writer while collecting (Muni's
 journal, or their character's room; with another sprint collecting, *Also collecting* moves the
-words there), their thoughts read-only once closed, *Join the retro* while
-it's live, and the outcomes and recap once it's done. On a phone, while writing, the bar folds to
+words there), everyone's thoughts once closed — the reveal, without names and in no particular
+order, with their own folded below — *Join the retro* while it's live, and the outcomes and recap once it's done. On a phone, while writing, the bar folds to
 two lines — the name with the facilitator's button, then the state and the planned retro —
 and *Details* unfolds the rest, so the field and *Add to sprint* stay in the first screen.
 
@@ -247,8 +247,11 @@ coins, spent one topic at a time.
 
 **Who's here.** The rail shows the room as faces — each person's character, or a monogram in
 their own ink — lit while their stage or phone is open, dimmed when they've stepped away. As
-people arrive the stage says so, once, in a light line ("Priya pulled up a chair.") that leaves on
-its own. The facilitator's list says who's connected now, who's here without a device, and who
+people arrive while the room gathers (the first step), the stage says so, once, in a plain line
+("Priya is here.") that leaves on its own. Later in the retro, and when anyone leaves or
+reconnects, only the faces change: a shared screen never calls someone out, and nothing covers
+the conversation. (Earlier builds had playful lines; on a screen the whole team watches, a joke
+about a named person reads differently to the person named.) The facilitator's list says who's connected now, who's here without a device, and who
 isn't here yet.
 
 **Quiet ways in.** A call is often two voices and a row of muted tiles. Muni doesn't call on

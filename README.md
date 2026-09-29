@@ -13,7 +13,7 @@ Try it at [act.munimuni.app](https://act.munimuni.app).
 ## How it works
 
 - **Private capture.** Your thoughts stay hidden until collection closes — even from the facilitator.
-- **Blind reveal.** When collection closes, all thoughts appear at once, unnamed and in random order.
+- **Blind reveal.** When collection closes, all thoughts appear at once on the sprint's page, unnamed and in random order — for everyone to read before the retro.
 - **Themes and voting.** The facilitator can gather thoughts into themes; when there are themes, everyone votes on what to talk about first.
 - **Live retrospective.** Four steps — look back, choose, talk, agree — on a shared screen with everyone's phone alongside: quick private check-ins and additions let people take part without having to speak first, and one to three experiments come back first next sprint.
 - **Keeps writing offline.** Write without a connection; thoughts are sent when you're back. Drafts stay in the tab unless you choose to keep them on the device.

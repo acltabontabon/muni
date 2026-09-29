@@ -43,6 +43,10 @@ change, with what it will do written under it:
 - Once it's done, the page is the sprint's recap (below).
 - **More → Invite people** brings someone into this sprint while it's unfinished (see below).
 
+Once collection closes, the sprint's page shows **Everyone's thoughts**: every thought the team
+wrote, without names and in no particular order (yours are among them), with your own folded
+below. Reading them before the retro is what lets the meeting be for talking.
+
 Anyone still writing when collection closes keeps their words on screen; nothing is sent.
 
 ## Bringing people in
@@ -57,11 +61,12 @@ email or with the sprint's own code — while it's unfinished. Everyone joins as
 
 The facilitator opens the stage on a shared screen (**H** hides the controls for presenting);
 everyone else opens the retro on their own phone or laptop from the sprint's page. Opening it is
-being there: each person's face lights up on the stage as they arrive, and the facilitator can mark
-someone present who joins without a device. The retro is four steps, each one question:
+being there: each person's face lights up on the stage as they arrive (while the room gathers, the
+stage also says so, once), and the facilitator can mark someone present who joins without a device. The retro is four steps, each one question:
 
 1. **Look back** — did last time's experiments help? The facilitator records *Helped*, *Didn't
-   help*, *Inconclusive* or *Not tried yet*. Beside them: what this sprint was proud of or wants
+   help*, *Inconclusive* or *Not tried yet* (this retro's facilitator can, even if someone else
+   ran the last one). Beside them: what this sprint was proud of or wants
    to keep. A team's first retro skips straight to that.
 2. **Choose** — what matters most? Voting opens by itself: everyone votes privately on their phone
    (three votes each by default, at most one per theme — so with two themes, two). Nobody sees how
@@ -91,9 +96,12 @@ someone present who joins without a device. The retro is four steps, each one qu
    experiments, each with an owner who says yes on their own phone. **End the retro** takes
    everyone to the sprint's recap.
 
-The facilitator moves on with **Next** (or →; the arrow keys work only while nothing else — a
-dialog, a menu, a field — has them); the steps and topics along the stage go back, and coming back
-to a topic finds its answers as they were. Joining late, reconnecting or picking your
+The facilitator moves on with **Next** (or →; ← goes back — a topic within the talk, otherwise a
+step; the arrow keys work only while nothing else — a dialog, a menu, a field — has them); the steps
+and topics along the stage go back too, and coming back to a topic finds its answers as they were,
+and its clock paused where it was. **+2** always adds two minutes to what's left, even once time is
+up. When two people facilitate, the one leading has the controls; the other's stage follows until
+they choose **Take over**. Joining late, reconnecting or picking your
 phone up again puts you where the room is, with anything you'd written still there.
 
 ## The recap

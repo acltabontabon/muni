@@ -30,7 +30,8 @@ those as highlights. The app's About → What's new and each GitHub release are 
   start the retro — grouping thoughts into themes is optional. Each change says what it will do for
   everyone before it happens, and collection can be reopened until the retro starts.
 - **Everyone’s thoughts at once, without names.** Nobody on the team, facilitator included, reads
-  anything until collection closes. Then every thought appears together, in random order, with no names.
+  anything until collection closes. Then every thought appears together on the sprint’s page, in
+  random order and with no names, so everyone can read them before the retro.
 - **A retro in four steps.** Look back (did last time’s experiments help?), choose (what matters
   most?), talk (one topic at a time) and agree (what will we try?), on a shared screen while each
   person follows on their own phone. The first step shows the whole retro at a glance. Choosing says
@@ -41,7 +42,7 @@ those as highlights. The app's About → What's new and each GitHub release are 
   are gathered into themes first, on a sorting table that needs no explaining. A paused retro says
   so on every screen.
 - **See who’s here.** Faces in the retro light up as people open it on any screen — their
-  character, or their initials — and the stage says, once, when someone arrives.
+  character, or their initials — and while the room gathers, the stage says, once, when someone arrives.
 - **A way in for everyone, without having to speak.** When it helps, the facilitator asks how a
   topic showed up — *I felt this*, *Not in my work*, *I’d need context* — or whether an idea would
   help. One tap answers, a line is optional, and answers stay private until the facilitator shares

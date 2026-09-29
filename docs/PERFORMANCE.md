@@ -83,6 +83,14 @@ invite codes, two people asking to join) and a Worker that delays each D1 call b
 - **Nothing to send, nothing sent.** A send pass with an empty queue makes no request; a forced
   pass waits for the one under way and runs its own (`lib/local/passes.ts`). The service worker is
   re-checked at most every 15 minutes.
+- **A first visit isn't an install.** On a first visit the service worker is registered only after
+  the page has loaded and gone idle, so downloading the app for offline use never competes with the
+  first screen's own requests. Its precache leaves out what's fetched on demand anyway: font subsets
+  beyond basic Latin, and the large install icons. A send that gets no answer within 20 seconds is
+  given up and tried again later, so *Add to sprint* never waits on a stalled connection.
+- **A sprint page reads the sprint once on opening** (a plaintext sprint isn't read again when this
+  device's keys change, and the room's first "all" right after the page's own read is skipped); the
+  retro's socket greeting says the room's version, and only a room ahead of the screen is read again.
 
 Guarded by `web/src/lib/motion.test.ts` (no decorative `infinite` animation in `styles.css` or
 `worlds.css` — only an indicator while something is in progress, a pending join; every scene
