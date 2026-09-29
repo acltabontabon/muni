@@ -143,8 +143,8 @@ read-only token and no secrets; try a change locally against `wrangler dev` (REA
     can't run for anything else.
   - *Secrets*: `CLOUDFLARE_API_TOKEN`, `CLOUDFLARE_ACCOUNT_ID`.
   - *Variables*: `MUNI_DOMAIN` (e.g. `act.munimuni.app`), `MUNI_D1_DATABASE_ID`, `MUNI_EMAIL_FROM` — the
-    same values as the local production config (`worker/scripts/production-config.mjs`). They aren't
-    secret.
+    same values as the local production config (`worker/scripts/production-config.mjs`) — and,
+    optionally, `MUNI_EMAIL_DAILY_LIMIT` (80 when unset). They aren't secret.
   - Optional: *Required reviewers* (yourself) to approve each production deploy.
 - Optional but recommended: a tag ruleset for `v*` (Settings → Rules) that only you can create, update
   or delete, so nobody else with write access can start a release.

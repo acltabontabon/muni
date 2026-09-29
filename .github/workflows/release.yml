@@ -117,6 +117,7 @@ jobs:
           MUNI_DOMAIN: ${{ vars.MUNI_DOMAIN }}
           MUNI_D1_DATABASE_ID: ${{ vars.MUNI_D1_DATABASE_ID }}
           MUNI_EMAIL_FROM: ${{ vars.MUNI_EMAIL_FROM }}
+          MUNI_EMAIL_DAILY_LIMIT: ${{ vars.MUNI_EMAIL_DAILY_LIMIT }}   # optional; 80 when unset
         run: pnpm install --frozen-lockfile && node scripts/production-config.mjs
       # Migrations first: within a major they're additive (docs/RELEASING.md §2), so the Worker
       # that's live keeps working against the new schema. Applying is idempotent (only pending

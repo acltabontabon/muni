@@ -32,7 +32,10 @@ node scripts/production-config.mjs
 This writes `worker/wrangler.production.jsonc` from `wrangler.production.example.jsonc`. The file
 is gitignored — it describes your account, not the project. Optional overrides:
 `MUNI_WORKER_NAME` (default `muni`), `MUNI_D1_DATABASE_NAME` (`muni`), `MUNI_EMAIL_PROVIDER`
-(`resend` or `brevo`).
+(`resend` or `brevo`), and `MUNI_EMAIL_DAILY_LIMIT` (`80`): the most emails Muni sends in a day.
+Keep it below your provider's daily quota (Resend's free plan allows 100), so invitations can't use
+up what reminders need; past it, an email fails in the `jobs` table, saying so. Each account can
+also send at most 20 invitation emails and create at most 10 workspaces a day.
 
 ## 3. Secrets, schema, deploy
 
@@ -77,7 +80,7 @@ act.munimuni.app is released by pushing a version tag: `.github/workflows/releas
 tag against the committed version and changelog, runs every test, applies migrations, deploys the
 Worker, verifies production from outside and publishes the GitHub release. The process, the
 configuration it needs (an environment called `production` that admits only `v*` tags, a scoped API
-token, three variables) and recovery are in [RELEASING.md](RELEASING.md). The workflow runs only in
+token, three variables and an optional fourth) and recovery are in [RELEASING.md](RELEASING.md). The workflow runs only in
 the repository it names; for your own fork, change that guard.
 
 Pull-request workflows never receive these: `ci.yml` runs with a read-only token and no secrets.

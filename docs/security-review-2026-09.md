@@ -1,10 +1,10 @@
-# Muni — security and privacy review (2026-09-27)
+# Muni — security and privacy review (September 2026)
 
 What Muni can honestly promise about contributions, identity and email addresses, based on the
 code in `worker/` (the backend) and `web/` (the client and PWA). Everything below was checked in
 code and, where noted, by tests that go through the public HTTP API.
 
-**Status:** describes 1.0.0-rc.1, live on act.munimuni.app. Every fix in §3 is part of it.
+**Status:** describes 1.0.0-rc.1, live on act.munimuni.app. Every control in §2 is part of it.
 
 Terms used here:
 
@@ -80,46 +80,39 @@ encrypted on participants' devices by default ([`ENCRYPTION.md`](ENCRYPTION.md))
 zero-knowledge**: the service knows who wrote what, and it serves the code that does the
 encrypting.
 
-## 2. Findings, most severe first
+## 2. What could go wrong, and the control in place
 
 No path was found by which one participant, a facilitator or an owner can read another person's
-sealed entry, or learn who wrote a revealed entry, through the API, the socket or exports. The
-findings below are the confirmed weaknesses around that core. All are fixed except where noted
-in §4.
+sealed entry, or learn who wrote a revealed entry, through the API, the socket, exports or an
+encrypted envelope. Each row is a way that could go wrong around that core, the control 1.0.0-rc.1
+has for it, and where it's checked.
 
-| # | Severity | Finding | Affected | Realistic impact |
-|---|---|---|---|---|
-| 1 | Medium | **Sprint scope bypass through invitations.** Any member can create a sprint and name themselves facilitator, which gives them invite rights. The invite endpoint then accepted any `sprint_id` in the workspace, and for existing members it added them straight in, including to completed sprints. | `routes/workspaces.ts` invite | Joins any sprint in the workspace and reads its revealed entries, themes, notes and exports. Entries stay anonymous, but sprint-level confidentiality is lost. |
-| 2 | Medium | **Invitation tokens outside their hash.** (a) The raw token was in API URLs (`/api/invitations/<token>[/accept]`), and every request is logged with its URL (Workers Logs, sampling 1.0, 3–7 days; redaction is heuristic). (b) The queued email job stored the full message, including the only copy of the raw token and the recipient's address, for 30 days after sending (90 days if it failed). | `routes/auth.ts`, `jobs.ts` | Someone with log or D1 read access could see live tokens, and an invitation admits whoever accepts it first while signed in, so a leaked token is a way into the workspace. Email addresses were also kept longer than needed. |
-| 3 | Medium | **"Keep drafts on this device" was a device-wide switch.** Person B's drafts and queue went to IndexedDB because person A had opted in. Turning it off deleted every account's database, including other people's unsent thoughts, without naming them. | `LocalProvider.tsx`, `prefs.ts`, `auth.tsx` | On a shared device, sensitive drafts persisted without the writer's choice, or were silently destroyed. |
-| 4 | Medium | **Invitation-page sign-out skipped local cleanup.** It didn't clear the account's drafts, queue or cached identity, and didn't name unsent work. The cached identity could then open Muni offline as the previous person. | `routes/Invite.tsx` | The next person on the device could see the previous person's unsent drafts. |
-| 5 | Low–Med | **Cross-workspace write.** The `mark_discussed` meeting command accepted a theme id from any sprint. | `routes/meeting.ts` | A facilitator could create or flip another workspace's discussion row. This is integrity only; no content was returned. |
-| 6 | Low | **Re-invited ex-owner regained ownership.** Accepting an invitation revived a revoked membership with its old role. | `routes/auth.ts` accept | A removed owner comes back as owner. |
-| 7 | Low | **No Origin check on the WebSocket upgrade.** Browsers send cookies on cross-origin socket handshakes, and SameSite=Lax treats `munimuni.app` as same-site. | `routes/meeting.ts` `/ws` | A same-site page could open a live socket as the user. Sockets carry content-free hints only. |
-| 8 | Low | **No `__Host-` prefix on cookies.** A sibling origin (`munimuni.app` or any `*.munimuni.app`) could plant a session cookie (session fixation or login CSRF). | `lib/auth.ts` | Requires control of a sibling site. The victim could end up writing into the attacker's account. |
-| 9 | Low | **Unchecked experiment owner.** Nominating an owner accepted any account id. | `routes/commitments.ts` PATCH | Reveals the display name of an arbitrary account (cross-workspace). |
-| 10 | Low | **Plaintext keys in the limiter.** Rate-limit buckets stored plaintext identifiers, including IP addresses, for 24 h. | `lib/ratelimit.ts` | Unnecessary personal data at rest. |
-| 11 | Low | **Composer and sign-out edge cases.** The composer autosave re-ran whenever the local store changed, so "Clear local data" could write the on-screen draft back. Typed text survived an account switch in the same tab. The leave dialog counted queued thoughts but not drafts. Sign-out cleared local data even when the server logout failed. | `ui/capture.tsx`, `App.tsx`, `ui/menus.tsx` | Text could reappear after clearing, or be saved under the next account. People could lose drafts without being told. |
-| 12 | Low | **Two role-handling bugs.** A participant's read that re-initialised a missing room made them the stage "controller". The last owner could demote themselves. | `routes/sprints.ts`, `routes/workspaces.ts` | Functional and admin problems, no data exposure. |
+| # | Risk | Control | Checked by |
+|---|---|---|---|
+| 1 | **Bringing people in beyond one's role.** Any member can set up a sprint and facilitate it. | Everything workspace-wide — invitations without a sprint, workspace codes and links, deciding requests to join the workspace, and the pending invitations with their addresses — is for owners (`lib/grants.ts`). A sprint's facilitator can invite into that sprint only, while it's unfinished. A grant is checked again when it's used: an invitation stops working once its sender may no longer invite there. | `grants.test.ts`, `boundaries.test.ts` |
+| 2 | **Learning whose address is whose.** An invitation's reply could say an address is already a member's. | Only owners get that answer. A non-owner's sprint invitation is always created and emailed, whether or not the address is a member's. | `grants.test.ts` “tells nobody but owners…” |
+| 3 | **Invitation email as a spam channel,** using up the provider's daily quota so real invitations and reminders fail. | Per account: 20 invitation emails and 10 new workspaces a day, across workspaces; per workspace, 60 invitations an hour; per deployment, at most `EMAIL_DAILY_LIMIT` emails a day (80 by default), past which an email fails in the queue, saying so. | `grants.test.ts` (the three limits) |
+| 4 | **Invitation tokens outside their hash,** in logged URLs or kept email jobs. | Tokens travel in JSON bodies and in link fragments (`/invite#…`), never in a path; an email job's payload is emptied once it's sent or given up on. | `boundaries.test.ts` |
+| 5 | **An encrypted thought naming its author.** Every participant receives revealed thoughts. | A thought's envelope names only its sprint and record; the author's copy of its key is a sealed box, which doesn't reveal its recipient. The Worker stores a thought envelope only with exactly those fields, and database triggers refuse the format that carried an author ([`ENCRYPTION.md`](ENCRYPTION.md) §5). | `crypto.test.ts`, `encryption.test.ts` |
+| 6 | **Plaintext sent on a guess** by the offline send queue. | A queued thought goes unsealed only when its sprint is known to be set up without encryption; the service worker, which holds no keys, sends only those; when encryption can't be checked, the thought waits. | `outbox.test.ts` |
+| 7 | **The "can't be shown" note saved over real words** by a form filled before the device could open them. | Any request carrying the note is refused before it's sent, sealed or not; forms follow the server's value while untouched or showing the note. | `keyring.test.ts` |
+| 8 | **Drafts on a shared device.** | Keeping drafts is each account's own choice; sign-out and "Clear local data" remove only that account's records; unsent words written during a retro belong to the signed-in account and go when it does. | `prefs.test.ts`, `retro-drafts.test.ts`, `e2e/offline.mjs` |
+| 9 | **Sign-out leaving things behind** (the invitation page included). | One sign-out dialog everywhere: it names unsent thoughts and drafts, ends the session on the server first and keeps everything if that fails, then clears local data, the last-visited ids and the reveal flags. | `prefs.test.ts`, `e2e/offline.mjs` |
+| 10 | **Another workspace's ids** in a route, a command or a note. | Every id is checked against the sprint and workspace in the path (themes in `mark_discussed`, `set_topic` and notes included). | `boundaries.test.ts` |
+| 11 | **Live roles after a handover.** Sockets open before it kept the old roles. | The room moves what only the facilitator hears to the new facilitator's open sockets at once; a socket whose request read the old facilitator can't become it again. | `socket.test.ts` |
+| 12 | **A refused command still changing things** (a stale version, or another facilitator controlling). | The room checks the version and who controls the stage before anything in D1 changes; multi-field edits are validated whole, then written in one batch. | `meeting.test.ts`, `lifecycle.test.ts` |
+| 13 | **A workspace left without an owner.** | Demoting requires another owner in the same statement; account deletion and removals carry the same guards as the checks before them, so a join or handover landing in between changes nothing. | `departure.test.ts` |
+| 14 | **A re-invited ex-owner regaining ownership.** | A membership that comes back is always `member`. | `boundaries.test.ts` |
+| 15 | **A socket opened from another site.** Cookies go with cross-origin socket handshakes. | The upgrade requires an Origin that matches `PUBLIC_ORIGIN`. | `boundaries.test.ts` |
+| 16 | **Cookies planted by a sibling origin** (session fixation, login CSRF). | Over HTTPS the cookies are `__Host-muni_session` and `__Host-muni_csrf` (Secure, Path=/, no Domain). | `boundaries.test.ts` |
+| 17 | **An arbitrary account named as an experiment's owner.** | The owner must be a participant in the sprint. | `boundaries.test.ts` |
+| 18 | **Personal data in the rate limiter.** | Buckets are SHA-256 hashes (pseudonymous: an IPv4 hash can be reversed by brute force), kept 24 hours. | `boundaries.test.ts` |
+| 19 | **Malformed input crashing a route.** | One JSON-body reader for every route (`null`, a list or malformed JSON is a 400); id lists, dates and meeting commands are shape-checked before anything is stored. | `validation.test.ts` |
+| 20 | **Data left behind.** | A person who leaves, is removed or deletes their account is taken out of every live room's records; a retro's room record goes with its purged content; invitations go 30 days after they were used, withdrawn or expired; outcomes of unfinished sprints are never purged. | `departure.test.ts`, `retention.test.ts` |
+| 21 | **Silent truncation** of what a list shows. | Caps are enforced where data is written (60 participants, 200 thoughts a person and 12,000 a sprint, 40 themes, 100 retro additions a person), so every read returns everything there is. | `limits.test.ts` |
+| 22 | **A job that keeps crashing,** retried forever ahead of reminders. | A job still running after 10 minutes counts as a failed attempt; out of attempts, it's marked failed. | `jobs.test.ts` |
 
-## 3. Fixes and evidence
-
-| # | Fix |
-|---|---|
-| 1 | `sprint_id` on an invitation requires the caller to be **that sprint's facilitator**, and the sprint must be unfinished. This matches `POST /sprints/:id/participants`. Owners who don't facilitate a sprint can't add people to it from the invite dialog. |
-| 2 | Tokens travel in JSON bodies: `POST /api/invitations/preview` and `POST /api/invitations/accept` take `{token}`; no API route has a token in its path. Email links use the fragment (`/invite#<token>`), which browsers never send to a server; the page `/invite/:token` also opens. Email job payloads become `{}` once sent or given up on. |
-| 3 | The choice is per account (`keepLocalFor`). Turning it off removes only your records and deletes the database once nobody keeps drafts on the device. Other tabs follow the change. |
-| 4 | The invitation page uses the same sign-out dialog. It names unsent thoughts **and drafts**, signs out on the server first, keeps everything if that fails, then clears local data, the last-visited ids and the reveal flags. |
-| 5 | The theme must belong to the sprint. |
-| 6 | A revived membership always comes back as `member`. |
-| 7 | The upgrade requires an Origin header that matches `PUBLIC_ORIGIN`. |
-| 8 | Over HTTPS the cookies are `__Host-muni_session` and `__Host-muni_csrf` (Secure, Path=/, no Domain). The client and service worker read either name. |
-| 9 | The owner must be a participant in the sprint. |
-| 10 | Buckets are SHA-256 hashes. This is pseudonymisation: an IPv4 hash can be reversed by brute force. |
-| 11 | Autosave runs on edits only. The composer remounts after a clear, and the app remounts when the account changes. |
-| 12 | Only a facilitator becomes controller. The last owner can't be demoted. |
-
-**Tests.**
+## 3. Tests
 
 `worker`'s tests pass (Vitest in the Workers runtime, real D1 and Durable Objects, over HTTP).
 `test/boundaries.test.ts` covers:
@@ -138,6 +131,12 @@ in §4.
 - **Room recovery.** A participant never becomes controller.
 
 Other suites cover:
+- who may bring people in, the email-address oracle, and the invitation, workspace and email limits (`grants.test.ts`)
+- hints only the facilitator should get, and handovers on open sockets (`socket.test.ts`)
+- malformed bodies, ids, dates and commands (`validation.test.ts`)
+- caps where data is written, and whole lists (`limits.test.ts`)
+- a job that keeps crashing (`jobs.test.ts`), and the database round trips on each screen's path (`roundtrips.test.ts`)
+- an encrypted thought naming nobody, and the database refusing one that would (`encryption.test.ts`)
 - sealed collection, including for the facilitator
 - no author fields in REST, themes or exports
 - private votes
@@ -173,22 +172,23 @@ Other suites cover:
 
 ## 4. Remaining gaps, unverified controls, manual steps
 
-**Not changed (documented behaviour or product decisions):**
-- **Sprint creation grants invite rights.** Any member can create a sprint, facilitate it and therefore invite people to the workspace.
-- **What facilitators see:**
-  - pending invitation emails
-  - which address belongs to a member (the `already_member` reply)
+**Documented behaviour and product decisions:**
+- **Sprint creation grants sprint invitations.** Any member can set up a sprint and facilitate it, and so invite people into *that* sprint (never the workspace as a whole; see §2 row 1). An invitation into a sprint also makes the person a member of its workspace.
 - **Workspace-wide experiments.** Every member sees all experiments, including those from sprints they weren't in.
 - **Logout and open sockets.** Logging out, or "sign out everywhere else", doesn't close that session's open live socket. It only receives hints, and every request re-checks the session. Membership and participant removal do close sockets.
 - **Inference in small groups.** Content and counts can still point to a person:
   - vote totals
   - entry counts per theme
   - a lone check-in answer
-  - the moment a "meeting changed" hint follows someone adding context in a co-located room
+  - the moment the facilitator's view shows an addition, just after someone was seen typing
   - the difference between the first and second reveal after collection is reopened
   - writing style
 - **Sessions and sign-up.** Sessions last 30 days (absolute) with no idle timeout. Passkey sign-up needs no identifier, so it's cheap: per-network and daily caps, team-QR approval and single-use links are the controls. An emailed invitation admits whoever accepts it first, so a forwarded one is handed on (the email says so).
 - **CSP.** It allows `style-src 'unsafe-inline'`.
+- **Small races that remain.** The per-person caps on thoughts and themes are checked just before
+  writing, so two requests at once can pass one over (nothing is lost: reads return everything). A
+  meeting command's D1 changes aren't one transaction, calls to the room are best effort, and a
+  Worker that dies mid-command leaves the stage held for up to 15 seconds.
 
 **Retention decisions that don't exist yet** (no policy was invented):
 - **Unfinished sprints are never purged.** Draft, collecting, preparing, ready and live sprints keep their content until someone finishes or deletes them. Only draft sprints can be deleted.
@@ -221,7 +221,7 @@ Other suites cover:
 | After collection closes, entries are shown without names, timestamps or any per-person label, in random order. | `SHARED_SELECT` allow-list, `reveal_order` | Tests (REST, themes, exports, socket) | Wording, small teams and context can still identify you. |
 | Votes are private; only totals of a closed round are shown. | `votes` never selected per person | Tests | Small totals can be revealing. |
 | Owners and facilitators have no way to see who wrote what. | No route joins entries to accounts | Test (no author lookup route) | The operator could, with database or backup access. This is application-level, not cryptographic. |
-| Your email address, if your account has one, is shown only to you and to workspace owners. Facilitators see addresses of pending invitations. | `buildMe`, `members.email` owner-only, pending invitations for inviters | Code review | It goes to the email provider to deliver invitations and reminders. It never signs anyone in. |
+| Your email address, if your account has one, is shown only to you and to workspace owners, who also see the addresses of pending invitations. | `buildMe`, `members.email` owner-only, pending invitations owner-only | Tests (`grants.test.ts`) | It goes to the email provider to deliver invitations and reminders. It never signs anyone in. |
 | An invitation link works once, within 14 days, for whoever accepts it first while signed in with a passkey. | Conditional update, `expires_at` | Tests | Forwarding the email hands the invitation on. |
 | Drafts stay on this device only if you choose, for your account only. | Per-account `keepLocalFor`, memory store otherwise | Unit and e2e tests | Anyone using this browser profile can read them. They can't be erased remotely. |
 | Encrypted at rest and in transit. | Cloudflare D1 and Durable Objects (AES-256), TLS | Cloudflare docs | Provider-managed keys. This does not keep the service from reading what it stores readable. |

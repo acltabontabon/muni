@@ -38,7 +38,8 @@ those as highlights. The app's About → What's new and each GitHub release are 
   and the facilitator sees how many have voted, never who. In the talk, the topics lie along a
   horizon with the sun on the one being discussed, on the stage and every phone; the facilitator
   writes what the room will remember, and ideas to try, right on the screen. If it helps, thoughts
-  are gathered into themes first, on a sorting table that needs no explaining.
+  are gathered into themes first, on a sorting table that needs no explaining. A paused retro says
+  so on every screen.
 - **See who’s here.** Faces in the retro light up as people open it on any screen — their
   character, or their initials — and the stage says, once, when someone arrives.
 - **A way in for everyone, without having to speak.** When it helps, the facilitator asks how a
@@ -59,6 +60,8 @@ those as highlights. The app's About → What's new and each GitHub release are 
   encryption, and it says so. You sign in with a passkey — no passwords.
 - **A page that feels like yours.** Choose one of eight characters: it gives your own pages a calm
   room of their own, and it’s your face in the retro, beside your name.
+- **Owners decide who joins.** Workspace owners invite people and say yes to requests to join; a
+  sprint's facilitator can invite people straight into their own sprint.
 - **Leave whenever you like.** Leave a workspace from its People page, or delete your account from
   Account. Anything the team relies on — ownership, a sprint you facilitate — is handed on first, and
   Muni says what that is. Deleting your account takes with it what nobody has seen yet; what the team

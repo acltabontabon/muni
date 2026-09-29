@@ -37,10 +37,21 @@ change, with what it will do written under it:
   themes (optional)** first. **More → Reopen collection…** lets people write again until the retro
   starts; what was already revealed stays visible. Once the retro has started, collection can't
   be reopened.
-- While live: **Open the stage**; **More → Pause the retro…** if you need to stop.
+- While live: **Open the stage**; **More → Pause the retro…** if you need to stop. A paused retro
+  says so on the stage and on every phone; **Start the retro again…** on the stage starts it over
+  from Look back for everyone, with the notes and experiments kept.
 - Once it's done, the page is the sprint's recap (below).
+- **More → Invite people** brings someone into this sprint while it's unfinished (see below).
 
 Anyone still writing when collection closes keeps their words on screen; nothing is sent.
+
+## Bringing people in
+
+Workspace owners bring people into the workspace from **People**: **By email** (a link that works
+once, for one address, and expires in 14 days) or **With a link or QR** (a team QR whose requests an
+owner approves, or a personal link for one person). Owners also see the invitations still waiting
+and can withdraw them. A sprint's facilitator can invite people straight into their sprint — by
+email or with the sprint's own code — while it's unfinished. Everyone joins as a member.
 
 ## The retro
 
@@ -53,8 +64,9 @@ someone present who joins without a device. The retro is four steps, each one qu
    help*, *Inconclusive* or *Not tried yet*. Beside them: what this sprint was proud of or wants
    to keep. A team's first retro skips straight to that.
 2. **Choose** — what matters most? Voting opens by itself: everyone votes privately on their phone
-   (three votes each by default, one per theme). Nobody sees how the votes fall until the step
-   ends; the facilitator sees only how many people have voted, never who voted for what.
+   (three votes each by default, at most one per theme — so with two themes, two). Nobody sees how
+   the votes fall until the step ends; the facilitator sees only how many people have voted, never
+   who voted for what.
    Without themes, there's nothing to choose between, and the retro goes straight to the talk.
 3. **Talk** — one topic at a time, in the vote's order, then whatever isn't in a theme. Moving here
    closes the vote. Each topic has its question, its thoughts exactly as written, and a clock that's
@@ -79,8 +91,9 @@ someone present who joins without a device. The retro is four steps, each one qu
    experiments, each with an owner who says yes on their own phone. **End the retro** takes
    everyone to the sprint's recap.
 
-The facilitator moves on with **Next** (or →); the steps and topics along the stage go back, and
-coming back to a topic finds its answers as they were. Joining late, reconnecting or picking your
+The facilitator moves on with **Next** (or →; the arrow keys work only while nothing else — a
+dialog, a menu, a field — has them); the steps and topics along the stage go back, and coming back
+to a topic finds its answers as they were. Joining late, reconnecting or picking your
 phone up again puts you where the room is, with anything you'd written still there.
 
 ## The recap
@@ -88,8 +101,10 @@ phone up again puts you where the room is, with anything you'd written still the
 Once the retro ends, the sprint's page is its recap, the same for everyone in the sprint: who came
 (and who couldn't make it), **What we'll try** — each experiment, its owner and when it will be
 looked at again — **What we talked about**, topic by topic with what the room will remember, and,
-once the facilitator publishes it, **In the facilitator's words**. The facilitator can draft that
-from the retro's record and edit it before publishing. Downloads are at the foot of the page:
+once the facilitator publishes it, **In the facilitator's words**. The facilitator can fill in a
+draft from the retro's record — on their own device, asking before it replaces anything written —
+and edit it before publishing; headings, lists, **bold** and _italics_ show as text, never as
+Markdown. Downloads are at the foot of the page:
 summaries carry no authors, times or individual votes — only totals, and experiment owners by name.
 The experiments come back first in the next sprint's retro.
 

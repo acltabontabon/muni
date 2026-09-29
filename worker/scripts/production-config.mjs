@@ -5,8 +5,9 @@
  *
  * Required: MUNI_DOMAIN (e.g. muni.example.com), MUNI_D1_DATABASE_ID (from `wrangler d1 create`),
  *           MUNI_EMAIL_FROM (e.g. "Muni <hello@example.com>", a sender your email provider accepts).
- * Optional: MUNI_WORKER_NAME (muni), MUNI_D1_DATABASE_NAME (muni), MUNI_EMAIL_PROVIDER (resend).
- *           Email is for invitations and reminders; nobody signs in by email.
+ * Optional: MUNI_WORKER_NAME (muni), MUNI_D1_DATABASE_NAME (muni), MUNI_EMAIL_PROVIDER (resend),
+ *           MUNI_EMAIL_DAILY_LIMIT (80: the most emails Muni sends in a day; keep it below your
+ *           provider's daily quota). Email is for invitations and reminders; nobody signs in by email.
  */
 import { existsSync, readFileSync, writeFileSync } from 'node:fs'
 
@@ -18,6 +19,7 @@ const defaults = {
   MUNI_WORKER_NAME: 'muni',
   MUNI_D1_DATABASE_NAME: 'muni',
   MUNI_EMAIL_PROVIDER: 'resend',
+  MUNI_EMAIL_DAILY_LIMIT: '80',
 }
 const required = ['MUNI_DOMAIN', 'MUNI_D1_DATABASE_ID', 'MUNI_EMAIL_FROM']
 const fail = (msg) => {
@@ -32,6 +34,7 @@ if (required.some((k) => env[k])) {
   if (!/^[a-z0-9.-]+\.[a-z]{2,}$/i.test(values.MUNI_DOMAIN)) fail('MUNI_DOMAIN must be a bare host name, like muni.example.com')
   if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(values.MUNI_D1_DATABASE_ID)) fail('MUNI_D1_DATABASE_ID must be the UUID printed by `wrangler d1 create`')
   if (!['resend', 'brevo'].includes(values.MUNI_EMAIL_PROVIDER)) fail('MUNI_EMAIL_PROVIDER must be resend or brevo')
+  if (!/^[1-9]\d{0,6}$/.test(values.MUNI_EMAIL_DAILY_LIMIT)) fail('MUNI_EMAIL_DAILY_LIMIT must be a whole number of emails a day, like 80')
   const rendered = template.replace(/\$\{(MUNI_[A-Z0-9_]+)\}/g, (_, k) => {
     if (!(k in values)) fail(`the template uses ${k}, which has no value`)
     return JSON.stringify(String(values[k])).slice(1, -1)

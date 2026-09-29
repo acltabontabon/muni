@@ -113,6 +113,26 @@ clock, which visibly ticks once a second. `useCountdown` wakes only when the sho
 fires/s, no requests. A ticking retro screen's budget is ≤2.5 frames/s, ≤5 paints/s and ≤2
 timers/s; every other screen keeps the idle budget.
 
+**What each change costs.** `perf.mjs` (`ONLY=retro-reads`) also sets up an encrypted sprint
+through the app, with a stage and five phones, and counts the API requests each screen makes to
+arrive and for one step. The live retro gathers the room's hints for a moment and reads each part
+once, in order; a read already on its way is never repeated, an answer older than the one shown is
+dropped, and an action's own response is used rather than read again. Opening the retro reads
+everything once, and arriving tells only the facilitator.
+
+| Encrypted sprint, stage + 5 phones | Requests | Budget |
+| --- | --- | --- |
+| Arriving, the stage | 9 | ≤ 10 |
+| Arriving, each phone | 9 | ≤ 10 |
+| The stage while five phones arrive | 2 | ≤ 6 |
+| Next → Talk, the stage (the command included) | 4 | ≤ 4 |
+| Next → Talk, each phone | 3 | ≤ 4 |
+
+On the server, each screen's path is a few database round trips, however much there is:
+`requireSprint` is one query, a meeting snapshot reads the room and one D1 batch side by side,
+grouping and check-ins are one batch each, and "Next → Talk" is two calls to the room
+(`worker/test/roundtrips.test.ts` pins the counts).
+
 ## On a real phone
 
 The budgets above come from emulation, which can't show heat, GPU work or battery. The

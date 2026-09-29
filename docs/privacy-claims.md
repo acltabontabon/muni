@@ -39,6 +39,7 @@ Last checked 2026-09-29, against `main` at 1.0.0-rc.1.
 | An answer counts once and belongs to its check-in, never to whatever topic is on screen | Test | `checkins.test.ts` “ties an answer to its check-in…” (primary key; cross-sprint 404) |
 | Nobody is called on to speak | Code | No speaking round exists (`room.ts`); `meeting.test.ts` “marks who is here…” (no `speaking` or readiness in the snapshot) |
 | Where names do appear: members, participants, attendance, experiment owners | Code | `routes/meeting.ts` `snapshot()`; `routes/sprints.ts` `detail()` |
+| Pending invitations and their addresses are shown only to workspace owners; nobody else can learn whether an address belongs to a member | Test | `grants.test.ts` “is for owners…”, “tells nobody but owners whether an address is a member’s” |
 | Your character is your face beside your name in the retro, and on nothing anonymous (thoughts, votes, answers, additions, exports); whether your own pages wear its world is yours alone | Test | `avatars.test.ts` “shows as a face next to its person’s name in the retro, and nowhere else”; only `buildMe` and the meeting's attendance select `avatar_id` |
 | Reopening keeps what people saw visible | Code | `routes/sprints.ts` `preparing>collecting` (confirmation message) |
 | Authorship can still be inferred (wording, small teams, lone votes, a lone check-in answer, the moment something is added, reopen) | — | Stated limitation; the Privacy page names these; see security review §4 |
@@ -93,14 +94,14 @@ Last checked 2026-09-29, against `main` at 1.0.0-rc.1.
 | Claim | Kind | Evidence |
 | --- | --- | --- |
 | About 90 days after finishing (7–3,650, set by owners), raw content is deleted; outcomes 730 days (30–3,650); sprint name and dates remain | Test | `retention.test.ts`; `jobs.ts` `retention()` (daily sweep, so "about") |
-| Unfinished sprints aren't purged | Code | `retention()` only selects `completed`/`archived` — **open policy decision** |
+| Unfinished sprints aren't purged — neither their content nor their outcomes | Test | `retention.test.ts` “never deletes the outcomes of a sprint that isn’t finished…”; `retention()` only selects `completed`/`archived` — **open policy decision** |
 | A thought deleted while collecting is removed from the live database (backups keep it ≤ 30 days) | Code | `DELETE FROM entries` in `routes/entries.ts` |
-| Account and email kept while the account exists; deleting it removes them, unseen contributions and sole workspaces, and unlinks the rest | Test | `departure.test.ts` (no row names the account afterwards); `lib/departure.ts` |
+| Account and email kept while the account exists; deleting it removes them, unseen contributions and sole workspaces, and unlinks the rest | Test | `departure.test.ts` (no row names the account afterwards; “leaves no room with anything that names them…”); `lib/departure.ts` |
 | Members can leave a workspace; what they submitted stays, without their name | Test | `departure.test.ts` |
 | The facilitator sees how many have voted while a vote is open — never who or for what; nobody else sees it | Test | `socket.test.ts` “tells the facilitator how many have voted”; `voting.ts` `roundView` |
-| The retro shows who's connected (faces beside names), and nothing about what they're doing | Test | `socket.test.ts` “who is connected”; `meeting.ts` attendance `connected` |
+| The facilitator's stage shows who has the retro open (faces beside names), and nothing about what they're doing; nobody else's view says who's connected | Test | `socket.test.ts` “shows the facilitator, live, who has the retro open…”, “…only the facilitator sees who’s connected” |
 | A person's character appears beside their name in the retro and on nothing anonymous | Test | `avatars.test.ts` |
-| Passkey challenges deleted ~1 day after expiry; sessions 30 days, deleted 7 days after ending; hashed limiter rows 24 h; email queue payload cleared when sent | Test + Code | `jobs.ts` `retention()`; `boundaries.test.ts` “keeps a queued email until it’s sent…” |
+| Passkey challenges deleted ~1 day after expiry; sessions 30 days, deleted 7 days after ending; hashed limiter rows 24 h; email queue payload cleared when sent; invitations (with their address) deleted 30 days after they were used, withdrawn or expired; a retro's room record goes with its content | Test + Code | `jobs.ts` `retention()`; `boundaries.test.ts` “keeps a queued email until it’s sent…”; `retention.test.ts` “keeps an invitation’s address for 30 days…”, “takes the room’s record of the retro with the content” |
 | Admin action log kept indefinitely (no text) | Code | `audit_events` never deleted — **open policy decision** |
 | Backups ≤ 30 days, logs ≤ 7 days | Provider + Config | D1 Time Travel docs (7 Free / 30 Paid); Workers Logs docs. The hosted service's plan (Free or Paid) isn't recorded, so the page states the upper bounds |
 

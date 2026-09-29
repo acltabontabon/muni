@@ -28,12 +28,17 @@
     "APP_ENV": "production",
     "PUBLIC_ORIGIN": "https://${MUNI_DOMAIN}",
     // resend | brevo — the API key is a Worker secret: `wrangler secret put RESEND_API_KEY --config wrangler.production.jsonc`.
-    // Until it is set, invitation emails and reminders answer `setup_required` rather than pretending to send.
+    // Until it is set, invitation and reminder emails fail with `setup_required` in the job queue
+    // (nothing pretends to send; the invite dialog still shows the link to copy).
     "EMAIL_PROVIDER": "${MUNI_EMAIL_PROVIDER}",
     "EMAIL_FROM": "${MUNI_EMAIL_FROM}",
+    // The most emails Muni sends in a day, below the provider's own daily quota, so invitations can't
+    // use up what reminders need. Past it, an email fails in the job queue, saying so.
+    "EMAIL_DAILY_LIMIT": "${MUNI_EMAIL_DAILY_LIMIT}",
     "ALLOW_DEMO_SEED": "false",
     // Passkeys belong to exactly this host (e.g. act.munimuni.app) — not the marketing site, not
-    // previews, not other subdomains. The Worker refuses to start if this differs from PUBLIC_ORIGIN's host.
+    // previews, not other subdomains. If it differs from PUBLIC_ORIGIN's host, every request answers
+    // 500 `misconfigured` until it's fixed.
     "WEBAUTHN_RP_ID": "${MUNI_DOMAIN}"
   }
 }

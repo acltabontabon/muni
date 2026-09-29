@@ -27,7 +27,7 @@ cron */15 ──▶ Worker: due jobs (email, reminders) and a daily retention sw
 | `worker/src/index.ts` | entry: configuration check, client-revision gate, routes, error mapping, cron |
 | `worker/src/routes/` | one module per area: auth and invitations, passkeys, keys (encryption keys and wraps), email preferences, workspaces, join links and requests, sprints, entries, themes, voting, meeting, check-ins, commitments (experiments and recaps), exports, demo (development only) |
 | `worker/src/room.ts` | `MeetingRoom`: step, topic, timer deadline, controller, attendance, version; hints to everyone, or only to facilitators and an account's own tabs |
-| `worker/src/lib/` | sessions/CSRF/authorization, accounts, avatars, departure (leaving and deleting), encryption envelope checks (`sealed.ts`), hints to the room (`live.ts`), D1 helpers, errors, email adapter, rate limits, config, small utilities |
+| `worker/src/lib/` | sessions/CSRF/authorization, who may bring people in (`grants.ts`), caps enforced where data is written (`limits.ts`), accounts, avatars, departure (leaving and deleting), encryption envelope checks (`sealed.ts`), hints to the room (`live.ts`), D1 helpers, errors, email adapter, rate limits, config, small utilities |
 | `worker/src/jobs.ts` | durable jobs in D1, reminders, retention |
 | `worker/src/contract.ts` | the typed API contract, imported by the web app |
 | `worker/migrations/` | SQL migrations, applied in order (additive within a major, [RELEASING.md](RELEASING.md) §2) |
@@ -43,15 +43,21 @@ and reading the meeting re-initialises a missing session, so a failed call is re
 
 **Live updates are hints.** A socket message names the resource that changed and a version; the
 client then fetches a fresh, authorized snapshot over HTTP. A broadcast therefore can't carry
-anything a recipient may not see, and reconnecting is just fetching again. Sockets use the
-Hibernation API, so an idle room costs nothing.
+anything a recipient may not see, and reconnecting is just fetching again. Hints that only change
+the facilitator's view — someone arriving or leaving, an answer or an addition coming in — go only
+to the facilitator's sockets and the person's own tabs; the room follows a handover of facilitation
+on the sockets already open. Clients gather hints for a moment and read each part once, in order,
+dropping an answer older than one already shown. Sockets use the Hibernation API, so an idle room
+costs nothing.
 
 **Concurrency without cross-store transactions.** D1 is single-writer, so each race is one
 conditional statement: a submission is `INSERT … SELECT … WHERE status = 'collecting'` against the
 batch that closes collection; a vote is `INSERT … WHERE (my votes) < budget`; an invitation is
 `UPDATE … WHERE accepted_at IS NULL` (one change wins); lifecycle transitions are
-`UPDATE … WHERE status = ?`. Facilitator commands are serialised by the room and carry the version
-they observed (`expected_version`); a stale one is refused.
+`UPDATE … WHERE status = ?`; demoting an owner requires another owner in the same statement.
+Facilitator commands carry the version they observed (`expected_version`). The room checks that
+version and who is controlling the stage *before* anything in D1 changes (`/claim`), so a refused
+command changes nothing; multi-field edits are validated whole, then written in one batch.
 
 **No always-on loops.** Jobs are D1 rows. They run right after being queued (bounded, via
 `waitUntil`) and from the 15-minute cron, with bounded retries, backoff and a `failed` state.
@@ -146,10 +152,16 @@ distinctive writing can identify an author. Exports are copies retention can't r
 - **Emailed invitations** are single-use links that expire after 14 days; whoever accepts first,
   signed in with a passkey, joins. The token travels in the link's fragment and in request
   bodies, never in a URL the server sees.
-- **Invite QR codes / shared links** let a signed-in person *ask* to join; an owner or the sprint's
-  facilitator approves each request. **Personal links** work once and join their first signed-in
-  user directly. Both grant only the `member` role, expire and can be turned off; only token
-  hashes are stored.
+- **Invite QR codes / shared links** let a signed-in person *ask* to join; **personal links** work
+  once and join their first signed-in user directly. Both grant only the `member` role, expire and
+  can be turned off; only token hashes are stored.
+- **Who may bring people in** (`lib/grants.ts`): everything workspace-wide — invitations without a
+  sprint, workspace codes and links, deciding requests to join the workspace, and the list of
+  pending invitations with their addresses — is the owners'. A sprint's facilitator can invite
+  people into that sprint, by email or its own code, and decide requests to join it, while it's
+  unfinished. A non-owner never learns whether an address belongs to a member. A grant is checked
+  again when it's used: an invitation stops working once its sender may no longer invite into its
+  scope.
 - **Every request is authorized from D1**: an active membership for workspace routes; for sprint
   routes, membership plus participation (owners can see a sprint's settings, not its content).
   Nothing the client sends (user id, role, workspace) is trusted. Revoking a membership or a
@@ -169,9 +181,10 @@ on the server first, names unsent work, then removes that account's local record
 ## Retention
 
 A daily sweep deletes a finished sprint's raw content (entries, themes, votes, notes,
-unpublished recaps) after the workspace's window (90 days by default) and its outcomes
-(experiments, published recaps) after a longer one (730 days). Passkey challenges, rate-limit
-rows, sessions and finished jobs expire on short schedules. Not yet covered: sprints that are
+unpublished recaps, and the room's stored state) after the workspace's window (90 days by default)
+and its outcomes (experiments, published recaps) after a longer one (730 days, never shorter than
+the content window). Passkey challenges, rate-limit rows, sessions and finished jobs expire on short
+schedules; invitations go 30 days after they were accepted, withdrawn or expired. Not yet covered: sprints that are
 never finished, and deleting a workspace others are still in. Deleted rows remain in the database's point-in-time recovery window (7 days on the Workers Free plan, 30 on
 Paid).
 
@@ -188,7 +201,9 @@ with the team, what nobody has seen goes. Entries not yet revealed, votes in ope
 check-in answers and unreleased additions are deleted; revealed rows are kept with the author
 column replaced by a fresh random value per row, so they can't be grouped as one person's.
 Workspace history keeps its events under a "gone" actor (shown as "Someone", not Muni) and records
-`account.deleted`. Workspaces with no other member go too. `lib/departure.ts` holds the
+`account.deleted`. Workspaces with no other member go too, and the person is taken out of every
+live room they were in. Every statement carries the same guard as the check before it, so a join
+or handover that lands in between leaves everything as it was (409 `not_free`). `lib/departure.ts` holds the
 statements; `test/departure.test.ts` checks that no row names the account afterwards.
 
 ## Configuration and safety rails
@@ -207,5 +222,9 @@ development and tests only; a production deployment uses its own rendered config
 
 For ten participants, ~100 entries and one hour-long live retro per sprint, one team uses well under
 1% of the Workers Free daily allowances. The first limit a busy day reaches is D1 row reads (each
-live snapshot reads several tables); the Worker then answers `503 quota` and the client says nothing
-was saved. Exports are bounded (≤ 2,000 entries).
+live snapshot reads several tables); the Worker then answers `503 quota`, and says a write may not
+have been saved. Caps are enforced where data is written (`lib/limits.ts`), so every read returns
+everything there is: 60 participants per sprint, 200 thoughts per person and 12,000 per sprint,
+40 themes, 100 retro additions per person. Each account can send 20 invitation emails and create
+10 workspaces a day, and the deployment sends at most `EMAIL_DAILY_LIMIT` emails a day (80 by
+default).

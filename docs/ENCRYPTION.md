@@ -90,8 +90,10 @@ sprint. We accept that availability cost rather than add escrow.
 thoughts written after reopening use it, and closing again reveals it. What was revealed before
 stays readable. **Late participants** receive every revealed version from any
 teammate's device that holds it. **Facilitator change** moves the key: the old facilitator's device
-seals it to the new one in the same request; the server then drops other wraps of the sealed
-version. **Rescheduling** has no key effect.
+seals every version it holds to the new one in the same request — only to a key it has pinned (a
+changed key must be confirmed first), and never without the still-sealed version. The server
+refuses a change without a wrap for exactly the sealed version, and writes the role, the new wraps
+and the removal of others' copies of that version in one batch. **Rescheduling** has no key effect.
 
 ## 4. Keys: authentication and encryption are separate
 
