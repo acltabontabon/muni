@@ -373,7 +373,7 @@ export function SprintSetup() {
                 </li>
               ))}
             </ul>
-            <Help>{ws.members.length <= 1 ? 'Just you so far. After creating the sprint, invite your team from its guide — they join this sprint directly.' : 'Someone missing? Invite them from the sprint’s guide once it’s created.'}</Help>
+            <Help>{existing ? 'Someone missing from the workspace? Invite them from the sprint’s page — they join this sprint directly.' : ws.members.length <= 1 ? 'Just you so far. Once the sprint exists, invite your team from its page — they join this sprint directly.' : 'Someone missing? Invite them from the sprint’s page once it’s created.'}</Help>
           </fieldset>
         </Section>
 

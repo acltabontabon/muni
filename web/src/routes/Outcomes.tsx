@@ -429,7 +429,8 @@ function OutcomeForm({ e, sprintId, onSaved }: { e: Experiment; sprintId: string
       <form className="recap-outcome" onSubmit={submit}>
         <div>
           <label className="block text-xs text-ink-soft" htmlFor={`st-${e.id}`}>What happened?</label>
-          <Select id={`st-${e.id}`} value={status} onChange={(ev) => setStatus(ev.target.value)} className="h-9 py-1 text-sm">
+          {/* As tall as the note beside it; the field's own padding would otherwise clip the words. */}
+          <Select id={`st-${e.id}`} value={status} onChange={(ev) => setStatus(ev.target.value)} style={{ height: '2.25rem', paddingBlock: 0, fontSize: 14 }}>
             {decided ? null : <option value="accepted">Still running</option>}
             <option value="helped">Helped</option>
             <option value="did_not_help">Didn’t help</option>
