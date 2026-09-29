@@ -6,9 +6,8 @@
  * sign-in secret and no encryption key; the token is useless without a person approving.
  */
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import qrcode from 'qrcode-generator'
 import { Check, Copy, QrCode, UserCheck, UserX } from 'lucide-react'
-import { ApiError, del, get, post } from '@/api/client'
+import { ApiError, del, get, onExpectedAccount, post } from '@/api/client'
 import type { JoinLinkInfo, JoinRequestInfo, SprintSummary } from '@/api/types'
 import { Button, Dialog, ErrorText, useToast } from '@/ui'
 
@@ -19,25 +18,48 @@ const ago = (iso: string) => {
 }
 const problem = (e: unknown, doing: string) => (e instanceof ApiError && e.status === 0 ? 'You’re offline, so nothing changed.' : `Couldn’t ${doing}: ${e instanceof ApiError ? e.message : 'something went wrong'}.`)
 
-/** Links shown in this page session only (memory, never storage): the server keeps just a fingerprint. */
+/**
+ * Links shown in this page session only (memory, never storage): the server keeps just a
+ * fingerprint. They belong to whoever made them: signing out, or someone else signing in, drops them.
+ */
 const shown = new Map<string, { url: string; link: JoinLinkInfo }>()
 const scopeKey = (workspaceId: string, sprintId: string | null, mode: 'approval' | 'direct' = 'approval') => `${workspaceId}:${sprintId ?? ''}:${mode}`
+onExpectedAccount(() => shown.clear())
+
+/** The QR encoder is only needed when a code is shown: loaded then, once. */
+const importEncoder = () => import('qrcode-generator').then((m) => m.default)
+let encoder: ReturnType<typeof importEncoder> | null = null
+const loadEncoder = () => (encoder ??= importEncoder())
 
 export function QrImage({ value, label }: { value: string; label: string }) {
-  const { d, n } = useMemo(() => {
-    const qr = qrcode(0, 'M')
-    qr.addData(value)
-    qr.make()
-    const count = qr.getModuleCount()
-    let path = ''
-    for (let r = 0; r < count; r++) for (let c = 0; c < count; c++) if (qr.isDark(r, c)) path += `M${c} ${r}h1v1h-1z`
-    return { d: path, n: count }
+  const [qr, setQr] = useState<{ value: string; d: string; n: number } | null>(null)
+  useEffect(() => {
+    let live = true
+    loadEncoder().then(
+      (qrcode) => {
+        const code = qrcode(0, 'M')
+        code.addData(value)
+        code.make()
+        const count = code.getModuleCount()
+        let path = ''
+        for (let r = 0; r < count; r++) for (let c = 0; c < count; c++) if (code.isDark(r, c)) path += `M${c} ${r}h1v1h-1z`
+        if (live) setQr({ value, d: path, n: count })
+      },
+      () => {
+        encoder = null // offline before it was ever loaded: the next showing tries again
+      },
+    )
+    return () => {
+      live = false
+    }
   }, [value])
+  const box = 'block aspect-square w-full max-w-[16rem] rounded-2xl'
+  if (!qr || qr.value !== value) return <div role="img" aria-label={label} aria-busy className={`${box} bg-white`} />
   // Always dark on light with a quiet zone, whatever the theme: that's what cameras read best.
   return (
-    <svg viewBox={`-4 -4 ${n + 8} ${n + 8}`} role="img" aria-label={label} className="block aspect-square w-full max-w-[16rem] rounded-2xl" shapeRendering="crispEdges">
-      <rect x="-4" y="-4" width={n + 8} height={n + 8} fill="#ffffff" />
-      <path d={d} fill="#161412" />
+    <svg viewBox={`-4 -4 ${qr.n + 8} ${qr.n + 8}`} role="img" aria-label={label} className={box} shapeRendering="crispEdges">
+      <rect x="-4" y="-4" width={qr.n + 8} height={qr.n + 8} fill="#ffffff" />
+      <path d={qr.d} fill="#161412" />
     </svg>
   )
 }
@@ -242,17 +264,20 @@ export function JoinRequests({ workspaceId, sprintId, live = false, onDecided }:
     const onFocus = () => !document.hidden && void load()
     document.addEventListener('visibilitychange', onFocus)
     let n = 0
+    let stopped = false
     const start = Date.now()
     const tick = () => {
-      if (Date.now() - start > 30 * 60_000) return
+      if (stopped || Date.now() - start > 30 * 60_000) return
       timer.current = window.setTimeout(async () => {
         if (!document.hidden) await load()
         n++
+        // Closed while that check was on its way: nothing more is scheduled.
         tick()
       }, Math.min(5000 + n * 1000, 20_000))
     }
     if (live) tick()
     return () => {
+      stopped = true
       window.clearTimeout(timer.current)
       document.removeEventListener('visibilitychange', onFocus)
     }

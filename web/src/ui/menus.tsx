@@ -2,7 +2,7 @@
  * The two header menus. Workspace switcher: the workspaces you belong to, plus the secondary
  * things you're allowed to do there. Account menu: you, this device, and leaving.
  */
-import { useEffect, useState, type FormEvent, type ReactNode } from 'react'
+import { useEffect, useRef, useState, type FormEvent, type ReactNode } from 'react'
 import { Link, useNavigate } from 'react-router'
 import * as Popover from '@radix-ui/react-popover'
 import { clsx } from 'clsx'
@@ -280,13 +280,19 @@ export function LeaveDialog({ kind, onClose, stay, forget: forgetByDefault = fal
   const [forget, setForget] = useState(forgetByDefault)
   /** Signing out (or forgetting) would leave no way to unlock the encrypted writing. */
   const [risk, setRisk] = useState<'none' | 'only-copy'>('none')
+  // The local store changes with every send attempt; only opening the dialog (or changing what it's
+  // for) starts it afresh — never a retry in the background, which would untick "forget" or take
+  // away the error being read.
+  const localRef = useRef(local)
+  localRef.current = local
   useEffect(() => {
-    if (kind) local.draftCount().then(setDrafts, () => setDrafts(0))
+    if (!kind) return
+    localRef.current.draftCount().then(setDrafts, () => setDrafts(0))
     if (kind === 'signout') keyring.signOutRisk().then(setRisk, () => setRisk('none'))
     setForget(forgetByDefault)
     setError('')
     setServerFailed(null)
-  }, [kind, local, forgetByDefault])
+  }, [kind, forgetByDefault])
   const queued = local.items.length
   const unsent = queued + drafts
   const { state: keys } = useDeviceKeys()
@@ -306,16 +312,18 @@ export function LeaveDialog({ kind, onClose, stay, forget: forgetByDefault = fal
     setError('')
     try {
       if (kind === 'signout') {
-        // While the session still works, the server forgets this device's half of its key too.
-        if (forget) await keyring.forgetDevice({ serverToo: true, keepSignedIn: true })
+        // While the session still works, the server forgets this device's half of its key. What's
+        // on this device goes only once signing out has worked.
+        const shareGone = forget ? await keyring.dropDeviceShare() : false
         try {
           await post('/api/auth/logout')
         } catch (e) {
           // 401: the session had already ended — carry on. Anything else: still signed in, keep everything.
           if (!(e instanceof ApiError && e.status === 401)) {
             const offline = e instanceof ApiError && e.status === 0
+            const kept = shareGone ? 'This device can no longer unlock your encrypted writing by itself — that was removed first — but nothing else was removed.' : 'Nothing was removed.'
             setServerFailed(offline ? 'offline' : 'refused')
-            setError(offline ? 'Muni can’t be reached, so your session couldn’t be ended on the server. Nothing was removed.' : `Muni couldn’t end your session: ${e instanceof ApiError ? sentence(e.message) : 'something went wrong.'} Nothing was removed.`)
+            setError(offline ? `Muni can’t be reached, so your session couldn’t be ended on the server. ${kept}` : `Muni couldn’t end your session: ${e instanceof ApiError ? sentence(e.message) : 'something went wrong.'} ${kept}`)
             return
           }
         }
@@ -325,6 +333,8 @@ export function LeaveDialog({ kind, onClose, stay, forget: forgetByDefault = fal
         toast('Cleared from this device. Nothing was deleted from Muni.')
       }
       onClose()
+    } catch (e) {
+      setError(`Couldn’t finish: ${e instanceof Error ? e.message : 'something went wrong'}. Try again.`)
     } finally {
       setBusy(false)
     }
@@ -336,6 +346,8 @@ export function LeaveDialog({ kind, onClose, stay, forget: forgetByDefault = fal
       // The session can't be ended right now, so what would reopen the key here goes too.
       await forgetHere({ forgetDevice: true })
       onClose()
+    } catch (e) {
+      setError(`Couldn’t finish signing out here: ${e instanceof Error ? e.message : 'something went wrong'}. Try again.`)
     } finally {
       setBusy(false)
     }
@@ -439,11 +451,16 @@ function KeepOffDialog({ open, onClose }: { open: boolean; onClose: () => void }
   const local = useLocal()
   const unsent = local.items.length
   const [busy, setBusy] = useState(false)
+  const [error, setError] = useState('')
+  useEffect(() => setError(''), [open])
   const turnOff = async (discard: boolean) => {
     setBusy(true)
+    setError('')
     try {
       await local.setKeepLocal(false, { discard })
       onClose()
+    } catch (e) {
+      setError(`Drafts are still kept on this device: ${e instanceof Error ? e.message : 'its storage couldn’t be changed'}. Try again.`)
     } finally {
       setBusy(false)
     }
@@ -451,6 +468,7 @@ function KeepOffDialog({ open, onClose }: { open: boolean; onClose: () => void }
   return (
     <Dialog open={open} onOpenChange={(o) => !o && onClose()} title="Stop keeping drafts on this device?" description="Drafts will last only while this tab is open. Muni won’t open offline on this device.">
       {unsent > 0 ? <p className="text-[15px]">{unsent === 1 ? '1 thought is' : `${unsent} thoughts are`} waiting to be sent. You can keep {unsent === 1 ? 'it' : 'them'} in this tab until {unsent === 1 ? 'it’s' : 'they’re'} sent, or discard {unsent === 1 ? 'it' : 'them'}.</p> : null}
+      <ErrorText>{error}</ErrorText>
       <div className="mt-6 flex flex-wrap justify-end gap-2">
         <Button variant="ghost" onClick={onClose}>Cancel</Button>
         {unsent > 0 ? <Button variant="danger" busy={busy} onClick={() => turnOff(true)}>Discard and turn off</Button> : null}

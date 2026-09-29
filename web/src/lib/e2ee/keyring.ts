@@ -525,6 +525,22 @@ export const keyring = {
     if (!opts.keepSignedIn) keyring.lock()
   },
 
+  /**
+   * Signing out with "forget this device": the server's half of this device's unlock is removed
+   * first, while the session still works (nothing on the device changes yet). True if it went.
+   */
+  async dropDeviceShare(): Promise<boolean> {
+    const id = accountId
+    const dev = id ? await store.getDevice(id).catch(() => null) : null
+    if (!dev || !fetcher) return false
+    try {
+      await timed(fetcher('DELETE', `/api/me/devices/${dev.deviceId}`, {}))
+      return true
+    } catch {
+      return false
+    }
+  },
+
   /** Before signing out: true when this device holds the only copy and signing out would lose it. */
   async signOutRisk(): Promise<'none' | 'only-copy'> {
     const id = accountId

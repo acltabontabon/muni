@@ -6,7 +6,7 @@
 import { useEffect, useState } from 'react'
 import { Link, useNavigate } from 'react-router'
 import { ApiError, del, get, post } from '@/api/client'
-import type { AccountDeleted, AccountDeletionPreview, WorkspaceStanding } from '@/api/types'
+import type { AccountDeleted, AccountDeletionPreview, SprintSummary, WorkspaceStanding } from '@/api/types'
 import { useAuth } from '@/lib/auth'
 import { keyring } from '@/lib/e2ee/keyring'
 import { useLocal } from '@/lib/local/LocalProvider'
@@ -22,10 +22,15 @@ const failure = (e: unknown, what: string) => (e instanceof ApiError ? (e.status
 
 function useStanding(open: boolean) {
   const [state, setState] = useState<{ data: AccountDeletionPreview | null; error: string }>({ data: null, error: '' })
+  // Read again when the server says things changed (someone joined, a sprint gained a facilitator).
+  const [asked, setAsked] = useState(0)
+  useEffect(() => {
+    if (!open) setAsked(0)
+  }, [open])
   useEffect(() => {
     if (!open) return
     let live = true
-    setState({ data: null, error: '' })
+    setState((s) => (asked ? s : { data: null, error: '' }))
     get<AccountDeletionPreview>('/api/auth/me/deletion').then(
       (data) => live && setState({ data, error: '' }),
       (e) => live && setState({ data: null, error: failure(e, 'Muni couldn’t check') }),
@@ -33,8 +38,8 @@ function useStanding(open: boolean) {
     return () => {
       live = false
     }
-  }, [open])
-  return state
+  }, [open, asked])
+  return { ...state, reload: () => setAsked((n) => n + 1) }
 }
 
 /** What has to happen first in one workspace, with the way to do it. */
@@ -70,9 +75,10 @@ function useUnsent(open: boolean, workspaceId?: string) {
 
 export function LeaveWorkspaceDialog({ open, onClose, workspace }: { open: boolean; onClose: () => void; workspace: { id: string; name: string } }) {
   const { refresh } = useAuth()
+  const local = useLocal()
   const toast = useToast()
   const nav = useNavigate()
-  const { data, error: loadError } = useStanding(open)
+  const { data, error: loadError, reload } = useStanding(open)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
   const { queued } = useUnsent(open, workspace.id)
@@ -83,13 +89,19 @@ export function LeaveWorkspaceDialog({ open, onClose, workspace }: { open: boole
     setBusy(true)
     setError('')
     try {
-      await post(`/api/workspaces/${workspace.id}/leave`, s?.sole ? { delete_workspace: true } : {})
+      // Its sprints, while they can still be listed: drafts for them can't be reached after leaving.
+      const sprintIds = await get<SprintSummary[]>(`/api/workspaces/${workspace.id}/sprints`).then((l) => l.map((x) => x.id), () => [] as string[])
+      const r = await post<{ ok: true; deleted?: boolean }>(`/api/workspaces/${workspace.id}/leave`, s?.sole ? { delete_workspace: true } : {})
+      await local.forgetWorkspace(workspace.id, sprintIds).catch(() => {})
       onClose()
       nav('/', { replace: true })
       await refresh()
-      toast(s?.sole ? `${workspace.name} was deleted` : `You left ${workspace.name}`)
+      // What the server did, not what the dialog expected: someone may have joined meanwhile.
+      toast(r?.deleted ? `${workspace.name} was deleted` : `You left ${workspace.name}`)
     } catch (e) {
       setError(failure(e, 'you’re still in the workspace'))
+      // Where you stand may have changed (someone joined, a sprint needs handing on): read it again.
+      if (e instanceof ApiError && e.status === 409) reload()
     } finally {
       setBusy(false)
     }
@@ -157,8 +169,9 @@ export function DeleteAccountDialog({ open, onClose }: { open: boolean; onClose:
       const done = await run(() => del<AccountDeleted>('/api/auth/me', { confirm: true }))
       if (!done) return
       await forgetDeletedPasskeys(done.rp_id, done.credential_ids)
-      // Nothing of this account stays on this device either.
-      await local.clearLocal()
+      // Nothing of this account stays on this device either: its drafts, its choice to keep them
+      // here (and the device database, once nobody keeps anything in it), and its unlock.
+      await local.forgetAccount().catch(() => {})
       await keyring.forgetDevice({ serverToo: false })
       forgetSignedInState()
       announceSignOut()

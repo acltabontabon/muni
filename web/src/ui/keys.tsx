@@ -100,12 +100,18 @@ function StartOverDialog({ open, onClose }: { open: boolean; onClose: () => void
   )
 }
 
-export function UnlockDialog({ open, onClose }: { open: boolean; onClose: () => void }) {
+export function UnlockDialog({ open, onClose: close }: { open: boolean; onClose: () => void }) {
   const uid = useId()
   const [text, setText] = useState('')
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
   const [reset, setReset] = useState(false)
+  // A typed recovery key never stays behind once the dialog closes, whichever way.
+  const onClose = () => {
+    setText('')
+    setError('')
+    close()
+  }
   return (
     <>
       <Dialog open={open && !reset} onOpenChange={(o) => !o && onClose()} title="Unlock with your recovery key" description="The 36-character key you saved when you made a recovery key. After this, signing in on this device unlocks your writing again.">
@@ -129,7 +135,7 @@ export function UnlockDialog({ open, onClose }: { open: boolean; onClose: () => 
           <input id={`${uid}-rk`} className="mt-1.5 w-full rounded-xl border border-line bg-card px-3.5 py-2.5 font-mono tracking-wide" value={text} onChange={(e) => setText(e.target.value)} autoComplete="off" spellCheck={false} autoCapitalize="characters" placeholder="XXXX-XXXX-…" aria-invalid={error ? true : undefined} />
           <ErrorText>{error}</ErrorText>
           <div className="mt-6 flex flex-wrap items-center justify-between gap-2">
-            <button type="button" className="text-sm text-ink-soft underline underline-offset-2" onClick={() => setReset(true)}>Lost it?</button>
+            <button type="button" className="text-sm text-ink-soft underline underline-offset-2" onClick={() => { setText(''); setReset(true) }}>Lost it?</button>
             <div className="flex gap-2">
               <Button type="button" variant="ghost" onClick={onClose}>Cancel</Button>
               <Button type="submit" variant="primary" busy={busy} disabled={text.replace(/[\s-]/g, '').length < 36}>Unlock</Button>
@@ -262,6 +268,19 @@ export function NewRecoveryDialog({ open, onClose }: { open: boolean; onClose: (
     setError('')
     onClose()
   }
+  /** "I've saved it": Muni notes that it's saved (for honest reminders). The key works either way. */
+  const done = async () => {
+    setBusy(true)
+    setError('')
+    try {
+      await keyring.confirmRecoverySaved()
+      close()
+    } catch (e) {
+      setError(`${e instanceof ApiError && e.status === 0 ? 'You’re offline, so Muni couldn’t note that it’s saved.' : 'Muni couldn’t note that it’s saved.'} Your recovery key works either way — try Done again in a moment.`)
+    } finally {
+      setBusy(false)
+    }
+  }
   return (
     <Dialog
       open={open}
@@ -276,7 +295,8 @@ export function NewRecoveryDialog({ open, onClose }: { open: boolean; onClose: (
             <input type="checkbox" className="mt-1 size-4 accent-[var(--accent)]" checked={saved} onChange={(e) => setSaved(e.target.checked)} />
             <span>I’ve saved it somewhere safe.</span>
           </label>
-          <div className="mt-5 flex justify-end"><Button variant="primary" disabled={!saved} onClick={async () => { await keyring.confirmRecoverySaved(); close() }}>Done</Button></div>
+          <ErrorText>{error}</ErrorText>
+          <div className="mt-5 flex justify-end"><Button variant="primary" disabled={!saved} busy={busy} onClick={done}>Done</Button></div>
         </>
       ) : (
         <>

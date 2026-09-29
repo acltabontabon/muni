@@ -9,6 +9,7 @@ import { keptAccounts, setKeepsLocal } from '@/lib/prefs'
 import { flush, nextDue, type FlushResult } from './outbox'
 import { serialPasses } from './passes'
 import { keyring } from '@/lib/e2ee/keyring'
+import { clearRetroDrafts } from '@/lib/retro-drafts'
 import { deviceStore, destroyDeviceStore, emptyPayload, hasText, memoryStore, RECORD_VERSION, StorageError, type ContextSprint, type Draft, type LocalStore, type OutboxItem, type Payload } from './store'
 
 export type SyncState = 'idle' | 'sending' | 'offline' | 'signed_out' | 'upgrade'
@@ -35,6 +36,10 @@ type LocalApi = {
   cacheContext: (sprint: ContextSprint, workspaceName: string | null) => Promise<void>
   cachedContexts: () => Promise<{ sprint: ContextSprint; workspaceName: string | null; fetchedAt: number }[]>
   clearLocal: () => Promise<void>
+  /** Left a workspace: drafts for its sprints (which can't be reached any more) and what was kept about it go. */
+  forgetWorkspace: (workspaceId: string, sprintIds: string[]) => Promise<void>
+  /** The account was deleted: everything kept for it goes, including the choice to keep drafts here. */
+  forgetAccount: () => Promise<void>
   /** Drafts with text kept for this account (in this tab or on this device). */
   draftCount: () => Promise<number>
   /** Bumped whenever local data is cleared, so views holding text in memory start over. */
@@ -268,10 +273,35 @@ export function LocalProvider({ accountId, children }: { accountId: string | nul
       async clearLocal() {
         if (!accountId) return
         generation++
+        clearRetroDrafts()
         await memory.clearAccount(accountId)
         if (device) await device.clearAccount(accountId).catch(() => {})
         setCleared((n) => n + 1)
         await reload()
+        channel?.postMessage('changed')
+      },
+      async forgetWorkspace(workspaceId, sprintIds) {
+        if (!accountId) return
+        for (const s of [memory, ...(device ? [device] : [])]) {
+          for (const id of sprintIds) await s.deleteDraft(accountId, id).catch(() => {})
+          await s.forgetWorkspace(accountId, workspaceId).catch(() => {})
+        }
+        channel?.postMessage('changed')
+      },
+      async forgetAccount() {
+        if (!accountId) return
+        generation++
+        clearRetroDrafts()
+        await memory.clearAccount(accountId)
+        if (device) await device.clearAccount(accountId).catch(() => {})
+        setKeepsLocal(accountId, false)
+        // The device database itself goes once nobody on this device keeps anything in it.
+        if (!keptAccounts().length && hasDeviceStorage()) {
+          await destroyDeviceStore().catch(() => {})
+          device = null
+        }
+        setKept(keptAccounts())
+        setCleared((n) => n + 1)
         channel?.postMessage('changed')
       },
       async draftCount() {

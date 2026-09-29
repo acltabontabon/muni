@@ -62,8 +62,19 @@ export function onAccountChanged(fn: Listener) {
  * one account's keys or content with another's.
  */
 let expectedAccount: string | null = null
+const accountListeners = new Set<(id: string | null) => void>()
+/**
+ * The account this tab acts for changed: signed in, signed out, or someone else now. What a module
+ * keeps in memory for one person (unsent retro words, invite links shown) goes when they do.
+ */
+export function onExpectedAccount(fn: (id: string | null) => void) {
+  accountListeners.add(fn)
+  return () => accountListeners.delete(fn)
+}
 export function setExpectedAccount(id: string | null) {
+  if (id === expectedAccount) return
   expectedAccount = id
+  accountListeners.forEach((l) => l(id))
 }
 export const expectedAccountId = () => expectedAccount
 const upgradeListeners = new Set<Listener>()
@@ -128,7 +139,7 @@ export async function api<T>(path: string, init: RequestInit & { json?: unknown;
   if (res.status === 204) return undefined as T
   const data = await res.json()
   // Signed in (by any method): this tab acts for that account from now on.
-  if (SIGN_IN_PATHS.has(path) && typeof data?.account_id === 'string') expectedAccount = data.account_id
+  if (SIGN_IN_PATHS.has(path) && typeof data?.account_id === 'string') setExpectedAccount(data.account_id)
   return (hooks && !init.plain ? await hooks.open(data, path) : data) as T
 }
 

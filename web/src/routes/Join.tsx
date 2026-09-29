@@ -159,6 +159,8 @@ export function Waiting({ requestId, onAgain }: { requestId: string; onAgain?: (
   const started = useRef(Date.now())
   const timer = useRef<number | undefined>(undefined)
   const again = useRef<() => void>(() => {})
+  /** Gone from the screen: a check that was on its way when that happened arms nothing. */
+  const gone = useRef(false)
 
   const check = useCallback(async () => {
     window.clearTimeout(timer.current)
@@ -174,6 +176,7 @@ export function Waiting({ requestId, onAgain }: { requestId: string; onAgain?: (
     } finally {
       setChecking(false)
     }
+    if (gone.current) return
     // Bounded: slower over time, and stops after a while (the page still checks on focus).
     if (Date.now() - started.current > GIVE_UP_MS) return setPaused(true)
     const delay = DELAYS[Math.min(tries.current++, DELAYS.length - 1)] * 1000
@@ -186,6 +189,7 @@ export function Waiting({ requestId, onAgain }: { requestId: string; onAgain?: (
   }, [check])
 
   useEffect(() => {
+    gone.current = false
     void check()
     const wake = () => {
       if (document.hidden) return
@@ -197,6 +201,7 @@ export function Waiting({ requestId, onAgain }: { requestId: string; onAgain?: (
     document.addEventListener('visibilitychange', wake)
     window.addEventListener('online', wake)
     return () => {
+      gone.current = true
       window.clearTimeout(timer.current)
       document.removeEventListener('visibilitychange', wake)
       window.removeEventListener('online', wake)
