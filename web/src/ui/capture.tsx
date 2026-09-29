@@ -28,6 +28,7 @@ import { useKeysEpoch } from '@/lib/e2ee/E2eeProvider'
 import { splitLinks } from '@/lib/text'
 import { dayKey, dayLabel } from '@/lib/schedule'
 import { Button, ErrorText, Kbd, useToast } from '@/ui'
+import { menuKeys } from '@/ui/menu-keys'
 import { StatusLabel, type ThoughtState } from '@/ui/status'
 import { Hammock } from '@/ui/journal'
 import { MUNI_WORDS } from '@/worlds/characters'
@@ -495,7 +496,7 @@ function EntryMenu({ actions, note, label }: { actions: MenuAction[]; note?: str
         </button>
       </Popover.Trigger>
       <Popover.Portal>
-        <Popover.Content align="end" sideOffset={4} collisionPadding={12} className="menu-panel anim-rise" role="menu" aria-label={label}>
+        <Popover.Content align="end" sideOffset={4} collisionPadding={12} className="menu-panel anim-rise" role="menu" aria-label={label} onKeyDown={menuKeys}>
           {actions.map((a) => (
             <Popover.Close asChild key={a.label}>
               <button type="button" role="menuitem" className={clsx('menu-item', a.danger && 'menu-item--danger')} disabled={a.disabled} onClick={a.onSelect}>
@@ -862,10 +863,12 @@ export function MyThoughts({ sprintId, editable, moveChoices, online, className,
     unlockedAt.current = keysEpoch
     void load()
   }, [keysEpoch, load])
-  // Something was accepted (or the queue changed): show the confirmed list.
+  // Something was accepted: show the confirmed list. Keyed on the newest submission, not on how
+  // many there were — the list of recent ones stops growing at 20.
+  const lastSubmitted = local.recentlySubmitted.at(-1)
   useEffect(() => {
-    if (local.recentlySubmitted.length) load()
-  }, [local.recentlySubmitted.length, load])
+    if (lastSubmitted) load()
+  }, [lastSubmitted, load])
 
   const entryRemoval = useUndoableRemove(
     async (id) => {

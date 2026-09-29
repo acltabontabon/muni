@@ -19,6 +19,7 @@ import { announceSignOut, markSignedOutLocally } from '@/lib/signout'
 import { APP_VERSION } from '@/lib/release'
 import { useDeviceKeys } from '@/lib/e2ee/E2eeProvider'
 import { Button, Dialog, ErrorText, Input, Label, Switch, useToast } from '@/ui'
+import { menuKeys } from '@/ui/menu-keys'
 import { Portrait } from '@/worlds/portraits'
 import { useWorld } from '@/worlds/world'
 
@@ -45,7 +46,7 @@ export function WorkspaceSwitcher({ current }: { current: Me['workspaces'][numbe
         <Popover.Portal>
           <Popover.Content align="start" sideOffset={6} className={panel}>
             {me.workspaces.length ? <div className="px-3 pb-1 pt-2 text-xs text-ink-faint">Your workspaces</div> : null}
-            <div role="menu" aria-label="Workspaces">
+            <div role="menu" aria-label="Workspaces" onKeyDown={menuKeys}>
               {me.workspaces.map((w) => (
                 <button
                   key={w.id}

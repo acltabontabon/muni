@@ -19,6 +19,7 @@ import { useResources } from '@/lib/resource'
 import { keyring } from '@/lib/e2ee/keyring'
 import { b64u } from '@/lib/e2ee/crypto'
 import { Button, Dialog, useToast } from '@/ui'
+import { menuKeys } from '@/ui/menu-keys'
 
 /** What the bar needs to know about the sprint (a cached copy is enough offline). */
 export type BarSprint = {
@@ -242,7 +243,7 @@ function MoreMenu({ actions, control }: { actions: Action[]; control: SprintCont
         </button>
       </Popover.Trigger>
       <Popover.Portal>
-        <Popover.Content align="end" sideOffset={6} collisionPadding={12} className="menu-panel anim-rise" role="menu" aria-label="More for this sprint">
+        <Popover.Content align="end" sideOffset={6} collisionPadding={12} className="menu-panel anim-rise" role="menu" aria-label="More for this sprint" onKeyDown={menuKeys}>
           {actions.map((a) => (
             <button
               key={a.label}
