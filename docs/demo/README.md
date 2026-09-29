@@ -108,8 +108,8 @@ docs/demo/export.sh /tmp/muni-demo/capture
 Each file has to stay under 10 MB: `node scripts/release.mjs check` (in CI on every pull request
 and push to `main`, and on every tag) refuses a larger one, and the export says so. The slow camera
 changes every pixel of every frame, so the GIF's size follows its area and frame rate; fewer colours
-or gentler dithering barely help. At 12 fps and 620 wide it's about 9.2 MB, and the MP4 about
-8.1 MB. A camera that moves while a lot changes on screen costs the most: keep one of the two still.
+or gentler dithering barely help. At 12 fps and 620 wide it's about 9.3 MB, and the MP4 about
+7.8 MB. A camera that moves while a lot changes on screen costs the most: keep one of the two still.
 
 Set `OUT_MP4` / `OUT_GIF` to write somewhere else first. Before committing, look at a few frames:
 
