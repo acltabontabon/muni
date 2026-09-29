@@ -62,14 +62,6 @@ export async function votingState(db: D1Database, ctx: SprintCtx) {
   return { current, previous }
 }
 
-export async function latestClosedTotals(db: D1Database, sprintId: string): Promise<Record<string, number> | null> {
-  const round = await one<{ id: string }>(db, "SELECT id FROM vote_rounds WHERE sprint_id = ? AND status = 'closed' ORDER BY closed_at DESC LIMIT 1", sprintId)
-  if (!round) return null
-  const out: Record<string, number> = {}
-  for (const t of await all<{ theme_id: string; n: number }>(db, 'SELECT theme_id, count(*) AS n FROM votes WHERE round_id = ? GROUP BY theme_id', round.id)) out[t.theme_id] = Number(t.n)
-  return out
-}
-
 /** Opens a round at this grouping revision. The partial unique index (one open round per sprint) makes a concurrent second open a no-op: false. */
 export async function openRound(db: D1Database, sprintId: string, budget: number): Promise<boolean> {
   const res = await run(db, 'INSERT OR IGNORE INTO vote_rounds (id, sprint_id, budget, grouping_revision, opened_at) SELECT ?, id, ?, grouping_revision, ? FROM sprints WHERE id = ?', uuid(), budget, Date.now(), sprintId)

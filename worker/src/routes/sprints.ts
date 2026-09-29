@@ -244,13 +244,14 @@ sprints.get('/api/workspaces/:workspaceId/sprints', async (c) => {
 /** Where should a new thought go? Powers the bookmarkable /capture route. */
 sprints.get('/api/me/capture-target', async (c) => {
   const a = await requireAuth(c, config(c.env), c.env.DB)
+  // Starts from this person's own sprints (by the participants' account index), never from every
+  // active sprint of every workspace. CROSS JOIN keeps that order in SQLite's planner.
   const rows = await all<SummaryRow>(
     c.env.DB,
-    `SELECT ${WITH_SUMMARY} FROM sprints s ${MINE} WHERE s.status IN ('collecting','preparing','ready','live')
-     AND mine.account_id IS NOT NULL
-     AND EXISTS (SELECT 1 FROM memberships m WHERE m.workspace_id = s.workspace_id AND m.account_id = ? AND m.revoked_at IS NULL)
-     ORDER BY s.collection_opened_at DESC, s.retro_at LIMIT 50`,
-    a.account.id,
+    `SELECT ${WITH_SUMMARY} FROM sprint_participants mine CROSS JOIN sprints s ON s.id = mine.sprint_id
+      WHERE mine.account_id = ? AND s.status IN ('collecting','preparing','ready','live')
+        AND EXISTS (SELECT 1 FROM memberships m WHERE m.workspace_id = s.workspace_id AND m.account_id = mine.account_id AND m.revoked_at IS NULL)
+      ORDER BY s.collection_opened_at DESC, s.retro_at LIMIT 50`,
     a.account.id,
   )
   const collecting = []

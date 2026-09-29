@@ -141,21 +141,37 @@ interface SessionRow {
   display_name: string
 }
 
-export async function loadSession(db: D1Database, rawToken: string | null): Promise<{ auth: Auth; csrf: string } | null> {
+/** What a request needs read alongside its session, in the same query: columns, joins, their values. */
+interface Alongside {
+  cols: string
+  joins: string
+  args: unknown[]
+}
+
+/** The live session a token names — and, with `alongside`, what the caller needs with it — in one query. */
+async function sessionRow<T = object>(db: D1Database, rawToken: string | null, alongside: Alongside = { cols: '', joins: '', args: [] }): Promise<(SessionRow & T) | null> {
   if (!rawToken || rawToken.length > 128) return null
-  const row = await one<SessionRow>(
+  const row = await one<SessionRow & T>(
     db,
-    `SELECT s.id, s.csrf_token, s.expires_at, s.last_seen_at, s.auth_method, s.authenticated_at, s.created_at, s.credential_ref, a.id AS aid, ae.email, a.display_name
-     FROM sessions s JOIN accounts a ON a.id = s.account_id LEFT JOIN account_emails ae ON ae.account_id = a.id
+    `SELECT s.id, s.csrf_token, s.expires_at, s.last_seen_at, s.auth_method, s.authenticated_at, s.created_at, s.credential_ref, a.id AS aid, ae.email, a.display_name${alongside.cols}
+     FROM sessions s JOIN accounts a ON a.id = s.account_id LEFT JOIN account_emails ae ON ae.account_id = a.id${alongside.joins}
      WHERE s.token_hash = ? AND s.revoked_at IS NULL AND s.auth_method = 'passkey'`,
+    ...alongside.args,
     await sha256Hex(rawToken),
   )
   if (!row || row.expires_at < Date.now()) return null
   if (Date.now() - row.last_seen_at > 5 * 60_000) await run(db, 'UPDATE sessions SET last_seen_at = ? WHERE id = ?', Date.now(), row.id)
-  return {
-    auth: { account: { id: row.aid, email: row.email, display_name: row.display_name }, sessionId: row.id, authMethod: row.auth_method, authenticatedAt: row.authenticated_at ?? row.created_at, credentialRef: row.credential_ref ?? null },
-    csrf: row.csrf_token,
-  }
+  return row
+}
+
+const sessionOf = (row: SessionRow): { auth: Auth; csrf: string } => ({
+  auth: { account: { id: row.aid, email: row.email, display_name: row.display_name }, sessionId: row.id, authMethod: row.auth_method, authenticatedAt: row.authenticated_at ?? row.created_at, credentialRef: row.credential_ref ?? null },
+  csrf: row.csrf_token,
+})
+
+export async function loadSession(db: D1Database, rawToken: string | null): Promise<{ auth: Auth; csrf: string } | null> {
+  const row = await sessionRow(db, rawToken)
+  return row ? sessionOf(row) : null
 }
 
 export async function revokeSession(db: D1Database, sessionId: string) {
@@ -196,8 +212,13 @@ const accountExempt = (method: string, path: string) => path === '/api/auth/logo
 
 /** A valid session; for unsafe methods also a matching CSRF token and an allowed origin. */
 export async function requireAuth(c: Context, cfg: Config, db: D1Database): Promise<Auth> {
-  const s = await loadSession(db, readCookie(c.req.raw, sessionCookie(cfg)))
-  if (!s) throw unauthorized()
+  return checked(c, cfg, await sessionRow(db, readCookie(c.req.raw, sessionCookie(cfg))))
+}
+
+/** What every signed-in request must pass, given its session (read with whatever came alongside). */
+function checked(c: Context, cfg: Config, row: SessionRow | null): Auth {
+  if (!row) throw unauthorized()
+  const s = sessionOf(row)
   const expected = c.req.header(ACCOUNT_HEADER)
   if (expected && expected !== s.auth.account.id && !accountExempt(c.req.method.toUpperCase(), new URL(c.req.url).pathname))
     throw new AppError(409, 'account_changed', 'you’re signed in as someone else in another tab — reload to continue')
@@ -218,40 +239,49 @@ export function requireRecentAuth(a: Auth) {
     throw new AppError(403, 'reauth_required', 'confirm it’s you first with your passkey', { recent_auth_minutes: RECENT_AUTH_MS / 60_000 })
 }
 
-export async function membershipRole(db: D1Database, workspaceId: string, accountId: string): Promise<Role | null> {
-  const r = await one<{ role: Role }>(db, 'SELECT role FROM memberships WHERE workspace_id = ? AND account_id = ? AND revoked_at IS NULL', workspaceId, accountId)
-  return r?.role ?? null
-}
-
+/** The session and the caller's membership of the workspace: one query. */
 export async function requireMember(c: Context, cfg: Config, db: D1Database, workspaceId: string): Promise<Member> {
-  const auth = await requireAuth(c, cfg, db)
-  const role = await membershipRole(db, workspaceId, auth.account.id)
-  if (!role) throw forbidden('you’re not a member of this workspace')
-  return { auth, workspaceId, role }
+  const row = await sessionRow<{ member_role: Role | null }>(db, readCookie(c.req.raw, sessionCookie(cfg)), {
+    cols: ', m.role AS member_role',
+    joins: ' LEFT JOIN memberships m ON m.workspace_id = ? AND m.account_id = a.id AND m.revoked_at IS NULL',
+    args: [workspaceId],
+  })
+  const auth = checked(c, cfg, row)
+  if (!row!.member_role) throw forbidden('you’re not a member of this workspace')
+  return { auth, workspaceId, role: row!.member_role }
 }
 
 export function requireOwner(m: Member) {
   if (m.role !== 'owner') throw forbidden('only a workspace owner can do that')
 }
 
-export const SPRINT_COLS = 'id, workspace_id, name, status, grouping_revision, vote_budget, retro_duration_min, opening_question, encryption'
+const SPRINT_FIELDS = ['id', 'workspace_id', 'name', 'status', 'grouping_revision', 'vote_budget', 'retro_duration_min', 'opening_question', 'encryption'] as const
+/** A sprint (`spr`), the caller's membership of its workspace (`m`) and part in it (`pt`), as columns. */
+const SPRINT_CTX_COLS = `${SPRINT_FIELDS.map((f) => `spr.${f} AS spr_${f}`).join(', ')}, m.role AS member_role, pt.account_id AS part_id, pt.is_facilitator AS part_fac`
+const SPRINT_CTX_JOINS = (account: string) =>
+  `LEFT JOIN memberships m ON m.workspace_id = spr.workspace_id AND m.account_id = ${account} AND m.revoked_at IS NULL
+   LEFT JOIN sprint_participants pt ON pt.sprint_id = spr.id AND pt.account_id = ${account}`
+type SprintCtxRow = { [K in (typeof SPRINT_FIELDS)[number] as `spr_${K}`]: SprintRow[K] | null } & { member_role: Role | null; part_id: string | null; part_fac: number | null }
 
-export async function loadSprintCtx(db: D1Database, auth: Auth, sprintId: string): Promise<SprintCtx> {
-  const sprint = await one<SprintRow>(db, `SELECT ${SPRINT_COLS} FROM sprints WHERE id = ?`, sprintId)
+function sprintCtxOf(auth: Auth, row: SprintCtxRow | null): SprintCtx {
   // Non-members get 404, not 403: don't confirm the sprint exists.
-  if (!sprint) throw notFound('sprint not found')
-  const role = await membershipRole(db, sprint.workspace_id, auth.account.id)
-  if (!role) throw notFound('sprint not found')
-  const part = await one<{ is_facilitator: number }>(db, 'SELECT is_facilitator FROM sprint_participants WHERE sprint_id = ? AND account_id = ?', sprintId, auth.account.id)
-  const isParticipant = !!part
-  const isFacilitator = !!part && bool(part.is_facilitator)
-  if (!isParticipant && role !== 'owner') throw forbidden('you’re not a participant in this sprint')
-  return { auth, sprint, role, isParticipant, isFacilitator }
+  if (!row?.spr_id || !row.member_role) throw notFound('sprint not found')
+  const sprint = Object.fromEntries(SPRINT_FIELDS.map((f) => [f, row[`spr_${f}`]])) as unknown as SprintRow
+  const isParticipant = !!row.part_id
+  const isFacilitator = isParticipant && bool(row.part_fac)
+  if (!isParticipant && row.member_role !== 'owner') throw forbidden('you’re not a participant in this sprint')
+  return { auth, sprint, role: row.member_role, isParticipant, isFacilitator }
 }
 
+/** The sprint as `auth` may see it: the sprint, the membership and the participation in one query. */
+export async function loadSprintCtx(db: D1Database, auth: Auth, sprintId: string): Promise<SprintCtx> {
+  return sprintCtxOf(auth, await one<SprintCtxRow>(db, `SELECT ${SPRINT_CTX_COLS} FROM sprints spr ${SPRINT_CTX_JOINS('?')} WHERE spr.id = ?`, auth.account.id, auth.account.id, sprintId))
+}
+
+/** The session, the sprint, the membership and the participation: all in one query. */
 export async function requireSprint(c: Context, cfg: Config, db: D1Database, sprintId: string): Promise<SprintCtx> {
-  const auth = await requireAuth(c, cfg, db)
-  return loadSprintCtx(db, auth, sprintId)
+  const row = await sessionRow<SprintCtxRow>(db, readCookie(c.req.raw, sessionCookie(cfg)), { cols: `, ${SPRINT_CTX_COLS}`, joins: ` LEFT JOIN sprints spr ON spr.id = ? ${SPRINT_CTX_JOINS('a.id')}`, args: [sprintId] })
+  return sprintCtxOf(checked(c, cfg, row), row)
 }
 export function requireFacilitator(ctx: SprintCtx) {
   if (!ctx.isFacilitator) throw forbidden('only the facilitator can do that')

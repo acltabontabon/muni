@@ -176,8 +176,8 @@ function accountStatements(accountId: string, email: string | null, soleWorkspac
     // What nobody has seen yet goes with them.
     ['DELETE FROM entries WHERE author_account_id = ? AND reveal_order IS NULL', a],
     ['DELETE FROM context_additions WHERE author_account_id = ? AND released_batch IS NULL', a],
-    ["DELETE FROM votes WHERE account_id = ? AND round_id IN (SELECT id FROM vote_rounds WHERE status <> 'closed')", a],
-    ["DELETE FROM checkin_responses WHERE account_id = ? AND checkin_id IN (SELECT id FROM checkins WHERE status <> 'shared')", a],
+    ["DELETE FROM votes WHERE account_id = ? AND EXISTS (SELECT 1 FROM vote_rounds r WHERE r.id = votes.round_id AND r.status <> 'closed')", a],
+    ["DELETE FROM checkin_responses WHERE account_id = ? AND EXISTS (SELECT 1 FROM checkins k WHERE k.id = checkin_responses.checkin_id AND k.status <> 'shared')", a],
     // What the team has seen stays, tied to no one.
     [`UPDATE entries SET author_account_id = ${GONE}, idempotency_key = NULL WHERE author_account_id = ?`, a],
     [`UPDATE context_additions SET author_account_id = ${GONE}, idempotency_key = NULL WHERE author_account_id = ?`, a],

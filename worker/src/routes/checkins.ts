@@ -18,7 +18,7 @@ import type { HonoEnv } from '../env'
 import { config } from '../lib/config'
 import { requireFacilitator, requireParticipant, requireSprint, type SprintCtx } from '../lib/auth'
 import { uuid } from '../lib/crypto'
-import { all, audit, batch, count, one, run } from '../lib/db'
+import { audit, batch, count, one, run } from '../lib/db'
 import { AppError, bad, conflict, notFound } from '../lib/errors'
 import { hint } from '../lib/live'
 import { content, isEncrypted } from '../lib/sealed'
@@ -42,40 +42,61 @@ interface Row {
 }
 const COLS = 'id, theme_id, kind, subject, status, opened_at, shared_at'
 
-async function view(db: D1Database, ctx: SprintCtx, r: Row) {
-  const mine = await one<{ choice: string; note: string | null }>(db, 'SELECT choice, note FROM checkin_responses WHERE checkin_id = ? AND account_id = ?', r.id, ctx.auth.account.id)
-  let results: { responded: number; counts: Record<string, number>; notes: { choice: string; note: string }[] } | null = null
-  if (r.status === 'shared') {
-    const counts: Record<string, number> = {}
-    let responded = 0
-    for (const c of await all<{ choice: string; n: number }>(db, 'SELECT choice, count(*) AS n FROM checkin_responses WHERE checkin_id = ? GROUP BY choice', r.id)) {
-      counts[c.choice] = Number(c.n)
-      responded += Number(c.n)
-    }
-    const notes = await all<{ choice: string; note: string }>(db, "SELECT choice, note FROM checkin_responses WHERE checkin_id = ? AND note IS NOT NULL AND note <> '' ORDER BY reveal_order, rowid LIMIT 200", r.id)
-    results = { responded, counts, notes }
-  }
-  return {
-    id: r.id,
-    sprint_id: ctx.sprint.id,
-    theme_id: r.theme_id,
-    kind: r.kind,
-    // The idea's wording as it was asked about (an envelope in encrypted sprints).
-    could_try: r.kind === 'action' ? r.subject : null,
-    status: r.status,
-    opened_at: new Date(r.opened_at).toISOString(),
-    shared_at: r.shared_at ? new Date(r.shared_at).toISOString() : null,
-    mine: mine ? { choice: mine.choice, note: mine.note } : null,
+/**
+ * The sprint's check-ins as the caller may see them (or just `only`), from a handful of set-based
+ * reads in one round trip, however many check-ins there are: the check-ins, the caller's own
+ * answers, counts per choice and the lines of the shared ones, and — for the facilitator — how many
+ * have answered the open ones.
+ */
+async function views(db: D1Database, ctx: SprintCtx, only?: string) {
+  const which = `c.sprint_id = ?${only ? ' AND c.id = ?' : ''}`
+  const args = only ? [ctx.sprint.id, only] : [ctx.sprint.id]
+  const responses = `FROM checkin_responses r JOIN checkins c ON c.id = r.checkin_id WHERE ${which}`
+  const [rows, mine, counts, notes, answers] = await db.batch([
+    db.prepare(`SELECT c.id, c.theme_id, c.kind, c.subject, c.status, c.opened_at, c.shared_at FROM checkins c WHERE ${which} ORDER BY c.opened_at`).bind(...args),
+    db.prepare(`SELECT r.checkin_id, r.choice, r.note ${responses} AND r.account_id = ?`).bind(...args, ctx.auth.account.id),
+    db.prepare(`SELECT r.checkin_id, r.choice, count(*) AS n ${responses} AND c.status = 'shared' GROUP BY r.checkin_id, r.choice`).bind(...args),
+    db.prepare(`SELECT r.checkin_id, r.choice, r.note ${responses} AND c.status = 'shared' AND r.note IS NOT NULL AND r.note <> '' ORDER BY r.checkin_id, r.reveal_order, r.rowid`).bind(...args),
     // Only the facilitator, only while open: how many have answered so far. Never who.
-    answers: ctx.isFacilitator && r.status === 'open' ? await count(db, 'SELECT count(*) AS n FROM checkin_responses WHERE checkin_id = ?', r.id) : null,
-    results,
+    db.prepare(`SELECT r.checkin_id, count(*) AS n ${responses} AND c.status = 'open' AND ? GROUP BY r.checkin_id`).bind(...args, ctx.isFacilitator ? 1 : 0),
+  ])
+  type Response = { checkin_id: string; choice: string; note: string | null; n?: number }
+  const of = (res: D1Result) => {
+    const m = new Map<string, Response[]>()
+    for (const x of res.results as Response[]) m.set(x.checkin_id, [...(m.get(x.checkin_id) ?? []), x])
+    return m
   }
+  const [mineOf, countsOf, notesOf, answersOf] = [of(mine), of(counts), of(notes), of(answers)]
+  return (rows.results as Row[]).map((r) => {
+    const own = mineOf.get(r.id)?.[0]
+    let results: { responded: number; counts: Record<string, number>; notes: { choice: string; note: string }[] } | null = null
+    if (r.status === 'shared') {
+      const tally = countsOf.get(r.id) ?? []
+      results = {
+        responded: tally.reduce((sum, x) => sum + Number(x.n), 0),
+        counts: Object.fromEntries(tally.map((x) => [x.choice, Number(x.n)])),
+        notes: (notesOf.get(r.id) ?? []).map((x) => ({ choice: x.choice, note: x.note! })),
+      }
+    }
+    return {
+      id: r.id,
+      sprint_id: ctx.sprint.id,
+      theme_id: r.theme_id,
+      kind: r.kind,
+      // The idea's wording as it was asked about (an envelope in encrypted sprints).
+      could_try: r.kind === 'action' ? r.subject : null,
+      status: r.status,
+      opened_at: new Date(r.opened_at).toISOString(),
+      shared_at: r.shared_at ? new Date(r.shared_at).toISOString() : null,
+      mine: own ? { choice: own.choice, note: own.note } : null,
+      answers: ctx.isFacilitator && r.status === 'open' ? Number(answersOf.get(r.id)?.[0]?.n ?? 0) : null,
+      results,
+    }
+  })
 }
 
-export async function checkinList(db: D1Database, ctx: SprintCtx) {
-  const rows = await all<Row>(db, `SELECT ${COLS} FROM checkins WHERE sprint_id = ? ORDER BY opened_at LIMIT 200`, ctx.sprint.id)
-  return Promise.all(rows.map((r) => view(db, ctx, r)))
-}
+export const checkinList = (db: D1Database, ctx: SprintCtx) => views(db, ctx)
+const view = async (db: D1Database, ctx: SprintCtx, r: Pick<Row, 'id'>) => (await views(db, ctx, r.id))[0]
 
 async function find(db: D1Database, ctx: SprintCtx, id: string): Promise<Row> {
   const r = await one<Row>(db, `SELECT ${COLS} FROM checkins WHERE id = ? AND sprint_id = ?`, id, ctx.sprint.id)
@@ -122,7 +143,7 @@ checkins.post('/api/sprints/:sprintId/checkins', async (c) => {
     await audit(db, ctx.sprint.workspace_id, ctx.sprint.id, ctx.auth.account.id, 'checkin.opened', { kind })
   }
   await hint(c.env, ctx.sprint.id, 'checkins')
-  return c.json(await view(db, ctx, (await one<Row>(db, `SELECT ${COLS} FROM checkins WHERE theme_id = ? AND kind = ?`, themeId, kind))!))
+  return c.json(await view(db, ctx, (await one<Row>(db, 'SELECT id FROM checkins WHERE theme_id = ? AND kind = ?', themeId, kind))!))
 })
 
 /** Your answer: a choice, and optionally a line. Change it freely until it's shared. */
@@ -179,5 +200,5 @@ checkins.post('/api/sprints/:sprintId/checkins/:checkinId/share', async (c) => {
     await audit(db, ctx.sprint.workspace_id, ctx.sprint.id, ctx.auth.account.id, 'checkin.shared', { kind: r.kind })
     await hint(c.env, ctx.sprint.id, 'checkins')
   }
-  return c.json(await view(db, ctx, (await find(db, ctx, r.id))))
+  return c.json(await view(db, ctx, r))
 })

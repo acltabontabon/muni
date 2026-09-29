@@ -285,8 +285,7 @@ async function keyView(db: D1Database, ctx: SprintCtx) {
 
 keys.get('/api/sprints/:sprintId/keys', async (c) => {
   const ctx = await requireSprint(c, config(c.env), c.env.DB, c.req.param('sprintId'))
-  const enc = await one<{ encryption: string | null }>(c.env.DB, 'SELECT encryption FROM sprints WHERE id = ?', ctx.sprint.id)
-  if (!isEncrypted(enc ?? {})) return c.json({ encryption: null })
+  if (!isEncrypted(ctx.sprint)) return c.json({ encryption: null })
   // Owners who aren't in the sprint see that it's encrypted, and nothing that would let them in.
   if (!ctx.isParticipant) return c.json({ encryption: 'e1', sealed_version: null, versions: [], my_wraps: [], participants: [] })
   return c.json(await keyView(c.env.DB, ctx))
@@ -297,15 +296,14 @@ keys.post('/api/sprints/:sprintId/keys/wraps', async (c) => {
   const ctx = await requireSprint(c, config(c.env), c.env.DB, c.req.param('sprintId'))
   requireParticipant(ctx)
   const db = c.env.DB
-  const enc = await one<{ encryption: string | null; status: string }>(db, 'SELECT encryption, status FROM sprints WHERE id = ?', ctx.sprint.id)
-  if (!isEncrypted(enc ?? {})) throw conflict('this sprint isn’t encrypted')
+  if (!isEncrypted(ctx.sprint)) throw conflict('this sprint isn’t encrypted')
   const body = await jsonBody<{ wraps?: unknown }>(c)
   const list = Array.isArray(body.wraps) ? (body.wraps as WrapInput[]) : []
   if (!list.every(isObject)) throw bad('not a wrapped key')
   for (const v of new Set(list.map((w) => Number(w.version))))
     if (!(await count(db, 'SELECT count(*) AS n FROM sprint_key_wraps WHERE sprint_id = ? AND version = ? AND account_id = ?', ctx.sprint.id, v, ctx.auth.account.id)))
       throw forbidden('you can only share a key you hold')
-  const stmts = await wrapStatements(db, ctx.sprint.id, ctx.auth.account.id, list, { sealedVersion: await sealedVersion(db, ctx.sprint.id, enc!.status) })
+  const stmts = await wrapStatements(db, ctx.sprint.id, ctx.auth.account.id, list, { sealedVersion: await sealedVersion(db, ctx.sprint.id, ctx.sprint.status) })
   if (stmts.length) await db.batch(stmts.map(([sql, ...args]) => db.prepare(sql).bind(...args)))
   return c.json(await keyView(db, ctx))
 })

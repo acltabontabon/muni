@@ -7,7 +7,7 @@ import { all, batch, one, run } from '../lib/db'
 import { AppError, bad } from '../lib/errors'
 import { clientClass, limit } from '../lib/ratelimit'
 import { jsonBody, maskEmail, nonempty } from '../lib/util'
-import { accountByEmail, emailOf, setAccountEmail } from '../lib/accounts'
+import { accountByEmail, EMAIL_OF_A, emailOf, setAccountEmail } from '../lib/accounts'
 import { INTRO, introName, isAvatarId } from '../lib/avatars'
 import { deleteAccount, free, openSprints, retroRooms, standing } from '../lib/departure'
 import { mayGrant } from '../lib/grants'
@@ -19,36 +19,33 @@ export const auth = new Hono<HonoEnv>()
 /** `session` is the one asking (absent right after a sign-in, when the new session is fresh). */
 export async function buildMe(env: HonoEnv['Bindings'], accountId: string, session?: Pick<Auth, 'authMethod' | 'authenticatedAt'>, extra: { created?: boolean } = {}) {
   const cfg = config(env)
-  const acct = await one<{ display_name: string; name_set_at: number | null; avatar_id: string | null; avatar_theme: number; avatar_intro: number }>(
-    env.DB,
-    'SELECT display_name, name_set_at, avatar_id, avatar_theme, avatar_intro FROM accounts WHERE id = ?',
-    accountId,
-  )
-  const email = await emailOf(env.DB, accountId)
-  const rows = await all<{ id: string; name: string; role: string; is_demo: number }>(
-    env.DB,
-    'SELECT w.id, w.name, m.role, w.is_demo FROM memberships m JOIN workspaces w ON w.id = m.workspace_id WHERE m.account_id = ? AND m.revoked_at IS NULL ORDER BY w.created_at',
-    accountId,
-  )
-  const exp = await one<{ e: number }>(env.DB, 'SELECT COALESCE(MAX(expires_at), ?) AS e FROM sessions WHERE account_id = ? AND revoked_at IS NULL', Date.now(), accountId)
-  const passkeys = await one<{ n: number }>(env.DB, 'SELECT count(*) AS n FROM webauthn_credentials WHERE account_id = ?', accountId)
-  const pending = await all<{ id: string; workspace_name: string; created_at: number }>(
-    env.DB,
-    "SELECT r.id, w.name AS workspace_name, r.created_at FROM join_requests r JOIN workspaces w ON w.id = r.workspace_id WHERE r.account_id = ? AND r.status = 'pending' ORDER BY r.created_at DESC LIMIT 10",
-    accountId,
-  )
+  const db = env.DB
+  // Every app start reads this: one round trip to the database.
+  const [accountRows, workspaceRows, pendingRows] = await db.batch([
+    db.prepare(
+      `SELECT a.display_name, a.name_set_at, a.avatar_id, a.avatar_theme, a.avatar_intro, ${EMAIL_OF_A} AS email,
+              (SELECT COALESCE(MAX(expires_at), ?) FROM sessions WHERE account_id = a.id AND revoked_at IS NULL) AS expires,
+              (SELECT count(*) FROM webauthn_credentials WHERE account_id = a.id) AS passkeys
+         FROM accounts a WHERE a.id = ?`,
+    ).bind(Date.now(), accountId),
+    db.prepare('SELECT w.id, w.name, m.role, w.is_demo FROM memberships m JOIN workspaces w ON w.id = m.workspace_id WHERE m.account_id = ? AND m.revoked_at IS NULL ORDER BY w.created_at').bind(accountId),
+    db.prepare("SELECT r.id, w.name AS workspace_name, r.created_at FROM join_requests r JOIN workspaces w ON w.id = r.workspace_id WHERE r.account_id = ? AND r.status = 'pending' ORDER BY r.created_at DESC LIMIT 10").bind(accountId),
+  ])
+  const acct = accountRows.results[0] as { display_name: string; name_set_at: number | null; avatar_id: string | null; avatar_theme: number; avatar_intro: number; email: string | null; expires: number; passkeys: number } | undefined
+  const rows = workspaceRows.results as { id: string; name: string; role: string; is_demo: number }[]
+  const pending = pendingRows.results as { id: string; workspace_name: string; created_at: number }[]
   const authedAt = session?.authenticatedAt ?? Date.now()
   return {
     account_id: accountId,
     /** Where invitations and reminders go, if anywhere. Never a way to sign in. */
-    email,
+    email: acct?.email ?? null,
     display_name: acct?.display_name ?? '',
     /** No name chosen yet (a new account, or one whose name was once inferred): ask before anything else. */
     needs_name: !acct?.name_set_at || !acct.display_name.trim(),
     workspaces: rows.map((r) => ({ id: r.id, name: r.name, role: r.role, is_demo: r.is_demo === 1 })),
-    session_expires_at: new Date(Number(exp?.e ?? Date.now())).toISOString(),
+    session_expires_at: new Date(Number(acct?.expires ?? Date.now())).toISOString(),
     email_transport: cfg.email,
-    passkeys: Number(passkeys?.n ?? 0),
+    passkeys: Number(acct?.passkeys ?? 0),
     auth_method: session?.authMethod ?? null,
     /** Until when security-sensitive changes are allowed without signing in again. */
     recent_auth_until: new Date(authedAt + RECENT_AUTH_MS).toISOString(),

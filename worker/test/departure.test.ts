@@ -20,6 +20,7 @@ async function traces(accountId: string) {
   const found: string[] = []
   for (const [t, c] of cols) if (await n(`SELECT count(*) AS n FROM ${t} WHERE ${c} = ?`, accountId)) found.push(`${t}.${c}`)
   if (await n("SELECT count(*) AS n FROM audit_events WHERE meta LIKE '%' || ? || '%'", accountId)) found.push('audit_events.meta')
+  if (await n("SELECT count(*) AS n FROM rate_events WHERE bucket LIKE '%' || ? || '%'", accountId)) found.push('rate_events.bucket')
   return found
 }
 

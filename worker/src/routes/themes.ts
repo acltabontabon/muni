@@ -7,14 +7,13 @@ import type { HonoEnv } from '../env'
 import { config } from '../lib/config'
 import { requireFacilitator, requireParticipant, requireSprint, type SprintCtx } from '../lib/auth'
 import { uuid } from '../lib/crypto'
-import { all, audit, batch, bool, count, one, run } from '../lib/db'
+import { audit, batch, bool, count, one, run } from '../lib/db'
 import { bad, conflict, notFound } from '../lib/errors'
 import { hint } from '../lib/live'
 import { content, isEncrypted } from '../lib/sealed'
 import { idList, jsonBody } from '../lib/util'
 import { MAX_THEMES } from '../lib/limits'
-import { requireRevealed, sharedEntries, type SharedEntry } from './entries'
-import { latestClosedTotals } from './voting'
+import { requireRevealed, SHARED_SELECT, type SharedEntry } from './entries'
 
 export const themes = new Hono<HonoEnv>()
 
@@ -33,19 +32,37 @@ interface ThemeRow {
 export async function grouping(env: HonoEnv['Bindings'], ctx: SprintCtx) {
   requireRevealed(ctx)
   const db = env.DB
-  const sp = (await one<{ status: string; grouping_revision: number }>(db, 'SELECT status, grouping_revision FROM sprints WHERE id = ?', ctx.sprint.id))!
-  // Every theme and everything shared (the caps are where they're written): a thought in a theme
-  // that wasn't read would be in neither the themes nor the ungrouped pool.
-  const rows = await all<ThemeRow>(db, 'SELECT id, title, summary, question, draft_experiment, position, parked, needs_attention, order_reason FROM themes WHERE sprint_id = ? ORDER BY position, created_at', ctx.sprint.id)
-  const allEntries = await sharedEntries(db, ctx.sprint.id)
-  const context = await all<{ id: string; theme_id: string; body: string; kind: string | null }>(db, 'SELECT id, theme_id, body, kind FROM context_additions WHERE sprint_id = ? AND released_batch IS NOT NULL AND theme_id IS NOT NULL ORDER BY released_batch, reveal_order, id', ctx.sprint.id)
-  const takeaways = await all<{ theme_id: string; takeaway: string; could_try: string; discussed: number }>(db, 'SELECT theme_id, takeaway, could_try, discussed FROM discussion_notes WHERE sprint_id = ?', ctx.sprint.id)
-  const votes = await latestClosedTotals(db, ctx.sprint.id)
+  const sid = ctx.sprint.id
+  const LATEST_CLOSED = "SELECT id FROM vote_rounds WHERE sprint_id = ? AND status = 'closed' ORDER BY closed_at DESC LIMIT 1"
+  // Everything the view needs, read in one round trip. Every theme and everything shared (the caps
+  // are where they're written): a thought in a theme that wasn't read would be in neither the themes
+  // nor the ungrouped pool.
+  const [themeRows, entryRows, contextRows, noteRows, voteRows, stateRows] = await db.batch([
+    db.prepare('SELECT id, title, summary, question, draft_experiment, position, parked, needs_attention, order_reason FROM themes WHERE sprint_id = ? ORDER BY position, created_at').bind(sid),
+    db.prepare(`${SHARED_SELECT} WHERE e.sprint_id = ? ORDER BY e.reveal_order, e.id`).bind(sid),
+    db.prepare('SELECT id, theme_id, body, kind FROM context_additions WHERE sprint_id = ? AND released_batch IS NOT NULL AND theme_id IS NOT NULL ORDER BY released_batch, reveal_order, id').bind(sid),
+    db.prepare('SELECT theme_id, takeaway, could_try, discussed FROM discussion_notes WHERE sprint_id = ?').bind(sid),
+    db.prepare(`SELECT theme_id, count(*) AS n FROM votes WHERE round_id = (${LATEST_CLOSED}) GROUP BY theme_id`).bind(sid),
+    // The revision as it is now (a change in this same request may have moved it on), and the vote's state.
+    db.prepare(`SELECT grouping_revision, EXISTS (SELECT 1 FROM vote_rounds WHERE sprint_id = s.id AND status = 'open') AS voting_open, EXISTS (${LATEST_CLOSED}) AS voted FROM sprints s WHERE s.id = ?`).bind(sid, sid),
+  ])
+  const rows = themeRows.results as ThemeRow[]
+  const allEntries = entryRows.results as SharedEntry[]
+  const state = stateRows.results[0] as { grouping_revision: number; voting_open: number; voted: number }
+  const byTheme = <T extends { theme_id: string | null }>(items: T[]) => {
+    const m = new Map<string, T[]>()
+    for (const x of items) if (x.theme_id) m.set(x.theme_id, [...(m.get(x.theme_id) ?? []), x])
+    return m
+  }
+  const entriesOf = byTheme(allEntries)
+  const contextOf = byTheme(contextRows.results as { id: string; theme_id: string; body: string; kind: string | null }[])
+  const notesOf = new Map((noteRows.results as { theme_id: string; takeaway: string; could_try: string; discussed: number }[]).map((x) => [x.theme_id, x]))
+  const votes = bool(state.voted) ? Object.fromEntries((voteRows.results as { theme_id: string; n: number }[]).map((v) => [v.theme_id, Number(v.n)])) : null
   const themesOut = rows.map((t) => {
-    const ents = allEntries.filter((e) => e.theme_id === t.id)
+    const ents = entriesOf.get(t.id) ?? []
     const mix: Record<string, number> = {}
     for (const e of ents) mix[e.category ?? 'unsorted'] = (mix[e.category ?? 'unsorted'] ?? 0) + 1
-    const tk = takeaways.find((x) => x.theme_id === t.id)
+    const tk = notesOf.get(t.id)
     return {
       id: t.id,
       title: t.title,
@@ -59,22 +76,22 @@ export async function grouping(env: HonoEnv['Bindings'], ctx: SprintCtx) {
       entry_count: ents.length,
       category_mix: mix,
       entries: ents,
-      context: context.filter((x) => x.theme_id === t.id).map((x) => ({ id: x.id, body: x.body, kind: x.kind })),
+      context: (contextOf.get(t.id) ?? []).map((x) => ({ id: x.id, body: x.body, kind: x.kind })),
       votes: votes ? (votes[t.id] ?? 0) : null,
       takeaway: tk?.takeaway ?? '',
       could_try: tk?.could_try ?? '',
       discussed: !!tk && bool(tk.discussed),
     }
   })
-  const votingOpen = await count(db, "SELECT count(*) AS n FROM vote_rounds WHERE sprint_id = ? AND status = 'open'", ctx.sprint.id)
+  // The status can't change within a request that edits themes, so it's the one the request read.
   return {
-    sprint_status: sp.status,
-    grouping_revision: sp.grouping_revision,
+    sprint_status: ctx.sprint.status,
+    grouping_revision: state.grouping_revision,
     themes: themesOut,
     ungrouped: allEntries.filter((e) => !e.theme_id),
     total_entries: allEntries.length,
-    can_edit: ctx.isFacilitator && ['preparing', 'ready', 'live'].includes(sp.status),
-    voting_open: votingOpen > 0,
+    can_edit: ctx.isFacilitator && ['preparing', 'ready', 'live'].includes(ctx.sprint.status),
+    voting_open: bool(state.voting_open),
   }
 }
 
