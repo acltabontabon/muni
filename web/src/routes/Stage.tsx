@@ -21,6 +21,23 @@ import { Face } from '@/ui/faces'
 type Command = ReturnType<typeof useStage>['command']
 
 /**
+ * Keys the stage takes, and when it doesn't. Only a plain key, pressed rather than held, that
+ * nothing else has handled: ⌘/Alt+← is the browser's Back, and a held arrow would race through the
+ * topics. While someone types, or something is open over the stage (the thoughts, a dialog, a
+ * menu), the keys are theirs.
+ */
+function stageKey(e: KeyboardEvent): 'forward' | 'back' | 'present' | null {
+  if (e.defaultPrevented || e.repeat || e.metaKey || e.altKey || e.ctrlKey) return null
+  const t = e.target instanceof Element ? e.target : null
+  if (t?.closest('input, textarea, select, [contenteditable]:not([contenteditable="false"]), [role="dialog"], [role="alertdialog"], [role="menu"], [role="listbox"]')) return null
+  if (document.querySelector('[role="dialog"], [role="alertdialog"], [role="menu"]')) return null
+  if (e.key === 'ArrowRight') return 'forward'
+  if (e.key === 'ArrowLeft') return 'back'
+  if (e.key.toLowerCase() === 'h') return 'present'
+  return null
+}
+
+/**
  * The shared stage: the retro in four steps, each one question. Look back (did last time's
  * experiments help?), choose (what matters most?), talk (one topic at a time), agree (what will
  * we try?). The steps do their own housekeeping on the server: choosing opens the vote, talking
@@ -87,21 +104,21 @@ function StageRoom({ sprintId }: { sprintId: string }) {
     else if (phaseIdx < phases.length - 1) toStep(phases[phaseIdx + 1])
   }, [stage?.phase, topicAt, topics, run, phaseIdx, phases, toStep])
 
-  // Running: started, and neither paused nor finished.
+  // Keys drive the room only while it's running (a paused or finished retro takes no commands).
   const running = !!stage && !stage.ended_at && !stage.cancelled && sprint?.status === 'live'
   useEffect(() => {
-    if (!fac) return
+    if (!fac || !running) return
     const onKey = (e: KeyboardEvent) => {
-      const t = e.target as HTMLElement
-      if (['INPUT', 'TEXTAREA', 'SELECT'].includes(t.tagName) || t.isContentEditable) return
-      if (e.key === 'ArrowRight') forward()
-      else if (e.key === 'ArrowLeft') toStep(phases[phaseIdx - 1])
-      else if (e.key.toLowerCase() === 'h') setPresenting(!presenting)
-      else if (e.key === 'Escape') setReader(null)
+      const k = stageKey(e)
+      if (!k) return
+      e.preventDefault()
+      if (k === 'forward') forward()
+      else if (k === 'back') toStep(phases[phaseIdx - 1])
+      else setPresenting(!presenting)
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
-  }, [fac, forward, toStep, phases, phaseIdx, presenting, setPresenting])
+  }, [fac, running, forward, toStep, phases, phaseIdx, presenting, setPresenting])
 
   if (st.revoked) return <Centered><p>Your access to this sprint ended.</p></Centered>
   if (st.error) return <Centered><CouldntLoad message={st.error} onRetry={st.reload} /></Centered>
@@ -196,6 +213,8 @@ function Rail({ stage, name, controls, onStep, onForward, topics, topicAt, theme
   const nextTopic = stage.phase === 'talk' && topicAt >= 0 && topicAt < topics.length - 1 ? topics[topicAt + 1] : null
   const nextLabel = nextTopic ? `Next topic` : nextStep ? PHASE_LABEL[nextStep] : null
   const present = stage.attendance.filter((a) => a.present)
+  // Who else is here is the facilitator's to know: a screen that's only told about you says nothing.
+  const others = stage.attendance.some((a) => !a.is_you)
   return (
     <header className="retro-rail">
       <div className="retro-rail-in">
@@ -212,7 +231,14 @@ function Rail({ stage, name, controls, onStep, onForward, topics, topicAt, theme
           })}
         </ol>
         <div className="retro-rail-end">
-          {controls ? <People stage={stage} sprintId={sprintId} onPresent={onPresent} command={command} /> : <span className="retro-room retro-room--still" aria-label={`${present.length} here`}><span className="retro-room-faces" aria-hidden>{stage.attendance.filter((a) => a.connected || a.present).slice(0, 5).map((a) => <Face key={a.account_id} a={a} state={a.connected ? 'on' : a.present ? 'here' : 'away'} />)}</span><span className="retro-room-n">{present.length}<span> here</span></span></span>}
+          {controls ? (
+            <People stage={stage} sprintId={sprintId} onPresent={onPresent} command={command} />
+          ) : others ? (
+            <span className="retro-room retro-room--still">
+              <span className="retro-room-faces" aria-hidden>{stage.attendance.filter((a) => a.connected || a.present).slice(0, 5).map((a) => <Face key={a.account_id} a={a} state={a.connected ? 'on' : a.present ? 'here' : 'away'} />)}</span>
+              <span className="retro-room-n">{present.length}<span> here</span></span>
+            </span>
+          ) : null}
           {controls && nextLabel ? (
             <Button size="sm" variant="primary" onClick={onForward} title="→">
               {nextTopic ? <>{nextLabel}<span className="retro-next-sub">{themes.find((t) => t.id === nextTopic)?.title ?? 'Not in a theme'}</span></> : <>Next: {nextLabel}</>} <ArrowRight className="size-4" />
