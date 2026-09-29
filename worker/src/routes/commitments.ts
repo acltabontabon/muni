@@ -184,6 +184,10 @@ commitments.get('/api/workspaces/:workspaceId/experiments', async (c) => {
 /** Text as the end of a sentence: a full stop only if it doesn't already end with one (or ?, ! or …). */
 export const endSentence = (s: string) => (/[.?!…]["'”’)\]]*$/.test(s.trimEnd()) ? s.trimEnd() : `${s.trimEnd()}.`)
 
+/**
+ * A summary of the meeting record, for a sprint set up without encryption: it heads the Markdown
+ * export when no recap has been published. The recap people read is written on the device.
+ */
 export async function generateRecap(db: D1Database, ctx: SprintCtx): Promise<string> {
   const s = (await one<{ name: string; goal: string | null }>(db, 'SELECT name, goal FROM sprints WHERE id = ?', ctx.sprint.id))!
   let out = `# ${s.name} — retro recap\n\n`
@@ -235,17 +239,21 @@ commitments.put('/api/sprints/:sprintId/recap', async (c) => {
   const ctx = await requireSprint(c, config(c.env), c.env.DB, c.req.param('sprintId'))
   requireFacilitator(ctx)
   if (!['live', 'completed', 'archived'].includes(ctx.sprint.status)) throw conflict('the recap is written during or after the retro')
-  const body = await jsonBody<{ body?: string; publish?: boolean }>(c)
-  // A recap draft is generated from the meeting record, which the server can only read for a
-  // sprint set up without encryption. Encrypted sprints draft it on the facilitator's device.
-  if (isEncrypted(ctx.sprint) && typeof body.body !== 'string') throw new AppError(409, 'encrypted_recap', 'this sprint is encrypted, so its recap is drafted on your device')
-  const text = isEncrypted(ctx.sprint) ? content(true, body.body, 20_000, 'The recap', false) ?? '' : typeof body.body === 'string' ? body.body.trim().slice(0, 20_000) : await generateRecap(c.env.DB, ctx)
-  const source = typeof body.body === 'string' ? 'manual' : 'generated'
-  await run(c.env.DB, 'INSERT INTO recaps (sprint_id, body, draft_source, updated_at) VALUES (?,?,?,?) ON CONFLICT(sprint_id) DO UPDATE SET body=excluded.body, draft_source=excluded.draft_source, updated_at=excluded.updated_at', ctx.sprint.id, text, source, Date.now())
-  if (body.publish === true) {
-    await run(c.env.DB, 'UPDATE recaps SET approved_at=?, published_at=? WHERE sprint_id=?', Date.now(), Date.now(), ctx.sprint.id)
-    await audit(c.env.DB, ctx.sprint.workspace_id, ctx.sprint.id, ctx.auth.account.id, 'recap.published')
-  }
+  const body = await jsonBody<{ body?: unknown; publish?: boolean }>(c)
+  // The recap is drafted on the facilitator's device, for every sprint, and saved as the text that's
+  // sent: saving never drafts one here, so it can't overwrite what was written.
+  if (typeof body.body !== 'string') throw bad('send the recap’s text — it’s drafted on your device')
+  const text = content(isEncrypted(ctx.sprint), body.body, 20_000, 'The recap', false) ?? ''
+  const now = Date.now()
+  await batch(c.env.DB, [
+    ["INSERT INTO recaps (sprint_id, body, draft_source, updated_at) VALUES (?,?,'manual',?) ON CONFLICT(sprint_id) DO UPDATE SET body=excluded.body, draft_source=excluded.draft_source, updated_at=excluded.updated_at", ctx.sprint.id, text, now],
+    ...(body.publish === true
+      ? ([
+          ['UPDATE recaps SET approved_at=?, published_at=? WHERE sprint_id=?', now, now, ctx.sprint.id],
+          auditStmt(ctx.sprint.workspace_id, ctx.sprint.id, ctx.auth.account.id, 'recap.published'),
+        ] as Statement[])
+      : []),
+  ])
   await hint(c.env, ctx.sprint.id, 'commitments')
   return c.json(await recapView(c.env.DB, ctx))
 })

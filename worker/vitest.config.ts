@@ -10,10 +10,9 @@ export default defineConfig(async () => {
         wrangler: { configPath: './wrangler.jsonc' },
         miniflare: {
           bindings: { TEST_MIGRATIONS: migrations, APP_ENV: 'test', EMAIL_PROVIDER: 'console', ALLOW_DEMO_SEED: 'true', PUBLIC_ORIGIN: 'http://localhost:5173',
-            // Every test account is created from the same simulated network.
+            // Every test account is created from the same simulated network, and tests send a lot of
+            // invitations (a test of the daily email limit sets its own).
             SIGNUPS_PER_NETWORK_DAILY: '100000', SIGNUPS_DAILY_LIMIT: '100000', EMAIL_DAILY_LIMIT: '100000' },
-          // An empty database for migration tests (test/migrations.test.ts), migrated step by step.
-          d1Databases: ['MIGRATION_DB'],
         },
       }),
     ],

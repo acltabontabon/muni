@@ -26,7 +26,7 @@ async function completedSprint(owner: User, members: User[], ws: string, publish
   const exp = await post(`/api/sprints/${s}/experiments`, owner, { change_to_try: 'For the next sprint, reserve a daily 15-minute review window', success_signal: 'PRs wait less than a day', theme_id: theme, owner_account_id: members[0].account_id })
   expect(exp.status).toBe(200)
   const experimentId = exp.body[0].id as string
-  expect((await put(`/api/sprints/${s}/recap`, owner, publishRecap ? { publish: true } : {})).status).toBe(200)
+  expect((await put(`/api/sprints/${s}/recap`, owner, { body: '# Sprint T — retro recap\n\nWe agreed a review window.', publish: publishRecap })).status).toBe(200)
   expect((await go(owner, s, 'completed')).status).toBe(200)
   return { s, theme, experimentId }
 }

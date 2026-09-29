@@ -142,7 +142,7 @@ describe('encrypted sprints', () => {
     expect((await post(`/api/sprints/${s.id}/experiments`, fac.user, { change_to_try: SYNTHETIC[4], success_signal: 'x' })).status).toBe(400)
     const exp = await post(`/api/sprints/${s.id}/experiments`, fac.user, { change_to_try: sealField(s.keys, s.id, 'change_to_try', SYNTHETIC[4]), success_signal: sealField(s.keys, s.id, 'success_signal', 'Synthetic-7f3a signal'), theme_id: tv.id })
     expect(exp.status, JSON.stringify(exp.body)).toBe(200)
-    expect((await put(`/api/sprints/${s.id}/recap`, fac.user, {})).status).toBe(409) // no server-drafted recap
+    expect((await put(`/api/sprints/${s.id}/recap`, fac.user, {})).status).toBe(400) // no server-drafted recap
     expect((await put(`/api/sprints/${s.id}/recap`, fac.user, { body: SYNTHETIC[5] })).status).toBe(400)
     expect((await put(`/api/sprints/${s.id}/recap`, fac.user, { body: sealField(s.keys, s.id, 'body', SYNTHETIC[5]) })).status).toBe(200)
 

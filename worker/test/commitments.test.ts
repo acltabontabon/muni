@@ -121,28 +121,24 @@ describe('commitments', () => {
     expect((await get(`/api/workspaces/${ws}/experiments`, members[1])).body).toHaveLength(2)
   })
 
-  it('generates a recap that participants see only once it is published', async () => {
+  it('keeps the recap as the facilitator wrote it, and shows it to participants once published', async () => {
     const { owner, members, ws } = await team(1)
     const ready = await sprint(owner, members, ws, 'ready')
-    expect((await put(`/api/sprints/${ready}/recap`, owner, {})).status).toBe(409)
-    const { s, theme } = await liveSprint(owner, members, ws)
-    await put(`/api/sprints/${s}/meeting/notes/${theme}`, owner, { takeaway: 'Pair on big reviews' })
-    await post(`/api/sprints/${s}/meeting/command`, owner, { expected_version: 1, command: { type: 'mark_discussed', theme_id: theme, discussed: true } })
-    await propose(owner, s, { owner_account_id: members[0].account_id })
-    expect((await put(`/api/sprints/${s}/recap`, members[0], {})).status).toBe(403)
-    const draft = await put(`/api/sprints/${s}/recap`, owner, {})
+    expect((await put(`/api/sprints/${ready}/recap`, owner, { body: 'too early' })).status).toBe(409)
+    const { s } = await liveSprint(owner, members, ws)
+    expect((await put(`/api/sprints/${s}/recap`, members[0], { body: 'not mine to write' })).status).toBe(403)
+    // It's drafted on the facilitator's device: without its text, nothing is drafted or saved here.
+    for (const body of [{}, { publish: true }, { body: null }]) expect((await put(`/api/sprints/${s}/recap`, owner, body)).status).toBe(400)
+    expect((await get(`/api/sprints/${s}/recap`, owner)).body.exists).toBe(false)
+    const draft = await put(`/api/sprints/${s}/recap`, owner, { body: 'We will pair on big reviews.' })
     expect(draft.status).toBe(200)
-    expect(draft.body).toMatchObject({ exists: true, draft_source: 'generated', published_at: null })
-    expect(draft.body.body).toContain('# Sprint T — retro recap')
-    expect(draft.body.body).toContain('1 observations were captured during the sprint and grouped into 1 themes')
-    expect(draft.body.body).toContain('### Review turnaround')
-    expect(draft.body.body).toContain('**Takeaway:** Pair on big reviews')
-    expect(draft.body.body).toContain(`- **${CHANGE}** — success signal: ${SIGNAL}. Review on 2026-10-11. (proposed owner: Member 0 (not yet accepted))`)
-    expect(draft.body.body).not.toContain('reviews take days')
+    expect(draft.body).toMatchObject({ exists: true, draft_source: 'manual', published_at: null, body: 'We will pair on big reviews.' })
+    // Saving without the text never writes over what was written.
+    expect((await put(`/api/sprints/${s}/recap`, owner, {})).status).toBe(400)
+    expect((await get(`/api/sprints/${s}/recap`, owner)).body.body).toBe('We will pair on big reviews.')
     // Participants see nothing yet.
     const hidden = await get(`/api/sprints/${s}/recap`, members[0])
     expect(hidden.body).toMatchObject({ exists: false, body: '' })
-    expect((await get(`/api/sprints/${s}/recap`, owner)).body.exists).toBe(true)
     const published = await put(`/api/sprints/${s}/recap`, owner, { body: 'Edited recap: we will pair on big reviews.', publish: true })
     expect(published.body).toMatchObject({ draft_source: 'manual' })
     expect(published.body.published_at).not.toBeNull()
@@ -156,7 +152,24 @@ describe('commitments', () => {
     expect(md.body.startsWith('Edited recap: we will pair on big reviews.')).toBe(true)
   })
 
-  it('drafts the recap without doubling punctuation the team already wrote', async () => {
+  it('heads the export with a summary of the meeting record while no recap is published', async () => {
+    const { owner, members, ws } = await team(1)
+    const { s, theme } = await liveSprint(owner, members, ws)
+    await put(`/api/sprints/${s}/meeting/notes/${theme}`, owner, { takeaway: 'Pair on big reviews' })
+    await post(`/api/sprints/${s}/meeting/command`, owner, { expected_version: 1, command: { type: 'mark_discussed', theme_id: theme, discussed: true } })
+    await propose(owner, s, { owner_account_id: members[0].account_id })
+    await put(`/api/sprints/${s}/recap`, owner, { body: 'a draft nobody else sees' })
+    const md = (await req<string>('GET', `/api/sprints/${s}/export.md`, members[0])).body
+    expect(md).toContain('# Sprint T — retro recap')
+    expect(md).toContain('1 observations were captured during the sprint and grouped into 1 themes')
+    expect(md).toContain('### Review turnaround')
+    expect(md).toContain('**Takeaway:** Pair on big reviews')
+    expect(md).toContain(`- **${CHANGE}** — success signal: ${SIGNAL}. Review on 2026-10-11. (proposed owner: Member 0 (not yet accepted))`)
+    expect(md).not.toContain('reviews take days')
+    expect(md).not.toContain('a draft nobody else sees')
+  })
+
+  it('summarises without doubling punctuation the team already wrote', async () => {
     expect(endSentence('PRs spend less time waiting')).toBe('PRs spend less time waiting.')
     expect(endSentence('Do PRs wait less than a day?')).toBe('Do PRs wait less than a day?')
     expect(endSentence('No reverts!')).toBe('No reverts!')
@@ -164,9 +177,9 @@ describe('commitments', () => {
     const { owner, members, ws } = await team(1)
     const { s } = await liveSprint(owner, members, ws)
     await propose(owner, s, { success_signal: 'Do PRs wait less than a day?' })
-    const draft = await put(`/api/sprints/${s}/recap`, owner, {})
-    expect(draft.body.body).toContain('success signal: Do PRs wait less than a day? Review on')
-    expect(draft.body.body).not.toMatch(/[?!.]\./)
+    const md = (await req<string>('GET', `/api/sprints/${s}/export.md`, owner)).body
+    expect(md).toContain('success signal: Do PRs wait less than a day? Review on')
+    expect(md).not.toMatch(/[?!.]\./)
   })
 
   it('exports summary and raw views after completion', async () => {
@@ -174,7 +187,6 @@ describe('commitments', () => {
     const { s, theme } = await liveSprint(owner, members, ws)
     await propose(owner, s, { theme_id: theme, owner_account_id: members[0].account_id })
     await post(`/api/sprints/${s}/experiments/${(await get(`/api/sprints/${s}/experiments`, owner)).body[0].id}/accept`, members[0], { accept: true })
-    await put(`/api/sprints/${s}/recap`, owner, { publish: true })
     expect((await go(owner, s, 'completed')).status).toBe(200)
     expect((await get(`/api/sprints/${s}`, owner)).body.completed_at).not.toBeNull()
     const md = await req<string>('GET', `/api/sprints/${s}/export.md`, members[0])
