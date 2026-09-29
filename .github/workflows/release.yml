@@ -118,9 +118,9 @@ jobs:
           MUNI_D1_DATABASE_ID: ${{ vars.MUNI_D1_DATABASE_ID }}
           MUNI_EMAIL_FROM: ${{ vars.MUNI_EMAIL_FROM }}
         run: pnpm install --frozen-lockfile && node scripts/production-config.mjs
-      # Migrations first: they're additive, so the Worker that's live keeps working against the new
-      # schema. Applying is idempotent (only pending migrations run). One retry for Cloudflare's
-      # occasional transient D1 error.
+      # Migrations first: within a major they're additive (docs/RELEASING.md §2), so the Worker
+      # that's live keeps working against the new schema. Applying is idempotent (only pending
+      # migrations run). One retry for Cloudflare's occasional transient D1 error.
       - name: Apply D1 migrations
         if: steps.now.outputs.state != 'live'
         working-directory: worker

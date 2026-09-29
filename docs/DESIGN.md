@@ -6,13 +6,14 @@ set a thought down while it is fresh, look back on it together, and decide
 what to try next.
 
 - Product name: **Muni**
-- Primary tagline: *Good retros start before the meeting.*
-- Supporting line: *A moment to reflect. A chance to improve.*
-- Short description: *Capture thoughts throughout the sprint. Reflect together. Turn insights into action.*
+- The app's line: *Keep the thought. Bring it to the conversation.* — on the sign-in page, in the
+  README and on the demo's closing card.
+- The marketing site's headline: *Good retros start before the meeting.*, with the supporting line
+  *A moment to reflect. A chance to improve.* at the foot of the page.
+- Short description: *Capture thoughts throughout the sprint. Reflect together. Turn insights into
+  action.* — in metadata (the app, the manifest, the site).
 
-Use the tagline on the sign-in page and README; the supporting line in the
-brand story and about panel; the short description in metadata. Do not stack
-all three on one screen.
+Don't stack more than one of them on a screen.
 
 ## Personality
 
@@ -52,7 +53,8 @@ the same dot on the final stroke.
   heading.
 - A character world may set its own display face on the person's own pages (see *Characters and
   worlds*); body, editor text and controls stay readable in every world.
-- Mono: system monospace for verification codes only.
+- Mono: system monospace for what people compare or copy character by character — the recovery
+  key, key fingerprints — and the recap's Markdown editor.
 
 Fonts are self-hosted via `@fontsource-variable` packages so meeting rooms
 without external network access still render correctly and no third-party
@@ -151,9 +153,9 @@ Category accents are restrained and always paired with an icon and a label:
 
 ## A sprint's page
 
-One page per sprint (`/sprints/:id`), for every stage and everyone in it. "Write", the logo and the
-old `/capture` link are shortcuts to it for the sprint that's collecting; the old `/outcomes` link
-lands on it too.
+One page per sprint (`/sprints/:id`), for every stage and everyone in it. "Write", the logo and
+`/capture` are shortcuts to it for the sprint that's collecting; `/sprints/:id/outcomes` leads to it
+too.
 
 **The sprint bar** is the same place at the top of every page of a sprint (its page and its
 themes). The name set like a chapter; where it is — a dot and a phrase (hollow *Not open yet*,
@@ -305,8 +307,8 @@ deleting. The same action has the same name everywhere — **Add to sprint**, in
 Every room keeps one order: where the thought goes, the question (it labels the field), one calm
 opaque field, *Need a starting point?* (one deterministic prompt at a time), **Category** (one
 optional choice from a short list; a sheet on phones) and **Context** (folds to a summary), the one
-action (⌘/Ctrl-Enter in its tooltip; no keycaps on screen), the privacy line as plain text. On a
-phone every room collapses to that order, then the collection. Focus on the field is ink, not the
+action (⌘/Ctrl-Enter in its tooltip; no keycaps on screen) — and no privacy line: the Privacy page
+explains it once. On a phone every room collapses to that order, then the collection. Focus on the field is ink, not the
 accent (a red edge reads as an error). Categories are always words. Nothing loops: the only motion
 is a 260 ms fade when the character changes, a disclosure rising, and a new thought settling into
 the list — none under reduced motion.
@@ -350,19 +352,18 @@ No glassmorphism, no gradients on text.
 
 ## Motion
 
-- 160–240ms ease-out for state changes; 400ms for the "opening the sprint"
-  reveal where cards rise and settle in a staggered sequence.
+- 160–240ms ease-out for state changes. Nothing loops.
 - Every animation is gated on `prefers-reduced-motion`; reduced motion swaps
   to opacity-only transitions.
-- Sound is off by default and there is no sound in v1.
+- Muni makes no sound.
 
 ## Screens
 
 1. Workspace — one opening over Sprints (the current sprint as a chapter, then a ledger), People and
    Settings (see *The workspace*).
 2. Sprint setup — a single tall form with sections, not a wizard.
-3. Capture — full-width composer with category chips, sheet-like on mobile,
-   "My entries" beneath.
+3. Capture — full-width composer with the Category picker (a sheet on phones),
+   "My thoughts" beneath.
 4. Themes — the sorting table (see *Themes: the sorting table*).
 5. Stage — fullscreen dark, the four steps along the top, one question per screen, large type
    (see *The retro: four steps*).

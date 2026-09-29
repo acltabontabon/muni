@@ -9,9 +9,9 @@ filmed), a slow camera that moves closer to what matters, the evening's horizon 
 the sun travelling it, and the closing card. The people (a team called Harbor: Maya Reyes, Jonas
 Weber, Priya Nair, Tomás Ibarra, Aiko Tanaka and Sam O’Neill) and everything they write are made up.
 
-The release workflow uploads these two committed files as they are. It never records anything, and
-it never touches production. To change the demo, rebuild it with the steps below and commit the
-new files.
+The release workflow uploads the committed demo and journey film (each as `.mp4` and `.gif`) as they
+are. It never records anything, and it never touches production. To change them, rebuild with the
+steps below and commit the new files.
 
 ## The journey, from both sides
 
@@ -60,7 +60,7 @@ other data and no other accounts:
 
 ```sh
 cd web && npm run build && cp -R dist /tmp/muni-demo-dist   # a frozen copy of the build
-cd worker
+cd ../worker
 npx wrangler d1 migrations apply muni --local --persist-to /tmp/muni-demo/d1
 npx wrangler dev --port 8870 --ip 127.0.0.1 --persist-to /tmp/muni-demo/d1 \
   --assets /tmp/muni-demo-dist --var PUBLIC_ORIGIN:http://localhost:8870
@@ -99,17 +99,17 @@ end before it (`cut`), to leave out idle moments. Set `REEL_FPS` to render at an
 docs/demo/export.sh /tmp/muni-demo/capture
 ```
 
-- `muni-demo.mp4`: 1920×1200, H.264 High, yuv420p (BT.709, limited range), CRF 22 at the `veryslow` preset, `+faststart`,
-  no audio.
-- `muni-demo.gif`: 620 wide at 15 fps, one 128-colour palette for the whole film (palettegen with
+- `muni-demo.mp4`: 1920×1200, H.264 High, yuv420p (BT.709, limited range), CRF 24 at the `veryslow`
+  preset, `+faststart`, no audio. `CRF` changes it.
+- `muni-demo.gif`: 620 wide at 12 fps, one 128-colour palette for the whole film (palettegen with
   `stats_mode=diff`, paletteuse with Bayer dithering at scale 4 and `diff_mode=rectangle`), loops
   forever. The release page shows it at 620. `GIF_FPS` and `GIF_WIDTH` change it.
 
-Each file has to stay under 10 MB: `node scripts/release.mjs check` (in CI on every push, and on
-every tag) refuses a larger one, and the export says so. The slow camera changes every pixel of
-every frame, so the GIF's size follows its area and frame rate; fewer colours or gentler dithering
-barely help. At 15 fps and 620 wide it's just under 10 MB, and the MP4 about 8.5 MB. A camera that
-moves while a lot changes on screen costs the most: keep one of the two still.
+Each file has to stay under 10 MB: `node scripts/release.mjs check` (in CI on every pull request
+and push to `main`, and on every tag) refuses a larger one, and the export says so. The slow camera
+changes every pixel of every frame, so the GIF's size follows its area and frame rate; fewer colours
+or gentler dithering barely help. At 12 fps and 620 wide it's about 9.2 MB, and the MP4 about
+8.1 MB. A camera that moves while a lot changes on screen costs the most: keep one of the two still.
 
 Set `OUT_MP4` / `OUT_GIF` to write somewhere else first. Before committing, look at a few frames:
 

@@ -113,10 +113,15 @@ with a warning when it's the only way to unlock.
 - Sessions are accepted only if they were made by a passkey (`sessions.auth_method = 'passkey'`,
   checked on every request).
 - Step-up (10 minutes, confirmed with one of the account's own passkeys) guards adding/removing
-  passkeys, replacing encryption keys and the recovery key.
-- Local storage holds only non-authoritative hints (a "used a passkey here" flag, a pending
-  sign-out marker). No device id or fingerprint exists; possession of an invite link proves
-  nothing about identity.
+  passkeys, replacing encryption keys, the recovery key and deleting the account.
+- Local storage holds preferences and hints, never authority (`muni.prefs`: theme, the last
+  workspace and sprint, which accounts keep drafts here, the chosen world, and a "used a passkey
+  here" hint), a pending sign-out marker and a sign-in counter that tells other tabs the account
+  changed (`muni.auth-gen`). IndexedDB holds, per account, what reopens the encryption key on this
+  device under a random device id (`muni-unlock`; the server keeps its half in `device_unlocks`
+  with a rough label such as "Safari on iPhone"), pinned teammates' keys (`muni-keys`) and, only
+  for accounts that keep drafts, the drafts and send queue (`muni-device`). There's no fingerprint
+  of the device, and possessing an invite link proves nothing about identity.
 - Security events: ids and coarse labels only (never tokens, raw WebAuthn responses, invitation
   tokens or content), 365 days.
 - Anonymity: names never appear with thoughts or votes; approvers see names (and an
@@ -136,7 +141,7 @@ with a warning when it's the only way to unlock.
   the old account's key is gone (the recovery key restores content keys on a device you can sign
   in on, not the account).
 - Mitigations in the product: the second-passkey step after sign-up, a standing notice in
-  Settings while an account has one passkey, the sign-in help, and the server refusing to remove
+  Account while an account has one passkey, the sign-in help, and the server refusing to remove
   the last passkey.
 
 ## 6. Data model
@@ -147,8 +152,8 @@ with a warning when it's the only way to unlock.
 - `account_emails(account_id PK, email UNIQUE, verified_at)`: the address mail goes to, if any.
 - `passkey_key_wraps` and `device_unlocks`: the account key wrapped for each PRF passkey, and the
   server's half of each device's envelope ([ENCRYPTION.md](ENCRYPTION.md) §4).
-- `accounts.account_ref` is a unique copy of the account's own id (a column SQLite can't drop);
-  nothing reads it, and it never holds an address.
+- `accounts.account_ref` is a unique copy of the account's own id; nothing reads it, and it never
+  holds an address.
 
 Migrations live in `worker/migrations` and are applied in order.
 
@@ -166,29 +171,30 @@ Nothing else sends email, and no email signs anyone in.
 Automated:
 
 - Worker, in workerd (`pnpm test`). Every test account signs up and signs in with a passkey (the
-  harness's software authenticator). `passkeys-only.test.ts` (12): sign-up with only a name,
+  harness's software authenticator). `passkeys-only.test.ts`: sign-up with only a name,
   replay/concurrency → one account, reused credential, ceremony checks, caps; an address never
   signs in and removing it only stops mail; the last passkey can't be removed even with an address;
   emailed invitations keep the invited address unless another account has it; personal links;
   reminders skip accounts without an address.
-  `passkeys.test.ts` (19), `unlock.test.ts` (12: device shares only to a passkey that existed when
-  the device was bound), `join.test.ts` (13), and every other suite.
-- Browser, headless Chromium + CDP virtual authenticator: `web/e2e/entrance.mjs` (30: the panel's
+  `passkeys.test.ts`, `unlock.test.ts` (device shares only to a passkey that existed when the
+  device was bound), `join.test.ts`, and every other suite.
+- Browser, headless Chromium + CDP virtual authenticator: `web/e2e/entrance.mjs` (the panel's
   hierarchy and restraint, reading width, keyboard order and visible focus, the help disclosure,
   phone layout with the primary action in reach, loading, cancel and retry, unknown passkey,
   create → sign out → sign in → `next`, no email sign-in anywhere, reduced motion, unsupported
-  browser, offline); `web/e2e/passkeys.mjs` (29, over HTTPS: onboarding,
+  browser, offline); `web/e2e/passkeys.mjs` (over HTTPS: onboarding,
   second-passkey offer, last-passkey guard, a synced passkey on a second device, draft kept through
   a session ending, team QR, personal link, emailed invitation, sessions, offline sign-out);
   `unlock.mjs`, `encryption.mjs` (the new-device step uses a synced passkey without PRF, which
   signs in but doesn't unlock), `capture`, `offline`, `worlds`.
 
-**On physical devices (2026-09-29, by the maintainer):** iPhone Safari, Android Chrome, Windows Hello, Firefox, 1Password and Bitwarden, and a company-managed Chrome, plus recovery: a lost phone,
+**On physical devices (2026-09-29, by the maintainer):** iPhone Safari, Android Chrome, Windows
+Hello, Firefox, 1Password and Bitwarden, and a company-managed Chrome, plus recovery: a lost phone,
 and signing in on a new laptop. Not covered by that pass: the installed iOS home-screen app and
-hardware security keys. The matrix used as a guide: {iPhone Safari, iPhone installed app, Android Chrome, macOS Safari/Chrome,
-Windows Chrome/Edge, Firefox} × {create account, sign in, sign in via phone QR, cancel, sign out
-then switch account, add a second passkey, scan team QR, open personal and emailed links,
-writing unlocks after sign out → sign in}.
+hardware security keys. The matrix used as a guide: {iPhone Safari, iPhone installed app, Android
+Chrome, macOS Safari/Chrome, Windows Chrome/Edge, Firefox} × {create account, sign in, sign in via
+phone QR, cancel, sign out then switch account, add a second passkey, scan team QR, open personal
+and emailed links, writing unlocks after sign out → sign in}.
 
 ## 9. Remaining risks and review requirements
 

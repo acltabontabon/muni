@@ -18,7 +18,7 @@ Kinds of evidence:
 - **Provider** — stated by a provider's documentation, not observed by us.
 - **Commitment** — a policy the operator keeps. Nothing technical enforces it.
 
-Last checked 2026-09-28, against `main` at 1.0.0-rc.1.
+Last checked 2026-09-29, against `main` at 1.0.0-rc.1.
 
 ## Visibility and authorship
 
@@ -28,10 +28,10 @@ Last checked 2026-09-28, against `main` at 1.0.0-rc.1.
 | Only the sprint's facilitator can close collection, with confirmation | Test | `privacy.test.ts` “lets only the sprint’s facilitator close collection”; `lifecycle.test.ts` (confirm required) |
 | You can edit/delete until close; after close nobody can, including you | Test | `entries.test.ts` “lets only the author edit or delete, and only while collecting”; no other route writes `entries` text (`grep "UPDATE entries"`) |
 | After close, the sprint's participants see all thoughts at once, in random order, with category/impact/might-help/period | Test + Code | `privacy.test.ts` “shared representations…” (random `reveal_order`); `SHARED_SELECT` in `routes/entries.ts` |
-| Shared thoughts carry no name, email, timestamp, or linking id (screen, stage, exports, socket) | Test | `privacy.test.ts` “shared representations carry no authorship anywhere” |
+| Shared thoughts carry no name, email, timestamp, or linking id (screen, stage, exports, socket) — in an encrypted sprint, not in the envelope either | Test | `privacy.test.ts` “shared representations carry no authorship anywhere”; `encryption.test.ts` (revealed responses and their envelopes contain no account id) |
 | Owners who aren't participants can't read a sprint's thoughts | Test | `boundaries.test.ts` “an owner who doesn’t facilitate…” (entries, themes, raw export → 403) |
 | No way in Muni to look up who wrote a thought | Test | `privacy.test.ts` “offers no author lookup route” |
-| Raw download is facilitator-only; participants get a summary; files carry no names | Test | `privacy.test.ts` (raw export 403 for members; no emails/names/dates in files) |
+| Raw download is facilitator-only; participants get a summary; files carry no authors, times or individual votes (vote totals and experiment owners' names, as on screen) | Test + Code | `privacy.test.ts` (raw export 403 for members; no emails or dates in files); `routes/exports.ts`, `lib/e2ee/local-export.ts` (owners and totals only) |
 | Votes are private; totals only after a round closes | Test | `privacy.test.ts` “keeps votes private…”; `voting.test.ts` |
 | What's added to a discussion appears without names, on release | Test | `meeting.test.ts` “collects context privately and reveals it under the theme only on release” |
 | Check-in answers are private until shared: your own to you, a count (not who) to the facilitator, nothing to anyone else — in responses and in live hints | Test | `checkins.test.ts` “keeps answers private until shared…”, “tells only the facilitator and your own tabs that you answered” |
@@ -39,7 +39,7 @@ Last checked 2026-09-28, against `main` at 1.0.0-rc.1.
 | An answer counts once and belongs to its check-in, never to whatever topic is on screen | Test | `checkins.test.ts` “ties an answer to its check-in…” (primary key; cross-sprint 404) |
 | Nobody is called on to speak | Code | No speaking round exists (`room.ts`); `meeting.test.ts` “marks who is here…” (no `speaking` or readiness in the snapshot) |
 | Where names do appear: members, participants, attendance, experiment owners | Code | `routes/meeting.ts` `snapshot()`; `routes/sprints.ts` `detail()` |
-| Your character (avatar) and its theme are visible only to you: never in anything a teammate sees, never attached to a thought, vote, export or the live socket | Test | `avatars.test.ts` “only ever reaches its owner” (deep scan of every shared route and the socket for avatar keys and the eight ids); only `buildMe` selects the columns |
+| Your character is your face beside your name in the retro, and on nothing anonymous (thoughts, votes, answers, additions, exports); whether your own pages wear its world is yours alone | Test | `avatars.test.ts` “shows as a face next to its person’s name in the retro, and nowhere else”; only `buildMe` and the meeting's attendance select `avatar_id` |
 | Reopening keeps what people saw visible | Code | `routes/sprints.ts` `preparing>collecting` (confirmation message) |
 | Authorship can still be inferred (wording, small teams, lone votes, a lone check-in answer, the moment something is added, reopen) | — | Stated limitation; the Privacy page names these; see security review §4 |
 
@@ -56,7 +56,7 @@ Last checked 2026-09-28, against `main` at 1.0.0-rc.1.
 | Resend receives the address and an invitation (workspace, inviter name, link) or a reminder (sprint name, link); never a thought | Code + Config | `lib/email.ts` templates (the only two); `EMAIL_PROVIDER=resend` in the production config |
 | munimuni.app is on GitHub Pages behind Cloudflare, with Google Fonts | Config | `.github/workflows/pages.yml`; live response headers (`server: cloudflare`, `x-github-request-id`); `site/index.html` font link |
 | No analytics, ads, session recording or error reporting; the app can't load code from or send data to other sites | Code + Config | No such dependency (`web/package.json`); CSP in `web/public/_headers` (`script-src 'self'; connect-src 'self'`), confirmed on the live app shell |
-| No IP address or device details stored with an account | Code | `sessions` table has no IP/user-agent columns; rate-limit buckets hold SHA-256 hashes (`boundaries.test.ts` “stores no plaintext address or network…”) |
+| No IP address or user agent stored with an account; sessions and unlockable devices keep only a rough label (“Safari on iPhone”) | Code + Test | `sessions.client_label` (`lib/auth.ts`), `device_unlocks.label` (`routes/keys.ts`); no IP or user-agent columns; rate-limit buckets hold SHA-256 hashes (`boundaries.test.ts` “stores no plaintext address or network…”) |
 | We don't sell personal data; contributions not used for advertising; emails not added to marketing lists | Commitment | No advertising or marketing integration exists in code; the only emails are the two templates |
 
 ## AI
@@ -73,7 +73,7 @@ Last checked 2026-09-28, against `main` at 1.0.0-rc.1.
 | HTTPS in transit | Config | Custom domain on Cloudflare; HSTS in `_headers` (live) |
 | Stored data encrypted at rest with AES-256, Cloudflare-managed keys | Provider | D1 and Durable Objects data-security docs |
 | Sprints set up without encryption aren't encrypted at the application level; the server can read their thoughts, and each says so. Every other sprint: see *Encryption (encrypted sprints)* below | Code | `sprints.encryption` is null for them; `lib/sealed.ts` accepts plaintext only there; `EncryptionLine` in `ui/keys.tsx` |
-| Email addresses (only accounts invited by email) stored readable; session tokens only as hashes | Code | `account_emails.email` plain; `sessions.token_hash` (`lib/auth.ts`); `accounts.legacy_key` (an unused unique column the schema can't drop) holds the account's own id, never an address |
+| Email addresses (only accounts invited by email) stored readable; session tokens only as hashes | Code | `account_emails.email` plain; `sessions.token_hash` (`lib/auth.ts`); `accounts.account_ref` holds the account's own id (unique; nothing reads it), never an address |
 | Passkeys are the only way in: no email sign-in, codes, password or recovery email | Code + Test | No such route; a session authenticates only with `auth_method = 'passkey'` (`lib/auth.ts`); `passkeys-only.test.ts` (sign-up with only a name; an address never signs in); `web/e2e/entrance.mjs`, `passkeys.mjs` |
 
 ## Device
@@ -102,7 +102,7 @@ Last checked 2026-09-28, against `main` at 1.0.0-rc.1.
 | A person's character appears beside their name in the retro and on nothing anonymous | Test | `avatars.test.ts` |
 | Passkey challenges deleted ~1 day after expiry; sessions 30 days, deleted 7 days after ending; hashed limiter rows 24 h; email queue payload cleared when sent | Test + Code | `jobs.ts` `retention()`; `boundaries.test.ts` “keeps a queued email until it’s sent…” |
 | Admin action log kept indefinitely (no text) | Code | `audit_events` never deleted — **open policy decision** |
-| Backups ≤ 30 days, logs ≤ 7 days | Provider + Config | D1 Time Travel docs (7 Free / 30 Paid); Workers Logs docs. The pilot's plan (Free or Paid) isn't recorded, so the page states the upper bounds |
+| Backups ≤ 30 days, logs ≤ 7 days | Provider + Config | D1 Time Travel docs (7 Free / 30 Paid); Workers Logs docs. The hosted service's plan (Free or Paid) isn't recorded, so the page states the upper bounds |
 
 ## Unresolved (prevents stronger wording)
 
@@ -120,6 +120,8 @@ Last checked 2026-09-28, against `main` at 1.0.0-rc.1.
 | Thoughts, what's added in the retro, check-in lines, themes, notes, experiments, recap, opening question and vote-reset reasons are encrypted in the browser before upload | Test | `worker/test/encryption.test.ts` (plaintext refused for each; envelopes stored); `web/e2e/encryption.mjs` (captured request bodies contain no text, including a check-in line and an addition) |
 | Muni's servers don't hold keys that open that content | Test + Code | `encryption.test.ts` scans every D1 table and the room's storage for the synthetic text, private keys and sprint secrets; the Worker imports no content cryptography (`grep -rn noble worker/src` is empty; `lib/sealed.ts` only checks envelope format) |
 | The server refuses plaintext for encrypted sprints | Test | `encryption.test.ts` (`encryption_required`), `lib/sealed.ts` |
+| A revealed thought's envelope names no author, and two thoughts by one person share nothing that links them | Test | `crypto.test.ts` “say nothing about who wrote them…”; `encryption.test.ts` (an envelope that names anyone is refused by the Worker, and by the database's triggers) |
+| A thought is never sent in plaintext on a guess: queued thoughts go unsealed only for a sprint known to be set up without encryption | Test | `outbox.test.ts` (“without a sealer…”, “sends nothing for a thought it can’t seal…”) |
 | While collecting, the revealing key is held only by the facilitator's devices; other participants can't decrypt early | Test | `encryption.test.ts` “…follow the sealing policy through reveal” (no wraps for participants; early wraps refused) |
 | The facilitator isn't given thoughts before close — server rule, not cryptography | Test | `privacy.test.ts` (sealing tests); stated as a limitation on the page |
 | A passkey that only signs in doesn't unlock content on a device that didn't have it (nor a device bound before it existed); a passkey that unlocks, or the recovery key, does | Test | `encryption.test.ts` “recovery…”; `unlock.test.ts` release rule; `web/e2e/encryption.mjs` new-device steps |

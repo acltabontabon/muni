@@ -54,9 +54,10 @@ revealed thoughts carry no author, neither in the response nor in the envelope.
 
 **Deliberately visible metadata:** workspace/sprint names, sprint goal, external id, dates, retro
 time and timezone, participants and facilitator, category and period per thought, authorship and
-timestamps (server-side only; shared views still never show them), theme membership and counts,
-vote rounds and totals, experiment owner/review date/status, audit events, email addresses, key
-fingerprints, which key versions each person holds. The setup screen tells facilitators the name
+timestamps (server-side only; shared views and envelopes never show them), theme membership and
+counts, vote rounds and totals, check-in answer choices and their counts, the kind an addition says
+it is, experiment owner/review date/status, audit events, email addresses, key fingerprints, which
+key versions each person holds. The setup screen tells facilitators the name
 and goal are not encrypted.
 
 ## 3. Collection and reveal: options

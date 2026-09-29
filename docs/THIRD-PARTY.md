@@ -19,6 +19,7 @@ of every bundled package to `third-party-licenses.txt` (see `web/scripts/third-p
 | clsx | MIT | Luke Edwards |
 | tslib | 0BSD | Microsoft Corporation |
 | @simplewebauthn/browser — passkey ceremonies in the browser | MIT | Matthew Miller |
+| @noble/curves, @noble/ciphers, @noble/hashes — the encryption in the browser (X25519, XChaCha20-Poly1305, HKDF-SHA256) | MIT | Paul Miller |
 | qrcode-generator — draws the invite QR code in the page | MIT | Kazuhiko Arase |
 
 The exact list (73 packages at the time of writing) comes from the production dependency tree at

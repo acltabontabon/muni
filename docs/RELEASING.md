@@ -20,8 +20,8 @@ The version is the `version` in the root [`package.json`](../package.json). Ever
 | What's new, the GitHub release | The version's entry in `CHANGELOG.md` (`scripts/changelog.mjs` reads it) |
 
 Nothing bumps the version automatically. A version and its notes are committed, reviewed and merged
-before anyone tags them. CI runs `node scripts/release.mjs check` on every push, so `main` can always
-be tagged at the version it declares.
+before anyone tags them. CI runs `node scripts/release.mjs check` on every pull request and every push
+to `main`, so `main` can always be tagged at the version it declares.
 
 ## 2. What a version number promises
 
@@ -32,8 +32,9 @@ candidates. For Muni, the compatibility contract that MAJOR protects is:
   by any earlier release of the same major stay readable and usable after updating. Database migrations
   only move forward, and within a major they're additive: the Worker that's live keeps working against
   the new schema.
-- **Encrypted content and keys.** Envelopes (`e1`), passkey wraps (`p1`), device envelopes (`d1`) and
-  recovery keys made by any earlier release of the same major still open. People never have to
+- **Encrypted content and keys.** Envelopes (`e1`), sprint-key wraps (`w1`), passkey wraps (`p1`),
+  device envelopes (`d1`) and recovery keys (`r1`) made by any earlier release of the same major still
+  open. People never have to
   re-encrypt, re-enrol or start over because of an update.
 - **Signing in.** Registered passkeys keep working on the same domain.
 - **Open tabs and installed apps.** A client from an earlier release of the same major either keeps
@@ -89,8 +90,9 @@ a normal release: `prepare 1.0.0`, a short changelog entry, tag.
    ```
 
    The date is today's (`--date YYYY-MM-DD` to set another: the day you'll tag).
-3. If the app looks different enough, re-record the demo (`docs/demo/README.md`). Every release attaches
-   `docs/demo/muni-demo.gif` and `.mp4` as they are committed; nothing is recorded during a release.
+3. If the app looks different enough, re-record the demo and the journey film (`docs/demo/README.md`).
+   Every release attaches `docs/demo/muni-demo.gif`, `muni-demo.mp4`, `muni-journey.gif` and
+   `muni-journey.mp4` as they are committed; nothing is recorded during a release.
 4. Open a pull request, let CI pass, merge.
 5. Tag the merged commit on `main` and push the tag — this is the release:
 
@@ -119,8 +121,8 @@ a normal release: `prepare 1.0.0`, a short changelog entry, tag.
    belong to the same build (`scripts/verify-deploy.mjs`, up to 4 minutes).
 3. **publish** (the only job that can write to the repository): builds the release page — the demo,
    what Muni is and where to open it, a note on a release candidate, then the version's changelog entry
-   as written and the comparison with the previous tag — creates it as a draft with the demo attached,
-   then publishes it — marked prerelease
+   as written and the comparison with the previous tag — creates it as a draft with the demo and the
+   journey film attached, then publishes it — marked prerelease
    for `-rc` versions, latest otherwise — and checks the demo's URL resolves. On a re-run it updates the
    existing release instead of creating another.
 
@@ -195,8 +197,13 @@ right title, prerelease flag and date, and the demo plays in its body.
   or Cloudflare dashboard → Workers → muni → Deployments → Rollback. That restores the previous Worker
   *and* the app it served; D1 migrations are not reversed, which is fine because they're additive. Then
   mark the GitHub release as broken in its notes (or delete it) and release a fix. Restoring data with
-  D1 Time Travel (`wrangler d1 time-travel restore`) loses everything written since; it's for
-  emergencies only, and the bookmark to use is in the deployment's history.
+  D1 Time Travel loses everything written since; it's for emergencies only. Find the bookmark for a
+  moment just before the deploy, then restore it:
+
+  ```bash
+  pnpm exec wrangler d1 time-travel info DB --timestamp=2026-10-01T09:00:00Z --config wrangler.production.jsonc
+  pnpm exec wrangler d1 time-travel restore DB --bookmark=<bookmark> --config wrangler.production.jsonc
+  ```
 - **A mistake in published notes.** Fix `CHANGELOG.md` on `main`, and edit the release body on GitHub
   to match. The app shows the corrected text from the next release on.
 

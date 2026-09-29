@@ -28,8 +28,9 @@ Security problems go through [`SECURITY.md`](SECURITY.md), never a public issue.
 4. Run the checks before opening a pull request:
 
    ```bash
-   cd worker && pnpm typecheck && pnpm test
-   cd web && npm run typecheck && npm run lint && npm test && npm run build
+   (cd worker && pnpm typecheck && pnpm test)
+   (cd web && npm run typecheck && npm run lint && npm test && npm run build)
+   node --test scripts/*.test.mjs && node scripts/release.mjs check
    ```
 
 Things that matter here more than usual:

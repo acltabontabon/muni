@@ -17,7 +17,7 @@ made on `main` and credited to you if you'd like.
 
 ## Scope
 
-In scope: the code in this repository, and the hosted pilot at `act.munimuni.app` when tested
+In scope: the code in this repository, and the hosted service at `act.munimuni.app` when tested
 gently — use your own accounts and synthetic data only.
 
 Please don't: access or modify other people's data, run denial-of-service or high-volume

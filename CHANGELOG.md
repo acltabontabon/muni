@@ -54,14 +54,15 @@ those as highlights. The app's About → What's new and each GitHub release are 
 - **A recap worth coming back to.** Once the retro ends, the sprint’s page is its recap: who came,
   what the team will try and who owns it, what each topic left behind, and the facilitator’s own
   words — the same page for everyone, easy to scan on a phone.
-- **Encrypted on your team’s devices.** New sprints are encrypted before anything leaves the browser,
-  and Muni’s servers don’t hold the keys to read them. You sign in with a passkey — no passwords.
+- **Encrypted on your team’s devices.** Sprints are encrypted by default, before anything leaves the
+  browser, and Muni’s servers don’t hold the keys to read them; a facilitator can set one up without
+  encryption, and it says so. You sign in with a passkey — no passwords.
 - **A page that feels like yours.** Choose one of eight characters: it gives your own pages a calm
   room of their own, and it’s your face in the retro, beside your name.
 - **Leave whenever you like.** Leave a workspace from its People page, or delete your account from
   Account. Anything the team relies on — ownership, a sprint you facilitate — is handed on first, and
-  Muni says what that is. What nobody has seen yet goes with you; what the team saw stays, tied to
-  no one.
+  Muni says what that is. Deleting your account takes with it what nobody has seen yet; what the team
+  saw stays, tied to no one.
 
 [unreleased]: https://github.com/acltabontabon/muni/compare/v1.0.0-rc.1...HEAD
 [1.0.0-rc.1]: https://github.com/acltabontabon/muni/releases/tag/v1.0.0-rc.1

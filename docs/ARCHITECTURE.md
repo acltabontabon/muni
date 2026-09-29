@@ -25,12 +25,12 @@ cron */15 ──▶ Worker: due jobs (email, reminders) and a daily retention sw
 | path | what |
 | --- | --- |
 | `worker/src/index.ts` | entry: configuration check, client-revision gate, routes, error mapping, cron |
-| `worker/src/routes/` | one module per area: auth and invitations, workspaces, sprints, entries, themes, voting, meeting, commitments, exports, demo |
+| `worker/src/routes/` | one module per area: auth and invitations, passkeys, keys (encryption keys and wraps), email preferences, workspaces, join links and requests, sprints, entries, themes, voting, meeting, check-ins, commitments (experiments and recaps), exports, demo (development only) |
 | `worker/src/room.ts` | `MeetingRoom`: step, topic, timer deadline, controller, attendance, version; hints to everyone, or only to facilitators and an account's own tabs |
-| `worker/src/lib/` | sessions/CSRF/authorization, D1 helpers, email adapter, rate limits, config |
+| `worker/src/lib/` | sessions/CSRF/authorization, accounts, avatars, departure (leaving and deleting), encryption envelope checks (`sealed.ts`), hints to the room (`live.ts`), D1 helpers, errors, email adapter, rate limits, config, small utilities |
 | `worker/src/jobs.ts` | durable jobs in D1, reminders, retention |
 | `worker/src/contract.ts` | the typed API contract, imported by the web app |
-| `worker/migrations/` | additive SQL migrations |
+| `worker/migrations/` | SQL migrations, applied in order (additive within a major, [RELEASING.md](RELEASING.md) §2) |
 | `web/` | React 19 + Vite + Tailwind 4 client, an installable PWA |
 | `web/src/lib/local/` | the device store and send queue for offline capture |
 | `web/src/sw.ts` | service worker: app shell (plus a chosen world's fonts), never `/api` |
@@ -66,6 +66,8 @@ for authorization and are never selected into a shared response type.
 ```
 accounts (display_name, name_set_at, avatar)     sessions (sha256(token), csrf, expiry, revoked)
 account_emails (account, email)                  webauthn_credentials (public key), webauthn_challenges
+account_keys (public key, recovery blob)         passkey_key_wraps, device_unlocks (share, label)
+security_events (the account's own history)      sprint_keys (version, public key), sprint_key_wraps
 workspaces (retention windows)                   memberships (workspace, account, role, revoked_at)
 invitations (sha256(token), email, expiry)       join_links, join_requests
 sprints (lifecycle, schedule, settings)          sprint_participants (is_facilitator, reminder opt-out)
@@ -74,16 +76,19 @@ themes, theme_entries
 vote_rounds, votes (account_id ← private)        context_additions (author_account_id ← private)
 checkins, checkin_responses (account_id ← private)
 discussion_notes, experiments, recaps            jobs, audit_events (ids only), rate_events (hashed keys)
+dev_mail (local development only)
 ```
 
 ## The privacy boundary
 
-The promise made in the product (the full wording is the Privacy & data page, `web/src/routes/Privacy.tsx`;
-[`privacy-claims.md`](privacy-claims.md) maps each claim to its evidence):
+The promise made in the product, as the Privacy & data page (`web/src/routes/Privacy.tsx`) puts it
+in short ([`privacy-claims.md`](privacy-claims.md) maps each claim to its evidence):
 
-> Your identity is verified to access this sprint. Your entries and votes are shown without your
-> identity to teammates and facilitators. The service operator may technically be able to
-> associate activity with accounts. Your wording can still reveal who you are.
+> Until collection closes, only you can read your thoughts — not your team, not the facilitator, not
+> workspace owners. Then everyone in the sprint sees them together, in random order, without names.
+>
+> Muni does keep a private record of who wrote each thought, so only you can edit yours. It’s never
+> shown to your team, but your wording can still give you away.
 
 This is application-level anonymity. It is implemented as follows.
 
@@ -106,7 +111,7 @@ This is application-level anonymity. It is implemented as follows.
 7. **People do the interpreting.** Muni has no AI or model inference: the facilitator groups
    thoughts and names themes, the team talks, and outcomes are what the facilitator records. No
    content is sent to an AI provider.
-8. **Logs carry no content.** The app logs failures with the path and a short error only. The
+8. **Logs carry no content.** The app logs failures with the path, method and a short error only. The
    platform's request logs record method, URL and (redacted) headers; URLs carry resource IDs,
    never invitation tokens or text.
 9. **Check-ins are sealed until shared.** An answer is visible to its author; the facilitator gets
@@ -121,8 +126,9 @@ This is application-level anonymity. It is implemented as follows.
 access, can join `author_account_id` to accounts — the mitigation is operational, not
 cryptographic. Sprint content is encrypted client-side by default (docs/ENCRYPTION.md), which
 removes the operator's stored ability to read it but not to see authorship or to ship a malicious
-frontend; a sprint set up without encryption is stored as plaintext. Small teams and distinctive writing can
-identify an author. Exports are copies retention can't retract.
+frontend; a sprint set up without encryption is stored as plaintext. An encrypted thought's envelope
+names no author, so what teammates receive after reveal can't be tied to anyone. Small teams and
+distinctive writing can identify an author. Exports are copies retention can't retract.
 
 ## Authentication and authorization
 
@@ -189,8 +195,10 @@ statements; `test/departure.test.ts` checks that no row names the account afterw
 
 Configuration is Worker vars and secrets, validated once per isolate. A production deployment
 refuses insecure settings instead of degrading: a non-HTTPS `PUBLIC_ORIGIN`, the console email
-inbox, demo seeding. Without an email provider, emailed invitations and reminders answer
-`setup_required`; there is no development login bypass. `worker/wrangler.jsonc` is for local
+inbox, demo seeding. Without an email provider, queued invitation and reminder emails fail with
+`setup_required` in the job queue and aren't delivered; the inviter still gets the link to copy.
+The only way in without a passkey is the development-only `POST /api/dev/session` (used by the
+tests and demos), refused in production and wherever `ALLOW_DEMO_SEED` is off. `worker/wrangler.jsonc` is for local
 development and tests only; a production deployment uses its own rendered config
 (see [`DEPLOYMENT.md`](DEPLOYMENT.md)). Clients send their build revision; one older than
 `MIN_CLIENT_REVISION` is asked to reload rather than sending payloads the server doesn't accept.

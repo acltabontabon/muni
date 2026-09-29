@@ -38,29 +38,37 @@ is gitignored — it describes your account, not the project. Optional overrides
 
 ```bash
 pnpm exec wrangler secret put RESEND_API_KEY --config wrangler.production.jsonc   # or BREVO_API_KEY
-pnpm migrate:remote                                                              # additive migrations
+pnpm migrate:remote                                                              # creates the schema
 cd ../web && npm ci && npm run build && cd ../worker
 pnpm run deploy
 ```
 
 The Worker attaches itself to `MUNI_DOMAIN` as a custom domain. Open `https://<your domain>`,
-create an account with a passkey, and create a workspace. Until the email secret is set, emailed
-invitations and reminders answer `setup_required` instead of pretending to send (invite links and
-QR codes work without it).
+create an account with a passkey, and create a workspace. Until the email secret is set, invitation
+and reminder emails aren't delivered: each fails with `setup_required` in the `jobs` table. The
+invite dialog still shows the invitation's link to copy, and join links and QR codes work without
+email.
 
 ## Updating
 
 Update to a release tag (`git checkout v1.2.0`; the changelog says what changed and whether you must do
-anything), rebuild the web app (`npm run build`), then `pnpm migrate:remote && pnpm run deploy`.
-`GET /api/version` reports what's running. Migrations are usually additive
-(new tables and columns), so the previous Worker keeps working against a newer schema.
+anything), then install, build and deploy:
+
+```bash
+cd web && npm ci && npm run build && cd ../worker
+pnpm install --frozen-lockfile && pnpm migrate:remote && pnpm run deploy
+```
+
+`GET /api/version` reports what's running. Within a major, migrations are additive
+([RELEASING.md](RELEASING.md) §2), so the previous Worker keeps working against a newer schema.
 `pnpm exec wrangler rollback --config wrangler.production.jsonc` restores the previous Worker
 version; migrations are not reversed.
 
 **Passkeys** need no secret: the relying-party ID is rendered from `MUNI_DOMAIN` as
-`WEBAUTHN_RP_ID`, and the Worker refuses to start if it isn't exactly `PUBLIC_ORIGIN`'s host. Passkeys registered on one host can't be used on another, so moving the
-app to a new domain means everyone creates new passkeys there — there's no other way in, so plan
-it with your users (see [PASSKEYS.md](PASSKEYS.md) §5).
+`WEBAUTHN_RP_ID`; if it isn't exactly `PUBLIC_ORIGIN`'s host, every request answers
+`500 misconfigured` until it is. Passkeys registered on one host can't be used on another, so moving
+the app to a new domain means everyone creates new passkeys there — there's no other way in, so plan
+it with your users (see [PASSKEYS.md](PASSKEYS.md) §2 and §5).
 The real-device test matrix is in [PASSKEYS.md](PASSKEYS.md#8-tests).
 
 ## Releasing from GitHub Actions

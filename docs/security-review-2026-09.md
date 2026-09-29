@@ -64,7 +64,7 @@ at close they get a random `reveal_order`.
 
 **Browser (`web/src/lib/local/*`, `sw.ts`):**
 - Drafts, unsent thoughts, minimal sprint context and the last identity are kept per account.
-- IndexedDB is used only for accounts that chose "Keep drafts on this device". Otherwise they are kept in tab memory.
+- Drafts and the send queue go to IndexedDB (`muni-device`) only for accounts that chose "Keep drafts on this device"; otherwise they're kept in tab memory. Every account that unlocks encrypted writing on a device also keeps, in IndexedDB, what reopens its key there (`muni-unlock`, useless without the server's half) and its pinned teammates' keys (`muni-keys`).
 - The service worker precaches the app shell and never intercepts `/api`.
 - No session token is ever kept in browser storage.
 
