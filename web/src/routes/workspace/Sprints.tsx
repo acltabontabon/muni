@@ -15,8 +15,7 @@ import { useResource } from '@/lib/resource'
 import { dateRange, dayKey, describeRetro, shortDate } from '@/lib/schedule'
 import { useDocumentTitle } from '@/ui'
 import { Postcard } from '@/ui/art'
-import { SectionError, SectionPending, useWorkspaceShell } from './Layout'
-import { initials } from './People'
+import { initials, SectionError, SectionPending, useWorkspaceShell } from './Layout'
 
 /** The order an open sprint is chosen as "the" current one. */
 const ORDER = ['live', 'ready', 'preparing', 'collecting', 'draft']

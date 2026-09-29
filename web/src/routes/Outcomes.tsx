@@ -1,5 +1,4 @@
 import { Fragment, useCallback, useEffect, useRef, useState, type FormEvent } from 'react'
-import { Navigate, useParams } from 'react-router'
 import { Download } from 'lucide-react'
 import { ApiError, get, patch, post, put } from '@/api/client'
 import type { CheckinView, Experiment, GroupingView, Recap, SprintDetail, StageSnapshot, ThemeView } from '@/api/types'
@@ -14,12 +13,6 @@ import { Face } from '@/ui/faces'
 import { CheckinResult } from '@/ui/checkin'
 import { shortDate } from '@/lib/schedule'
 import { download, fileName, rawMarkdown, recapDraft, summaryCsv, summaryMarkdown } from '@/lib/e2ee/local-export'
-
-/** The old address of a sprint's outcomes: a finished sprint's page is its outcomes now. */
-export function OutcomesRedirect() {
-  const { sprintId = '' } = useParams()
-  return <Navigate to={`/sprints/${sprintId}`} replace />
-}
 
 const longDate = (iso: string) => new Date(iso).toLocaleDateString(undefined, { weekday: 'long', day: 'numeric', month: 'long' })
 const minutesBetween = (a: string, b: string) => Math.max(1, Math.round((Date.parse(b) - Date.parse(a)) / 60000))

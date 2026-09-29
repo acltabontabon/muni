@@ -16,7 +16,7 @@ import { Button, Dialog, useDocumentTitle, useToast } from '@/ui'
 import { InviteDialog, sentence } from '@/ui/invite-email'
 import { InviteQrDialog } from '@/ui/invite-qr'
 import { LeaveWorkspaceDialog } from '@/ui/departure'
-import { SectionActions, SectionError, SectionPending, useWorkspaceShell } from './Layout'
+import { initials, SectionActions, SectionError, SectionPending, useWorkspaceShell } from './Layout'
 
 /** A directory this long gets a way to find someone. */
 const SEARCH_FROM = 12
@@ -26,12 +26,6 @@ const joined = (iso: string) => new Date(iso).toLocaleDateString(undefined, { mo
 const ago = (iso: string) => {
   const days = Math.floor((Date.now() - new Date(iso).getTime()) / 86_400_000)
   return days < 1 ? 'today' : days === 1 ? 'yesterday' : days < 60 ? `${days} days ago` : `on ${new Date(iso).toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' })}`
-}
-/** Two letters from a name, for its monogram. */
-export function initials(name: string) {
-  const words = name.trim().split(/\s+/).filter((w) => /\p{L}/u.test(w))
-  const first = (w: string | undefined) => (w ? ([...w].find((c) => /\p{L}/u.test(c)) ?? '') : '')
-  return (first(words[0]) + (words.length > 1 ? first(words[1]) : '')).toUpperCase() || '·'
 }
 const list = (names: string[]) => (names.length <= 1 ? names.join('') : `${names.slice(0, -1).join(', ')} and ${names[names.length - 1]}`)
 const fold = (s: string) => s.normalize('NFD').replace(/\p{M}/gu, '').toLowerCase()

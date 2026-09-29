@@ -8,7 +8,7 @@
  * sections never takes it down. Each section reads its own data through the account's memory cache
  * (lib/resource), shows what it already has at once, and checks again quietly.
  */
-import { createContext, useContext, useEffect, useRef, useState, type ReactNode } from 'react'
+import { createContext, Suspense, useContext, useEffect, useRef, useState, type ReactNode } from 'react'
 import { createPortal } from 'react-dom'
 import { Link, NavLink, Outlet, useParams } from 'react-router'
 import { clsx } from 'clsx'
@@ -126,7 +126,10 @@ export function WorkspaceLayout() {
             </div>
           </header>
           <div className="ws-body">
-            <Outlet />
+            {/* A section loaded on first use (People, Settings) waits inside the opening, which stays put. */}
+            <Suspense fallback={<SectionPending label="Loading" />}>
+              <Outlet />
+            </Suspense>
           </div>
         </div>
       </WorkspaceCtx.Provider>
@@ -149,6 +152,13 @@ export function SectionError({ error, onRetry, what }: { error: unknown; onRetry
 }
 
 /** First visit only: quiet lines where the content will be, shown only if it takes a moment. */
+/** Two letters from a name, for its monogram. */
+export function initials(name: string) {
+  const words = name.trim().split(/\s+/).filter((w) => /\p{L}/u.test(w))
+  const first = (w: string | undefined) => (w ? ([...w].find((c) => /\p{L}/u.test(c)) ?? '') : '')
+  return (first(words[0]) + (words.length > 1 ? first(words[1]) : '')).toUpperCase() || '·'
+}
+
 export function SectionPending({ label, rows = 4 }: { label: string; rows?: number }) {
   return (
     <div className="ws-pending" role="status" aria-label={label}>

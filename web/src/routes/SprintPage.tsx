@@ -13,7 +13,7 @@
  * lives in a WritingHost above the drawing, so a change of character, a sprint closing mid-sentence
  * or an offline moment never takes the words with it.
  */
-import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
+import { Suspense, useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { Link, useLocation, useNavigate, useParams } from 'react-router'
 import { ArrowRight } from 'lucide-react'
 import { ApiError, get } from '@/api/client'
@@ -41,8 +41,11 @@ import { RetroWhen } from '@/ui/when'
 import { RoomEmpty, StateWriter, Writer } from '@/worlds/room'
 import { Room } from '@/worlds/rooms'
 import { useWorld } from '@/worlds/world'
+import { lazyPart, Loading } from '@/ui/lazy'
 import { Commitments } from './Home'
-import { OutcomesView } from './Outcomes'
+
+// A finished sprint's recap loads when one is opened; writing and the retro don't wait for it.
+const OutcomesView = lazyPart(() => import('./Outcomes'), (m) => m.OutcomesView)
 
 type Cached = { sprint: ContextSprint; workspaceName: string | null; fetchedAt: number }
 const toDest = (s: { id: string; workspace_id: string; name: string; encryption?: 'e1' | null }): Destination => ({ workspaceId: s.workspace_id, sprintId: s.id, sprintName: s.name, encrypted: s.encryption === 'e1' })
@@ -98,20 +101,15 @@ export function SprintPage() {
     }
   }, [sprintId])
 
-  // Read again when this device unlocks or locks (what can be shown changed), when the connection
-  // returns, and when the tab is shown again.
+  // Read again when this device unlocks or locks (what can be shown changed), and when the
+  // connection returns. Coming back to the tab is the room's to say (its "all", below): once.
   const { keysEpoch, state: keys, changes } = useDeviceKeys()
   useEffect(() => {
     load()
   }, [load, keys.kind, keysEpoch])
   useEffect(() => {
-    const onVisible = () => document.visibilityState === 'visible' && load()
     window.addEventListener('online', load)
-    document.addEventListener('visibilitychange', onVisible)
-    return () => {
-      window.removeEventListener('online', load)
-      document.removeEventListener('visibilitychange', onVisible)
-    }
+    return () => window.removeEventListener('online', load)
   }, [load])
   // Every open tab and every participant follows the sprint's state as it changes.
   useLive(
@@ -301,7 +299,9 @@ export function SprintPage() {
       <div className={world ? 'room sprint-done' : 'sprint-done'} data-room={world ?? undefined} data-mode={world ? 'done' : undefined}>
         {world ? header : null}
         {notices}
-        <OutcomesView s={s} onCount={setAgreed} refresh={refresh} />
+        <Suspense fallback={<Loading />}>
+          <OutcomesView s={s} onCount={setAgreed} refresh={refresh} />
+        </Suspense>
         {participant ? (
           <details className="sprint-fold">
             <summary>Your thoughts in this sprint</summary>

@@ -1,4 +1,4 @@
-import { Navigate, Route, Routes, useLocation } from 'react-router'
+import { Navigate, Route, Routes, useLocation, useParams } from 'react-router'
 import { useAuth } from './lib/auth'
 import { SignIn } from './routes/SignIn'
 import { Invite } from './routes/Invite'
@@ -6,26 +6,36 @@ import { Join, JoinStatus } from './routes/Join'
 import { Home } from './routes/Home'
 import { WorkspaceLayout } from './routes/workspace/Layout'
 import { WorkspaceSprints } from './routes/workspace/Sprints'
-import { WorkspacePeople } from './routes/workspace/People'
-import { WorkspaceSettings } from './routes/workspace/Settings'
-import { SprintSetup } from './routes/SprintSetup'
 import { SprintPage } from './routes/SprintPage'
-import { Prepare } from './routes/Prepare'
-import { Stage } from './routes/Stage'
 import { Companion } from './routes/Companion'
-import { OutcomesRedirect } from './routes/Outcomes'
-import { Account } from './routes/Account'
-import { Privacy } from './routes/Privacy'
-import { About, WhatsNew } from './routes/About'
-import { useState } from 'react'
+import { Suspense, useState } from 'react'
 import { Spinner, useDocumentTitle } from './ui'
 import { EntranceShell, NameStep, PROGRESS } from './ui/entrance'
+import { lazyPart, Loading } from './ui/lazy'
 import { LeaveDialog } from './ui/menus'
 import { LocalProvider } from './lib/local/LocalProvider'
 import { ResourceProvider } from './lib/resource'
 import { OfflineStart } from './ui/status'
 import { isPersonalPath, WorldProvider } from './worlds/world'
 import { CharacterGate } from './worlds/Character'
+
+// What a phone opens most — home, a sprint's page, the retro companion, signing in and joining —
+// is in the first load. The rest loads when it's first opened.
+const Stage = lazyPart(() => import('./routes/Stage'), (m) => m.Stage)
+const Prepare = lazyPart(() => import('./routes/Prepare'), (m) => m.Prepare)
+const SprintSetup = lazyPart(() => import('./routes/SprintSetup'), (m) => m.SprintSetup)
+const Account = lazyPart(() => import('./routes/Account'), (m) => m.Account)
+const Privacy = lazyPart(() => import('./routes/Privacy'), (m) => m.Privacy)
+const About = lazyPart(() => import('./routes/About'), (m) => m.About)
+const WhatsNew = lazyPart(() => import('./routes/About'), (m) => m.WhatsNew)
+const WorkspacePeople = lazyPart(() => import('./routes/workspace/People'), (m) => m.WorkspacePeople)
+const WorkspaceSettings = lazyPart(() => import('./routes/workspace/Settings'), (m) => m.WorkspaceSettings)
+
+/** The old address of a sprint's outcomes: a finished sprint's page is its outcomes now. */
+function OutcomesRedirect() {
+  const { sprintId = '' } = useParams()
+  return <Navigate to={`/sprints/${sprintId}`} replace />
+}
 
 function Protected({ children }: { children: React.ReactElement }) {
   const { me, loading, offline } = useAuth()
@@ -78,6 +88,7 @@ export function App() {
     <WorldProvider>
     <LocalProvider key={me?.account_id ?? 'signed-out'} accountId={me?.account_id ?? null}>
     <ResourceProvider>
+    <Suspense fallback={<Loading page />}>
     <Routes>
       <Route path="/signin" element={<SignIn />} />
       {/* Invitation links carry the token in the fragment (/invite#token), which never reaches a server. */}
@@ -111,6 +122,7 @@ export function App() {
       <Route path="/sprints/:sprintId/outcomes" element={<Protected><OutcomesRedirect /></Protected>} />
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
+    </Suspense>
     </ResourceProvider>
     </LocalProvider>
     </WorldProvider>
