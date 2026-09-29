@@ -2,7 +2,7 @@ import { useEffect, useRef, useState, type KeyboardEvent } from 'react'
 import { clsx } from 'clsx'
 import { Check, Plus } from 'lucide-react'
 import { ApiError, del, newKey, post, put } from '@/api/client'
-import type { AdditionKind, CheckinView, MyContext } from '@/api/types'
+import type { AdditionKind, CheckinView, MyContext, StageSnapshot } from '@/api/types'
 import { useRetroDraft } from '@/lib/retro-drafts'
 import { Button } from '@/ui'
 
@@ -221,7 +221,7 @@ interface AddDraft {
  * with the topic you started it for — if the room moves on, it says so and lets you choose — and
  * it's kept through reconnects. Sent additions wait until the facilitator shares them, and say so.
  */
-export function AddToDiscussion({ sprintId, accountId, topic, titleOf, mine, paused, onSent, seed }: { sprintId: string; accountId: string | null; topic: string; titleOf: (id: string) => string; mine: MyContext[]; paused: boolean; onSent: () => void; seed?: { text: string; n: number } | null }) {
+export function AddToDiscussion({ sprintId, accountId, topic, titleOf, mine, paused, onSent, seed }: { sprintId: string; accountId: string | null; topic: string; titleOf: (id: string) => string; mine: MyContext[]; paused: boolean; onSent: (stage: StageSnapshot) => void; seed?: { text: string; n: number } | null }) {
   const [raw, setRaw] = useRetroDraft(`add:${sprintId}`, accountId)
   const draft: AddDraft = (() => {
     try {
@@ -254,10 +254,11 @@ export function AddToDiscussion({ sprintId, accountId, topic, titleOf, mine, pau
     setState('sending')
     setError('')
     try {
-      await post(`/api/sprints/${sprintId}/meeting/context`, { theme_id: target, body: draft.text.trim(), kind: draft.kind, idempotency_key: draft.key })
+      // The answer is the stage with this addition among yours: shown as it is, nothing read again.
+      const stage = await post<StageSnapshot>(`/api/sprints/${sprintId}/meeting/context`, { theme_id: target, body: draft.text.trim(), kind: draft.kind, idempotency_key: draft.key })
       setRaw('')
       setOpen(false)
-      onSent()
+      onSent(stage)
     } catch (e) {
       setError(e instanceof ApiError ? `${e.message}. Your words are still here.` : 'Didn’t send — check your connection. Your words are still here.')
     } finally {

@@ -2,6 +2,7 @@ import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { clsx } from 'clsx'
 import type { Experiment, SharedEntry } from '@/api/types'
 import { OUTCOME_LABEL, PERIODS, categoryMeta } from '@/lib/categories'
+import { Button } from '@/ui'
 
 /**
  * The retro's shared pieces: the stage (a shared screen) and the companion (each person's phone)
@@ -25,6 +26,63 @@ export function Thought({ e, compact }: { e: SharedEntry; compact?: boolean }) {
         {e.period && !compact ? <span className="retro-period">{PERIODS.find((p) => p.id === e.period)?.label}</span> : null}
       </div>
     </li>
+  )
+}
+
+/**
+ * A refresh that didn't get through while the room is otherwise reachable. What's on screen stays
+ * (it's the last thing Muni said), and says it may be a moment behind; the room's next change reads
+ * it again by itself, and "Try again" doesn't wait for one.
+ */
+export function BehindLine({ onRetry }: { onRetry: () => Promise<unknown> }) {
+  const [busy, setBusy] = useState(false)
+  return (
+    <p role="status" className="mb-4 flex items-start gap-2.5 text-sm text-ink-soft">
+      <span className="dot dot--queued mt-1.5" aria-hidden />
+      <span>
+        Couldn’t refresh just now, so this may be a moment behind.{' '}
+        <button
+          className="retro-link"
+          disabled={busy}
+          onClick={async () => {
+            setBusy(true)
+            try {
+              await onRetry()
+            } finally {
+              setBusy(false)
+            }
+          }}
+        >
+          Try again
+        </button>
+      </span>
+    </p>
+  )
+}
+
+/** Opening the retro didn't get through: nothing to show yet. It also opens by itself once Muni is back. */
+export function CouldntLoad({ message, onRetry }: { message: string; onRetry: () => Promise<unknown> }) {
+  const [busy, setBusy] = useState(false)
+  return (
+    <>
+      <p className="max-w-md text-ink-soft">{message}</p>
+      <div className="mt-5">
+        <Button
+          variant="ghost"
+          busy={busy}
+          onClick={async () => {
+            setBusy(true)
+            try {
+              await onRetry()
+            } finally {
+              setBusy(false)
+            }
+          }}
+        >
+          Try again
+        </Button>
+      </div>
+    </>
   )
 }
 

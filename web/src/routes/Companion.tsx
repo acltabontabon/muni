@@ -1,14 +1,14 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useMemo, useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router'
 import { post } from '@/api/client'
-import type { CheckinView, ThemeView } from '@/api/types'
+import type { CheckinView, Experiment, ThemeView, VotingState } from '@/api/types'
 import { PHASE_HINT, PHASE_LABEL } from '@/lib/categories'
 import { readRetroDraft } from '@/lib/retro-drafts'
 import { useStage } from '@/lib/stage'
 import { shortDate } from '@/lib/schedule'
 import { Button, Spinner, fmtClock, useCountdown, useDocumentTitle, useToast } from '@/ui'
 import { ReconnectingBar } from '@/ui/status'
-import { PastExperiment, RetroMap, Thought, TopicHorizon, worthKeeping } from '@/ui/retro'
+import { BehindLine, CouldntLoad, PastExperiment, RetroMap, Thought, TopicHorizon, worthKeeping } from '@/ui/retro'
 import { AddToDiscussion, CheckinAsk, CheckinResult, LeftoverLine, kindWord } from '@/ui/checkin'
 import { ApiError } from '@/api/client'
 import { Mark } from '@/brand/Mark'
@@ -22,8 +22,14 @@ import { talkTime } from '@/lib/talk-time'
  */
 export function Companion() {
   const { sprintId = '' } = useParams()
+  // Another sprint's retro is another retro: nothing on screen carries over.
+  return <CompanionRoom key={sprintId} sprintId={sprintId} />
+}
+
+function CompanionRoom({ sprintId }: { sprintId: string }) {
   const nav = useNavigate()
   const toast = useToast()
+  // Opening the retro is being there: useStage says so to the room once it can be reached.
   const st = useStage(sprintId)
   const { sprint, stage, grouping, votes, experiments, previous, checkins } = st
   const [seed, setSeed] = useState<{ text: string; n: number } | null>(null)
@@ -31,16 +37,12 @@ export function Companion() {
   const me = stage?.attendance.find((a) => a.is_you)
   const accountId = me?.account_id ?? null
   const paused = st.live === 'reconnecting'
-  // Opening the retro is being there.
-  useEffect(() => {
-    if (me && !me.present && !stage?.ended_at && !paused) post(`/api/sprints/${sprintId}/meeting/attendance`, { present: true }).then(() => st.reload()).catch(() => {})
-  }, [me?.account_id, stage?.session_id]) // eslint-disable-line react-hooks/exhaustive-deps
   const themes = useMemo(() => (grouping?.themes ?? []).filter((t) => !t.parked), [grouping?.themes])
   const ungrouped = useMemo(() => grouping?.ungrouped ?? [], [grouping?.ungrouped])
 
   if (st.revoked) return <Shell><p className="text-ink-soft">Your access to this sprint ended.</p></Shell>
-  if (st.error) return <Shell><p className="text-ink-soft">{st.error}</p></Shell>
-  if (!sprint) return <Shell><Spinner /></Shell>
+  if (st.error) return <Shell><CouldntLoad message={st.error} onRetry={st.reload} /></Shell>
+  if (!sprint || !st.ready) return <Shell><Spinner /></Shell>
   const done = ['completed', 'archived'].includes(sprint.status) || (!!stage?.ended_at && !stage.cancelled)
   if (!stage || done)
     return (
@@ -70,10 +72,26 @@ export function Companion() {
   const shared = stage.phase === 'talk' ? checkins.filter((c) => c.status === 'shared' && c.theme_id === topicId && c.results?.responded).sort(byKind) : []
   const onSaved = (c: CheckinView) => st.putCheckin(c)
   const addHere = stage.phase === 'talk' && !!current
+  // What these answer with (the sprint's experiments, your votes) is shown as it is, not read again.
+  const answer = async (e: Experiment, accept: boolean) => {
+    try {
+      st.putExperiments(await post<Experiment[]>(`/api/sprints/${sprintId}/experiments/${e.id}/accept`, { accept }))
+    } catch (err) {
+      toast(err instanceof ApiError ? err.message : 'Couldn’t save', 'danger')
+    }
+  }
+  const vote = async (t: ThemeView, cast: boolean) => {
+    try {
+      st.putVotes(await post<VotingState>(`/api/sprints/${sprintId}/votes`, { theme_id: t.id, cast }))
+    } catch (e) {
+      toast(e instanceof ApiError ? e.message : 'Couldn’t vote', 'danger')
+    }
+  }
 
   return (
     <Shell title={sprint.name} sub={<><span className="text-accent-ink">{step} · {PHASE_LABEL[stage.phase]}</span> — {PHASE_HINT[stage.phase]}</>}>
       <ReconnectingBar status={st.live} />
+      {st.stale && !paused ? <BehindLine onRetry={st.reload} /> : null}
 
       {mine.map((e) => (
         <div key={e.id} className="retro-invite">
@@ -81,8 +99,8 @@ export function Companion() {
           <p className="retro-invite-line">{e.change_to_try}</p>
           <p className="retro-invite-hint">{e.success_signal ? `We’ll know it helped if: ${e.success_signal.replace(/[.\s]+$/, '')}. ` : ''}The team looks at it again on {shortDate(e.review_on)}. Saying yes means you keep it moving — not that you do it all yourself.</p>
           <div className="flex gap-2">
-            <Button size="sm" variant="primary" disabled={paused} onClick={async () => { try { await post(`/api/sprints/${sprintId}/experiments/${e.id}/accept`, { accept: true }); st.loadExperiments() } catch (err) { toast(err instanceof ApiError ? err.message : 'Couldn’t save', 'danger') } }}>I’ll own this</Button>
-            <Button size="sm" variant="ghost" disabled={paused} onClick={async () => { try { await post(`/api/sprints/${sprintId}/experiments/${e.id}/accept`, { accept: false }); st.loadExperiments() } catch (err) { toast(err instanceof ApiError ? err.message : 'Couldn’t save', 'danger') } }}>Not me</Button>
+            <Button size="sm" variant="primary" disabled={paused} onClick={() => answer(e, true)}>I’ll own this</Button>
+            <Button size="sm" variant="ghost" disabled={paused} onClick={() => answer(e, false)}>Not me</Button>
           </div>
         </div>
       ))}
@@ -104,7 +122,7 @@ export function Companion() {
           ) : null}
         </section>
       ) : stage.phase === 'choose' ? (
-        <Choosing themes={themes} round={round} closed={closed} paused={paused} plan={stage.plan} onVote={async (t, cast) => { try { await post(`/api/sprints/${sprintId}/votes`, { theme_id: t.id, cast }); st.loadVotes() } catch (e) { toast(e instanceof ApiError ? e.message : 'Couldn’t vote', 'danger') } }} />
+        <Choosing themes={themes} round={round} closed={closed} paused={paused} plan={stage.plan} onVote={vote} />
       ) : stage.phase === 'talk' ? (
         current || topicId === 'ungrouped' ? (
           <section key={topicId}>
@@ -120,7 +138,7 @@ export function Companion() {
                 <CheckinResult c={c} you />
               </div>
             ))}
-            {addHere ? <AddToDiscussion sprintId={sprintId} accountId={accountId} topic={current.id} titleOf={titleOf} mine={stage.my_context} paused={paused} onSent={() => st.reload()} seed={seed} /> : null}
+            {addHere ? <AddToDiscussion sprintId={sprintId} accountId={accountId} topic={current.id} titleOf={titleOf} mine={stage.my_context} paused={paused} onSent={st.putStage} seed={seed} /> : null}
             {current && (stage.notes.takeaway || stage.notes.could_try) ? (
               <>
                 <h2 className="retro-col-title mt-6">The room’s notes</h2>

@@ -3,7 +3,7 @@ import { Link, useNavigate, useParams, useSearchParams } from 'react-router'
 import * as Popover from '@radix-ui/react-popover'
 import { ArrowRight, MonitorPlay, Pause, Play } from 'lucide-react'
 import { ApiError, patch, post, put } from '@/api/client'
-import type { CheckinView, Experiment, SharedEntry, StageSnapshot, ThemeView } from '@/api/types'
+import type { CheckinView, Experiment, SharedEntry, StageSnapshot, ThemeView, VotingState } from '@/api/types'
 import { PHASE_LABEL, categoryMeta } from '@/lib/categories'
 import { applyAppearance } from '@/lib/prefs'
 import { useStage } from '@/lib/stage'
@@ -12,7 +12,7 @@ import { shortDate } from '@/lib/schedule'
 import { Button, Dialog, Spinner, fmtClock, useCountdown, useDocumentTitle, useToast } from '@/ui'
 import { ReconnectingBar } from '@/ui/status'
 import { ExperimentEditor } from '@/ui/experiments'
-import { NoteField, PastExperiment, RetroMap, Thought, TopicHorizon, worthKeeping } from '@/ui/retro'
+import { BehindLine, CouldntLoad, NoteField, PastExperiment, RetroMap, Thought, TopicHorizon, worthKeeping } from '@/ui/retro'
 import { ASK, CheckinResult, kindWord } from '@/ui/checkin'
 import { Mark } from '@/brand/Mark'
 import { Face } from '@/ui/faces'
@@ -31,6 +31,11 @@ type Command = ReturnType<typeof useStage>['command']
  */
 export function Stage() {
   const { sprintId = '' } = useParams()
+  // Another sprint's stage is another retro: nothing on screen carries over.
+  return <StageRoom key={sprintId} sprintId={sprintId} />
+}
+
+function StageRoom({ sprintId }: { sprintId: string }) {
   const nav = useNavigate()
   const toast = useToast()
   const [params, setParams] = useSearchParams()
@@ -81,12 +86,6 @@ export function Stage() {
     else if (phaseIdx < phases.length - 1) toStep(phases[phaseIdx + 1])
   }, [stage?.phase, topicAt, topics, run, phaseIdx, phases, toStep])
 
-  // Being on the stage is being at the retro.
-  const me = stage?.attendance.find((a) => a.is_you)
-  useEffect(() => {
-    if (me && !me.present && !stage?.ended_at) post(`/api/sprints/${sprintId}/meeting/attendance`, { present: true }).catch(() => {})
-  }, [me?.account_id, stage?.session_id]) // eslint-disable-line react-hooks/exhaustive-deps
-
   useEffect(() => {
     if (!fac) return
     const onKey = (e: KeyboardEvent) => {
@@ -102,8 +101,8 @@ export function Stage() {
   }, [fac, forward, toStep, phases, phaseIdx, presenting, setPresenting])
 
   if (st.revoked) return <Centered><p>Your access to this sprint ended.</p></Centered>
-  if (st.error) return <Centered><p>{st.error}</p></Centered>
-  if (!sprint) return <Centered><Spinner /></Centered>
+  if (st.error) return <Centered><CouldntLoad message={st.error} onRetry={st.reload} /></Centered>
+  if (!sprint || !st.ready) return <Centered><Spinner /></Centered>
   const done = ['completed', 'archived'].includes(sprint.status) || (!!stage?.ended_at && !stage.cancelled)
   if (!stage || done)
     return (
@@ -118,10 +117,10 @@ export function Stage() {
     )
 
   const readerTheme = reader && reader !== 'ungrouped' ? themes.find((t) => t.id === reader) ?? null : null
+  // The note's own answer is shown at once; the themes (where Agree finds the ideas) follow the room's hint.
   const saveNote = async (themeId: string, field: 'takeaway' | 'could_try', value: string) => {
     try {
-      st.setStage(await put<StageSnapshot>(`/api/sprints/${sprintId}/meeting/notes/${themeId}`, { [field]: value }))
-      st.loadThemes()
+      st.putStage(await put<StageSnapshot>(`/api/sprints/${sprintId}/meeting/notes/${themeId}`, { [field]: value }))
     } catch (e) {
       toast(e instanceof ApiError ? e.message : 'Couldn’t save', 'danger')
       throw e
@@ -130,14 +129,15 @@ export function Stage() {
 
   return (
     <div className="stage retro min-h-dvh text-ink" data-presenting={presenting || undefined}>
-      <Rail stage={stage} name={sprint.name} controls={controls} onStep={toStep} onForward={forward} topics={topics} topicAt={topicAt} themes={themes} sprintId={sprintId} onChange={st.reload} command={command} />
+      <Rail stage={stage} name={sprint.name} controls={controls} onStep={toStep} onForward={forward} topics={topics} topicAt={topicAt} themes={themes} sprintId={sprintId} onPresent={st.putStage} command={command} />
       <Arrivals stage={stage} />
       <main className="retro-main">
         <ReconnectingBar status={st.live} />
-        {stage.phase === 'look_back' ? <LookBack stage={stage} previous={previous} wins={worthKeeping([...themes.flatMap((t) => t.entries), ...ungrouped])} controls={controls} onVerdict={async (e, status) => { try { await patch(`/api/sprints/${e.sprint_id}/experiments/${e.id}`, { status }); st.loadExperiments() } catch (err) { toast(err instanceof ApiError ? err.message : 'Couldn’t save', 'danger') } }} /> : null}
-        {stage.phase === 'choose' ? <Choose stage={stage} themes={themes} ungrouped={ungrouped} votes={votes} controls={controls} sprintId={sprintId} budget={sprint.vote_budget} onRead={setReader} onVotes={() => { st.loadVotes(); st.loadThemes() }} /> : null}
+        {st.stale && st.live !== 'reconnecting' ? <BehindLine onRetry={st.reload} /> : null}
+        {stage.phase === 'look_back' ? <LookBack stage={stage} previous={previous} wins={worthKeeping([...themes.flatMap((t) => t.entries), ...ungrouped])} controls={controls} onVerdict={async (e, status) => { try { st.putPrevious(await patch<Experiment[]>(`/api/sprints/${e.sprint_id}/experiments/${e.id}`, { status })) } catch (err) { toast(err instanceof ApiError ? err.message : 'Couldn’t save', 'danger') } }} /> : null}
+        {stage.phase === 'choose' ? <Choose stage={stage} themes={themes} ungrouped={ungrouped} votes={votes} controls={controls} sprintId={sprintId} budget={sprint.vote_budget} onRead={setReader} onVotes={st.putVotes} /> : null}
         {stage.phase === 'talk' ? <Talk stage={stage} themes={themes} ungrouped={ungrouped} topics={topics} controls={controls} command={run} onNote={saveNote} sprintId={sprintId} checkins={{ list: st.checkins, put: st.putCheckin }} /> : null}
-        {stage.phase === 'agree' ? <Agree themes={themes} experiments={experiments} controls={controls} sprintId={sprintId} participants={sprint.participants} onChange={st.loadExperiments} checkins={{ list: st.checkins, put: st.putCheckin }} onEnd={async () => { try { await post(`/api/sprints/${sprintId}/transition`, { to: 'completed' }); nav(`/sprints/${sprintId}`) } catch (e) { toast(e instanceof ApiError ? e.message : 'Couldn’t end the retro', 'danger') } }} /> : null}
+        {stage.phase === 'agree' ? <Agree themes={themes} experiments={experiments} controls={controls} sprintId={sprintId} participants={sprint.participants} onChange={() => void st.refresh('experiments')} checkins={{ list: st.checkins, put: st.putCheckin }} onEnd={async () => { try { await post(`/api/sprints/${sprintId}/transition`, { to: 'completed' }); nav(`/sprints/${sprintId}`) } catch (e) { toast(e instanceof ApiError ? e.message : 'Couldn’t end the retro', 'danger') } }} /> : null}
       </main>
       <div className="retro-corner">
         {fac ? (
@@ -163,7 +163,7 @@ function Centered({ children }: { children: React.ReactNode }) {
 }
 
 // ---------- the rail: where the retro is, and the one next step ----------
-function Rail({ stage, name, controls, onStep, onForward, topics, topicAt, themes, sprintId, onChange, command }: { stage: StageSnapshot; name: string; controls: boolean; onStep: (p: string) => void; onForward: () => void; topics: string[]; topicAt: number; themes: ThemeView[]; sprintId: string; onChange: () => void; command: Command }) {
+function Rail({ stage, name, controls, onStep, onForward, topics, topicAt, themes, sprintId, onPresent, command }: { stage: StageSnapshot; name: string; controls: boolean; onStep: (p: string) => void; onForward: () => void; topics: string[]; topicAt: number; themes: ThemeView[]; sprintId: string; onPresent: (s: StageSnapshot) => void; command: Command }) {
   const idx = stage.phases.indexOf(stage.phase)
   const nextStep = stage.phases[idx + 1]
   const nextTopic = stage.phase === 'talk' && topicAt >= 0 && topicAt < topics.length - 1 ? topics[topicAt + 1] : null
@@ -185,7 +185,7 @@ function Rail({ stage, name, controls, onStep, onForward, topics, topicAt, theme
           })}
         </ol>
         <div className="retro-rail-end">
-          {controls ? <People stage={stage} sprintId={sprintId} onChange={onChange} command={command} /> : <span className="retro-room retro-room--still" aria-label={`${present.length} here`}><span className="retro-room-faces" aria-hidden>{stage.attendance.filter((a) => a.connected || a.present).slice(0, 5).map((a) => <Face key={a.account_id} a={a} state={a.connected ? 'on' : a.present ? 'here' : 'away'} />)}</span><span className="retro-room-n">{present.length}<span> here</span></span></span>}
+          {controls ? <People stage={stage} sprintId={sprintId} onPresent={onPresent} command={command} /> : <span className="retro-room retro-room--still" aria-label={`${present.length} here`}><span className="retro-room-faces" aria-hidden>{stage.attendance.filter((a) => a.connected || a.present).slice(0, 5).map((a) => <Face key={a.account_id} a={a} state={a.connected ? 'on' : a.present ? 'here' : 'away'} />)}</span><span className="retro-room-n">{present.length}<span> here</span></span></span>}
           {controls && nextLabel ? (
             <Button size="sm" variant="primary" onClick={onForward} title="→">
               {nextTopic ? <>{nextLabel}<span className="retro-next-sub">{themes.find((t) => t.id === nextTopic)?.title ?? 'Not in a theme'}</span></> : <>Next: {nextLabel}</>} <ArrowRight className="size-4" />
@@ -289,9 +289,22 @@ function Arrivals({ stage }: { stage: StageSnapshot }) {
  * Who's in the retro, live: a monogram per person, lit while their stage or phone is open. The
  * facilitator can mark someone here who has no device in the room.
  */
-function People({ stage, sprintId, onChange, command }: { stage: StageSnapshot; sprintId: string; onChange: () => void; command: Command }) {
+function People({ stage, sprintId, onPresent, command }: { stage: StageSnapshot; sprintId: string; onPresent: (s: StageSnapshot) => void; command: Command }) {
+  const toast = useToast()
+  const [saving, setSaving] = useState<string | null>(null)
   const people = [...stage.attendance].sort((a, b) => Number(b.connected) - Number(a.connected) || Number(b.present) - Number(a.present) || a.display_name.localeCompare(b.display_name))
   const connected = people.filter((a) => a.connected).length
+  // The answer is the stage as it is now: shown at once, with nothing read again.
+  const mark = async (a: Attendee) => {
+    setSaving(a.account_id)
+    try {
+      onPresent(await post<StageSnapshot>(`/api/sprints/${sprintId}/meeting/attendance/${a.account_id}`, { present: !a.present }))
+    } catch (e) {
+      toast(e instanceof ApiError ? e.message : `Couldn’t change whether ${firstName(a.display_name)} is here`, 'danger')
+    } finally {
+      setSaving(null)
+    }
+  }
   return (
     <Popover.Root>
       <Popover.Trigger asChild>
@@ -310,14 +323,14 @@ function People({ stage, sprintId, onChange, command }: { stage: StageSnapshot; 
             {people.map((a) => (
               <li key={a.account_id}>
                 <label>
-                  <input type="checkbox" checked={a.present} aria-label={`${a.display_name} is here`} onChange={async () => { await post(`/api/sprints/${sprintId}/meeting/attendance/${a.account_id}`, { present: !a.present }); onChange() }} />
+                  <input type="checkbox" checked={a.present} disabled={saving === a.account_id} aria-label={`${a.display_name} is here`} onChange={() => void mark(a)} />
                   <Face a={a} state={a.connected ? 'on' : a.present ? 'here' : 'away'} />
                   <span className="retro-pop-name">{a.display_name}{a.is_you ? ' (you)' : ''}<small data-state={a.connected ? 'on' : undefined}>{whereabouts(a)}{a.is_facilitator ? ' · facilitating' : ''}</small></span>
                 </label>
               </li>
             ))}
           </ul>
-          {!stage.you_control ? <button className="retro-pop-action" onClick={() => command({ type: 'take_control' })}>Take over leading</button> : null}
+          {!stage.you_control ? <button className="retro-pop-action" onClick={async () => { const r = await command({ type: 'take_control' }); if (!r.ok) toast(r.message ?? 'Couldn’t take over', 'danger') }}>Take over leading</button> : null}
         </Popover.Content>
       </Popover.Portal>
     </Popover.Root>
@@ -359,7 +372,7 @@ function LookBack({ stage, previous, wins, controls, onVerdict }: { stage: Stage
 // ---------- 2 · Choose ----------
 const nWord = (n: number) => ['no', 'one', 'two', 'three', 'four', 'five', 'six', 'seven', 'eight', 'nine', 'ten'][n] ?? String(n)
 
-function Choose({ stage, themes, ungrouped, votes, controls, sprintId, budget, onRead, onVotes }: { stage: StageSnapshot; themes: ThemeView[]; ungrouped: SharedEntry[]; votes: ReturnType<typeof useStage>['votes']; controls: boolean; sprintId: string; budget: number; onRead: (id: string) => void; onVotes: () => void }) {
+function Choose({ stage, themes, ungrouped, votes, controls, sprintId, budget, onRead, onVotes }: { stage: StageSnapshot; themes: ThemeView[]; ungrouped: SharedEntry[]; votes: ReturnType<typeof useStage>['votes']; controls: boolean; sprintId: string; budget: number; onRead: (id: string) => void; onVotes: (v: VotingState) => void }) {
   const toast = useToast()
   const round = votes?.current ?? null
   const closed = votes?.previous.find((r) => r.status === 'closed') ?? null
@@ -370,10 +383,10 @@ function Choose({ stage, themes, ungrouped, votes, controls, sprintId, budget, o
   const each = Math.min(round?.budget ?? budget, themes.length)
   const people = stage.attendance.length
   const single = themes.length <= 1
+  // The answer is the voting as it now stands (your votes, what's left): shown as it is.
   const vote = async (id: string, cast: boolean) => {
     try {
-      await post(`/api/sprints/${sprintId}/votes`, { theme_id: id, cast })
-      onVotes()
+      onVotes(await post<VotingState>(`/api/sprints/${sprintId}/votes`, { theme_id: id, cast }))
     } catch (e) {
       toast(e instanceof ApiError ? e.message : 'Couldn’t vote', 'danger')
     }
@@ -443,7 +456,7 @@ function Choose({ stage, themes, ungrouped, votes, controls, sprintId, budget, o
             <div className="rm-block">
               <p className="retro-note-label">What happens next</p>
               <p className="rm-text">The talk opens <strong>{list[0]?.title}</strong> first, with about {per} minutes on the clock — guidance, not a cut-off.</p>
-              {controls ? <p className="rm-text rm-quiet"><button className="retro-link" onClick={async () => { try { await post(`/api/sprints/${sprintId}/votes/rounds`, {}); onVotes() } catch (e) { toast(e instanceof ApiError ? e.message : 'Couldn’t open voting', 'danger') } }}>Vote again</button> — clears these votes and opens a new round.</p> : null}
+              {controls ? <p className="rm-text rm-quiet"><button className="retro-link" onClick={async () => { try { onVotes(await post<VotingState>(`/api/sprints/${sprintId}/votes/rounds`, {})) } catch (e) { toast(e instanceof ApiError ? e.message : 'Couldn’t open voting', 'danger') } }}>Vote again</button> — clears these votes and opens a new round.</p> : null}
             </div>
           ) : null}
         </aside>
