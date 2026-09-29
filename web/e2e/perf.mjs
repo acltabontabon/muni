@@ -78,18 +78,23 @@ async function idleOnce(s, secs) {
   const done = new Promise((r) => cdp.once('Tracing.tracingComplete', r))
   const m0 = await metrics(cdp)
   const r0 = requests.length
+  const ownFrame = (await cdp.send('Page.getFrameTree')).frameTree.frame.id
   await cdp.send('Tracing.start', { categories: 'devtools.timeline,disabled-by-default-devtools.timeline.frame,v8.execute', transferMode: 'ReportEvents' })
   await new Promise((r) => setTimeout(r, secs * 1000))
   await cdp.send('Tracing.end')
   await done
   cdp.off('Tracing.dataCollected', collect)
   const m1 = await metrics(cdp)
-  const count = (name) => events.filter((e) => e.name === name && (e.ph === 'X' || e.ph === 'B' || e.ph === 'I' || e.ph === 'i' || e.ph === 'n')).length
-  const main = events.filter((e) => e.name === 'RunTask' && e.ph === 'X' && e.dur)
+  // Tracing is browser-wide: with two pages open (the stage and a phone) each trace holds both.
+  // Count only the renderer process that draws this page, found from its main frame's events.
+  const ownPid = events.find((e) => e.args?.data?.frame === ownFrame)?.pid
+  const own = (e) => ownPid === undefined || e.pid === ownPid
+  const count = (name) => events.filter((e) => e.name === name && own(e) && (e.ph === 'X' || e.ph === 'B' || e.ph === 'I' || e.ph === 'i' || e.ph === 'n')).length
+  const main = events.filter((e) => e.name === 'RunTask' && e.ph === 'X' && e.dur && own(e))
   const long = main.filter((e) => e.dur > 50_000)
   const per = (n) => +(n / secs).toFixed(1)
   const timers = {}
-  for (const e of events.filter((e) => e.name === 'TimerFire')) timers[e.args?.data?.timerId] = (timers[e.args?.data?.timerId] ?? 0) + 1
+  for (const e of events.filter((e) => e.name === 'TimerFire' && own(e))) timers[e.args?.data?.timerId] = (timers[e.args?.data?.timerId] ?? 0) + 1
   return {
     busyMsPerS: +(((m1.TaskDuration - m0.TaskDuration) * 1000) / secs).toFixed(1),
     scriptMsPerS: +(((m1.ScriptDuration - m0.ScriptDuration) * 1000) / secs).toFixed(1),

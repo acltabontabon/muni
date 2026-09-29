@@ -12,7 +12,7 @@ import { fairBudget, votePurse } from '@/lib/votes'
 import { isHere } from '@/lib/attendance'
 import { cueFor, type Cue as CueLine, type CueAction, type CueState } from '@/lib/cue'
 import { shortDate } from '@/lib/schedule'
-import { Button, Dialog, Spinner, fmtClock, useCountdown, useDocumentTitle, useToast } from '@/ui'
+import { Button, Dialog, Spinner, fmtClock, useCountdown, useDocumentTitle, useTimeUp, useToast } from '@/ui'
 import { ReconnectingBar } from '@/ui/status'
 import { ExperimentEditor } from '@/ui/experiments'
 import { ConfirmDialog, useSprintControl } from '@/ui/sprint-bar'
@@ -720,7 +720,8 @@ function readSay() {
 function CueDock({ stage, themes, topics, topicAt, previous, votes, budget, experiments, checkins, sprintId, run, onForward, onEnd }: { stage: StageSnapshot; themes: ThemeView[]; topics: string[]; topicAt: number; previous: Experiment[]; votes: ReturnType<typeof useStage>['votes']; budget: number; experiments: Experiment[]; checkins: Checkins; sprintId: string; run: (c: Parameters<Command>[0]) => Promise<void>; onForward: () => void; onEnd: () => void }) {
   const [say, setSay] = useState(readSay)
   const asking = useAsking(sprintId, checkins)
-  const remaining = useCountdown(stage.timer.ends_at ?? null, stage.timer.remaining_secs, stage.server_time)
+  // Only the moment time is up matters here: the clock beside it does the ticking.
+  const timeUp = useTimeUp(stage.timer.ends_at ?? null, stage.timer.remaining_secs, stage.server_time)
   const idx = stage.phases.indexOf(stage.phase)
   const nextStep = stage.phases[idx + 1] ? PHASE_LABEL[stage.phases[idx + 1]] : null
   const theme = stage.phase === 'talk' && stage.current_theme_id && stage.current_theme_id !== 'ungrouped' ? themes.find((t) => t.id === stage.current_theme_id) ?? null : null
@@ -748,7 +749,7 @@ function CueDock({ stage, themes, topics, topicAt, previous, votes, budget, expe
               topicCheck: asked(checks.topic),
               actionCheck: checks.reworded ? null : asked(checks.action),
               waiting: !!stage.has_unreleased_context,
-              over: !!stage.timer.total_secs && remaining === 0,
+              over: !!stage.timer.total_secs && timeUp,
               nextTopic: topicAt >= 0 && topicAt < topics.length - 1 ? title(topics[topicAt + 1]) : null,
               next: nextStep,
             }

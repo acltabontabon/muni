@@ -227,6 +227,19 @@ try {
   check('The facilitator’s margin: the clock, the room’s notes, then asking the room', /We’ll remember[\s\S]*We could try[\s\S]*Ask the room/i.test(await F.page.locator('.retro-margin').innerText()))
   check('A topic opens with its question as the cue, and asking the room as the quiet option', (await F.page.locator('.cue-say').innerText()) === '“What would get a first review the same day?”' && (await F.page.locator('.cue-alt').innerText()) === 'Ask how it showed up')
   check('The presenting screen has no cue', (await Pr.page.locator('.cue').count()) === 0)
+  // Time runs out while nobody touches anything: the cue changes by itself as the clock reaches 0:00
+  // (one timer for that moment, not a second clock ticking beside the first).
+  const tick = await mara.req('GET', `/api/sprints/${sprint.id}/meeting`)
+  const left = Math.round((Date.parse(tick.timer.ends_at) - Date.parse(tick.server_time)) / 1000)
+  await mara.req('POST', `/api/sprints/${sprint.id}/meeting/command`, { expected_version: tick.version, command: { type: 'timer_adjust', delta_secs: 3 - left } })
+  await F.page.locator('.cue-say', { hasText: 'out of time' }).waitFor({ timeout: 8000 })
+  check('At 0:00 the cue says time’s up by itself, with the clock', (await F.page.locator('.retro-clock-n').innerText()) === '0:00' && (await F.page.locator('.cue-alt').innerText()) === '+2 minutes')
+  await F.page.locator('.cue-alt', { hasText: '+2 minutes' }).click()
+  await F.page.locator('.cue-say', { hasText: 'first review the same day' }).waitFor({ timeout: 8000 })
+  check('+2 from the cue: time again, and the cue goes back to the topic’s question', /^[12]:\d\d$/.test(await F.page.locator('.retro-clock-n').innerText()))
+  // The rest of the topic keeps the time it had.
+  const back = await mara.req('GET', `/api/sprints/${sprint.id}/meeting`)
+  await mara.req('POST', `/api/sprints/${sprint.id}/meeting/command`, { expected_version: back.version, command: { type: 'timer_adjust', delta_secs: left - 120 } })
   await F.page.locator('.cue-alt', { hasText: 'Ask how it showed up' }).click()
   spend('Facilitator', 'ask how a topic showed up', 1)
   await Promise.all(phones.map((P) => P.page.locator('.ci-ask').waitFor({ timeout: 8000 })))

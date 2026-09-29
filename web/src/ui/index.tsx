@@ -228,6 +228,31 @@ export function useCountdown(endsAt: string | null | undefined, remainingSecs: n
   return secs
 }
 
+/**
+ * Whether a countdown has reached zero, for what only needs that moment (the facilitator's cue): one
+ * timer for the whole time left, not one a second. Zero means what useCountdown shows as 0:00 (under
+ * half a second left), so both change together.
+ */
+export function useTimeUp(endsAt: string | null | undefined, remainingSecs: number, serverTime: string | undefined) {
+  const skew = useMemo(() => (serverTime ? Date.parse(serverTime) - Date.now() : 0), [serverTime])
+  const left = () => (endsAt ? Date.parse(endsAt) - (Date.now() + skew) : remainingSecs * 1000)
+  const [up, setUp] = useState(() => left() < 500)
+  const [deadline, setDeadline] = useState<[typeof endsAt, number]>([endsAt, remainingSecs])
+  if (deadline[0] !== endsAt || deadline[1] !== remainingSecs) {
+    setDeadline([endsAt, remainingSecs])
+    setUp(left() < 500)
+  }
+  useEffect(() => {
+    if (!endsAt) return
+    const wait = Date.parse(endsAt) - (Date.now() + skew) - 500
+    if (wait <= 0) return setUp(true)
+    // Timers can't wait longer than ~24.8 days; a topic's clock never does.
+    const t = window.setTimeout(() => setUp(true), Math.min(wait + 15, 2 ** 31 - 1))
+    return () => window.clearTimeout(t)
+  }, [endsAt, skew])
+  return up
+}
+
 export function fmtClock(secs: number) {
   const m = Math.floor(secs / 60)
   const s = secs % 60

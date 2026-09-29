@@ -118,9 +118,14 @@ promises about any particular phone.
 and a phone on the same topic. Everything that moves there is finite — the sun rising on the
 talk's horizon, an arrival line fading, a face lighting up — so at rest the only work is the topic
 clock, which visibly ticks once a second. `useCountdown` wakes only when the shown second changes
-(and not at all at zero). Measured: ~1 ms/s main thread, 2 frames/s, 4 small paints/s, 2 timer
-fires/s, no requests. A ticking retro screen's budget is ≤2.5 frames/s, ≤5 paints/s and ≤2
-timers/s; every other screen keeps the idle budget.
+(and not at all at zero), and a screen has one ticking clock: the facilitator's cue only needs the
+moment time is up, so it waits on one timer for that (`useTimeUp`). Measured per screen: ~1–3 ms/s
+main thread, 1 frame/s, 2 small paints/s, 1 timer fire/s, no requests. A ticking retro screen's
+budget is ≤2.5 frames/s, ≤5 paints/s and ≤2 timers/s; every other screen keeps the idle budget.
+
+Chrome's tracing is browser-wide, so while the stage and a phone are both open each trace holds
+both. `perf.mjs` counts only the renderer process that draws the page being measured (found from
+its main frame's events); before it did, each retro screen was charged the other's timers.
 
 **What each change costs.** `perf.mjs` (`ONLY=retro-reads`) also sets up an encrypted sprint
 through the app, with a stage and five phones, and counts the API requests each screen makes to
