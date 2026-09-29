@@ -2,6 +2,7 @@
 import { describe, expect, it } from 'vitest'
 import { env } from 'cloudflare:test'
 import { ageSession, closeCollection, del, entry, get, go, patch, post, signin, sprint, tag, team } from './harness'
+import { deleteAccount, revokeMembership } from '../src/lib/departure'
 
 const n = async (sql: string, ...args: unknown[]) => (await env.DB.prepare(sql).bind(...args).first<{ n: number }>())!.n
 
@@ -86,6 +87,56 @@ describe('leaving a workspace', () => {
     const a = await team(1)
     const b = await team(0)
     expect((await post(`/api/workspaces/${a.ws}/leave`, b.owner)).status).toBe(403)
+  })
+})
+
+describe('never without an owner, never without a facilitator', () => {
+  const owners = (ws: string) => n("SELECT count(*) AS n FROM memberships WHERE workspace_id = ? AND role = 'owner' AND revoked_at IS NULL", ws)
+  const run = (stmts: [string, ...unknown[]][]) => env.DB.batch(stmts.map(([sql, ...args]) => env.DB.prepare(sql).bind(...args)))
+
+  it('two owners demoting each other at once leave one owner', async () => {
+    const { owner, members, ws } = await team(1)
+    const [second] = members
+    expect((await patch(`/api/workspaces/${ws}/members/${second.account_id}`, owner, { role: 'owner' })).status).toBe(200)
+    const both = await Promise.all([patch(`/api/workspaces/${ws}/members/${second.account_id}`, owner, { role: 'member' }), patch(`/api/workspaces/${ws}/members/${owner.account_id}`, second, { role: 'member' })])
+    expect(both.map((r) => r.status)).toContain(200)
+    expect(await owners(ws)).toBe(1)
+  })
+
+  it('an account deletion that a join lands in the middle of deletes nothing', async () => {
+    const x = await signin(`sole-${tag()}@example.com`, 'Sole')
+    const ws = (await post('/api/workspaces', x, { name: 'Mine' })).body.id as string
+    // What deleting them would do was worked out while they were alone in it…
+    const stmts = deleteAccount(x.account_id, x.email, [ws])
+    // …and someone redeems their personal link before it runs.
+    const joiner = await signin(`joiner-${tag()}@example.com`, 'Joiner')
+    await env.DB.prepare("INSERT INTO memberships (workspace_id, account_id, role, created_at) VALUES (?,?,'member',?)").bind(ws, joiner.account_id, Date.now()).run()
+    const res = await run(stmts)
+    expect(res.at(-1)!.meta.changes).toBe(0)
+    expect(await n('SELECT count(*) AS n FROM accounts WHERE id = ?', x.account_id)).toBe(1)
+    expect(await n('SELECT count(*) AS n FROM workspaces WHERE id = ?', ws)).toBe(1)
+    expect(await owners(ws)).toBe(1)
+    // Asked now, they're told what needs handing on.
+    const r = await del('/api/auth/me', x, { confirm: true })
+    expect(r.status).toBe(409)
+    expect(r.body.code).toBe('not_free')
+    expect(r.body.workspaces).toEqual([expect.objectContaining({ workspace_id: ws, last_owner: true })])
+  })
+
+  it('an account deletion or a removal that a handover lands in the middle of does nothing', async () => {
+    const { owner, members, ws } = await team(2)
+    const [x, other] = members
+    const s = await sprint(owner, [x, other], ws, 'collecting')
+    await entry(x, s, 'improve', 'not seen yet')
+    const deleting = deleteAccount(x.account_id, x.email, [])
+    const removing = revokeMembership(ws, x.account_id, owner.account_id, 'membership.revoked')
+    // The facilitator hands the sprint to them before either runs.
+    expect((await patch(`/api/sprints/${s}`, owner, { facilitator_id: x.account_id })).status).toBe(200)
+    expect((await run(deleting)).at(-1)!.meta.changes).toBe(0)
+    expect((await run(removing))[0].meta.changes).toBe(0)
+    expect(await n('SELECT count(*) AS n FROM entries WHERE sprint_id = ? AND author_account_id = ?', s, x.account_id)).toBe(1)
+    expect(await n('SELECT count(*) AS n FROM memberships WHERE workspace_id = ? AND account_id = ? AND revoked_at IS NULL', ws, x.account_id)).toBe(1)
+    expect(await n('SELECT count(*) AS n FROM sprint_participants WHERE sprint_id = ? AND account_id = ? AND is_facilitator = 1', s, x.account_id)).toBe(1)
   })
 })
 

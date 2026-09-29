@@ -130,7 +130,13 @@ auth.delete('/api/auth/me', async (c) => {
     all<{ credential_id: string }>(c.env.DB, 'SELECT credential_id FROM webauthn_credentials WHERE account_id = ?', me),
     openSprints(c.env.DB, me),
   ])
-  await batch(c.env.DB, deleteAccount(me, email, workspaces.filter((w) => w.sole).map((w) => w.workspace_id)))
+  const done = await batch(c.env.DB, deleteAccount(me, email, workspaces.filter((w) => w.sole).map((w) => w.workspace_id)))
+  // Someone joined a workspace only they owned, or handed them a sprint, since they were checked:
+  // nothing was deleted, and they're told what now needs handing on.
+  if (!done[done.length - 1].meta.changes) {
+    const now = await standing(c.env.DB, me)
+    throw new AppError(409, 'not_free', 'something changed just now — hand on what others depend on first', { workspaces: now.filter((w) => !free(w)) })
+  }
   await Promise.all(open.map((id) => revokeLive(c.env, id, me)))
   clearSessionCookies(c, cfg)
   return c.json({ ok: true, rp_id: cfg.webauthn.rpId, credential_ids: creds.map((r) => r.credential_id) })

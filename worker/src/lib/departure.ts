@@ -14,6 +14,7 @@
  */
 import type { WorkspaceStanding } from '../contract'
 import { all, type Statement } from './db'
+import { ACCOUNT_BUCKETS, accountBucket } from './ratelimit'
 
 const UNFINISHED = "s.status NOT IN ('completed','archived')"
 /** A per-row random stand-in for an account id, on rows kept after the account is deleted. */
@@ -81,21 +82,37 @@ export async function openSprints(db: D1Database, accountId: string, workspaceId
 }
 
 /**
+ * SQL for "this account facilitates an unfinished sprint another current member is in" — `facilitated`
+ * as a condition, for the account bound to the one `?` (and, with `inWorkspace`, the workspace
+ * bound to a second).
+ */
+const facilitatingSql = (inWorkspace: boolean) =>
+  `EXISTS (SELECT 1 FROM sprint_participants sp JOIN sprints s ON s.id = sp.sprint_id JOIN memberships fm ON fm.workspace_id = s.workspace_id AND fm.account_id = sp.account_id AND fm.revoked_at IS NULL
+     WHERE sp.account_id = ? AND sp.is_facilitator = 1 AND ${UNFINISHED}${inWorkspace ? ' AND s.workspace_id = ?' : ''}
+       AND EXISTS (SELECT 1 FROM sprint_participants o JOIN memberships om ON om.workspace_id = s.workspace_id AND om.account_id = o.account_id AND om.revoked_at IS NULL
+                    WHERE o.sprint_id = s.id AND o.account_id <> sp.account_id))`
+
+/**
  * A member leaves a workspace (or an owner removes them): later requests fail, unfinished sprints
  * lose them, and what they submitted stays in its sprints, without their name as always.
  */
 export function revokeMembership(workspaceId: string, accountId: string, actorId: string, action: 'membership.revoked' | 'membership.left'): Statement[] {
   const now = Date.now()
   // Within the one transaction: an owner goes only while another owner stays (two owners leaving
-  // at once can't leave a team with none), and nothing else happens unless the membership ended.
+  // at once can't leave a team with none), nobody goes while facilitating a sprint others are in
+  // (a handover to them can land after they were checked), and nothing else happens unless the
+  // membership ended.
   const revoked = `EXISTS (SELECT 1 FROM memberships WHERE workspace_id = ? AND account_id = ? AND revoked_at = ${now})`
   return [
     [
       `UPDATE memberships SET revoked_at = ? WHERE workspace_id = ? AND account_id = ? AND revoked_at IS NULL
-         AND (role <> 'owner' OR EXISTS (SELECT 1 FROM memberships o WHERE o.workspace_id = memberships.workspace_id AND o.account_id <> memberships.account_id AND o.role = 'owner' AND o.revoked_at IS NULL))`,
+         AND (role <> 'owner' OR EXISTS (SELECT 1 FROM memberships o WHERE o.workspace_id = memberships.workspace_id AND o.account_id <> memberships.account_id AND o.role = 'owner' AND o.revoked_at IS NULL))
+         AND NOT ${facilitatingSql(true)}`,
       now,
       workspaceId,
       accountId,
+      accountId,
+      workspaceId,
     ],
     [`DELETE FROM sprint_participants WHERE account_id = ? AND sprint_id IN (SELECT id FROM sprints s WHERE s.workspace_id = ? AND ${UNFINISHED}) AND ${revoked}`, accountId, workspaceId, workspaceId, accountId],
     [`INSERT INTO audit_events (workspace_id, actor_id, action, meta, created_at) SELECT ?,?,?,?,? WHERE ${revoked}`, workspaceId, actorId, action, action === 'membership.revoked' ? JSON.stringify({ account_id: accountId }) : '{}', now, workspaceId, accountId],
@@ -120,11 +137,27 @@ export function deleteWorkspaces(ids: string[], aloneFor?: string): Statement[] 
   ]
 }
 
+/** SQL for "this account (the one `?`) is the only owner of a workspace someone else is in". */
+const LAST_OWNER = `EXISTS (SELECT 1 FROM memberships lm WHERE lm.account_id = ? AND lm.revoked_at IS NULL AND lm.role = 'owner'
+    AND EXISTS (SELECT 1 FROM memberships o WHERE o.workspace_id = lm.workspace_id AND o.account_id <> lm.account_id AND o.revoked_at IS NULL)
+    AND NOT EXISTS (SELECT 1 FROM memberships o WHERE o.workspace_id = lm.workspace_id AND o.account_id <> lm.account_id AND o.revoked_at IS NULL AND o.role = 'owner'))`
+
 /**
  * An account and what's theirs. Run only once `standing` shows they're free everywhere; the
- * workspaces only they were in are passed as `soleWorkspaces` and go too.
+ * workspaces only they were in are passed as `soleWorkspaces` and go too. Every statement holds only
+ * while they're still free — a handover to them, or someone joining a workspace only they own,
+ * landing meanwhile stops all of it, never some of it. Nothing it reads changes before the last
+ * statement, so the check comes out the same each time; the caller sees whether that last one
+ * deleted the account.
  */
 export function deleteAccount(accountId: string, email: string | null, soleWorkspaces: string[]): Statement[] {
+  const a = accountId
+  const free = `NOT ${LAST_OWNER} AND NOT ${facilitatingSql(false)}`
+  return accountStatements(a, email, soleWorkspaces).map(([sql, ...args]): Statement => [`${sql} AND ${free}`, ...args, a, a])
+}
+
+/** Each statement ends with its WHERE clause, so the caller can add a condition to all of them. */
+function accountStatements(accountId: string, email: string | null, soleWorkspaces: string[]): Statement[] {
   const now = Date.now()
   const a = accountId
   return [
@@ -145,7 +178,7 @@ export function deleteAccount(accountId: string, email: string | null, soleWorks
     ["UPDATE checkins SET opened_by = '' WHERE opened_by = ?", a],
     ['UPDATE sprint_keys SET created_by = NULL WHERE created_by = ?', a],
     ['UPDATE sprint_key_wraps SET created_by = NULL WHERE created_by = ?', a],
-    ['DELETE FROM invitations WHERE invited_by = ? OR accepted_by = ?', a, a],
+    ['DELETE FROM invitations WHERE (invited_by = ? OR accepted_by = ?)', a, a],
     ...(email ? ([['DELETE FROM invitations WHERE email = ? AND accepted_at IS NULL', email]] as Statement[]) : []),
     ["UPDATE join_links SET revoked_at = COALESCE(revoked_at, ?), created_by = '' WHERE created_by = ?", now, a],
     ['UPDATE join_links SET redeemed_by = NULL WHERE redeemed_by = ?', a],
@@ -162,7 +195,7 @@ export function deleteAccount(accountId: string, email: string | null, soleWorks
     // Their own records, and mail not yet sent to them.
     ['DELETE FROM security_events WHERE account_id = ?', a],
     ['DELETE FROM webauthn_challenges WHERE account_id = ?', a],
-    ["DELETE FROM rate_events WHERE bucket LIKE '%' || ?", a],
+    [`DELETE FROM rate_events WHERE bucket IN (${ACCOUNT_BUCKETS.map(() => '?').join(',')})`, ...ACCOUNT_BUCKETS.map((k) => accountBucket(k, a))],
     ...(email
       ? ([
           ["DELETE FROM jobs WHERE status IN ('queued','running') AND json_extract(payload, '$.to') = ?", email],

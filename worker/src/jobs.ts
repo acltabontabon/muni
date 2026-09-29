@@ -114,8 +114,12 @@ export async function scheduleReminders(db: D1Database, sprintId: string) {
     if (at > Date.now() && at < s.retro_at) await enqueue(db, 'reminder', { sprint_id: sprintId, kind }, at, `reminder:${sprintId}:${kind}:${s.reopened_count}`)
   }
 }
+export const cancelRemindersStatement = (sprintId: string): Statement => [
+  "UPDATE jobs SET status='cancelled', idempotency_key = idempotency_key || ':cancelled:' || id WHERE kind='reminder' AND status='queued' AND json_extract(payload, '$.sprint_id') = ?",
+  sprintId,
+]
 export async function cancelReminders(db: D1Database, sprintId: string) {
-  await run(db, "UPDATE jobs SET status='cancelled', idempotency_key = idempotency_key || ':cancelled:' || id WHERE kind='reminder' AND status='queued' AND json_extract(payload, '$.sprint_id') = ?", sprintId)
+  await run(db, ...cancelRemindersStatement(sprintId))
 }
 
 /** Reminder emails go only to participants who added an address (passkey-only accounts get none). */

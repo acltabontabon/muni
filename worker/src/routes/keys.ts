@@ -219,9 +219,9 @@ export type WrapInput = { account_id?: unknown; version?: unknown; wrapped?: unk
 /**
  * Validates and stores wrapped sprint secrets. Each must be for a participant, sealed to their
  * current public key, for an existing version. While `sealedVersion` collects, only the
- * facilitator may receive it.
+ * facilitator may receive it — `facilitator` when the role is moving in the same transaction.
  */
-export async function wrapStatements(db: D1Database, sprintId: string, actorId: string, input: unknown, opts: { sealedVersion: number | null }) {
+export async function wrapStatements(db: D1Database, sprintId: string, actorId: string, input: unknown, opts: { sealedVersion: number | null; facilitator?: string }) {
   if (!Array.isArray(input)) return []
   if (input.length > 70) throw bad('too many keys at once')
   if (!input.every(isObject)) throw bad('not a wrapped key')
@@ -240,7 +240,8 @@ export async function wrapStatements(db: D1Database, sprintId: string, actorId: 
     if (!versions.has(version)) throw bad('unknown key version')
     const pk = publicKey(w.recipient_public_key)
     if (p.public_key !== pk) throw conflict('that person’s key changed — reload and try again')
-    if (opts.sealedVersion === version && !p.is_facilitator) throw forbidden('while collection is open, only the facilitator holds the sprint’s key')
+    const facilitates = opts.facilitator === undefined ? !!p.is_facilitator : p.account_id === opts.facilitator
+    if (opts.sealedVersion === version && !facilitates) throw forbidden('while collection is open, only the facilitator holds the sprint’s key')
     stmts.push([
       `INSERT INTO sprint_key_wraps (sprint_id, version, account_id, recipient_public_key, wrapped, created_by, created_at) VALUES (?,?,?,?,?,?,?)
        ON CONFLICT(sprint_id, version, account_id) DO UPDATE SET recipient_public_key = excluded.recipient_public_key, wrapped = excluded.wrapped, created_by = excluded.created_by, created_at = excluded.created_at

@@ -22,6 +22,16 @@ export async function batch(db: DB, stmts: Statement[]): Promise<D1Result[]> {
   if (!stmts.length) return []
   return db.batch(stmts.map(([sql, ...args]) => db.prepare(sql).bind(...args)))
 }
+/** SET clauses gathered for one UPDATE, each with its values, so a change is written all at once. */
+export function assignments() {
+  const sets: string[] = []
+  const args: unknown[] = []
+  const set = (sql: string, ...values: unknown[]) => {
+    sets.push(sql)
+    args.push(...values)
+  }
+  return { sets, args, set }
+}
 export const b = (v: unknown) => (v ? 1 : 0)
 export const bool = (v: unknown) => Number(v) === 1
 

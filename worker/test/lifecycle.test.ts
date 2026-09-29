@@ -1,6 +1,7 @@
 /** Sprint lifecycle: transitions, reopen, deletion, scheduling, participants. */
 import { describe, expect, it } from 'vitest'
 import { closeCollection, del, entry, get, go, ids, patch, post, signin, sprint, tag, team, inviteToken } from './harness'
+import { failure } from '../src/lib/errors'
 
 describe('lifecycle', () => {
   it('refuses invalid transitions and demands confirmation where entries are revealed or history kept', async () => {
@@ -204,6 +205,37 @@ describe('lifecycle', () => {
     const asOwner = await get(`/api/sprints/${s}`, owner)
     expect(asOwner.status).toBe(200)
     expect(asOwner.body.is_participant).toBe(false)
+  })
+
+  it('saves an edit whole or not at all', async () => {
+    const { owner, members, ws } = await team(1)
+    const s = await sprint(owner, members, ws, 'live')
+    const base = { timezone: 'UTC', starts_on: '2026-09-14', ends_on: '2026-09-27', retro_date: '2026-09-28', retro_time: '10:00' }
+    for (const change of [{ name: 'Renamed', schedule: { ...base, ends_on: '2026-09-01' } }, { name: 'Renamed', vote_budget: 99 }, { goal: 'A goal', facilitator_id: crypto.randomUUID() }]) {
+      expect((await patch(`/api/sprints/${s}`, owner, change)).status, JSON.stringify(change)).toBe(400)
+      const d = (await get(`/api/sprints/${s}`, owner)).body
+      expect([d.name, d.goal]).toEqual(['Sprint T', null])
+    }
+    // The same for an experiment: its wording isn't saved when its new owner is refused.
+    const change = 'For the next sprint, reserve a 15-minute daily review window'
+    const id = (await post(`/api/sprints/${s}/experiments`, owner, { change_to_try: change, success_signal: 'less waiting' })).body[0].id as string
+    expect((await patch(`/api/sprints/${s}/experiments/${id}`, owner, { change_to_try: `${change}, mornings`, owner_account_id: crypto.randomUUID() })).status).toBe(400)
+    expect((await patch(`/api/sprints/${s}/experiments/${id}`, owner, { success_signal: 'no waiting', status: 'done-ish' })).status).toBe(400)
+    const e = (await get(`/api/sprints/${s}/experiments`, owner)).body[0]
+    expect([e.change_to_try, e.success_signal]).toEqual([change, 'less waiting'])
+    // A valid edit of several fields lands whole.
+    const ok = await patch(`/api/sprints/${s}/experiments/${id}`, owner, { success_signal: 'no waiting', owner_account_id: members[0].account_id, status: 'helped' })
+    expect(ok.body[0]).toMatchObject({ success_signal: 'no waiting', owner_account_id: members[0].account_id, status: 'helped' })
+    expect(ok.body[0].reviewed_at).not.toBeNull()
+  })
+
+  it('says a failed change may not have been saved — never that nothing was', () => {
+    const write = failure('D1_ERROR: Exceeded maximum DB size', 'POST')
+    expect(write).toMatchObject({ status: 503, code: 'quota' })
+    expect(write.error).toContain('may not have been saved')
+    expect(failure('D1_ERROR: D1 DB is overloaded', 'GET').error).not.toMatch(/saved/)
+    expect(failure('D1_ERROR: UNIQUE constraint failed: entries.id: SQLITE_CONSTRAINT', 'POST')).toMatchObject({ status: 409, code: 'conflict' })
+    expect(failure('something else', 'POST')).toMatchObject({ status: 500, code: 'internal' })
   })
 
   it('invites straight into a sprint', async () => {

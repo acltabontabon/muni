@@ -11,7 +11,7 @@ import { accountBucket, limit } from '../lib/ratelimit'
 import { jsonBody, nonempty, normalizeEmail } from '../lib/util'
 import { enqueueStatement, runSoon } from '../jobs'
 import { revokeLive } from '../lib/live'
-import { deleteWorkspaces, facilitated, openSprints, revokeMembership, standing } from '../lib/departure'
+import { deleteWorkspaces, facilitated, openSprints, revokeMembership, standing, type Standing } from '../lib/departure'
 import { EMAIL_OF_A } from '../lib/accounts'
 
 export const workspaces = new Hono<HonoEnv>()
@@ -156,11 +156,19 @@ workspaces.delete('/api/workspaces/:workspaceId/members/:accountId', async (c) =
     if (owners <= 1) throw conflict('a workspace needs at least one owner')
   }
   // Nobody is removed from under a sprint the team depends on: its facilitator hands it on first.
-  const facilitating = (await facilitated(c.env.DB, { accountId: target, workspaceId: m.workspaceId })).map((f) => ({ id: f.id, name: f.name }))
-  if (facilitating.length)
-    throw new AppError(409, 'facilitating', `they facilitate ${facilitating.map((f) => f.name).join(', ')} — ask them to choose another facilitator first`, { sprints: facilitating })
+  const refuse = async () => {
+    const facilitating = (await facilitated(c.env.DB, { accountId: target, workspaceId: m.workspaceId })).map((f) => ({ id: f.id, name: f.name }))
+    if (facilitating.length)
+      throw new AppError(409, 'facilitating', `they facilitate ${facilitating.map((f) => f.name).join(', ')} — ask them to choose another facilitator first`, { sprints: facilitating })
+  }
+  await refuse()
   const liveSprints = await openSprints(c.env.DB, target, m.workspaceId)
-  await batch(c.env.DB, revokeMembership(m.workspaceId, target, m.auth.account.id, 'membership.revoked'))
+  const [done] = await batch(c.env.DB, revokeMembership(m.workspaceId, target, m.auth.account.id, 'membership.revoked'))
+  if (!done.meta.changes) {
+    // The removal checks again as it happens: a handover to them, or the other owner leaving, since.
+    await refuse()
+    if (await count(c.env.DB, 'SELECT count(*) AS n FROM memberships WHERE workspace_id = ? AND account_id = ? AND revoked_at IS NULL', m.workspaceId, target)) throw conflict('a workspace needs at least one owner')
+  }
   // Persisted first; live sockets are closed afterwards (and every join/command re-checks membership).
   await Promise.all(liveSprints.map((s) => revokeLive(c.env, s, target)))
   return c.json({ ok: true })
@@ -175,11 +183,14 @@ workspaces.post('/api/workspaces/:workspaceId/leave', async (c) => {
   const m = await requireMember(c, config(c.env), c.env.DB, c.req.param('workspaceId'))
   const me = m.auth.account.id
   const body = await jsonBody<{ delete_workspace?: boolean }>(c)
+  const refuse = (s: Standing) => {
+    if (s.facilitating.length)
+      throw new AppError(409, 'facilitating', `hand ${s.facilitating.map((f) => f.name).join(', ')} to another facilitator first`, { sprints: s.facilitating })
+    if (s.last_owner) throw new AppError(409, 'last_owner', 'make someone else an owner first')
+  }
   const [s] = await standing(c.env.DB, me, m.workspaceId)
   if (!s) throw notFound()
-  if (s.facilitating.length)
-    throw new AppError(409, 'facilitating', `hand ${s.facilitating.map((f) => f.name).join(', ')} to another facilitator first`, { sprints: s.facilitating })
-  if (s.last_owner) throw new AppError(409, 'last_owner', 'make someone else an owner first')
+  refuse(s)
   const liveSprints = await openSprints(c.env.DB, me, m.workspaceId)
   if (s.sole) {
     if (body.delete_workspace !== true) throw new AppError(409, 'sole_member', 'you’re the only one here, so leaving deletes the workspace')
@@ -187,7 +198,12 @@ workspaces.post('/api/workspaces/:workspaceId/leave', async (c) => {
     if (!res[res.length - 1].meta.changes) throw new AppError(409, 'not_alone', 'someone just joined — leave again to see what that means')
   } else {
     const [done] = await batch(c.env.DB, revokeMembership(m.workspaceId, me, me, 'membership.left'))
-    if (!done.meta.changes) throw new AppError(409, 'last_owner', 'make someone else an owner first')
+    if (!done.meta.changes) {
+      // It checks again as it happens: a handover to them, or the other owner leaving, since.
+      const [now] = await standing(c.env.DB, me, m.workspaceId)
+      if (now) refuse(now)
+      throw new AppError(409, 'last_owner', 'make someone else an owner first')
+    }
   }
   await Promise.all(liveSprints.map((id) => revokeLive(c.env, id, me)))
   return c.json({ ok: true, deleted: s.sole })
@@ -198,11 +214,17 @@ workspaces.patch('/api/workspaces/:workspaceId/members/:accountId', async (c) =>
   requireOwner(m)
   const body = await jsonBody<{ role?: string }>(c)
   if (body.role !== 'owner' && body.role !== 'member') throw bad('role must be owner or member')
-  if (body.role === 'member') {
-    const owners = await all<{ account_id: string }>(c.env.DB, "SELECT account_id FROM memberships WHERE workspace_id = ? AND role = 'owner' AND revoked_at IS NULL", m.workspaceId)
-    if (owners.length <= 1 && owners[0]?.account_id === c.req.param('accountId')) throw conflict('a workspace needs at least one owner')
-  }
-  await run(c.env.DB, 'UPDATE memberships SET role = ? WHERE workspace_id = ? AND account_id = ? AND revoked_at IS NULL', body.role, m.workspaceId, c.req.param('accountId'))
+  const target = c.req.param('accountId')
+  // One statement decides: an owner becomes a member only while another owner stays, so two owners
+  // demoting each other at the same moment can't leave the workspace with none.
+  const r = await run(
+    c.env.DB,
+    `UPDATE memberships SET role = ? WHERE workspace_id = ? AND account_id = ? AND revoked_at IS NULL
+       AND (? = 'owner' OR role <> 'owner' OR EXISTS (SELECT 1 FROM memberships o WHERE o.workspace_id = memberships.workspace_id AND o.account_id <> memberships.account_id AND o.role = 'owner' AND o.revoked_at IS NULL))`,
+    body.role, m.workspaceId, target, body.role,
+  )
+  if (!r.meta.changes && body.role === 'member' && (await count(c.env.DB, "SELECT count(*) AS n FROM memberships WHERE workspace_id = ? AND account_id = ? AND role = 'owner' AND revoked_at IS NULL", m.workspaceId, target)))
+    throw conflict('a workspace needs at least one owner')
   return c.json({ ok: true })
 })
 

@@ -247,6 +247,35 @@ describe('encrypted sprints', () => {
     expect(unwrapSprintSecret(late.keys.sk, lv.my_wraps[0].wrapped, { sprintId: s.id, version: 1, recipientId: late.user.account_id })).toEqual(s.secret)
   })
 
+  it('hands facilitation over with the key for the version collecting now — the role and the key together, or neither', async () => {
+    const t = await team(1)
+    const fac = await withKeys(t.owner)
+    const maya = await withKeys(t.members[0])
+    const s = await encryptedSprint(fac, [maya], t.ws)
+    await go(fac.user, s.id, 'collecting')
+    const wrap = (p: Person, secret: Uint8Array, version: number) => ({ account_id: p.user.account_id, version, recipient_public_key: b64u(p.keys.pk), wrapped: wrapSprintSecret(p.keys.pk, secret, { sprintId: s.id, version, recipientId: p.user.account_id }) })
+    // Revealed once (Maya holds version 1), then reopened: version 2 is sealed, the facilitator's alone.
+    expect((await post(`/api/sprints/${s.id}/transition`, fac.user, { to: 'preparing', confirm: true, key_wraps: [wrap(maya, s.secret, 1)] })).status).toBe(200)
+    const s2 = newSprintSecret()
+    expect((await post(`/api/sprints/${s.id}/transition`, fac.user, { to: 'collecting', confirm: true, sprint_key: { version: 2, public_key: b64u(sprintKeys(s2, 2).pk) }, key_wraps: [wrap(fac, s2, 2)] })).status).toBe(200)
+    const facilitator = async () => ((await get(`/api/sprints/${s.id}`, fac.user)).body.participants as { account_id: string; is_facilitator: boolean }[]).find((p) => p.is_facilitator)!.account_id
+    const holds = async (p: Person, v: number) => Number((await env.DB.prepare('SELECT count(*) AS n FROM sprint_key_wraps WHERE sprint_id = ? AND version = ? AND account_id = ?').bind(s.id, v, p.user.account_id).first<{ n: number }>())!.n)
+    // Only the old version for her: refused, and nothing moved — nor the name sent along with it.
+    const old = await patch(`/api/sprints/${s.id}`, fac.user, { name: 'Renamed', facilitator_id: maya.user.account_id, key_wraps: [wrap(maya, s.secret, 1)] })
+    expect(old.status).toBe(409)
+    // The right version, sealed to a key she doesn't have: refused before anything is written.
+    const wrong = await patch(`/api/sprints/${s.id}`, fac.user, { name: 'Renamed', facilitator_id: maya.user.account_id, key_wraps: [{ ...wrap(maya, s2, 2), recipient_public_key: b64u(newKeyPair().pk) }] })
+    expect(wrong.status).toBe(409)
+    expect(await facilitator()).toBe(fac.user.account_id)
+    expect((await get(`/api/sprints/${s.id}`, fac.user)).body.name).toBe('Sprint E')
+    expect([await holds(fac, 2), await holds(maya, 2)]).toEqual([1, 0])
+    // Version 2 for her: the role moves with the key, and the old facilitator keeps no copy of it.
+    expect((await patch(`/api/sprints/${s.id}`, fac.user, { facilitator_id: maya.user.account_id, key_wraps: [wrap(maya, s2, 2)] })).status).toBe(200)
+    expect(await facilitator()).toBe(maya.user.account_id)
+    expect([await holds(fac, 2), await holds(maya, 2)]).toEqual([0, 1])
+    expect(await holds(fac, 1)).toBe(1) // version 1 was revealed: everyone keeps it
+  })
+
   it('recovery: a new device unlocks with the recovery key; signing in by email alone does not', async () => {
     const t = await team(0)
     const p = await withKeys(t.owner)

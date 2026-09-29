@@ -89,7 +89,8 @@ export async function structuralChange(db: D1Database, ctx: SprintCtx, reason: u
     if (!r) throw conflict('a voting round is open. Changing themes now cancels it — give a short reason for participants to continue')
     // The reason is written by the facilitator and shown to participants: content, so sealed in encrypted sprints.
     const stored = isEncrypted(ctx.sprint) ? content(true, r, 200, 'The reason', true)! : r.slice(0, 200)
-    stmts.push(["UPDATE vote_rounds SET status='cancelled', cancel_reason=?, closed_at=? WHERE id=?", stored, Date.now(), open.id])
+    // Only while it's still open: a round closed in the meantime keeps its result.
+    stmts.push(["UPDATE vote_rounds SET status='cancelled', cancel_reason=?, closed_at=? WHERE id=? AND status='open'", stored, Date.now(), open.id])
   }
   stmts.push(['UPDATE sprints SET grouping_revision = grouping_revision + 1, updated_at = ? WHERE id = ?', Date.now(), ctx.sprint.id])
   stmts.push(['INSERT INTO audit_events (workspace_id, sprint_id, actor_id, action, meta, created_at) VALUES (?,?,?,?,?,?)', ctx.sprint.workspace_id, ctx.sprint.id, ctx.auth.account.id, 'grouping.changed', '{}', Date.now()])

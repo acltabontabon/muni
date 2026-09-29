@@ -5,7 +5,7 @@ import type { HonoEnv } from '../env'
 import { config } from '../lib/config'
 import { requireFacilitator, requireMember, requireParticipant, requireSprint, type SprintCtx } from '../lib/auth'
 import { uuid } from '../lib/crypto'
-import { all, audit, count, one, run } from '../lib/db'
+import { all, assignments, audit, auditStmt, batch, count, one, run, type Statement } from '../lib/db'
 import { AppError, bad, conflict, forbidden, notFound } from '../lib/errors'
 import { hint } from '../lib/live'
 import { addDays, isDate, jsonBody } from '../lib/util'
@@ -114,31 +114,41 @@ commitments.patch('/api/sprints/:sprintId/experiments/:experimentId', async (c) 
   const isOwner = row.owner_account_id === ctx.auth.account.id
   if (!(ctx.isFacilitator || isOwner)) throw forbidden('only the facilitator or the experiment’s owner can edit it')
   const body = await jsonBody<Record<string, unknown>>(c)
+  const encrypted = isEncrypted(ctx.sprint)
+  const now = Date.now()
+  // Every field is checked before anything is written, then written as one statement: a change
+  // that's refused saves none of the others.
+  const { sets, args, set } = assignments()
   if (body.change_to_try !== undefined) {
-    const ch = content(isEncrypted(ctx.sprint), body.change_to_try, 500, 'The change to try', true)!
-    if (!isEncrypted(ctx.sprint)) checkVague(ch, body)
-    await run(db, 'UPDATE experiments SET change_to_try=?, updated_at=? WHERE id=?', ch, Date.now(), eid)
+    const ch = content(encrypted, body.change_to_try, 500, 'The change to try', true)!
+    if (!encrypted) checkVague(ch, body)
+    set('change_to_try = ?', ch)
   }
-  if (body.success_signal !== undefined) await run(db, 'UPDATE experiments SET success_signal=?, updated_at=? WHERE id=?', content(isEncrypted(ctx.sprint), body.success_signal, 300, 'The success signal', true), Date.now(), eid)
+  if (body.success_signal !== undefined) set('success_signal = ?', content(encrypted, body.success_signal, 300, 'The success signal', true))
   if (body.owner_account_id !== undefined) {
     if (!ctx.isFacilitator) throw forbidden('only the facilitator can nominate an owner')
-    if (body.owner_account_id && !(await count(db, 'SELECT count(*) AS n FROM sprint_participants WHERE sprint_id = ? AND account_id = ?', ctx.sprint.id, String(body.owner_account_id)))) throw bad('the owner must be a participant in this sprint')
-    await run(db, "UPDATE experiments SET owner_account_id=?, owner_accepted_at=NULL, status=CASE WHEN status IN ('proposed','accepted') THEN 'proposed' ELSE status END, updated_at=? WHERE id=?", body.owner_account_id ? String(body.owner_account_id) : null, Date.now(), eid)
+    const owner = body.owner_account_id ? String(body.owner_account_id) : null
+    if (owner && !(await count(db, 'SELECT count(*) AS n FROM sprint_participants WHERE sprint_id = ? AND account_id = ?', ctx.sprint.id, owner))) throw bad('the owner must be a participant in this sprint')
+    set("owner_account_id = ?, owner_accepted_at = NULL, status = CASE WHEN status IN ('proposed','accepted') THEN 'proposed' ELSE status END", owner)
   }
   const review = reviewOn(body.review_on)
-  if (review) await run(db, 'UPDATE experiments SET review_on=?, updated_at=? WHERE id=?', review, Date.now(), eid)
+  if (review) set('review_on = ?', review)
   if (body.status !== undefined) {
     const st = String(body.status)
     if (!OUTCOMES.includes(st)) throw bad('unknown status')
     if (st === 'accepted') throw bad('acceptance comes from the owner via /accept')
     const reviewed = ['helped', 'did_not_help', 'inconclusive', 'not_tried'].includes(st)
-    await run(db, 'UPDATE experiments SET status=?, reviewed_at=CASE WHEN ? THEN ? ELSE reviewed_at END, updated_at=? WHERE id=?', st, reviewed ? 1 : 0, Date.now(), Date.now(), eid)
+    // After a new owner's reset above: of two assignments to a column, SQLite keeps the last.
+    set('status = ?, reviewed_at = CASE WHEN ? THEN ? ELSE reviewed_at END', st, reviewed ? 1 : 0, now)
   }
-  if (body.outcome_note !== undefined) await run(db, 'UPDATE experiments SET outcome_note=?, updated_at=? WHERE id=?', content(isEncrypted(ctx.sprint), body.outcome_note, 500, 'Outcome note', false), Date.now(), eid)
-  await audit(db, ctx.sprint.workspace_id, ctx.sprint.id, ctx.auth.account.id, 'experiment.updated', { experiment_id: eid })
-  await hint(c.env, ctx.sprint.id, 'commitments')
+  if (body.outcome_note !== undefined) set('outcome_note = ?', content(encrypted, body.outcome_note, 500, 'Outcome note', false))
+  await batch(db, [
+    ...(sets.length ? [[`UPDATE experiments SET ${sets.join(', ')}, updated_at = ? WHERE id = ?`, ...args, now, eid] as Statement] : []),
+    auditStmt(ctx.sprint.workspace_id, ctx.sprint.id, ctx.auth.account.id, 'experiment.updated', { experiment_id: eid }),
+  ])
   // A verdict is usually given at the next retro, looking back: that retro's screens follow too.
-  for (const r of await all<{ id: string }>(db, "SELECT id FROM sprints WHERE workspace_id = ? AND status = 'live' AND id <> ?", ctx.sprint.workspace_id, ctx.sprint.id)) await hint(c.env, r.id, 'commitments')
+  const live = await all<{ id: string }>(db, "SELECT id FROM sprints WHERE workspace_id = ? AND status = 'live' AND id <> ?", ctx.sprint.workspace_id, ctx.sprint.id)
+  await Promise.all([ctx.sprint.id, ...live.map((r) => r.id)].map((id) => hint(c.env, id, 'commitments')))
   return c.json(await listFor(db, ctx.sprint.id))
 })
 

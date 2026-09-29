@@ -5,7 +5,7 @@
 import { Hono, type Context } from 'hono'
 import type { AppEnv, HonoEnv } from './env'
 import { config, ConfigError } from './lib/config'
-import { AppError } from './lib/errors'
+import { AppError, failure } from './lib/errors'
 import { auth } from './routes/auth'
 import { workspaces } from './routes/workspaces'
 import { sprints } from './routes/sprints'
@@ -97,9 +97,9 @@ app.onError((err, c) => {
   if (err instanceof AppError) return c.json({ ...err.extra, error: err.message, code: err.code }, err.status as 400)
   // Quota and platform errors surface as a recoverable message, never as a false success.
   const msg = String(err instanceof Error ? err.message : err)
-  if (/D1_ERROR|too many requests|exceeded|quota|limit/i.test(msg)) return c.json({ error: 'Muni is at its usage limit right now. Nothing was saved — try again in a little while.', code: 'quota' }, 503)
-  console.error('request failed', { path: new URL(c.req.url).pathname, method: c.req.method, error: msg.slice(0, 300) })
-  return c.json({ error: 'internal error', code: 'internal' }, 500)
+  const f = failure(msg, c.req.method)
+  if (f.code !== 'quota') console.error('request failed', { path: new URL(c.req.url).pathname, method: c.req.method, error: msg.slice(0, 300) })
+  return c.json({ error: f.error, code: f.code }, f.status)
 })
 
 export default {

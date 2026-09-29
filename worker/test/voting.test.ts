@@ -2,6 +2,9 @@
 import { describe, expect, it } from 'vitest'
 import { env } from 'cloudflare:test'
 import { closeCollection, del, entry, get, go, patch, post, sprint, team, type User } from './harness'
+import { structuralChange } from '../src/routes/themes'
+import { batch } from '../src/lib/db'
+import type { SprintCtx } from '../src/lib/auth'
 
 /** Collecting sprint → ready with `n` themes (one entry each). */
 async function readyWithThemes(owner: User, members: User[], ws: string, n: number, extra: Record<string, unknown> = {}) {
@@ -133,6 +136,23 @@ describe('voting', () => {
     expect(v.body.previous[0].totals).toBeNull()
     // Without an open round, structural edits need no reason.
     expect((await post(`/api/sprints/${s}/themes`, owner, { title: 'Another' })).status).toBe(200)
+  })
+
+  it('a theme change racing the round’s close leaves the result alone', async () => {
+    const { owner, members, ws } = await team(1)
+    const { s, themes } = await readyWithThemes(owner, members, ws, 2)
+    await post(`/api/sprints/${s}/votes/rounds`, owner)
+    await post(`/api/sprints/${s}/votes`, members[0], { theme_id: themes[0], cast: true })
+    // The change is made while the round is open (with a reason, so it would cancel it)…
+    const ctx = { auth: { account: { id: owner.account_id } }, sprint: { id: s, workspace_id: ws, encryption: null } } as unknown as SprintCtx
+    const change = await structuralChange(env.DB, ctx, 'merging two themes')
+    // …and lands just after the round closed.
+    expect((await post(`/api/sprints/${s}/votes/rounds/close`, owner, { action: 'close' })).status).toBe(200)
+    await batch(env.DB, change)
+    const round = (await get(`/api/sprints/${s}/votes`, owner)).body.previous[0]
+    expect(round.status).toBe('closed')
+    expect(round.cancel_reason).toBeNull()
+    expect(round.totals).toEqual({ [themes[0]]: 1 })
   })
 
   it('rejects votes once the grouping revision moved on', async () => {

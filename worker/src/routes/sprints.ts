@@ -3,11 +3,11 @@ import type { HonoEnv } from '../env'
 import { config } from '../lib/config'
 import { loadSprintCtx, requireAuth, requireFacilitator, requireMember, requireParticipant, requireSprint, type SprintCtx } from '../lib/auth'
 import { uuid } from '../lib/crypto'
-import { all, audit, batch, bool, count, one, run } from '../lib/db'
+import { all, assignments, audit, auditStmt, batch, bool, count, one, run, type Statement } from '../lib/db'
 import { bad, conflict, forbidden, notFound } from '../lib/errors'
 import { handOver, hint, revokeLive, room, roomCall } from '../lib/live'
 import { addDays, daysBetween, idList, isDate, jsonBody, localDate, localLabel, nonempty, optional, resolveLocal } from '../lib/util'
-import { cancelReminders, scheduleReminders } from '../jobs'
+import { cancelReminders, cancelRemindersStatement, scheduleReminders } from '../jobs'
 import { defaultPlan } from '../room'
 import { content, ENCRYPTION, isEncrypted, publicKey } from '../lib/sealed'
 import { sealedVersion, wrapStatements } from './keys'
@@ -267,47 +267,58 @@ sprints.patch('/api/sprints/:sprintId', async (c) => {
   const body = await jsonBody<Record<string, unknown>>(c)
   const db = c.env.DB
   const sid = ctx.sprint.id
-  if (body.name !== undefined) await run(db, 'UPDATE sprints SET name = ?, updated_at = ? WHERE id = ?', nonempty(body.name, 120, 'Sprint name'), Date.now(), sid)
-  if (body.external_ref !== undefined) await run(db, 'UPDATE sprints SET external_ref = ? WHERE id = ?', optional(body.external_ref, 60, 'External id'), sid)
-  if (body.goal !== undefined) await run(db, 'UPDATE sprints SET goal = ? WHERE id = ?', optional(body.goal, 300, 'Sprint goal'), sid)
   const encrypted = isEncrypted(ctx.sprint)
-  if (body.opening_question !== undefined) await run(db, 'UPDATE sprints SET opening_question = ? WHERE id = ?', content(encrypted, body.opening_question, 200, 'Opening question', false), sid)
-  if (body.schedule) {
-    const sch = validateSchedule(body.schedule as ScheduleInput)
-    await run(db, 'UPDATE sprints SET timezone=?, starts_on=?, ends_on=?, retro_at=?, retro_local_date=?, retro_local_time=?, retro_duration_min=?, updated_at=? WHERE id=?', sch.timezone, sch.starts_on, sch.ends_on, sch.retro_at, sch.retro_date, sch.retro_time, sch.retro_duration_min, Date.now(), sid)
-    await cancelReminders(db, sid)
-    if (ctx.sprint.status === 'collecting') await scheduleReminders(db, sid)
-  }
-  if (body.reminders_enabled !== undefined) {
-    await run(db, 'UPDATE sprints SET reminders_enabled = ? WHERE id = ?', body.reminders_enabled ? 1 : 0, sid)
-    await cancelReminders(db, sid)
-    if (body.reminders_enabled && ctx.sprint.status === 'collecting') await scheduleReminders(db, sid)
-  }
+  // Every field is checked before anything is written, and then it's all written in one
+  // transaction: a change that's refused saves none of the others.
+  const { sets, args, set } = assignments()
+  if (body.name !== undefined) set('name = ?', nonempty(body.name, 120, 'Sprint name'))
+  if (body.external_ref !== undefined) set('external_ref = ?', optional(body.external_ref, 60, 'External id'))
+  if (body.goal !== undefined) set('goal = ?', optional(body.goal, 300, 'Sprint goal'))
+  if (body.opening_question !== undefined) set('opening_question = ?', content(encrypted, body.opening_question, 200, 'Opening question', false))
+  const sch = body.schedule ? validateSchedule(body.schedule as ScheduleInput) : null
+  if (sch) set('timezone = ?, starts_on = ?, ends_on = ?, retro_at = ?, retro_local_date = ?, retro_local_time = ?, retro_duration_min = ?', sch.timezone, sch.starts_on, sch.ends_on, sch.retro_at, sch.retro_date, sch.retro_time, sch.retro_duration_min)
+  if (body.reminders_enabled !== undefined) set('reminders_enabled = ?', body.reminders_enabled ? 1 : 0)
   if (body.vote_budget !== undefined) {
     const b = Number(body.vote_budget)
     if (!(b >= 1 && b <= 10)) throw bad('votes per person must be between 1 and 10')
     if (await count(db, "SELECT count(*) AS n FROM vote_rounds WHERE sprint_id = ? AND status = 'open'", sid)) throw conflict('close the open voting round before changing the budget')
-    await run(db, 'UPDATE sprints SET vote_budget = ? WHERE id = ?', b, sid)
+    set('vote_budget = ?', b)
   }
+  const stmts: Statement[] = []
+  if (sets.length) stmts.push([`UPDATE sprints SET ${sets.join(', ')}, updated_at = ? WHERE id = ?`, ...args, Date.now(), sid])
+  let handover: string | null = null
   if (body.facilitator_id !== undefined) {
     const fid = String(body.facilitator_id)
-    if (!(await count(db, 'SELECT count(*) AS n FROM sprint_participants WHERE sprint_id = ? AND account_id = ?', sid, fid))) throw bad('the facilitator must be a participant')
-    const before = await one<{ account_id: string }>(db, 'SELECT account_id FROM sprint_participants WHERE sprint_id = ? AND is_facilitator = 1', sid)
-    if (encrypted && before?.account_id !== fid) {
-      // The key moves with the role: the new facilitator's wrap arrives in the same request, and
-      // while collecting, nobody else keeps one.
-      const sealedV = await sealedVersion(db, sid, ctx.sprint.status)
-      const has = sealedV === null || (await count(db, 'SELECT count(*) AS n FROM sprint_key_wraps WHERE sprint_id = ? AND version = ? AND account_id = ?', sid, sealedV, fid)) > 0
-      const wraps = Array.isArray(body.key_wraps) ? body.key_wraps : []
-      if (!has && !wraps.some((w: { account_id?: unknown }) => w?.account_id === fid)) throw conflict('the new facilitator needs the sprint’s key — open the setup from a device that has it')
-      await run(db, 'UPDATE sprint_participants SET is_facilitator = (account_id = ?) WHERE sprint_id = ?', fid, sid)
-      await batch(db, await wrapStatements(db, sid, ctx.auth.account.id, wraps, { sealedVersion: sealedV }))
-      if (sealedV !== null) await run(db, 'DELETE FROM sprint_key_wraps WHERE sprint_id = ? AND version = ? AND account_id <> ?', sid, sealedV, fid)
-    } else await run(db, 'UPDATE sprint_participants SET is_facilitator = (account_id = ?) WHERE sprint_id = ?', fid, sid)
-    // Open sockets follow the handover: what only the facilitator hears goes to the new one now.
-    if (before?.account_id !== fid) await handOver(c.env, sid, fid, Date.now())
+    const [inSprint, before] = await Promise.all([
+      count(db, 'SELECT count(*) AS n FROM sprint_participants WHERE sprint_id = ? AND account_id = ?', sid, fid),
+      one<{ account_id: string }>(db, 'SELECT account_id FROM sprint_participants WHERE sprint_id = ? AND is_facilitator = 1', sid),
+    ])
+    if (!inSprint) throw bad('the facilitator must be a participant')
+    if (before?.account_id !== fid) {
+      handover = fid
+      stmts.push(['UPDATE sprint_participants SET is_facilitator = (account_id = ?) WHERE sprint_id = ?', fid, sid])
+      if (encrypted) {
+        // The key moves with the role. While collecting, the new facilitator must hold the version
+        // sealed now — already, or through a wrap for exactly that version in this request — and
+        // then nobody else keeps it: the role, the wraps and the removal are one transaction.
+        const sealedV = await sealedVersion(db, sid, ctx.sprint.status)
+        const wraps = Array.isArray(body.key_wraps) ? body.key_wraps : []
+        const has = sealedV === null || (await count(db, 'SELECT count(*) AS n FROM sprint_key_wraps WHERE sprint_id = ? AND version = ? AND account_id = ?', sid, sealedV, fid)) > 0
+        if (!has && !wraps.some((w: { account_id?: unknown; version?: unknown }) => w?.account_id === fid && Number(w?.version) === sealedV)) throw conflict('the new facilitator needs the sprint’s key — open the setup from a device that has it')
+        stmts.push(...(await wrapStatements(db, sid, ctx.auth.account.id, wraps, { sealedVersion: sealedV, facilitator: fid })))
+        if (sealedV !== null) stmts.push(['DELETE FROM sprint_key_wraps WHERE sprint_id = ? AND version = ? AND account_id <> ?', sid, sealedV, fid])
+      }
+    }
   }
-  await audit(db, ctx.sprint.workspace_id, sid, ctx.auth.account.id, 'sprint.updated')
+  // Reminders follow the schedule and the switch: queued ones go with the change, and any still
+  // ahead are queued again once it's saved (the jobs are idempotent by their keys).
+  const reminders = !!sch || body.reminders_enabled !== undefined
+  if (reminders) stmts.push(cancelRemindersStatement(sid))
+  stmts.push(auditStmt(ctx.sprint.workspace_id, sid, ctx.auth.account.id, 'sprint.updated'))
+  await batch(db, stmts)
+  if (reminders && ctx.sprint.status === 'collecting' && body.reminders_enabled !== false) await scheduleReminders(db, sid)
+  // Open sockets follow the handover: what only the facilitator hears goes to the new one now.
+  if (handover) await handOver(c.env, sid, handover, Date.now())
   await hint(c.env, sid, 'sprint')
   return c.json(await detail(c.env, await loadSprintCtx(db, ctx.auth, sid)))
 })
