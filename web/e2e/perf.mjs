@@ -3,7 +3,8 @@
  * touches it. For each screen it waits for the page to settle, then records a Chrome trace for
  * IDLE_S seconds and reports main-thread busy time, frames produced, paints, style/layout work,
  * timers and network requests — per second. Then it navigates repeatedly and checks that
- * listeners, DOM nodes and heap come back down.
+ * listeners, DOM nodes and heap come back down. For the live retro it also counts the API requests
+ * each screen makes to arrive and for one step, in an encrypted sprint (`ONLY=retro-reads`).
  *
  * Desktop Chromium with phone emulation (375×812, 4× CPU slowdown). This measures the app's own
  * recurring work; it does not measure a phone's heat or battery (see docs/PERFORMANCE.md).
@@ -25,7 +26,7 @@ async function account(prefix, name) {
   const jar = new Map()
   const req = async (method, path, body) => {
     const csrf = jar.get('muni_csrf')
-    const r = await fetch(BASE + path, { method, headers: { 'content-type': 'application/json', origin: BASE, 'x-muni-client': '5', cookie: [...jar].map(([k, v]) => `${k}=${v}`).join('; '), ...(csrf ? { 'x-csrf-token': csrf } : {}) }, body: body ? JSON.stringify(body) : undefined })
+    const r = await fetch(BASE + path, { method, headers: { 'content-type': 'application/json', origin: BASE, cookie: [...jar].map(([k, v]) => `${k}=${v}`).join('; '), ...(csrf ? { 'x-csrf-token': csrf } : {}) }, body: body ? JSON.stringify(body) : undefined })
     for (const c of r.headers.getSetCookie?.() ?? []) {
       const [kv] = c.split(';')
       const i = kv.indexOf('=')
@@ -103,7 +104,7 @@ async function idleOnce(s, secs) {
   }
 }
 
-// ONLY=signin,home,pages,typing,scroll,navigate runs just those parts.
+// ONLY=signin,home,pages,retro,retro-reads,typing,scroll,navigate runs just those parts.
 const ONLY = process.env.ONLY?.split(',') ?? null
 const want = (part) => !ONLY || ONLY.includes(part)
 const rows = []
@@ -185,6 +186,111 @@ try {
     await phone.ctx.close()
   }
 
+  // The retro's reads, in an encrypted sprint: a facilitator's stage and five phones. The room sends
+  // hints and every screen reads again (and decrypts what it read), so this counts what arriving and
+  // "Next → Talk" cost each screen — a fan-out regression shows here. Keys, thoughts, the reveal and
+  // the themes go through the app, since content is sealed on each device.
+  if (want('retro-reads')) {
+    const fac = await account('perf-f', 'Perf Facilitator')
+    const crowd = []
+    for (let i = 0; i < 5; i++) crowd.push(await account(`perf-p${i}`, `Perf Person ${i + 1}`))
+    const wr = await fac.req('POST', '/api/workspaces', { name: `Perf reads ${tag}` })
+    for (const p of crowd) {
+      const { url } = await fac.req('POST', `/api/workspaces/${wr.id}/join-links`, { mode: 'direct', expires_in_hours: 24 })
+      await p.req('POST', '/api/join/request', { token: url.split('#')[1] })
+    }
+    const F = await session({ cookies: fac.cookies(), ws: wr.id, phone: false, theme: 'dark' })
+    const P = []
+    for (const p of crowd) P.push(await session({ cookies: p.cookies(), ws: wr.id }))
+    const everyone = [[fac, F], ...crowd.map((p, i) => [p, P[i]])]
+    // Setting up runs at full speed; the phones are slowed down again for the moments measured.
+    for (const s of P) await s.cdp.send('Emulation.setCPUThrottlingRate', { rate: 1 })
+    // Each device makes its key on its first load (a new account: no questions asked). A session made
+    // without a passkey can't reopen that key after a reload, so from then on each person moves
+    // around inside the app, as they would by following its links.
+    const go = (s, path) => s.page.evaluate((p) => { history.pushState(null, '', p); dispatchEvent(new PopStateEvent('popstate')) }, path)
+    for (const [who, s] of everyone) {
+      await s.page.goto(`${BASE}/`)
+      for (let i = 0; i < 80 && !(await who.req('GET', '/api/me/keys'))?.public_key; i++) await s.page.waitForTimeout(250)
+    }
+    await go(F, `/workspaces/${wr.id}/sprints/new`)
+    await F.page.fill('#f-name', `Perf encrypted ${tag}`)
+    await F.page.locator('button', { hasText: 'Create and open collection' }).click()
+    await F.page.waitForURL(/\/sprints\/[0-9a-f-]+$/)
+    const sid = new URL(F.page.url()).pathname.split('/').pop()
+    for (const [i, [, s]] of everyone.entries()) {
+      await go(s, `/sprints/${sid}`)
+      await s.page.locator('.sbar').first().waitFor({ timeout: 20000 })
+      await go(s, `/?sprint=${sid}`)
+      for (let k = 0; k < 2; k++) {
+        const body = `Perf thought ${i + 1}.${k + 1}: reviews waited, staging broke, pairing helped.`
+        await s.page.locator('textarea[name="thought"]').first().fill(body)
+        await s.page.locator('button', { hasText: 'Add to sprint' }).first().click()
+        await s.page.locator('.passage[data-state="submitted"]', { hasText: body }).first().waitFor({ timeout: 20000 })
+      }
+    }
+    // The reveal happens on the facilitator's device; then three themes of four thoughts.
+    await go(F, `/sprints/${sid}`)
+    await F.page.locator('button', { hasText: 'Close collection…' }).click()
+    await F.page.locator('[role=dialog] button:text-is("Close collection")').click()
+    await F.page.locator('.sbar-state', { hasText: 'Collection closed' }).waitFor({ timeout: 20000 })
+    await go(F, `/sprints/${sid}/prepare`)
+    await F.page.locator('.sort-loose .sort-slip').first().waitFor({ timeout: 20000 })
+    for (const [n, title] of ['Reviews that wait', 'Who owns staging?', 'What helped us ship'].entries()) {
+      for (let k = 0; k < 4; k++) await F.page.locator('.sort-loose .sort-slip-btn').nth(k).click()
+      await F.page.fill('.sort-pile--ghost input', title)
+      await F.page.keyboard.press('Enter')
+      await F.page.waitForFunction((n) => document.querySelectorAll('.sort-pile:not(.sort-pile--ghost)').length > n, n)
+    }
+    await fac.req('POST', `/api/sprints/${sid}/transition`, { to: 'live' })
+    for (const s of P) await s.cdp.send('Emulation.setCPUThrottlingRate', { rate: 4 })
+    // The themes page reads the change of state too: let it, so the stage's count is the stage's own.
+    await F.page.waitForTimeout(2500)
+
+    // What a screen asked the API for (not the socket), from now until the returned function is called.
+    const reads = (s) => {
+      const from = s.requests.length
+      return () => {
+        const by = {}
+        for (const r of s.requests.slice(from)) {
+          const p = new URL(r.url).pathname
+          if (!p.startsWith('/api/') || p.endsWith('/ws')) continue
+          const k = p === `/api/sprints/${sid}` ? 'sprint' : p.startsWith(`/api/sprints/${sid}/`) ? p.slice(`/api/sprints/${sid}/`.length) : p.slice(5)
+          by[k] = (by[k] ?? 0) + 1
+        }
+        return { requests: Object.values(by).reduce((a, b) => a + b, 0), by }
+      }
+    }
+    const opening = reads(F)
+    await go(F, `/sprints/${sid}/stage`)
+    await F.page.locator('.retro-steps').waitFor({ timeout: 20000 })
+    await F.page.waitForTimeout(3000)
+    record('reads: arriving, stage', opening())
+    // The phones join together, as a room fills.
+    const joining = reads(F)
+    const arrivals = P.map((s) => reads(s))
+    await Promise.all(P.map((s) => go(s, `/sprints/${sid}/room`)))
+    await Promise.all(P.map((s) => s.page.locator('.retro-map').first().waitFor({ timeout: 30000 })))
+    await F.page.waitForTimeout(4000)
+    arrivals.forEach((done, i) => record(`reads: arriving, phone ${i + 1}`, done()))
+    record('reads: the stage while five phones arrive', joining())
+    await F.page.locator('.retro-rail-end button', { hasText: 'Next: Choose' }).click()
+    await Promise.all(P.map((s) => s.page.locator('.retro-vote').first().waitFor({ timeout: 30000 })))
+    const ids = (await fac.req('GET', `/api/sprints/${sid}/themes`)).themes.map((t) => t.id)
+    for (const [i, p] of crowd.entries()) await p.req('POST', `/api/sprints/${sid}/votes`, { theme_id: ids[i % ids.length], cast: true })
+    await F.page.waitForTimeout(3000)
+    const talking = [F, ...P].map((s) => reads(s))
+    await F.page.locator('.retro-rail-end button', { hasText: 'Next: Talk' }).click()
+    await F.page.locator('.retro-talk-title').waitFor({ timeout: 20000 })
+    await Promise.all(P.map((s) => s.page.locator('.horizon').waitFor({ timeout: 30000 })))
+    await F.page.waitForTimeout(4000)
+    const talk = talking.map((done) => done())
+    record('reads: Next → Talk, stage', talk[0])
+    talk.slice(1).forEach((t, i) => record(`reads: Next → Talk, phone ${i + 1}`, t))
+    record('reads: Next → Talk, all six screens', { requests: talk.reduce((n, t) => n + t.requests, 0) })
+    for (const [, s] of everyone) await s.ctx.close()
+  }
+
   // Typing: what one keystroke costs while autosave runs.
   if (want('typing')) {
     const s = await session({ cookies: a.cookies(), ws: ws.id })
@@ -261,9 +367,16 @@ if (OUT) writeFileSync(OUT, JSON.stringify(rows, null, 1))
 
 // Budgets (docs/PERFORMANCE.md). A page left alone settles: no frames, paints, timers or requests.
 // Measured with 4× CPU slowdown, so busy time here is roughly four times a desktop's.
+// The retro's reads: what arriving, and one step, cost each screen (in an encrypted sprint each
+// read is a decrypt too). Before these were gathered and read once: 20–27 to arrive, 7 per step.
+const READ_BUDGETS = [
+  [/^reads: arriving, (stage|phone)/, 10],
+  [/^reads: the stage while/, 6],
+  [/^reads: Next → Talk, (stage|phone)/, 4],
+]
 const over = []
 for (const r of rows) {
-  const settled = !/3–\d+ s/.test(r.name) && !/^typing|^scroll|^navigate/.test(r.name)
+  const settled = !/3–\d+ s/.test(r.name) && !/^typing|^scroll|^navigate|^reads/.test(r.name)
   if (settled) {
     // A retro topic has a clock that visibly ticks once a second: that tick is its whole budget.
     const clock = /^retro/.test(r.name)
@@ -280,6 +393,7 @@ for (const r of rows) {
     if (r.requestsPerRoundTrip > 8) over.push(`${r.name}: ${r.requestsPerRoundTrip} requests per round trip (budget 8)`)
   }
   if (/^typing/.test(r.name) && r.busyMsPerS > 200) over.push(`${r.name}: ${r.busyMsPerS} ms/s while typing (budget 200)`)
+  for (const [pattern, budget] of READ_BUDGETS) if (pattern.test(r.name) && r.requests > budget) over.push(`${r.name}: ${r.requests} API requests (budget ${budget})`)
 }
 if (over.length) console.log(`\nOver budget:\n  ${over.join('\n  ')}`)
 else console.log('\nAll budgets met.')
