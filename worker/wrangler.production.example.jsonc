@@ -23,6 +23,11 @@
     "bindings": [{ "name": "ROOMS", "class_name": "MeetingRoom" }]
   },
   "migrations": [{ "tag": "v1", "new_sqlite_classes": ["MeetingRoom"] }],
+  // Per-address limit on the signed-out paths, checked before D1 is touched (lib/ratelimit.ts
+  // `edgeLimit`). The numbers are EDGE_LIMIT in scripts/production-config.mjs.
+  "ratelimits": [
+    { "name": "EDGE_LIMIT", "namespace_id": "${MUNI_EDGE_LIMIT_NAMESPACE}", "simple": { "limit": ${MUNI_EDGE_LIMIT_REQUESTS}, "period": ${MUNI_EDGE_LIMIT_PERIOD} } }
+  ],
   "triggers": { "crons": ["*/15 * * * *"] },
   "vars": {
     "APP_ENV": "production",

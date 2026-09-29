@@ -12,7 +12,7 @@ import { uuid } from '../lib/crypto'
 import { all, count, one, run } from '../lib/db'
 import { AppError, bad, conflict, notFound } from '../lib/errors'
 import { jsonBody, nonempty, optional } from '../lib/util'
-import { content, encryptionRequired, entryBinding, isEncrypted } from '../lib/sealed'
+import { content, encryptionRequired, entryBinding, isEncrypted, thoughtEnvelopeMax } from '../lib/sealed'
 import { MAX_ENTRIES_EACH, MAX_PARTICIPANTS } from '../lib/limits'
 
 export const entries = new Hono<HonoEnv>()
@@ -51,10 +51,15 @@ function validate(maxChars: number, b: Record<string, unknown>, encrypted = fals
   if (encrypted) {
     // One envelope holds the whole thought (text, impact, what might help); the separate columns stay empty.
     if ((b.impact !== undefined && b.impact !== null && b.impact !== '') || (b.might_help !== undefined && b.might_help !== null && b.might_help !== '')) throw bad('in an encrypted sprint, context travels inside the encrypted thought')
-    return { category: cat || null, body: content(true, b.body, maxChars * 3, 'The observation', true)!, impact: null, might_help: null, period: per || null }
+    return { category: cat || null, body: content(true, b.body, maxChars, 'The observation', true, thoughtEnvelopeMax(maxChars))!, impact: null, might_help: null, period: per || null }
   }
   return { category: cat || null, body: nonempty(b.body, maxChars, 'The observation'), impact: optional(b.impact, maxChars, 'Impact'), might_help: optional(b.might_help, maxChars, 'What might help'), period: per || null }
 }
+/**
+ * SQL, true while one more thought fits: under the author's own cap and the sprint's. Binds the
+ * sprint, the author and the sprint again.
+ */
+const ROOM_FOR_ENTRY = `(SELECT count(*) FROM entries WHERE sprint_id = ? AND author_account_id = ?) < ${MAX_ENTRIES_EACH} AND (SELECT count(*) FROM entries WHERE sprint_id = ?) < ${MAX_ENTRIES_EACH * MAX_PARTICIPANTS}`
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/
 
 /**
@@ -94,28 +99,36 @@ entries.post('/api/sprints/:sprintId/entries', async (c) => {
     const existing = await one<MyRow>(db, `SELECT ${MY_COLS} FROM entries WHERE sprint_id = ? AND author_account_id = ? AND idempotency_key = ?`, ctx.sprint.id, me, key)
     if (existing) return c.json(myEntry(existing, true))
   }
-  // Thoughts are capped as they're written — per person, and so per sprint (people who have left
-  // count too, since what they wrote stays) — and never when they're read.
-  const held = await one<{ mine: number; total: number }>(db, 'SELECT (SELECT count(*) FROM entries WHERE sprint_id = ? AND author_account_id = ?) AS mine, (SELECT count(*) FROM entries WHERE sprint_id = ?) AS total', ctx.sprint.id, me, ctx.sprint.id)
-  if (Number(held?.mine) >= MAX_ENTRIES_EACH) throw conflict(`you’ve saved ${MAX_ENTRIES_EACH} entries for this sprint — that’s the limit`)
-  if (Number(held?.total) >= MAX_ENTRIES_EACH * MAX_PARTICIPANTS) throw conflict('this sprint holds as many thoughts as it can — nothing more can be added')
   const id = encrypted ? key! : uuid()
   if (encrypted && (await count(db, 'SELECT count(*) AS n FROM entries WHERE id = ?', id))) throw conflict('that record id is taken')
   const now = Date.now()
-  // One statement decides: the row is inserted only if the sprint is still collecting. D1 serialises
-  // writes, so a close that lands first refuses this, and one that lands later includes it.
+  // One statement decides: the row is inserted only if the sprint is still collecting and there's
+  // room. D1 serialises writes, so a close that lands first refuses this, and one that lands later
+  // includes it. Thoughts are capped as they're written — per person, and so per sprint (people who
+  // have left count too, since what they wrote stays) — and never when they're read; counted in the
+  // same statement, so several tabs sending at once can't pass the cap together.
   const res = await run(
     db,
     `INSERT INTO entries (id, sprint_id, author_account_id, category, body, impact, might_help, period, idempotency_key, created_at, updated_at)
-     SELECT ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ? WHERE (SELECT status FROM sprints WHERE id = ?) = 'collecting'
+     SELECT ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ? WHERE (SELECT status FROM sprints WHERE id = ?) = 'collecting' AND ${ROOM_FOR_ENTRY}
      ON CONFLICT(sprint_id, author_account_id, idempotency_key) WHERE idempotency_key IS NOT NULL DO NOTHING`,
-    id, ctx.sprint.id, me, v.category, v.body, v.impact, v.might_help, v.period, key, now, now, ctx.sprint.id,
+    id, ctx.sprint.id, me, v.category, v.body, v.impact, v.might_help, v.period, key, now, now, ctx.sprint.id, ctx.sprint.id, me, ctx.sprint.id,
   )
   if (!res.meta.changes) {
     if (key) {
       const existing = await one<MyRow>(db, `SELECT ${MY_COLS} FROM entries WHERE sprint_id = ? AND author_account_id = ? AND idempotency_key = ?`, ctx.sprint.id, me, key)
       if (existing) return c.json(myEntry(existing, true))
     }
+    // Refused: say why, the cap first (as it was checked before the phase when it was read apart).
+    const held = await one<{ mine: number; total: number; status: string | null }>(
+      db,
+      'SELECT (SELECT count(*) FROM entries WHERE sprint_id = ? AND author_account_id = ?) AS mine, (SELECT count(*) FROM entries WHERE sprint_id = ?) AS total, (SELECT status FROM sprints WHERE id = ?) AS status',
+      ctx.sprint.id, me, ctx.sprint.id, ctx.sprint.id,
+    )
+    if (Number(held?.mine) >= MAX_ENTRIES_EACH) throw conflict(`you’ve saved ${MAX_ENTRIES_EACH} entries for this sprint — that’s the limit`)
+    if (Number(held?.total) >= MAX_ENTRIES_EACH * MAX_PARTICIPANTS) throw conflict('this sprint holds as many thoughts as it can — nothing more can be added')
+    // Still collecting and under the cap now: a thought was deleted in between. Sending again works.
+    if (held?.status === 'collecting') throw conflict('something changed while you were working — reload and try again')
     throw new AppError(409, 'collection_closed', ctx.sprint.status === 'draft' ? 'collection for this sprint hasn’t opened yet — this thought wasn’t saved' : 'collection for this sprint has closed — this thought wasn’t saved')
   }
   const row = (await one<MyRow>(db, `SELECT ${MY_COLS} FROM entries WHERE id = ?`, id))!

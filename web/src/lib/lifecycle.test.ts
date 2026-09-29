@@ -33,6 +33,14 @@ const all = (p: ReturnType<typeof sprintPlan>): Action[] => [...(p.control ? [p.
 const transitions = (p: ReturnType<typeof sprintPlan>) => all(p).filter((a) => a.kind === 'transition')
 
 describe('role boundaries', () => {
+  it('offers an owner who doesn’t facilitate a way to take over, until the sprint is done', () => {
+    const takeOver = (st: string, extra: Partial<PlanInput>) => sprintPlan(sprint(st, 'member', extra)).more.some((a) => a.kind === 'take_over')
+    for (const st of ['draft', 'collecting', 'preparing', 'live']) expect(takeOver(st, { role: 'owner' }), st).toBe(true)
+    expect(takeOver('completed', { role: 'owner' })).toBe(false)
+    expect(takeOver('collecting', { role: 'member' })).toBe(false)
+    expect(sprintPlan(sprint('collecting', 'facilitator', { role: 'owner' })).more.some((a) => a.kind === 'take_over')).toBe(false)
+  })
+
   it('never offers a member or an outsider a state change, or any control, in any state', () => {
     for (const st of STATES)
       for (const role of ['member', 'outsider'] as const) {

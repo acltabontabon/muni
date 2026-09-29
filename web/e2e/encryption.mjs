@@ -116,7 +116,9 @@ try {
     await maya.locator('.passage form button[type=submit]').click()
     const saved = await maya.locator('.passage form').waitFor({ state: 'detached', timeout: 10000 }).then(() => true).catch(() => false)
     const error = saved ? null : await maya.locator('.passage form [role=alert]').innerText().catch(() => null)
-    check(`${label}: editing a thought in an encrypted sprint saves`, saved && (await maya.locator(`text=${words}`).count()) === 1, error ?? '')
+    // The list shows the saved words once it has read them back (a moment after the form closes).
+    const shown = saved && (await maya.locator(`text=${words}`).waitFor({ timeout: 8000 }).then(() => true).catch(() => false))
+    check(`${label}: editing a thought in an encrypted sprint saves`, shown && (await maya.locator(`text=${words}`).count()) === 1, error ?? '')
     check(`${label}: …and no request carries the edited words`, sent.length > 0 && sent.every((b) => !b.includes(words.slice(-24)) && !b.includes(impact)), `${sent.length} requests`)
     const stored = await maya.evaluate(async (id) => (await fetch(`/api/sprints/${id}/entries/mine`).then((r) => r.json())), sprintId)
     check(`${label}: …stored as one envelope, the context inside it`, stored.length === 1 && stored[0].body.startsWith('e1.') && stored[0].impact === null && (await maya.locator('.passage .passage-context', { hasText: impact }).count()) === 1)

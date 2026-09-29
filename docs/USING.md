@@ -45,6 +45,11 @@ change, with what it will do written under it:
   from Look back for everyone, with the notes and experiments kept.
 - Once it's done, the page is the sprint's recap (below).
 - **More → Invite people** brings someone into this sprint while it's unfinished (see below).
+- **More → Take over facilitating…** (workspace owners who don't facilitate this sprint) is for when
+  the facilitator can't carry on — a lost passkey, say. The owner joins the sprint if needed and runs
+  it from then on; the old facilitator stays in as a participant. In an encrypted sprint that's still
+  collecting, the owner's device starts a new key for what's written next, and thoughts already
+  written stay sealed to the old facilitator's key (the dialog says how many).
 
 Once collection closes, the sprint's page shows **Everyone's thoughts**: every thought the team
 wrote, without names and in no particular order (yours are among them), with your own folded

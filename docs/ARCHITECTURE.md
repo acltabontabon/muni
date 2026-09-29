@@ -185,7 +185,7 @@ A daily sweep deletes a finished sprint's raw content (entries, themes, votes, n
 unpublished recaps, and the room's stored state) after the workspace's window (90 days by default)
 and its outcomes (experiments, published recaps) after a longer one (730 days, never shorter than
 the content window). Passkey challenges, rate-limit rows, sessions and finished jobs expire on short
-schedules; invitations go 30 days after they were accepted, withdrawn or expired. Not yet covered: sprints that are
+schedules; invitations go 30 days after they were accepted, withdrawn or expired; the log of administrative actions after 400 days. Not yet covered: sprints that are
 never finished, and deleting a workspace others are still in. Deleted rows remain in the database's point-in-time recovery window (7 days on the Workers Free plan, 30 on
 Paid).
 

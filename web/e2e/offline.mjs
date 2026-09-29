@@ -2,13 +2,21 @@
  * End-to-end checks of offline capture, against a local `wrangler dev` serving the production
  * build (service worker included). Run from web/:  node e2e/offline.mjs [outDir]
  *
+ * MUNI_URL is the server (default http://localhost:8787). MUNI_DIST is the build directory that
+ * server serves (default web/dist): one scenario rewrites its sw.js to look like a newer build, and
+ * puts it back afterwards. For a build served from elsewhere, e.g. `wrangler dev --assets <dir>`:
+ *   MUNI_URL=http://localhost:8960 MUNI_DIST=<dir> node e2e/offline.mjs
+ *
  * Each scenario prints PASS/FAIL. The first one also records a video of offline capture
  * reconnecting into a confirmed submission.
  */
 import { chromium } from 'playwright'
 import { mkdirSync } from 'node:fs'
+import { resolve } from 'node:path'
+import { pathToFileURL } from 'node:url'
 
 const BASE = process.env.MUNI_URL ?? 'http://localhost:8787'
+const DIST = process.env.MUNI_DIST ? pathToFileURL(`${resolve(process.env.MUNI_DIST)}/`) : new URL('../dist/', import.meta.url)
 const OUT = process.argv[2] ?? 'e2e-artifacts'
 mkdirSync(OUT, { recursive: true })
 const results = []
@@ -237,7 +245,7 @@ const browser = await chromium.launch()
 // 9 ── A new version arrives while unsent writing exists only in this tab: offered, not forced.
 {
   const { readFileSync, writeFileSync } = await import('node:fs')
-  const swPath = new URL('../dist/sw.js', import.meta.url)
+  const swPath = new URL('sw.js', DIST)
   const original = readFileSync(swPath, 'utf8')
   const ctx = await browser.newContext()
   const a = await account(ctx, { keepLocal: false })

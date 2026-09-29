@@ -280,6 +280,104 @@ sprints.get('/api/sprints/:sprintId', async (c) => {
   return c.json(await detail(c.env, ctx))
 })
 
+/**
+ * An owner taking over facilitation — for when the facilitator can't (a lost passkey, someone gone):
+ * without it, nobody could close, run or finish their sprint, and removing them from the workspace
+ * waits on a handover they can't make. Owners only, while the sprint is unfinished; the owner joins
+ * the sprint if they weren't in it. Encrypted and still collecting: the key sealed now is the old
+ * facilitator's alone, so a new version starts, sealed to the new facilitator (as reopening does).
+ * Thoughts already written under the old one stay sealed until the old facilitator opens Muni
+ * again — the preview counts them, so the owner is told before, not after.
+ */
+async function claimState(db: D1Database, ctx: SprintCtx) {
+  const sid = ctx.sprint.id
+  const sealedV = isEncrypted(ctx.sprint) ? await sealedVersion(db, sid, ctx.sprint.status) : null
+  const [current, sealedThoughts] = await Promise.all([
+    one<{ account_id: string; display_name: string }>(db, 'SELECT sp.account_id, a.display_name FROM sprint_participants sp JOIN accounts a ON a.id = sp.account_id WHERE sp.sprint_id = ? AND sp.is_facilitator = 1', sid),
+    // Written since the sealed version began: those are the ones only its holder can open.
+    sealedV === null ? Promise.resolve(0) : count(db, 'SELECT count(*) AS n FROM entries WHERE sprint_id = ? AND created_at >= (SELECT created_at FROM sprint_keys WHERE sprint_id = ? AND version = ?)', sid, sid, sealedV),
+  ])
+  return { sealedV, current, sealedThoughts }
+}
+
+function requireClaimable(ctx: SprintCtx) {
+  if (ctx.role !== 'owner') throw forbidden('only a workspace owner can take over facilitating a sprint')
+  if (['completed', 'archived'].includes(ctx.sprint.status)) throw conflict('this sprint is finished')
+  if (ctx.isFacilitator) throw conflict('you already facilitate this sprint')
+}
+
+sprints.get('/api/sprints/:sprintId/facilitation', async (c) => {
+  const ctx = await requireSprint(c, config(c.env), c.env.DB, c.req.param('sprintId'))
+  requireClaimable(ctx)
+  const { sealedV, current, sealedThoughts } = await claimState(c.env.DB, ctx)
+  return c.json({
+    facilitator_name: current?.display_name ?? null,
+    joins_sprint: !ctx.isParticipant,
+    // Encrypted and collecting: the new key's version, which the owner's device makes and seals to itself.
+    new_key_version: sealedV === null ? null : sealedV + 1,
+    sealed_thoughts: sealedThoughts,
+  })
+})
+
+sprints.post('/api/sprints/:sprintId/facilitation', async (c) => {
+  const db = c.env.DB
+  const ctx = await requireSprint(c, config(c.env), db, c.req.param('sprintId'))
+  requireClaimable(ctx)
+  const body = await jsonBody<{ confirm?: boolean; key_wraps?: unknown; sprint_key?: { version?: unknown; public_key?: unknown } }>(c)
+  if (body.confirm !== true) throw conflict('taking over facilitation changes who runs this sprint — confirm to continue')
+  const sid = ctx.sprint.id
+  const me = ctx.auth.account.id
+  const now = Date.now()
+  const { sealedV, current } = await claimState(db, ctx)
+  let joined = false
+  if (!ctx.isParticipant) {
+    const r = await run(db, `INSERT OR IGNORE INTO sprint_participants (sprint_id, account_id, is_facilitator, created_at) SELECT id, ?, 0, ? FROM sprints WHERE id = ? AND ${HAS_SEAT}`, me, now, sid)
+    if (!r.meta.changes && !(await count(db, 'SELECT count(*) AS n FROM sprint_participants WHERE sprint_id = ? AND account_id = ?', sid, me))) throw conflict(`a sprint can have at most ${MAX_PARTICIPANTS} participants`)
+    joined = !!r.meta.changes
+  }
+  const undoJoin = async () => {
+    if (joined) await run(db, 'DELETE FROM sprint_participants WHERE sprint_id = ? AND account_id = ? AND is_facilitator = 0', sid, me)
+  }
+  const stmts: Statement[] = []
+  let newVersion: number | null = null
+  try {
+    if (sealedV !== null) {
+      // The sealed version is someone else's: a new one, sealed only to the new facilitator.
+      newVersion = sealedV + 1
+      if (Number(body.sprint_key?.version) !== newVersion) throw conflict('taking over an encrypted sprint needs a new key from your device — reload and try again')
+      const pk = publicKey(body.sprint_key?.public_key)
+      const wraps = Array.isArray(body.key_wraps) ? body.key_wraps : []
+      if (!wraps.some((w: { account_id?: unknown; version?: unknown }) => w?.account_id === me && Number(w?.version) === newVersion)) throw bad('the new key must be sealed to you')
+      await run(db, 'INSERT INTO sprint_keys (sprint_id, version, public_key, created_by, created_at) VALUES (?,?,?,?,?)', sid, newVersion, pk, me, now)
+      try {
+        stmts.push(...(await wrapStatements(db, sid, me, wraps, { sealedVersion: newVersion, facilitator: me })))
+      } catch (e) {
+        await run(db, 'DELETE FROM sprint_keys WHERE sprint_id = ? AND version = ?', sid, newVersion)
+        throw e
+      }
+    }
+    // Only while the sprint is still unfinished and the role is still where it was read.
+    const [guard, ...guardArgs] = current
+      ? ['EXISTS (SELECT 1 FROM sprint_participants f WHERE f.sprint_id = ? AND f.account_id = ? AND f.is_facilitator = 1)', sid, current.account_id]
+      : ['NOT EXISTS (SELECT 1 FROM sprint_participants f WHERE f.sprint_id = ? AND f.is_facilitator = 1)', sid]
+    const res = await batch(db, [
+      [`UPDATE sprint_participants SET is_facilitator = (account_id = ?) WHERE sprint_id = ? AND (SELECT status FROM sprints WHERE id = ?) NOT IN ('completed','archived') AND ${guard}`, me, sid, sid, ...guardArgs],
+      ...stmts,
+      auditStmt(ctx.sprint.workspace_id, sid, me, 'sprint.facilitation_taken', { from: current?.account_id ?? null }),
+    ])
+    if (!res[0].meta.changes) throw conflict('the sprint changed while you were working — reload and try again')
+  } catch (e) {
+    if (newVersion !== null && !(await count(db, 'SELECT count(*) AS n FROM sprint_participants WHERE sprint_id = ? AND account_id = ? AND is_facilitator = 1', sid, me)))
+      await run(db, 'DELETE FROM sprint_keys WHERE sprint_id = ? AND version = ?', sid, newVersion)
+    await undoJoin()
+    throw e
+  }
+  // Open sockets follow the role, as with any handover.
+  await handOver(c.env, sid, me, now)
+  await hint(c.env, sid, 'sprint')
+  return c.json(await detail(c.env, await loadSprintCtx(db, ctx.auth, sid)))
+})
+
 sprints.patch('/api/sprints/:sprintId', async (c) => {
   const cfg = config(c.env)
   const ctx = await requireSprint(c, cfg, c.env.DB, c.req.param('sprintId'))

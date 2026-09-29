@@ -46,6 +46,8 @@ export type Action =
   | { kind: 'transition'; to: string; label: string; confirm?: Confirm; then?: string }
   | { kind: 'link'; href: string; label: string }
   | { kind: 'invite'; label: string }
+  /** An owner taking over from a facilitator who can't carry on (a lost passkey). */
+  | { kind: 'take_over'; label: string }
 
 export type ProgressStop = { id: Stage; label: string; detail: string; state: 'done' | 'now' | 'next' }
 
@@ -75,7 +77,7 @@ export type PlanInput = Pick<
   SprintDetail,
   'id' | 'status' | 'is_facilitator' | 'is_participant' | 'allowed_transitions' | 'retro_at' | 'timezone'
 > &
-  Partial<Pick<SprintDetail, 'entry_count' | 'theme_count' | 'collection_closed_at' | 'completed_at' | 'has_session' | 'session_cancelled' | 'facilitator_name'>> & {
+  Partial<Pick<SprintDetail, 'entry_count' | 'theme_count' | 'collection_closed_at' | 'completed_at' | 'has_session' | 'session_cancelled' | 'facilitator_name' | 'role'>> & {
     participant_count: number
     /** Experiments agreed, when known (the Outcomes stop says how many). */
     experiment_count?: number
@@ -164,6 +166,9 @@ export function sprintPlan(s: PlanInput, opts: { online?: boolean; now?: number 
       if (fac && can('archived')) more = [{ kind: 'transition', to: 'archived', label: 'Archive sprint…', confirm: 'archive' }]
       break
   }
+
+  // Owners can take over an unfinished sprint someone else facilitates — rare, so it waits in More.
+  if (!fac && s.role === 'owner' && phase !== 'done') more = [...more, { kind: 'take_over', label: 'Take over facilitating…' }]
 
   if (!online && control?.kind === 'transition') notes.push('Changing the sprint needs a connection.')
 

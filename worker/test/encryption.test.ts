@@ -276,6 +276,40 @@ describe('encrypted sprints', () => {
     expect(await holds(fac, 1)).toBe(1) // version 1 was revealed: everyone keeps it
   })
 
+  it('an owner takes over a stranded sprint: a new key sealed to them, the old thoughts counted before, and the role moves', async () => {
+    const t = await team(2)
+    const owner = await withKeys(t.owner)
+    const maya = await withKeys(t.members[0])
+    const ben = await withKeys(t.members[1])
+    // Maya facilitates; the owner isn't in the sprint. Ben writes under version 1, Maya's alone.
+    const s = await encryptedSprint(maya, [maya, ben], t.ws)
+    await go(maya.user, s.id, 'collecting')
+    await writeThought(ben, s.id, s.keys.pk, 1, SYNTHETIC[0])
+    // Members can't; the owner is told what's at stake first.
+    expect((await get(`/api/sprints/${s.id}/facilitation`, ben.user)).status).toBe(403)
+    const preview = await get(`/api/sprints/${s.id}/facilitation`, owner.user)
+    expect(preview.body).toMatchObject({ facilitator_name: 'Member 0', joins_sprint: true, new_key_version: 2, sealed_thoughts: 1 })
+    // Without confirming, or without a new key sealed to themselves: nothing moves.
+    expect((await post(`/api/sprints/${s.id}/facilitation`, owner.user, {})).status).toBe(409)
+    expect((await post(`/api/sprints/${s.id}/facilitation`, owner.user, { confirm: true })).status).toBe(409)
+    const participants = async () => ((await get(`/api/sprints/${s.id}`, maya.user)).body.participants as { account_id: string; is_facilitator: boolean }[])
+    expect((await participants()).map((p) => p.account_id)).not.toContain(owner.user.account_id)
+    const s2 = newSprintSecret()
+    const wrap = { account_id: owner.user.account_id, version: 2, recipient_public_key: b64u(owner.keys.pk), wrapped: wrapSprintSecret(owner.keys.pk, s2, { sprintId: s.id, version: 2, recipientId: owner.user.account_id }) }
+    const r = await post(`/api/sprints/${s.id}/facilitation`, owner.user, { confirm: true, sprint_key: { version: 2, public_key: b64u(sprintKeys(s2, 2).pk) }, key_wraps: [wrap] })
+    expect(r.status, JSON.stringify(r.body)).toBe(200)
+    expect((await participants()).find((p) => p.is_facilitator)!.account_id).toBe(owner.user.account_id)
+    const view = (await get(`/api/sprints/${s.id}/keys`, owner.user)).body as { sealed_version: number; my_wraps: { version: number }[] }
+    expect(view.sealed_version).toBe(2)
+    expect(view.my_wraps.map((w) => w.version)).toEqual([2])
+    // New thoughts go to the new key; the owner can close collection now, and Maya can be removed.
+    await writeThought(ben, s.id, sprintKeys(s2, 2).pk, 2, SYNTHETIC[1])
+    expect((await post(`/api/sprints/${s.id}/transition`, owner.user, { to: 'preparing', confirm: true })).status).toBe(200)
+    expect((await env.DB.prepare('SELECT count(*) AS n FROM sprint_participants WHERE sprint_id = ? AND account_id = ? AND is_facilitator = 0').bind(s.id, maya.user.account_id).first<{ n: number }>())!.n).toBe(1)
+    // Already facilitating: nothing to take over.
+    expect((await post(`/api/sprints/${s.id}/facilitation`, owner.user, { confirm: true })).status).toBe(409)
+  })
+
   it('recovery: a new device unlocks with the recovery key; signing in by email alone does not', async () => {
     const t = await team(0)
     const p = await withKeys(t.owner)

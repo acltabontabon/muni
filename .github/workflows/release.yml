@@ -119,6 +119,47 @@ jobs:
           MUNI_EMAIL_FROM: ${{ vars.MUNI_EMAIL_FROM }}
           MUNI_EMAIL_DAILY_LIMIT: ${{ vars.MUNI_EMAIL_DAILY_LIMIT }}   # optional; 80 when unset
         run: pnpm install --frozen-lockfile && node scripts/production-config.mjs
+      # Where the database stands just before migrating: a D1 Time Travel bookmark to restore if a
+      # migration goes wrong (docs/RELEASING.md §7). Worth having, never worth blocking a release
+      # for: if it can't be read, this warns and the release goes on.
+      - name: Bookmark the database before migrating
+        if: steps.now.outputs.state != 'live'
+        working-directory: worker
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: |
+          at="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+          out="$(pnpm exec wrangler d1 time-travel info DB --json --config wrangler.production.jsonc 2>&1)" || true
+          bookmark="$(printf '%s\n' "$out" | sed -n 's/.*"bookmark": *"\([A-Za-z0-9-]*\)".*/\1/p' | head -n 1)"
+          restore="pnpm exec wrangler d1 time-travel restore DB --bookmark=$bookmark --config wrangler.production.jsonc"
+          if [ -n "$bookmark" ]; then
+            echo "::notice title=D1 bookmark before migrating::$bookmark ($at)"
+            printf '\n==== D1 Time Travel bookmark before migrating (%s) ====\n  %s\nTo put the database back as it was here (loses everything written since), from worker/:\n  %s\n\n' "$at" "$bookmark" "$restore"
+            {
+              echo "### D1 bookmark before migrating"
+              echo
+              echo "\`$bookmark\` — $at, before \`$GITHUB_REF_NAME\`'s migrations."
+              echo
+              echo "To put the database back as it was here (it loses everything written since; docs/RELEASING.md §7), from \`worker/\` with the production config:"
+              echo
+              echo '```bash'
+              echo "$restore"
+              echo '```'
+            } >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "::warning title=No D1 bookmark::Couldn't read a Time Travel bookmark before migrating; releasing anyway. To find one for this moment later: wrangler d1 time-travel info DB --timestamp=$at --config wrangler.production.jsonc"
+            printf '%s\n' "$out" | tail -n 20
+            {
+              echo "### D1 bookmark before migrating"
+              echo
+              echo "⚠️ Couldn't read one at $at. To find the bookmark for that moment, from \`worker/\` with the production config:"
+              echo
+              echo '```bash'
+              echo "pnpm exec wrangler d1 time-travel info DB --timestamp=$at --config wrangler.production.jsonc"
+              echo '```'
+            } >> "$GITHUB_STEP_SUMMARY"
+          fi
       # Migrations first: within a major they're additive (docs/RELEASING.md §2), so the Worker
       # that's live keeps working against the new schema. Applying is idempotent (only pending
       # migrations run). One retry for Cloudflare's occasional transient D1 error.

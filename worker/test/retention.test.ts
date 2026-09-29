@@ -2,7 +2,7 @@
 import { describe, expect, it } from 'vitest'
 import { env } from 'cloudflare:test'
 import { closeCollection, command, entry, get, go, ids, patch, post, put, roomState, sprint, team, type User } from './harness'
-import { retention } from '../src/jobs'
+import { AUDIT_RETENTION_DAYS, retention } from '../src/jobs'
 
 const DAY = 86_400_000
 const n = async (sql: string, ...args: unknown[]) => Number((await env.DB.prepare(sql).bind(...args).first<{ n: number }>())!.n)
@@ -184,6 +184,23 @@ describe('retention', () => {
     expect(await waiting()).toBe(120)
   })
 
+  it(`keeps workspace history ${AUDIT_RETENTION_DAYS} days, deleting what's older a bounded batch at a time`, async () => {
+    const ws = `audit-${crypto.randomUUID()}`
+    const now = Date.now()
+    const old = now - (AUDIT_RETENTION_DAYS + 1) * DAY
+    const rows = [...Array.from({ length: 2500 }, (_, i) => [ws, 'sprint.transition', old - i]), ...Array.from({ length: 5 }, () => [ws, 'sprint.transition', now - (AUDIT_RETENTION_DAYS - 1) * DAY])]
+    for (let i = 0; i < rows.length; i += 100) await env.DB.batch(rows.slice(i, i + 100).map((r) => env.DB.prepare('INSERT INTO audit_events (workspace_id, action, meta, created_at) VALUES (?,?,?,?)').bind(r[0], r[1], '{}', r[2])))
+    const left = () => n('SELECT count(*) AS n FROM audit_events WHERE workspace_id = ? AND created_at < ?', ws, now - AUDIT_RETENTION_DAYS * DAY)
+    // Out of time, a sweep still deletes one batch (the oldest), and no more.
+    await retention(env as any, 0)
+    expect(await left()).toBe(1500)
+    expect(await n('SELECT min(created_at) AS n FROM audit_events WHERE workspace_id = ?', ws)).toBe(old - 1499)
+    // With time, the rest; what's younger than the window stays.
+    await retention(env as any)
+    expect(await left()).toBe(0)
+    expect(await n('SELECT count(*) AS n FROM audit_events WHERE workspace_id = ?', ws)).toBe(5)
+  })
+
   it('finds what the daily sweep deletes by an index, not by reading whole tables', async () => {
     const now = Date.now()
     const sweeps: [string, ...unknown[]][] = [
@@ -194,6 +211,7 @@ describe('retention', () => {
       ["UPDATE join_requests SET status = 'expired' WHERE status = 'pending' AND created_at < ?", now],
       ["DELETE FROM join_requests WHERE status <> 'pending' AND COALESCE(decided_at, created_at) < ?", now],
       ['DELETE FROM join_links WHERE COALESCE(revoked_at, expires_at) < ? AND NOT EXISTS (SELECT 1 FROM join_requests r WHERE r.link_id = join_links.id)', now],
+      ['DELETE FROM audit_events WHERE id IN (SELECT id FROM audit_events WHERE created_at < ? ORDER BY created_at LIMIT ?)', now, 1000],
     ]
     for (const [sql, ...args] of sweeps) {
       const plan = (await env.DB.prepare(`EXPLAIN QUERY PLAN ${sql}`).bind(...args).all<{ detail: string }>()).results.map((r) => r.detail)

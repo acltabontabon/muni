@@ -5,6 +5,11 @@ export type AppEnv = Env & ConfigVars & {
   DB: D1Database
   ROOMS: DurableObjectNamespace
   ASSETS: Fetcher
+  /**
+   * Per-address limit on the signed-out paths, checked before D1 (lib/ratelimit.ts `edgeLimit`).
+   * Optional: without it requests go through unchanged.
+   */
+  EDGE_LIMIT?: RateLimit
   /** The commit a release deployed (set by the release workflow's `wrangler deploy --var`). */
   MUNI_COMMIT?: string
 }

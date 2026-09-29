@@ -113,6 +113,14 @@ commitments.patch('/api/sprints/:sprintId/experiments/previous/:experimentId', a
   return c.json(await previousFor(db, ctx))
 })
 
+/** Experiments one sprint agrees: three unless the facilitator confirms more, and never more than ten. */
+const SOFT_LIMIT = 3
+const HARD_LIMIT = 10
+function refuseOverLimit(n: number, body: Record<string, unknown>) {
+  if (n >= HARD_LIMIT) throw conflict('ten experiments is the hard limit')
+  if (n >= SOFT_LIMIT && body.override_limit !== true) throw conflict('three experiments is plenty for one sprint. Add another only if you’re sure the team can carry it — confirm to continue')
+}
+
 commitments.post('/api/sprints/:sprintId/experiments', async (c) => {
   const ctx = await requireSprint(c, config(c.env), c.env.DB, c.req.param('sprintId'))
   requireFacilitator(ctx)
@@ -124,9 +132,8 @@ commitments.post('/api/sprints/:sprintId/experiments', async (c) => {
   if (!encrypted) checkVague(change, body)
   const signal = content(encrypted, body.success_signal, 300, 'The success signal', true)!
   const db = c.env.DB
-  const n = await count(db, 'SELECT count(*) AS n FROM experiments WHERE sprint_id = ?', ctx.sprint.id)
-  if (n >= 10) throw conflict('ten experiments is the hard limit')
-  if (n >= 3 && body.override_limit !== true) throw conflict('three experiments is plenty for one sprint. Add another only if you’re sure the team can carry it — confirm to continue')
+  // Refused early, before the reads below; the INSERT counts again, so two tabs can't both take the last place.
+  refuseOverLimit(await count(db, 'SELECT count(*) AS n FROM experiments WHERE sprint_id = ?', ctx.sprint.id), body)
   let review = reviewOn(body.review_on)
   if (!review) {
     const s = await one<{ ends_on: string }>(db, 'SELECT ends_on FROM sprints WHERE id = ?', ctx.sprint.id)
@@ -136,7 +143,16 @@ commitments.post('/api/sprints/:sprintId/experiments', async (c) => {
   if (owner && !(await count(db, 'SELECT count(*) AS n FROM sprint_participants WHERE sprint_id = ? AND account_id = ?', ctx.sprint.id, owner))) throw bad('the owner must be a participant in this sprint')
   const themeId = typeof body.theme_id === 'string' && body.theme_id ? body.theme_id : null
   const theme = themeId ? await one<{ title: string }>(db, 'SELECT title FROM themes WHERE id = ? AND sprint_id = ?', themeId, ctx.sprint.id) : null
-  await run(db, 'INSERT INTO experiments (id, workspace_id, sprint_id, theme_id, theme_title, change_to_try, success_signal, owner_account_id, review_on, created_at, updated_at) VALUES (?,?,?,?,?,?,?,?,?,?,?)', uuid(), ctx.sprint.workspace_id, ctx.sprint.id, theme ? themeId : null, theme?.title ?? null, change, signal, owner, review, Date.now(), Date.now())
+  const added = await run(
+    db,
+    'INSERT INTO experiments (id, workspace_id, sprint_id, theme_id, theme_title, change_to_try, success_signal, owner_account_id, review_on, created_at, updated_at) SELECT ?,?,?,?,?,?,?,?,?,?,? WHERE (SELECT count(*) FROM experiments WHERE sprint_id = ?) < ?',
+    uuid(), ctx.sprint.workspace_id, ctx.sprint.id, theme ? themeId : null, theme?.title ?? null, change, signal, owner, review, Date.now(), Date.now(), ctx.sprint.id, body.override_limit === true ? HARD_LIMIT : SOFT_LIMIT,
+  )
+  if (!added.meta.changes) {
+    // Another request took the last place since the count above: refused as that count would have been.
+    refuseOverLimit(await count(db, 'SELECT count(*) AS n FROM experiments WHERE sprint_id = ?', ctx.sprint.id), body)
+    throw conflict('something changed while you were working — reload and try again')
+  }
   await audit(db, ctx.sprint.workspace_id, ctx.sprint.id, ctx.auth.account.id, 'experiment.proposed')
   await hint(c.env, ctx.sprint.id, 'commitments')
   return c.json(await listFor(db, ctx.sprint.id))

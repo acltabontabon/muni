@@ -6,6 +6,7 @@ import { Hono, type Context } from 'hono'
 import type { AppEnv, HonoEnv } from './env'
 import { config, ConfigError } from './lib/config'
 import { AppError, failure } from './lib/errors'
+import { edgeLimit } from './lib/ratelimit'
 import { auth } from './routes/auth'
 import { workspaces } from './routes/workspaces'
 import { sprints } from './routes/sprints'
@@ -54,6 +55,12 @@ app.use('*', async (c, next) => {
   c.header('x-content-type-options', 'nosniff')
   c.header('referrer-policy', 'same-origin')
   c.header('cache-control', 'no-store')
+})
+
+// A flood of signed-out requests from one address is refused here, before anything reads or writes D1.
+app.use('/api/*', async (c, next) => {
+  await edgeLimit(c.env, c.req.raw)
+  await next()
 })
 
 /**

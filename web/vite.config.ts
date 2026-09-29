@@ -44,8 +44,9 @@ const familyOf = (file: string) => worldFamilies.find((f) => path.basename(file)
 
 /**
  * Builds src/sw.ts into one classic script at /sw.js after the app is written, with this build's
- * asset list and a content-derived version prepended. Any change to the app changes sw.js byte
- * for byte, which is how browsers notice an update.
+ * asset list and a version derived from the contents of the page and every precached file
+ * prepended. Any change to the app changes sw.js byte for byte, which is how browsers notice an
+ * update.
  */
 function serviceWorker(): Plugin {
   let outDir = 'dist'
@@ -71,7 +72,12 @@ function serviceWorker(): Plugin {
       const worlds = Object.fromEntries(
         Object.entries(WORLD_FONTS).map(([w, fams]) => [w, all.filter((f) => f.endsWith('.woff2') && fams.includes(familyOf(f) ?? '') && /-latin-(?!ext-)/.test(path.basename(f))).sort().map((f) => `/${f}`)]),
       )
-      const version = createHash('sha256').update(assets.join('\n')).update(JSON.stringify(worlds)).update(readFileSync(path.join(outDir, 'index.html'))).digest('hex').slice(0, 12)
+      // The version covers every precached file's bytes, not just its name: public files (boot.js,
+      // the manifest, icons) keep their names from build to build, so a change to one alone must
+      // still change sw.js, or browsers would never install a worker that caches the new copy.
+      const hash = createHash('sha256').update(assets.join('\n')).update(JSON.stringify(worlds)).update(readFileSync(path.join(outDir, 'index.html')))
+      for (const f of files) hash.update(`\0${f}\0`).update(readFileSync(path.join(outDir, f)))
+      const version = hash.digest('hex').slice(0, 12)
       const { build } = await import('rolldown')
       await build({
         input: path.join(src, 'sw.ts'),

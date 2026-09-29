@@ -193,6 +193,16 @@ async function reminders(env: AppEnv, sprintId: string, kind: string) {
 const RETENTION_BUDGET_MS = 20_000
 
 /**
+ * How long workspace history (audit_events: who did what to which item, never any text) is kept:
+ * 400 days, so a year's retros can still be looked back on with a margin, and the log doesn't grow
+ * for as long as the deployment runs.
+ */
+export const AUDIT_RETENTION_DAYS = 400
+/** Workspace history deleted per statement, and statements per sweep: a backlog goes over days, never in one long run. */
+const AUDIT_BATCH = 1000
+const AUDIT_BATCHES = 20
+
+/**
  * Retention: content-derived records are deleted after the workspace window; outcomes under the
  * separate, disclosed window — both only once a sprint is finished. The room's record of a purged
  * sprint's retro (who came, the agenda) goes with its content.
@@ -236,6 +246,21 @@ export async function retention(env: AppEnv, budgetMs = RETENTION_BUDGET_MS) {
     db.prepare('DELETE FROM join_links WHERE COALESCE(revoked_at, expires_at) < ? AND NOT EXISTS (SELECT 1 FROM join_requests r WHERE r.link_id = join_links.id)').bind(now - 180 * 86_400_000),
     db.prepare('DELETE FROM dev_mail WHERE created_at < ?').bind(now - 86_400_000),
   ])
+  await pruneAudit(db, now, budgetMs)
+}
+
+/**
+ * Workspace history older than AUDIT_RETENTION_DAYS, oldest first, AUDIT_BATCH rows at a time. The
+ * first batch always runs (a sweep that spent its time on sprints still makes progress); further
+ * ones while the sweep's time budget lasts, up to AUDIT_BATCHES. What's left waits for tomorrow.
+ */
+async function pruneAudit(db: D1Database, startedAt: number, budgetMs: number) {
+  const before = startedAt - AUDIT_RETENTION_DAYS * 86_400_000
+  for (let i = 0; i < AUDIT_BATCHES; i++) {
+    if (i && Date.now() - startedAt >= budgetMs) break
+    const r = await run(db, 'DELETE FROM audit_events WHERE id IN (SELECT id FROM audit_events WHERE created_at < ? ORDER BY created_at LIMIT ?)', before, AUDIT_BATCH)
+    if ((r.meta.changes ?? 0) < AUDIT_BATCH) break
+  }
 }
 
 export async function purgeSprintContent(db: D1Database, sprintId: string, workspaceId: string) {

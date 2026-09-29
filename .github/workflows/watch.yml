@@ -1,0 +1,44 @@
+name: Watch production
+# Every 30 minutes, asks production from outside whether it's up: /api/health must answer 200 with
+# the database reachable, and /api/version must say what's running. One retry after 30 s, then the
+# run fails, and GitHub emails whoever last changed this schedule (the owner) about the failed run.
+# Reads only public endpoints: no checkout, no secrets. The host is the repository variable
+# MUNI_DOMAIN when set (the production environment's variable isn't available here: that
+# environment admits only v* tags), otherwise act.munimuni.app. Forks and copies skip the job.
+# GitHub pauses schedules in a repository with no activity for 60 days; re-enable it from Actions.
+on:
+  schedule:
+    - cron: '7,37 * * * *'
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: watch-production
+  cancel-in-progress: true
+jobs:
+  health:
+    if: github.repository == 'acltabontabon/muni'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    env:
+      ORIGIN: https://${{ vars.MUNI_DOMAIN || 'act.munimuni.app' }}
+    steps:
+      - name: Production is healthy
+        run: |
+          check() {
+            health="$(curl -sS --max-time 15 -w '\n%{http_code}' "$ORIGIN/api/health" 2>&1)" || { echo "health: $health"; return 1; }
+            code="${health##*$'\n'}" body="${health%$'\n'*}"
+            echo "health: $code $(printf '%s' "$body" | tr -s '\n' ' ' | cut -c 1-300)"
+            [ "$code" = 200 ] || return 1
+            printf '%s' "$body" | jq -e '.status == "ready" and .database == "ok"' >/dev/null 2>&1 || return 1
+            version="$(curl -fsS --max-time 15 "$ORIGIN/api/version" 2>&1)" || { echo "version: ${version:0:300}"; return 1; }
+            echo "version: ${version:0:300}"
+            printf '%s' "$version" | jq -e '.name == "muni" and (.version | type == "string")' >/dev/null
+          }
+          if check || { echo "Retrying in 30 s"; sleep 30; check; }; then
+            echo "✓ $ORIGIN is healthy: $(printf '%s' "$version" | jq -r '"\(.version) at \(.commit // "no commit")"')" | tee -a "$GITHUB_STEP_SUMMARY"
+          else
+            echo "::error title=Production is unhealthy::$ORIGIN/api/health or /api/version didn't answer as expected, twice (docs/RELEASING.md §7)."
+            echo "✗ $ORIGIN is unhealthy — see the log." >> "$GITHUB_STEP_SUMMARY"
+            exit 1
+          fi

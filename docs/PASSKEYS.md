@@ -200,7 +200,10 @@ and emailed links, writing unlocks after sign out → sign in}.
 ## 9. Remaining risks and review requirements
 
 - Losing every passkey loses the account, for everyone; the product says so plainly and pushes a
-  second passkey.
+  second passkey. What the account ran doesn't have to go with it: a workspace owner can take over
+  facilitating an unfinished sprint (**More → Take over facilitating…**), after which the lost
+  account can be removed. A workspace whose only owner loses every passkey still can't be
+  administered — keep a second owner.
 - Passkey-only sign-up is cheap: rate limits, team-QR approval and single-use links are the
   controls; watch `account.created` volumes.
 - An emailed invitation admits whoever opens it first, like a personal link: forwarding it hands

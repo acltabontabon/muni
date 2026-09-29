@@ -7,7 +7,7 @@
 import type { Config } from './config'
 import { run } from './db'
 import { quota, setupRequired } from './errors'
-import { record, underLimit } from './ratelimit'
+import { reserve } from './ratelimit'
 
 export interface Mail {
   to: string
@@ -23,11 +23,17 @@ const SEND_TIMEOUT = 20_000
 /** Every email the server sends, counted against EMAIL_DAILY_LIMIT (kept below the provider's own quota). */
 const SENT = 'email-sent'
 
+/**
+ * The day's slot is taken before sending, by the statement that counts (so two job runners at once
+ * can't both send the last email the limit allows). A send that then fails keeps its slot, on
+ * purpose: one that timed out may have gone out anyway, so the limit may count a few emails that
+ * never left but never misses one that did — it errs towards sending fewer than the provider's
+ * quota, never more. A retry of that message takes another slot.
+ */
 export async function sendMail(cfg: Config, db: D1Database, mail: Mail): Promise<void> {
-  if (cfg.email !== 'none' && !(await underLimit(db, SENT, cfg.emailDailyLimit, 86_400_000)))
+  if (cfg.email !== 'none' && !(await reserve(db, SENT, cfg.emailDailyLimit, 86_400_000)))
     throw quota(`the daily email limit (${cfg.emailDailyLimit}) is reached, so this wasn’t sent`)
   await deliver(cfg, db, mail)
-  await record(db, SENT)
 }
 
 async function deliver(cfg: Config, db: D1Database, mail: Mail): Promise<void> {

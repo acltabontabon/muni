@@ -5,6 +5,7 @@
  * server decides who may do what; this page only offers what it allows.
  */
 import { useMemo, useState } from 'react'
+import { Link } from 'react-router'
 import * as Popover from '@radix-ui/react-popover'
 import { ChevronDown, Mail, MoreHorizontal, QrCode, Search, UserPlus } from 'lucide-react'
 import { ApiError, del, patch, post } from '@/api/client'
@@ -250,7 +251,10 @@ export function WorkspacePeople() {
             <section className="ws-section" aria-labelledby="owners">
               <div className="ws-section-head">
                 <h2 id="owners" className="ws-section-title">Owners <span className="ws-count">{owners.length}</span></h2>
-                <p className="ws-section-note">Manage people and settings.</p>
+                <p className="ws-section-note">
+                  Manage people and settings.
+                  {owner && d.members.length > 1 && d.members.filter((m) => m.role === 'owner').length === 1 ? ' You’re the only one: make someone you trust an owner too, so the workspace isn’t stuck if you ever lose your passkey.' : ''}
+                </p>
               </div>
               <ul className="people">{owners.map(person)}</ul>
             </section>
@@ -338,7 +342,10 @@ export function WorkspacePeople() {
             <p className="text-[15px]">
               {removing?.display_name} facilitates {list(blockedBy.map((f) => f.name))}, and others are in {blockedBy.length === 1 ? 'it' : 'them'}. Removing them now would leave {blockedBy.length === 1 ? 'that sprint' : 'those sprints'} without anyone to run {blockedBy.length === 1 ? 'it' : 'them'} — and an encrypted sprint without its key.
             </p>
-            <p className="mt-2 text-sm text-ink-soft">Ask them to choose another facilitator in the sprint’s setup. Then you can remove them.</p>
+            <p className="mt-2 text-sm text-ink-soft">Ask them to choose another facilitator in the sprint’s setup. If they can’t — they’ve lost their passkey, say — open {blockedBy.length === 1 ? 'the sprint' : 'each sprint'} and choose <strong>More → Take over facilitating…</strong>. Then you can remove them.</p>
+            <ul className="mt-3 grid gap-1 text-sm">
+              {blockedBy.map((f) => <li key={f.id}><Link className="underline underline-offset-4" to={`/sprints/${f.id}`}>Open {f.name}</Link></li>)}
+            </ul>
           </>
         ) : (
           <p className="text-sm text-ink-soft">Thoughts they already submitted stay in their sprints, still without their name. They can be invited again later.</p>

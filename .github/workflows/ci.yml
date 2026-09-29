@@ -46,6 +46,74 @@ jobs:
       - run: pnpm typecheck
       - run: pnpm test
 
+  # The browser suites (web/e2e) against the production build, served the way `wrangler dev` serves
+  # it locally: the Worker with web/dist as its assets, a local D1, console email and the
+  # development-only /api/dev/session the suites sign in with (worker/wrangler.jsonc). No secrets
+  # and nothing remote: the local config can't reach a deployment.
+  e2e:
+    name: browser e2e
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    env:
+      MUNI_URL: http://localhost:8787   # worker/wrangler.jsonc's PUBLIC_ORIGIN, which passkeys need
+      E2E_LOGS: ${{ github.workspace }}/web/e2e-artifacts/ci
+      WRANGLER_SEND_METRICS: 'false'
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with: { persist-credentials: false }
+      - uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
+        with: { version: 10 }
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with: { node-version: 22, cache: pnpm, cache-dependency-path: worker/pnpm-lock.yaml }
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with: { node-version: 22, cache: npm, cache-dependency-path: web/package-lock.json }
+      - name: Web — install, build
+        working-directory: web
+        run: npm ci --ignore-scripts && npm run build
+      - name: Worker — install, migrate a local database
+        working-directory: worker
+        run: |
+          pnpm install --frozen-lockfile
+          pnpm exec wrangler d1 migrations apply DB --local --persist-to "$RUNNER_TEMP/d1"
+      # Started now, checked below: it comes up while Playwright installs.
+      - name: Start the Worker serving web/dist
+        working-directory: worker
+        run: |
+          mkdir -p "$E2E_LOGS"
+          nohup pnpm exec wrangler dev --port 8787 --persist-to "$RUNNER_TEMP/d1" --show-interactive-dev-session=false > "$E2E_LOGS/wrangler.log" 2>&1 &
+      - id: playwright
+        working-directory: web
+        run: echo "version=$(node -p 'require("playwright/package.json").version')" >> "$GITHUB_OUTPUT"
+      - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-${{ steps.playwright.outputs.version }}-chromium-shell
+      # The suites launch Chromium's headless shell; its system libraries always come from apt.
+      - name: Install Chromium for Playwright
+        working-directory: web
+        run: npx playwright install --with-deps --only-shell chromium
+      - name: The Worker is up
+        run: |
+          for _ in $(seq 1 60); do
+            if curl -fsS "$MUNI_URL/api/health" >/dev/null 2>&1; then curl -fsS "$MUNI_URL/api/health"; echo; exit 0; fi
+            sleep 2
+          done
+          echo "::error::wrangler dev didn't answer $MUNI_URL/api/health within 2 minutes"
+          tail -n 100 "$E2E_LOGS/wrangler.log"
+          exit 1
+      # One suite at a time: several are timing-sensitive, and `offline` rewrites the served sw.js.
+      # Each suite's log (and the offline suite's video) is in $E2E_LOGS.
+      - name: Browser suites
+        run: node scripts/e2e.mjs retro sprint capture rooms themes workspace worlds worlds-offline encryption departure entrance offline
+      - name: Upload logs
+        if: failure()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: e2e-logs
+          path: web/e2e-artifacts/ci
+          retention-days: 14
+          if-no-files-found: ignore
+
   release:
     name: version and changelog
     runs-on: ubuntu-latest

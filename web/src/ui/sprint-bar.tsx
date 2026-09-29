@@ -7,7 +7,7 @@
  *
  * The words and rules are in lib/lifecycle.ts; the server checks every change again.
  */
-import { useState, type ReactNode } from 'react'
+import { useEffect, useState, type ReactNode } from 'react'
 import { Link, useNavigate } from 'react-router'
 import * as Popover from '@radix-ui/react-popover'
 import { ArrowRight, Check, Info, MoreHorizontal } from 'lucide-react'
@@ -59,6 +59,7 @@ export function useSprintControl(s: Pick<BarSprint, 'id' | 'encryption'> & { sta
   const toast = useToast()
   const resources = useResources()
   const [confirming, setConfirming] = useState<Transition | null>(null)
+  const [takingOver, setTakingOver] = useState(false)
   const [busy, setBusy] = useState<string | null>(null)
   const transition = async (a: Transition) => {
     if (busy) return
@@ -84,10 +85,11 @@ export function useSprintControl(s: Pick<BarSprint, 'id' | 'encryption'> & { sta
   const run = (a: Action) => {
     if (a.kind === 'link') return nav(a.href)
     if (a.kind === 'invite') return opts.onInvite?.()
+    if (a.kind === 'take_over') return setTakingOver(true)
     if (a.confirm) return setConfirming(a)
     return transition(a)
   }
-  return { run, busy, confirming, transition, cancel: () => setConfirming(null), online: opts.online }
+  return { run, busy, confirming, transition, cancel: () => setConfirming(null), online: opts.online, takingOver, stopTakingOver: () => setTakingOver(false), changed: opts.onChanged }
 }
 export type SprintControl = ReturnType<typeof useSprintControl>
 
@@ -215,6 +217,7 @@ export function SprintBar({
       </div>
       <Progress stops={plan.progress} />
       {control.confirming ? <ConfirmDialog kind={control.confirming.confirm!} s={s} busy={!!control.busy} onCancel={control.cancel} onConfirm={() => control.transition(control.confirming!)} /> : null}
+      {control.takingOver ? <TakeOverDialog s={s} onClose={control.stopTakingOver} onDone={control.changed} /> : null}
     </section>
   )
 }
@@ -280,6 +283,76 @@ function MoreMenu({ actions, control }: { actions: Action[]; control: SprintCont
         </Popover.Content>
       </Popover.Portal>
     </Popover.Root>
+  )
+}
+
+type TakeOverPreview = { facilitator_name: string | null; joins_sprint: boolean; new_key_version: number | null; sealed_thoughts: number }
+
+/**
+ * An owner taking over facilitation. Said plainly before it happens: who runs it now, that they stay
+ * in the sprint, and — encrypted and still collecting — that thoughts written so far stay sealed to
+ * the old facilitator's key, since this device starts a new one for what's written next.
+ */
+function TakeOverDialog({ s, onClose, onDone }: { s: BarSprint; onClose: () => void; onDone: (d: SprintDetail) => void }) {
+  const toast = useToast()
+  const resources = useResources()
+  const [preview, setPreview] = useState<TakeOverPreview | null>(null)
+  const [failed, setFailed] = useState<string | null>(null)
+  const [busy, setBusy] = useState(false)
+  useEffect(() => {
+    let live = true
+    get<TakeOverPreview>(`/api/sprints/${s.id}/facilitation`).then((p) => live && setPreview(p), (e) => live && setFailed(e instanceof ApiError ? sentence(e.message) : 'Couldn’t check this sprint.'))
+    return () => {
+      live = false
+    }
+  }, [s.id])
+  const who = preview?.facilitator_name ?? 'The facilitator'
+  const confirm = async () => {
+    if (busy || !preview) return
+    setBusy(true)
+    try {
+      let key = {}
+      if (preview.new_key_version !== null) {
+        const me = keyring.accountId()
+        const pk = keyring.publicKey()
+        if (!me || !pk) throw new Error('Unlock your writing on this device first (with your passkey or recovery key), then try again.')
+        key = keyring.newSprintKey(s.id, preview.new_key_version, { account_id: me, public_key: b64u(pk) })
+      }
+      const d = await post<SprintDetail>(`/api/sprints/${s.id}/facilitation`, { confirm: true, ...key })
+      keyring.forgetSprint(s.id)
+      resources.invalidate(`/api/sprints/${s.id}`)
+      resources.invalidate(`/api/workspaces/${d.workspace_id}`)
+      onDone(d)
+      onClose()
+      toast('You’re facilitating this sprint now.')
+    } catch (e) {
+      toast(e instanceof ApiError ? sentence(e.message) : e instanceof Error ? e.message : 'Couldn’t take over', 'danger')
+    } finally {
+      setBusy(false)
+    }
+  }
+  return (
+    <Dialog open onOpenChange={(o) => !o && !busy && onClose()} title="Take over facilitating?" description="For when the facilitator can’t hand it over themselves — a lost passkey, say.">
+      {failed ? (
+        <p className="text-sm text-danger">{failed}</p>
+      ) : !preview ? (
+        <p className="text-sm text-ink-soft">Checking the sprint…</p>
+      ) : (
+        <div className="grid gap-2 text-[15px]">
+          <p>{preview.facilitator_name ? `${who} facilitates ${s.name} now.` : `Nobody facilitates ${s.name} now.`} You’ll run it instead — closing collection, starting and ending the retro{preview.facilitator_name ? `, and ${who} stays in the sprint as a participant` : ''}.{preview.joins_sprint ? ' You’ll join the sprint.' : ''}</p>
+          {preview.new_key_version !== null ? (
+            <p className="text-sm text-ink-soft">
+              It’s encrypted and still collecting, so this device starts a new key for thoughts written from now on.
+              {preview.sealed_thoughts ? ` The ${preview.sealed_thoughts === 1 ? 'thought' : `${preview.sealed_thoughts} thoughts`} written so far ${preview.sealed_thoughts === 1 ? 'stays' : 'stay'} sealed to ${who}’s key: nobody can read ${preview.sealed_thoughts === 1 ? 'it' : 'them'} unless ${who} opens Muni again on a device that has it.` : ''}
+            </p>
+          ) : null}
+        </div>
+      )}
+      <div className="mt-5 flex justify-end gap-2">
+        <Button variant="ghost" disabled={busy} onClick={onClose}>Not now</Button>
+        <Button variant="primary" busy={busy} disabled={!preview} onClick={confirm}>Take over</Button>
+      </div>
+    </Dialog>
   )
 }
 

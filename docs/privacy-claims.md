@@ -103,13 +103,13 @@ Last checked 2026-09-29, against `main` at 1.0.0-rc.1.
 | The facilitator's stage shows who has the retro open (faces beside names), and nothing about what they're doing; nobody else's view says who's connected | Test | `socket.test.ts` “shows the facilitator, live, who has the retro open…”, “…only the facilitator sees who’s connected” |
 | A person's character appears beside their name in the retro and on nothing anonymous | Test | `avatars.test.ts` |
 | Passkey challenges deleted ~1 day after expiry; sessions 30 days, deleted 7 days after ending; hashed limiter rows 24 h; email queue payload cleared when sent; invitations (with their address) deleted 30 days after they were used, withdrawn or expired; a retro's room record goes with its content | Test + Code | `jobs.ts` `retention()`; `boundaries.test.ts` “keeps a queued email until it’s sent…”; `retention.test.ts` “keeps an invitation’s address for 30 days…”, “takes the room’s record of the retro with the content” |
-| Admin action log kept indefinitely (no text) | Code | `audit_events` never deleted — **open policy decision** |
+| Admin action log kept 400 days (no text) | Test | `AUDIT_RETENTION_DAYS` and `pruneAudit` in `worker/src/jobs.ts`; `test/retention.test.ts` |
 | Backups ≤ 30 days, logs ≤ 7 days | Provider + Config | D1 Time Travel docs (7 Free / 30 Paid); Workers Logs docs. The hosted service's plan (Free or Paid) isn't recorded, so the page states the upper bounds |
 
 ## Unresolved (prevents stronger wording)
 
 - No personal data export, and no way to delete a workspace others are still in.
-- No purge for sprints that are never finished; `audit_events` kept forever.
+- No purge for sprints that are never finished.
 - Operator access to the database isn't logged by Muni; any claim of audited access needs that first.
 - The Cloudflare plan (Free/Paid) decides the log and backup windows; record it to state exact numbers.
 - Log redaction of cookies in Workers Logs hasn't been observed on the live dashboard.

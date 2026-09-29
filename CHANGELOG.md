@@ -16,6 +16,15 @@ those as highlights. The app's About → What's new and each GitHub release are 
 
 ## [Unreleased]
 
+### Added
+
+- **Owners can take over a stranded sprint.** If a sprint’s facilitator can’t carry on — they’ve
+  lost their passkey, say — a workspace owner can choose **More → Take over facilitating…** on the
+  sprint’s page and run it from there. It says first what that means: the owner joins the sprint if
+  needed, and in an encrypted sprint that’s still collecting, a new key starts for what’s written
+  next, while thoughts already written stay sealed to the old facilitator’s key. Removing someone
+  who facilitates now points to this, and a workspace with a single owner suggests adding another.
+
 ### Changed
 
 - **A retro without themes is a full retro.** Starting the retro gathers any thoughts not in a theme
@@ -50,6 +59,15 @@ those as highlights. The app's About → What's new and each GitHub release are 
 - Server errors are no longer reported as “usage limit”, and every unexpected error is logged.
 - A slow email provider can no longer cause an invitation or reminder to be sent twice.
 - Moving many thoughts into a theme at once no longer risks hitting the database’s per-request limit.
+- Limits on thoughts, experiments, sign-in attempts and emails now hold even when several requests
+  arrive at once.
+
+### Security
+
+- Sign-in, sign-up, joining and invitation requests from one address are rate-limited at
+  Cloudflare’s edge, before they reach the database, so a flood can’t use up the database’s daily
+  allowance.
+- The log of administrative actions (which holds no text) is now deleted after 400 days.
 
 ## [1.0.0-rc.1] - 2026-09-29
 

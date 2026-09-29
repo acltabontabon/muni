@@ -4,6 +4,9 @@
  *
  * What it does, deliberately little:
  *  - precaches this build's app shell and versioned assets;
+ *  - serves /assets/ (content-hashed, never changing under a name) from that precache, and the
+ *    other precached files (boot.js, the manifest, icons: same name in every build) network-first,
+ *    falling back to the precache offline, so a page from a newer build never gets this build's copy;
  *  - caches a character world's fonts when the page says that world was chosen, and serves them
  *    from the cache after that (so a person's own world works offline, and nobody downloads all eight);
  *  - removes what older versions cached that nothing uses any more: their app shells, and world
@@ -75,9 +78,40 @@ sw.addEventListener('fetch', (e) => {
   if (url.origin !== sw.location.origin) return
   if (url.pathname.startsWith('/api/') || url.pathname === '/sw.js') return
   if (req.mode === 'navigate') e.respondWith(navigate(req))
-  else if (PRECACHE.has(url.pathname)) e.respondWith(caches.match(url.pathname, { cacheName: SHELL }).then((r) => r ?? fetch(req)))
+  else if (PRECACHE.has(url.pathname)) e.respondWith(url.pathname.startsWith('/assets/') ? precached(req, url.pathname) : fresh(req, url.pathname))
   else if (WORLD_FILES.has(url.pathname)) e.respondWith(font(req, url.pathname))
 })
+
+/** A content-hashed asset: this build's copy is the only copy there will ever be under that name. */
+async function precached(req: Request, path: string): Promise<Response> {
+  return (await caches.match(path, { cacheName: SHELL })) ?? fetch(req)
+}
+
+/**
+ * A precached file whose name every build shares: the network's copy (it belongs with the page the
+ * network served), this build's copy when offline or when the network doesn't answer in time. The
+ * precache isn't updated from here: it stays this build's, consistent with the shell it falls back to.
+ */
+async function fresh(req: Request, path: string): Promise<Response> {
+  try {
+    const res = await timed(req)
+    if (res.ok) return res
+    return (await caches.match(path, { cacheName: SHELL })) ?? res
+  } catch {
+    return (await caches.match(path, { cacheName: SHELL })) ?? Response.error()
+  }
+}
+
+/** A network request that gives up after 5 s, so a stalled connection falls back like an offline one. */
+async function timed(req: Request): Promise<Response> {
+  const ctrl = new AbortController()
+  const t = setTimeout(() => ctrl.abort(), 5000)
+  try {
+    return await fetch(req, { signal: ctrl.signal })
+  } finally {
+    clearTimeout(t)
+  }
+}
 
 /** A world's font: from the cache when it's there; otherwise from the network, kept for next time. */
 async function font(req: Request, path: string): Promise<Response> {
@@ -91,11 +125,7 @@ async function font(req: Request, path: string): Promise<Response> {
 
 async function navigate(req: Request): Promise<Response> {
   try {
-    const ctrl = new AbortController()
-    const t = setTimeout(() => ctrl.abort(), 5000)
-    const res = await fetch(req, { signal: ctrl.signal })
-    clearTimeout(t)
-    return res
+    return await timed(req)
   } catch {
     const shell = await caches.match('/', { cacheName: SHELL })
     return shell ?? new Response('<!doctype html><meta charset="utf-8"><title>Muni</title><p style="font:16px system-ui;padding:2rem">Muni needs a connection to open for the first time on this device.</p>', { headers: { 'content-type': 'text/html; charset=utf-8' }, status: 503 })
