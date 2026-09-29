@@ -12,6 +12,7 @@ import { bad, conflict, notFound } from '../lib/errors'
 import { hint } from '../lib/live'
 import { content, isEncrypted } from '../lib/sealed'
 import { idList, jsonBody } from '../lib/util'
+import { MAX_THEMES } from '../lib/limits'
 import { requireRevealed, sharedEntries, type SharedEntry } from './entries'
 import { latestClosedTotals } from './voting'
 
@@ -33,9 +34,11 @@ export async function grouping(env: HonoEnv['Bindings'], ctx: SprintCtx) {
   requireRevealed(ctx)
   const db = env.DB
   const sp = (await one<{ status: string; grouping_revision: number }>(db, 'SELECT status, grouping_revision FROM sprints WHERE id = ?', ctx.sprint.id))!
-  const rows = await all<ThemeRow>(db, 'SELECT id, title, summary, question, draft_experiment, position, parked, needs_attention, order_reason FROM themes WHERE sprint_id = ? ORDER BY position, created_at LIMIT 100', ctx.sprint.id)
+  // Every theme and everything shared (the caps are where they're written): a thought in a theme
+  // that wasn't read would be in neither the themes nor the ungrouped pool.
+  const rows = await all<ThemeRow>(db, 'SELECT id, title, summary, question, draft_experiment, position, parked, needs_attention, order_reason FROM themes WHERE sprint_id = ? ORDER BY position, created_at', ctx.sprint.id)
   const allEntries = await sharedEntries(db, ctx.sprint.id)
-  const context = await all<{ id: string; theme_id: string; body: string; kind: string | null }>(db, 'SELECT id, theme_id, body, kind FROM context_additions WHERE sprint_id = ? AND released_batch IS NOT NULL AND theme_id IS NOT NULL ORDER BY released_batch, reveal_order, id LIMIT 500', ctx.sprint.id)
+  const context = await all<{ id: string; theme_id: string; body: string; kind: string | null }>(db, 'SELECT id, theme_id, body, kind FROM context_additions WHERE sprint_id = ? AND released_batch IS NOT NULL AND theme_id IS NOT NULL ORDER BY released_batch, reveal_order, id', ctx.sprint.id)
   const takeaways = await all<{ theme_id: string; takeaway: string; could_try: string; discussed: number }>(db, 'SELECT theme_id, takeaway, could_try, discussed FROM discussion_notes WHERE sprint_id = ?', ctx.sprint.id)
   const votes = await latestClosedTotals(db, ctx.sprint.id)
   const themesOut = rows.map((t) => {
@@ -97,6 +100,11 @@ export async function structuralChange(db: D1Database, ctx: SprintCtx, reason: u
   return stmts
 }
 
+/** A new theme, made or split off, fits under the cap. */
+async function roomForTheme(db: D1Database, sprintId: string) {
+  if ((await count(db, 'SELECT count(*) AS n FROM themes WHERE sprint_id = ?', sprintId)) >= MAX_THEMES) throw conflict(`${MAX_THEMES} themes is the limit — merge some first`)
+}
+
 const assign = (sprintId: string, themeId: string, entryIds: string[]): [string, ...unknown[]][] =>
   entryIds.map((eid) => ['INSERT INTO theme_entries (entry_id, theme_id) SELECT id, ? FROM entries WHERE id = ? AND sprint_id = ? ON CONFLICT(entry_id) DO UPDATE SET theme_id = excluded.theme_id', themeId, eid, sprintId])
 
@@ -112,7 +120,7 @@ themes.post('/api/sprints/:sprintId/themes', async (c) => {
   const body = await jsonBody<Record<string, unknown>>(c)
   const title = content(isEncrypted(ctx.sprint), body.title, 80, 'Theme title', true)!
   const entryIds = idList(body.entry_ids, 'entry_ids')
-  if ((await count(c.env.DB, 'SELECT count(*) AS n FROM themes WHERE sprint_id = ?', ctx.sprint.id)) >= 40) throw conflict('40 themes is the limit — merge some first')
+  await roomForTheme(c.env.DB, ctx.sprint.id)
   const id = uuid()
   const stmts = await structuralChange(c.env.DB, ctx, body.reset_voting_reason)
   stmts.push(['INSERT INTO themes (id, sprint_id, title, summary, question, draft_experiment, position, created_at) VALUES (?,?,?,?,?,?,(SELECT COALESCE(MAX(position),0)+1 FROM themes WHERE sprint_id=?),?)', id, ctx.sprint.id, title, content(isEncrypted(ctx.sprint), body.summary, 500, 'Summary', false) ?? '', content(isEncrypted(ctx.sprint), body.question, 240, 'Question', false) ?? '', content(isEncrypted(ctx.sprint), body.draft_experiment, 300, 'Draft experiment', false), ctx.sprint.id, Date.now()])
@@ -194,6 +202,7 @@ themes.post('/api/sprints/:sprintId/themes/:themeId/split', async (c) => {
   const entryIds = idList(body.entry_ids, 'entry_ids')
   const src = await one<{ position: number }>(c.env.DB, 'SELECT position FROM themes WHERE id = ? AND sprint_id = ?', tid, ctx.sprint.id)
   if (!src) throw notFound('theme not found')
+  await roomForTheme(c.env.DB, ctx.sprint.id)
   const nid = uuid()
   const stmts = await structuralChange(c.env.DB, ctx, body.reset_voting_reason)
   stmts.push(['INSERT INTO themes (id, sprint_id, title, position, created_at) VALUES (?,?,?,?,?)', nid, ctx.sprint.id, title, src.position + 1, Date.now()])

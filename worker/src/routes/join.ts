@@ -20,6 +20,7 @@ import { randomToken, sha256Hex, uuid } from '../lib/crypto'
 import { all, audit, batch, count, one, run } from '../lib/db'
 import { AppError, bad, conflict, forbidden, notFound } from '../lib/errors'
 import { grantChecker, mayGrant, mayRevoke } from '../lib/grants'
+import { HAS_SEAT } from '../lib/limits'
 import { accountBucket, clientClass, limit } from '../lib/ratelimit'
 import { jsonBody } from '../lib/util'
 
@@ -247,14 +248,16 @@ async function redeemDirect(db: D1Database, link: LinkRow, accountId: string, no
        ON CONFLICT(workspace_id, account_id) DO UPDATE SET role = CASE WHEN memberships.revoked_at IS NULL THEN memberships.role ELSE 'member' END, revoked_at = NULL`,
       link.workspace_id, accountId, now, link.id, redemption,
     ],
-    [`INSERT OR IGNORE INTO sprint_participants (sprint_id, account_id, is_facilitator, created_at) SELECT id, ?, 0, ? FROM sprints WHERE id = ? AND status NOT IN ('completed','archived') AND ${won}`, accountId, now, link.sprint_id, link.id, redemption],
+    [`INSERT OR IGNORE INTO sprint_participants (sprint_id, account_id, is_facilitator, created_at) SELECT id, ?, 0, ? FROM sprints WHERE id = ? AND status NOT IN ('completed','archived') AND ${HAS_SEAT} AND ${won}`, accountId, now, link.sprint_id, link.id, redemption],
     [`INSERT INTO join_requests (id, link_id, workspace_id, sprint_id, account_id, status, created_at, decided_at, decided_by) SELECT ?, ?, ?, ?, ?, 'approved', ?, ?, ? WHERE ${won}`, requestId, link.id, link.workspace_id, link.sprint_id, accountId, now, now, link.created_by, link.id, redemption],
     [`INSERT INTO audit_events (workspace_id, sprint_id, actor_id, action, meta, created_at) SELECT ?, ?, ?, 'join_link.redeemed', ?, ? WHERE ${won}`, link.workspace_id, link.sprint_id, accountId, JSON.stringify({ link_id: link.id }), now, link.id, redemption],
   ])
   const after = await one<{ redeemed_by: string | null }>(db, 'SELECT redeemed_by FROM join_links WHERE id = ?', link.id)
   // The same account in two tabs: one redemption won, and either way this person is now a member.
   if (after?.redeemed_by !== accountId) throw new AppError(410, 'link_used', 'this personal invite link was already used — ask for a new one')
-  return { state: 'member', workspace_id: link.workspace_id, sprint_id: link.sprint_id }
+  // The sprint, only if they're in it now (it may have finished, or be full).
+  const seated = !!link.sprint_id && (await isMemberOf(db, link.workspace_id, link.sprint_id, accountId))
+  return { state: 'member', workspace_id: link.workspace_id, sprint_id: seated ? link.sprint_id : null }
 }
 
 /** The requester's own view of their request (bounded status checks from the waiting page). */
@@ -358,7 +361,7 @@ async function decide(c: DecideCtx, verdict: 'approved' | 'declined') {
          ON CONFLICT(workspace_id, account_id) DO UPDATE SET role = CASE WHEN memberships.revoked_at IS NULL THEN memberships.role ELSE 'member' END, revoked_at = NULL`,
         req.workspace_id, req.account_id, now, ...tag,
       ],
-      [`INSERT OR IGNORE INTO sprint_participants (sprint_id, account_id, is_facilitator, created_at) SELECT id, ?, 0, ? FROM sprints WHERE id = ? AND status NOT IN ('completed','archived') AND ${mine}`, req.account_id, now, req.sprint_id, ...tag],
+      [`INSERT OR IGNORE INTO sprint_participants (sprint_id, account_id, is_facilitator, created_at) SELECT id, ?, 0, ? FROM sprints WHERE id = ? AND status NOT IN ('completed','archived') AND ${HAS_SEAT} AND ${mine}`, req.account_id, now, req.sprint_id, ...tag],
     )
   }
   stmts.push([`INSERT INTO audit_events (workspace_id, sprint_id, actor_id, action, meta, created_at) SELECT ?, ?, ?, ?, ?, ? WHERE ${mine}`, req.workspace_id, req.sprint_id, m.auth.account.id, `join_request.${verdict}`, JSON.stringify({ request_id: req.id, account_id: req.account_id }), now, ...tag])

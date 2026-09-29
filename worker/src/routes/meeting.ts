@@ -14,6 +14,7 @@ import { all, audit, bool, count, one, run } from '../lib/db'
 import { bad, conflict, notFound } from '../lib/errors'
 import { hint, room, roomCall, roomSocketHeaders, type Resource } from '../lib/live'
 import { isObject, jsonBody } from '../lib/util'
+import { MAX_NOTES_EACH } from '../lib/limits'
 import type { AgendaItem, RoomState } from '../room'
 import { PHASES } from '../room'
 import { ensureRoom } from './sprints'
@@ -37,7 +38,7 @@ export async function snapshot(env: HonoEnv['Bindings'], ctx: SprintCtx, known?:
     db.batch([
       db.prepare('SELECT a.id AS account_id, a.display_name, a.avatar_id, sp.is_facilitator FROM sprint_participants sp JOIN accounts a ON a.id = sp.account_id WHERE sp.sprint_id = ? ORDER BY sp.is_facilitator DESC, a.display_name').bind(sid),
       db.prepare('SELECT theme_id FROM discussion_notes WHERE sprint_id = ? AND discussed = 1').bind(sid),
-      db.prepare('SELECT id, theme_id, body, kind, released_batch FROM context_additions WHERE sprint_id = ? AND author_account_id = ? ORDER BY created_at LIMIT 100').bind(sid, me),
+      db.prepare('SELECT id, theme_id, body, kind, released_batch FROM context_additions WHERE sprint_id = ? AND author_account_id = ? ORDER BY created_at').bind(sid, me),
       db.prepare('SELECT EXISTS (SELECT 1 FROM themes WHERE sprint_id = ? AND parked = 0) AS themed, EXISTS (SELECT 1 FROM context_additions WHERE sprint_id = ? AND released_batch IS NULL) AS waiting').bind(sid, sid),
     ]),
   ])
@@ -285,7 +286,16 @@ meeting.post('/api/sprints/:sprintId/meeting/context', async (c) => {
   const themeId = String(body.theme_id ?? '')
   if (!(await count(c.env.DB, 'SELECT count(*) AS n FROM themes WHERE id = ? AND sprint_id = ?', themeId, ctx.sprint.id))) throw notFound('theme not found')
   const key = typeof body.idempotency_key === 'string' && body.idempotency_key.trim() && body.idempotency_key.length <= 64 ? body.idempotency_key.trim() : null
-  await run(c.env.DB, 'INSERT OR IGNORE INTO context_additions (id, sprint_id, theme_id, author_account_id, body, kind, idempotency_key, created_at) VALUES (?,?,?,?,?,?,?,?)', uuid(), ctx.sprint.id, themeId, ctx.auth.account.id, text, kind, key, Date.now())
+  const me = ctx.auth.account.id
+  // Capped as they're written (so everything added is always shown); a retry of one already kept
+  // is answered with it.
+  const added = await run(
+    c.env.DB,
+    'INSERT OR IGNORE INTO context_additions (id, sprint_id, theme_id, author_account_id, body, kind, idempotency_key, created_at) SELECT ?,?,?,?,?,?,?,? WHERE (SELECT count(*) FROM context_additions WHERE sprint_id = ? AND author_account_id = ?) < ?',
+    uuid(), ctx.sprint.id, themeId, me, text, kind, key, Date.now(), ctx.sprint.id, me, MAX_NOTES_EACH,
+  )
+  if (!added.meta.changes && !(key && (await count(c.env.DB, 'SELECT count(*) AS n FROM context_additions WHERE sprint_id = ? AND author_account_id = ? AND idempotency_key = ?', ctx.sprint.id, me, key))))
+    throw conflict(`you’ve added ${MAX_NOTES_EACH} notes in this retro — that’s the limit`)
   // Only the facilitator's snapshot changes ("something is waiting"), and the author's own list:
   // nobody else is told that anything was added, or when.
   await hint(c.env, ctx.sprint.id, 'meeting', { facilitators: true, accounts: [ctx.auth.account.id] })

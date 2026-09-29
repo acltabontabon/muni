@@ -13,6 +13,7 @@ import { all, count, one, run } from '../lib/db'
 import { AppError, bad, conflict, notFound } from '../lib/errors'
 import { jsonBody, nonempty, optional } from '../lib/util'
 import { content, encryptionRequired, entryBinding, isEncrypted } from '../lib/sealed'
+import { MAX_ENTRIES_EACH, MAX_PARTICIPANTS } from '../lib/limits'
 
 export const entries = new Hono<HonoEnv>()
 export const CATEGORIES = ['proud', 'keep', 'improve', 'stop', 'try']
@@ -65,8 +66,9 @@ function requireEnvelope(envelope: string, sprintId: string, recordId: string) {
   if (!b || b.s !== sprintId || b.r !== recordId) throw encryptionRequired('The observation')
 }
 
+/** Every thought, once revealed: what's bounded is what can be written (lib/limits.ts), never what is shown. */
 export async function sharedEntries(db: D1Database, sprintId: string): Promise<SharedEntry[]> {
-  return all<SharedEntry>(db, `${SHARED_SELECT} WHERE e.sprint_id = ? ORDER BY e.reveal_order, e.id LIMIT 2000`, sprintId)
+  return all<SharedEntry>(db, `${SHARED_SELECT} WHERE e.sprint_id = ? ORDER BY e.reveal_order, e.id`, sprintId)
 }
 export const sealed = (status: string) => status === 'draft' || status === 'collecting'
 
@@ -92,7 +94,11 @@ entries.post('/api/sprints/:sprintId/entries', async (c) => {
     const existing = await one<MyRow>(db, `SELECT ${MY_COLS} FROM entries WHERE sprint_id = ? AND author_account_id = ? AND idempotency_key = ?`, ctx.sprint.id, me, key)
     if (existing) return c.json(myEntry(existing, true))
   }
-  if ((await count(db, 'SELECT count(*) AS n FROM entries WHERE sprint_id = ? AND author_account_id = ?', ctx.sprint.id, me)) >= 200) throw conflict('you’ve saved 200 entries for this sprint — that’s the limit')
+  // Thoughts are capped as they're written — per person, and so per sprint (people who have left
+  // count too, since what they wrote stays) — and never when they're read.
+  const held = await one<{ mine: number; total: number }>(db, 'SELECT (SELECT count(*) FROM entries WHERE sprint_id = ? AND author_account_id = ?) AS mine, (SELECT count(*) FROM entries WHERE sprint_id = ?) AS total', ctx.sprint.id, me, ctx.sprint.id)
+  if (Number(held?.mine) >= MAX_ENTRIES_EACH) throw conflict(`you’ve saved ${MAX_ENTRIES_EACH} entries for this sprint — that’s the limit`)
+  if (Number(held?.total) >= MAX_ENTRIES_EACH * MAX_PARTICIPANTS) throw conflict('this sprint holds as many thoughts as it can — nothing more can be added')
   const id = encrypted ? key! : uuid()
   if (encrypted && (await count(db, 'SELECT count(*) AS n FROM entries WHERE id = ?', id))) throw conflict('that record id is taken')
   const now = Date.now()
@@ -120,7 +126,7 @@ entries.post('/api/sprints/:sprintId/entries', async (c) => {
 entries.get('/api/sprints/:sprintId/entries/mine', async (c) => {
   const ctx = await requireSprint(c, config(c.env), c.env.DB, c.req.param('sprintId'))
   requireParticipant(ctx)
-  const rows = await all<MyRow>(c.env.DB, `SELECT ${MY_COLS} FROM entries WHERE sprint_id = ? AND author_account_id = ? ORDER BY created_at DESC LIMIT 200`, ctx.sprint.id, ctx.auth.account.id)
+  const rows = await all<MyRow>(c.env.DB, `SELECT ${MY_COLS} FROM entries WHERE sprint_id = ? AND author_account_id = ? ORDER BY created_at DESC`, ctx.sprint.id, ctx.auth.account.id)
   return c.json(rows.map((r) => myEntry(r, ctx.sprint.status === 'collecting')))
 })
 

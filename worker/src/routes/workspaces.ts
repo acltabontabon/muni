@@ -13,6 +13,7 @@ import { enqueueStatement, runSoon } from '../jobs'
 import { forgetRoom, revokeLive } from '../lib/live'
 import { deleteWorkspaces, facilitated, openSprints, retroRooms, revokeMembership, standing, type Standing } from '../lib/departure'
 import { EMAIL_OF_A } from '../lib/accounts'
+import { seat } from './sprints'
 
 export const workspaces = new Hono<HonoEnv>()
 
@@ -122,7 +123,7 @@ workspaces.post('/api/workspaces/:workspaceId/invitations', async (c) => {
   if (m.role === 'owner') {
     const existing = await one<{ id: string }>(db, 'SELECT ae.account_id AS id FROM account_emails ae JOIN memberships mm ON mm.account_id = ae.account_id WHERE ae.email = ? AND mm.workspace_id = ? AND mm.revoked_at IS NULL', email, m.workspaceId)
     if (existing) {
-      if (sprintId) await run(db, 'INSERT OR IGNORE INTO sprint_participants (sprint_id, account_id, is_facilitator, created_at) VALUES (?,?,0,?)', sprintId, existing.id, Date.now())
+      if (sprintId) await seat(db, sprintId, existing.id)
       return c.json({ invitation_id: '00000000-0000-0000-0000-000000000000', email, already_member: true })
     }
   }

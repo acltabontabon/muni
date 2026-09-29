@@ -11,6 +11,7 @@ import { accountByEmail, emailOf, setAccountEmail } from '../lib/accounts'
 import { INTRO, introName, isAvatarId } from '../lib/avatars'
 import { deleteAccount, free, openSprints, retroRooms, standing } from '../lib/departure'
 import { mayGrant } from '../lib/grants'
+import { HAS_SEAT } from '../lib/limits'
 import { forgetRoom, revokeLive } from '../lib/live'
 
 export const auth = new Hono<HonoEnv>()
@@ -291,9 +292,11 @@ auth.post('/api/invitations/accept', async (c) => {
     ],
     ['INSERT INTO audit_events (workspace_id, actor_id, action, meta, created_at) VALUES (?,?,?,?,?)', inv.workspace_id, a.account.id, 'invitation.accepted', JSON.stringify({ invitation_id: inv.id }), Date.now()],
   ]
-  if (inv.sprint_id) stmts.push(['INSERT OR IGNORE INTO sprint_participants (sprint_id, account_id, is_facilitator, created_at) SELECT id, ?, 0, ? FROM sprints WHERE id = ? AND status NOT IN (\'completed\',\'archived\')', a.account.id, Date.now(), inv.sprint_id])
+  if (inv.sprint_id) stmts.push([`INSERT OR IGNORE INTO sprint_participants (sprint_id, account_id, is_facilitator, created_at) SELECT id, ?, 0, ? FROM sprints WHERE id = ? AND status NOT IN ('completed','archived') AND ${HAS_SEAT}`, a.account.id, Date.now(), inv.sprint_id])
   await batch(c.env.DB, stmts)
   if (!a.account.email && !(await accountByEmail(c.env.DB, inv.email)) && (await setAccountEmail(c.env.DB, a.account.id, inv.email)))
     await securityEvent(c.env.DB, a.account.id, 'email.added', { via: 'invitation' })
-  return c.json({ workspace_id: inv.workspace_id, sprint_id: inv.sprint_id })
+  // The sprint, only if they're in it now (it may have finished, or be full).
+  const seated = !!inv.sprint_id && !!(await one(c.env.DB, 'SELECT 1 AS x FROM sprint_participants WHERE sprint_id = ? AND account_id = ?', inv.sprint_id, a.account.id))
+  return c.json({ workspace_id: inv.workspace_id, sprint_id: seated ? inv.sprint_id : null })
 })

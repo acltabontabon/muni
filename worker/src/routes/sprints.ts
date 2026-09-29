@@ -11,6 +11,7 @@ import { cancelReminders, cancelRemindersStatement, scheduleReminders } from '..
 import { defaultPlan } from '../room'
 import { content, ENCRYPTION, isEncrypted, publicKey } from '../lib/sealed'
 import { sealedVersion, wrapStatements } from './keys'
+import { HAS_SEAT, MAX_PARTICIPANTS } from '../lib/limits'
 
 export const sprints = new Hono<HonoEnv>()
 
@@ -168,6 +169,13 @@ function validateSchedule(s: ScheduleInput) {
   return { timezone, starts_on, ends_on, retro_date, retro_time, retro_duration_min: Math.round(dur), retro_at }
 }
 
+/** Adds someone to a sprint while it has room (the check and the insert are one statement). */
+export async function seat(db: D1Database, sprintId: string, accountId: string) {
+  const r = await run(db, `INSERT OR IGNORE INTO sprint_participants (sprint_id, account_id, is_facilitator, created_at) SELECT id, ?, 0, ? FROM sprints WHERE id = ? AND ${HAS_SEAT}`, accountId, Date.now(), sprintId)
+  if (!r.meta.changes && !(await count(db, 'SELECT count(*) AS n FROM sprint_participants WHERE sprint_id = ? AND account_id = ?', sprintId, accountId)))
+    throw conflict(`a sprint can have at most ${MAX_PARTICIPANTS} participants`)
+}
+
 async function activeMember(db: D1Database, workspaceId: string, accountId: string) {
   return (await count(db, 'SELECT count(*) AS n FROM memberships WHERE workspace_id = ? AND account_id = ? AND revoked_at IS NULL', workspaceId, accountId)) > 0
 }
@@ -189,7 +197,7 @@ sprints.post('/api/workspaces/:workspaceId/sprints', async (c) => {
   if (!(budget >= 1 && budget <= 10)) throw bad('votes per person must be between 1 and 10')
   const facilitator = String(body.facilitator_id ?? '')
   const ids = new Set<string>([...idList(body.participant_ids, 'participant_ids'), facilitator])
-  if (ids.size > 60) throw bad('a sprint can have at most 60 participants')
+  if (ids.size > MAX_PARTICIPANTS) throw bad(`a sprint can have at most ${MAX_PARTICIPANTS} participants`)
   for (const id of ids) if (!(await activeMember(c.env.DB, m.workspaceId, id))) throw bad('every participant must be a member of this workspace')
   // An encrypted sprint's keys are bound to its id before it exists, so the client chooses it.
   if (encrypted && (typeof body.id !== 'string' || !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/.test(body.id))) throw bad('an encrypted sprint needs its id from your device')
@@ -228,7 +236,8 @@ sprints.post('/api/workspaces/:workspaceId/sprints', async (c) => {
 
 sprints.get('/api/workspaces/:workspaceId/sprints', async (c) => {
   const m = await requireMember(c, config(c.env), c.env.DB, c.req.param('workspaceId'))
-  const rows = await all<SummaryRow>(c.env.DB, `SELECT ${WITH_SUMMARY} FROM sprints s ${MINE} WHERE s.workspace_id = ? ORDER BY s.starts_on DESC, s.created_at DESC LIMIT 200`, m.auth.account.id, m.workspaceId)
+  // Every sprint the workspace has: a list that stopped at some number would lose the oldest quietly.
+  const rows = await all<SummaryRow>(c.env.DB, `SELECT ${WITH_SUMMARY} FROM sprints s ${MINE} WHERE s.workspace_id = ? ORDER BY s.starts_on DESC, s.created_at DESC`, m.auth.account.id, m.workspaceId)
   return c.json(rows.map(summary))
 })
 
@@ -330,7 +339,7 @@ sprints.post('/api/sprints/:sprintId/participants', async (c) => {
   const body = await jsonBody<{ account_id?: string }>(c)
   const id = String(body.account_id ?? '')
   if (!(await activeMember(c.env.DB, ctx.sprint.workspace_id, id))) throw bad('that person isn’t a member of this workspace')
-  await run(c.env.DB, 'INSERT OR IGNORE INTO sprint_participants (sprint_id, account_id, is_facilitator, created_at) VALUES (?,?,0,?)', ctx.sprint.id, id, Date.now())
+  await seat(c.env.DB, ctx.sprint.id, id)
   await hint(c.env, ctx.sprint.id, 'sprint')
   return c.json({ ok: true })
 })

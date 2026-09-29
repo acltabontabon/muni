@@ -175,7 +175,8 @@ commitments.delete('/api/sprints/:sprintId/experiments/:experimentId', async (c)
 
 commitments.get('/api/workspaces/:workspaceId/experiments', async (c) => {
   const m = await requireMember(c, config(c.env), c.env.DB, c.req.param('workspaceId'))
-  const rows = await all<ExperimentRow>(c.env.DB, `${EXP_SELECT} WHERE e.workspace_id = ? ORDER BY s.starts_on DESC, e.created_at DESC LIMIT 200`, m.workspaceId)
+  // Every experiment still kept (outcome retention bounds them), never the newest few hundred.
+  const rows = await all<ExperimentRow>(c.env.DB, `${EXP_SELECT} WHERE e.workspace_id = ? ORDER BY s.starts_on DESC, e.created_at DESC`, m.workspaceId)
   return c.json(rows.map(expView))
 })
 
@@ -189,7 +190,7 @@ export async function generateRecap(db: D1Database, ctx: SprintCtx): Promise<str
   if (s.goal) out += `Sprint goal: ${s.goal}\n\n`
   const themes = await all<{ id: string; title: string; summary: string; parked: number; needs_attention: number; takeaway: string | null; what_happened: string | null; impact: string | null; could_try: string | null; discussed: number | null }>(
     db,
-    'SELECT t.id, t.title, t.summary, t.parked, t.needs_attention, d.takeaway, d.what_happened, d.impact, d.could_try, d.discussed FROM themes t LEFT JOIN discussion_notes d ON d.theme_id = t.id WHERE t.sprint_id = ? ORDER BY t.position LIMIT 100',
+    'SELECT t.id, t.title, t.summary, t.parked, t.needs_attention, d.takeaway, d.what_happened, d.impact, d.could_try, d.discussed FROM themes t LEFT JOIN discussion_notes d ON d.theme_id = t.id WHERE t.sprint_id = ? ORDER BY t.position',
     ctx.sprint.id,
   )
   const entries = await count(db, 'SELECT count(*) AS n FROM entries WHERE sprint_id = ?', ctx.sprint.id)
