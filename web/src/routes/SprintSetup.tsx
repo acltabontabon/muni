@@ -1,14 +1,16 @@
-import { useEffect, useMemo, useState, type FormEvent, type ReactNode } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent, type ReactNode } from 'react'
 import { Link, useNavigate, useParams } from 'react-router'
 import { ChevronDown } from 'lucide-react'
 import { clsx } from 'clsx'
 import { ApiError, del, get, patch, post } from '@/api/client'
 import { useResources } from '@/lib/resource'
 import type { SprintDetail, WorkspaceDetail } from '@/api/types'
+import { resync } from '@/lib/forms'
 import { describeRetro, zoneName } from '@/lib/schedule'
+import { planSetup, setupSteps, setupValues, type SetupValues } from '@/lib/setup-plan'
 import { Button, ErrorText, Help, Input, Label, Select, Spinner, Switch, useDocumentTitle, useToast } from '@/ui'
 import { AppShell } from '@/ui/shell'
-import { keyring } from '@/lib/e2ee/keyring'
+import { isLocked, keyring } from '@/lib/e2ee/keyring'
 import { b64u } from '@/lib/e2ee/crypto'
 import { useDeviceKeys } from '@/lib/e2ee/E2eeProvider'
 import { DeviceKeyNotice } from '@/ui/keys'
@@ -41,23 +43,7 @@ function instant(date: string, time: string, tz: string): number | null {
   }
 }
 
-type Form = {
-  name: string
-  external_ref: string
-  goal: string
-  opening_question: string
-  timezone: string
-  starts_on: string
-  ends_on: string
-  retro_date: string
-  retro_time: string
-  retro_duration_min: number
-  facilitator_id: string
-  participant_ids: string[]
-  reminders_enabled: boolean
-  vote_budget: number
-  encrypt: boolean
-}
+type Form = SetupValues & { encrypt: boolean }
 
 /** What's missing or inconsistent, by field — the same rules the server applies. */
 function problems(f: Form): Partial<Record<keyof Form, string>> {
@@ -124,35 +110,24 @@ export function SprintSetup() {
     encrypt: true,
   })
   useDocumentTitle(existing ? `Setup · ${existing.name}` : 'New sprint')
-  const { state: deviceKeys } = useDeviceKeys()
+  const { state: deviceKeys, keysEpoch } = useDeviceKeys()
   const [keyProblem, setKeyProblem] = useState('')
+  /** The server's setup the form was last filled from: fields still as they were follow newer values. */
+  const loaded = useRef<SetupValues | null>(null)
+  const loadSprint = useCallback(async (id: string) => {
+    const s = await get<SprintDetail>(`/api/sprints/${id}`)
+    const fresh = setupValues(s)
+    const prev = loaded.current
+    loaded.current = fresh
+    setExisting(s)
+    setF(({ encrypt: _encrypt, ...values }) => ({ ...(prev ? resync(values, prev, fresh) : fresh), encrypt: s.encryption === 'e1' }))
+    return s
+  }, [])
   useEffect(() => {
     ;(async () => {
       try {
         let wid = wsParam
-        if (sprintId) {
-          const s = await get<SprintDetail>(`/api/sprints/${sprintId}`)
-          setExisting(s)
-          wid = s.workspace_id
-          setF((p) => ({
-            ...p,
-            name: s.name,
-            external_ref: s.external_ref ?? '',
-            goal: s.goal ?? '',
-            opening_question: s.opening_question ?? '',
-            timezone: s.timezone,
-            starts_on: s.starts_on,
-            ends_on: s.ends_on,
-            retro_date: s.retro_local_date,
-            retro_time: s.retro_local_time,
-            retro_duration_min: s.retro_duration_min,
-            facilitator_id: s.participants.find((x) => x.is_facilitator)?.account_id ?? '',
-            participant_ids: s.participants.map((x) => x.account_id),
-            reminders_enabled: s.reminders_enabled,
-            vote_budget: s.vote_budget,
-            encrypt: s.encryption === 'e1',
-          }))
-        }
+        if (sprintId) wid = (await loadSprint(sprintId)).workspace_id
         const w = await get<WorkspaceDetail>(`/api/workspaces/${wid}`)
         setWs(w)
         if (!sprintId) {
@@ -163,7 +138,14 @@ export function SprintSetup() {
         setError(err instanceof ApiError ? err.message : 'Couldn’t load')
       }
     })()
-  }, [wsParam, sprintId])
+  }, [wsParam, sprintId, loadSprint])
+  // This device just unlocked: an opening question it couldn't show can be shown (and edited) now.
+  const epochSeen = useRef(keysEpoch)
+  useEffect(() => {
+    if (!sprintId || keysEpoch === epochSeen.current) return
+    epochSeen.current = keysEpoch
+    loadSprint(sprintId).catch(() => {})
+  }, [sprintId, keysEpoch, loadSprint])
 
   const set = <K extends keyof Form>(k: K, v: Form[K]) => setF((p) => ({ ...p, [k]: v }))
   const issues = problems(f)
@@ -185,22 +167,50 @@ export function SprintSetup() {
     try {
       const schedule = { timezone: f.timezone, starts_on: f.starts_on, ends_on: f.ends_on, retro_date: f.retro_date, retro_time: f.retro_time, retro_duration_min: Number(f.retro_duration_min) }
       if (existing) {
-        const body: Record<string, unknown> = { name: f.name, external_ref: f.external_ref, goal: f.goal, opening_question: f.opening_question, schedule, facilitator_id: f.facilitator_id, reminders_enabled: f.reminders_enabled, vote_budget: Number(f.vote_budget) }
-        const oldFac = existing.participants.find((p) => p.is_facilitator)?.account_id
-        if (existing.encryption === 'e1' && f.facilitator_id !== oldFac) {
-          // The sprint's key goes with the role, sealed on this device to the new facilitator.
+        const { encrypt: _encrypt, ...values } = f
+        const plan = planSetup(loaded.current ?? setupValues(existing), values)
+        const body: Record<string, unknown> = { ...plan.fields }
+        const nameOf = (id: string) => ws?.members.find((m) => m.account_id === id)?.display_name ?? 'Someone'
+        if (plan.handover && existing.encryption === 'e1') {
+          // The sprint's key goes with the role, sealed on this device to the new facilitator — every
+          // version it holds, the one still sealed included. Nothing is sent if that can't be done.
           const keys = await get<{ account_id: string; public_key: string }[]>(`/api/workspaces/${existing.workspace_id}/member-keys`)
-          const theirs = keys.find((k) => k.account_id === f.facilitator_id)
+          const theirs = keys.find((k) => k.account_id === plan.handover)
           if (!theirs) {
             setKeyProblem('They haven’t set up encryption yet, so they can’t hold this sprint’s key. Ask them to open Muni first, or keep the current facilitator.')
             return
           }
-          body.key_wraps = await keyring.wrapAllFor(existing.id, theirs)
+          try {
+            body.key_wraps = await keyring.wrapAllFor(existing.id, { ...theirs, display_name: nameOf(theirs.account_id) })
+          } catch (e) {
+            setKeyProblem(e instanceof Error ? e.message : 'This device couldn’t pass on the sprint’s key.')
+            return
+          }
         }
-        await patch(`/api/sprints/${existing.id}`, body)
-        for (const id of f.participant_ids) if (!existing.participants.some((p) => p.account_id === id)) await post(`/api/sprints/${existing.id}/participants`, { account_id: id })
-        for (const p of existing.participants) if (!f.participant_ids.includes(p.account_id) && !p.is_facilitator) await del(`/api/sprints/${existing.id}/participants/${p.account_id}`)
-        toast('Setup saved')
+        // One request at a time, in the order the server takes them (lib/setup-plan). If one fails,
+        // what went through is said, and the next save starts from what's saved now.
+        const done: string[] = []
+        try {
+          for (const step of setupSteps(plan)) {
+            if (step.kind === 'add') {
+              await post(`/api/sprints/${existing.id}/participants`, { account_id: step.accountId })
+              done.push(`${nameOf(step.accountId)} was added`)
+            } else if (step.kind === 'remove') {
+              await del(`/api/sprints/${existing.id}/participants/${step.accountId}`)
+              done.push(`${nameOf(step.accountId)} was taken off it`)
+            } else {
+              await patch(`/api/sprints/${existing.id}`, body)
+              done.push(plan.handover ? `${nameOf(plan.handover)} facilitates it now` : 'the sprint’s details were saved')
+            }
+          }
+        } catch (err) {
+          const why = err instanceof ApiError ? sentence(err.message) : 'Something went wrong.'
+          setError(done.length ? `Only part of this was saved: ${done.join(', ')}. ${why} Check the setup and save again.` : why)
+          resources.invalidate(`/api/sprints/${existing.id}`)
+          await loadSprint(existing.id).catch(() => {})
+          return
+        }
+        toast(done.length ? 'Setup saved' : 'Nothing had changed')
         resources.invalidate(`/api/sprints/${existing.id}`)
         resources.invalidate(`/api/workspaces/${existing.workspace_id}`)
         nav(`/sprints/${existing.id}`)
@@ -250,8 +260,14 @@ export function SprintSetup() {
   const retroAt = instant(f.retro_date, f.retro_time, f.timezone)
   const preview = retroAt ? describeRetro(retroAt, f.timezone) : null
   const facilitatorIsYou = ws.members.find((m) => m.is_you)?.account_id === f.facilitator_id
-  const everyone = ws.members.every((m) => f.participant_ids.includes(m.account_id) || m.account_id === f.facilitator_id)
-  const count = new Set([...f.participant_ids, f.facilitator_id]).size
+  // Whoever facilitates now stays in the sprint: handing over leaves them a participant (the new
+  // facilitator can take them off it later).
+  const current = existing ? loaded.current?.facilitator_id : undefined
+  const handingOver = !!current && current !== f.facilitator_id
+  const stays = (id: string) => id === f.facilitator_id || id === current
+  const everyone = ws.members.every((m) => f.participant_ids.includes(m.account_id) || stays(m.account_id))
+  const count = new Set([...f.participant_ids, f.facilitator_id, ...(current ? [current] : [])]).size
+  const questionLocked = isLocked(f.opening_question)
 
   return (
     <AppShell>
@@ -335,13 +351,13 @@ export function SprintSetup() {
                 <option key={m.account_id} value={m.account_id}>{m.display_name}{m.is_you ? ' (you)' : ''}</option>
               ))}
             </Select>
-            {keyProblem ? <p className="mt-1.5 text-sm text-danger" role="alert">{keyProblem}</p> : <Help>Opens and closes collection, prepares the discussion and runs the retro. They also write and vote like everyone else.{!facilitatorIsYou ? ' Only they will be able to manage this sprint.' : ''}{f.encrypt ? ' While collecting, only their devices hold the key that reveals thoughts.' : ''}</Help>}
+            {keyProblem ? <p className="mt-1.5 text-sm text-danger" role="alert">{keyProblem}</p> : <Help>Opens and closes collection, prepares the discussion and runs the retro. They also write and vote like everyone else.{!facilitatorIsYou ? ' Only they will be able to manage this sprint.' : ''}{f.encrypt ? ' While collecting, only their devices hold the key that reveals thoughts.' : ''}{handingOver ? ' You stay in the sprint as a participant.' : ''}</Help>}
           </div>
           <fieldset>
             <div className="mb-1.5 flex items-center justify-between gap-3">
               <legend className="text-sm font-medium">Participants <span className="font-normal text-ink-soft">· {count}</span></legend>
               {ws.members.length > 2 ? (
-                <button type="button" className="text-sm text-accent-ink hover:underline" onClick={() => set('participant_ids', everyone ? [f.facilitator_id] : ws.members.map((m) => m.account_id))}>
+                <button type="button" className="text-sm text-accent-ink hover:underline" onClick={() => set('participant_ids', everyone ? ws.members.map((m) => m.account_id).filter(stays) : ws.members.map((m) => m.account_id))}>
                   {everyone ? 'Clear' : 'Everyone'}
                 </button>
               ) : null}
@@ -350,9 +366,9 @@ export function SprintSetup() {
               {ws.members.map((m) => (
                 <li key={m.account_id}>
                   <label className="flex cursor-pointer items-center gap-3 rounded-xl px-2.5 py-2 hover:bg-ink/5">
-                    <input type="checkbox" className="size-4 accent-[var(--accent)]" checked={f.participant_ids.includes(m.account_id) || m.account_id === f.facilitator_id} disabled={m.account_id === f.facilitator_id} onChange={(e) => set('participant_ids', e.target.checked ? [...f.participant_ids, m.account_id] : f.participant_ids.filter((x) => x !== m.account_id))} />
+                    <input type="checkbox" className="size-4 accent-[var(--accent)]" checked={f.participant_ids.includes(m.account_id) || stays(m.account_id)} disabled={stays(m.account_id)} onChange={(e) => set('participant_ids', e.target.checked ? [...f.participant_ids, m.account_id] : f.participant_ids.filter((x) => x !== m.account_id))} />
                     <span className="min-w-0 flex-1 truncate">{m.display_name}{m.is_you ? <span className="text-ink-faint"> (you)</span> : null}</span>
-                    {m.account_id === f.facilitator_id ? <span className="text-xs text-ink-faint">facilitator</span> : null}
+                    {m.account_id === f.facilitator_id ? <span className="text-xs text-ink-faint">facilitator</span> : handingOver && m.account_id === current ? <span className="text-xs text-ink-faint">stays in</span> : null}
                   </label>
                 </li>
               ))}
@@ -384,8 +400,9 @@ export function SprintSetup() {
               <Switch id="f-reminders" checked={f.reminders_enabled} onCheckedChange={(v) => set('reminders_enabled', v)} label="Send two gentle reminder emails" description="Mid-sprint and the day before the retro, to everyone who hasn’t turned them off. Never based on who has or hasn’t written." />
               <div>
                 <Label htmlFor="f-opening_question" hint="optional">Opening question for the retro</Label>
-                <Input id="f-opening_question" value={f.opening_question} onChange={(e) => set('opening_question', e.target.value)} placeholder="What’s one thing from this sprint you’d want a new teammate to know?" maxLength={200} />
-                <Help>Shown for a minute while people arrive. Skip it to go straight to the conversation.</Help>
+                {/* One this device can't show yet stays as it is: it's never copied back over the real one. */}
+                <Input id="f-opening_question" value={questionLocked ? '' : f.opening_question} disabled={questionLocked} onChange={(e) => set('opening_question', e.target.value)} placeholder={questionLocked ? 'Can’t be shown on this device' : 'What’s one thing from this sprint you’d want a new teammate to know?'} maxLength={200} />
+                <Help>{questionLocked ? 'This device doesn’t have the sprint’s key yet, so the question can’t be shown or changed here. Saving leaves it as it is.' : 'Shown for a minute while people arrive. Skip it to go straight to the conversation.'}</Help>
               </div>
               <div className="grid gap-4 sm:grid-cols-2">
                 <div>
