@@ -387,8 +387,9 @@ function Pile({ t, n, all, sprintId, canEdit, picked, onToggle, addable, onAdd, 
           <p className="sort-pile-meta">
             <span>{t.entry_count} {t.entry_count === 1 ? 'thought' : 'thoughts'}</span>
             {mix.length ? (
-              <span className="sort-mix" aria-label={mix.map(([c, k]) => `${k} ${categoryMeta(c).label}`).join(', ')}>
-                {mix.map(([c, k]) => Array.from({ length: k }, (_, i) => <i key={`${c}${i}`} style={{ background: categoryMeta(c).color }} />))}
+              <span className="sort-mix">
+                {mix.map(([c, k]) => Array.from({ length: k }, (_, i) => <i key={`${c}${i}`} aria-hidden style={{ background: categoryMeta(c).color }} />))}
+                <span className="sr-only">{mix.map(([c, k]) => `${k} ${categoryMeta(c).label}`).join(', ')}</span>
               </span>
             ) : null}
             {typeof t.votes === 'number' ? <span>{t.votes} {t.votes === 1 ? 'vote' : 'votes'}</span> : null}

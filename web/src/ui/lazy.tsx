@@ -12,8 +12,7 @@ import { Button, Spinner } from '@/ui'
  * the Muni now served, or the connection dropped before this part was ever kept — it says so and
  * offers a reload instead of leaving a blank page. Nothing reloads by itself.
  */
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-export function lazyPart<M, P extends Record<string, any>>(load: () => Promise<M>, pick: (m: M) => ComponentType<P>) {
+export function lazyPart<M, P extends object>(load: () => Promise<M>, pick: (m: M) => ComponentType<P>) {
   return lazy(async () => {
     try {
       return { default: pick(await load()) }
