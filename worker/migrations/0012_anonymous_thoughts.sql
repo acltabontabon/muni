@@ -10,6 +10,12 @@
 -- 3. `context_additions` gets an index by sprint (and author), which every live-retro read of it
 --    filters by.
 
+DELETE FROM theme_entries WHERE entry_id IN (
+    SELECT id FROM entries
+    WHERE substr(body, 1, 23) = 'e1.eyJ2IjoxLCJ0IjoiZSIs'
+      AND sprint_id IN (SELECT id FROM sprints WHERE encryption = 'e1')
+);
+
 DELETE FROM entries
 WHERE substr(body, 1, 23) = 'e1.eyJ2IjoxLCJ0IjoiZSIs'
   AND sprint_id IN (SELECT id FROM sprints WHERE encryption = 'e1');
