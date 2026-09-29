@@ -237,14 +237,25 @@ talk beside Agree.
 
 **One shape, every step.** Each step is the same page: the question, one line saying what's
 happening and what everyone does, the room's content on the left, and a margin on the right —
-for the facilitator the tools of that step, for everyone else what to do on their phone. Look
-back opens with the retro at a glance: four steps, what each is for, and its minutes, so nobody
-wonders what's next. Choose says why it exists before it asks for anything: the talk has time for
-about three topics (its minutes are shared across the first three), so the votes decide which come
-first; three votes each is "your top three"; nobody sees whose; the count appears when the room
-moves on. The facilitator's margin counts how many have voted (never who), and once counted a
+for the facilitator the tools of that step, for everyone else what to do on their phone. A team's
+first retro opens Look back with the retro at a glance — four steps, what each is for, and its
+minutes; after that the rail says where the retro is, and the stage doesn't repeat it. Choose says
+why it exists in one line: everyone has a few votes for what they most want to talk about, the
+most-voted go first, and there's time for about so many. A round never gives more votes than half
+the topics (at least one; the sprint's setting is the most): a vote only says something when it
+means leaving something out, and three votes over three topics would let everyone vote for
+everything. Nobody sees whose; the count appears when the room moves on. The facilitator's margin counts how many have voted (never who), and once counted a
 dashed line marks about where the time runs out. On the phone the votes are a small purse of
 coins, spent one topic at a time.
+
+**The facilitator's cue.** A first-time facilitator shouldn't need to know the machinery to run a
+good retro. A card docked in the facilitator's margin, above the corner chips — on their own screen,
+never a presenting one — reads the room (lib/cue.ts) and says one line to say, in quotes, and the
+one thing to do: a verdict for last time's experiment; move on once most have voted; the topic's
+question, with asking the room as the quiet option; share the answers; what we take from it; an
+idea to try, and checking it; the next topic by name; enough experiments, end. Something added from
+a phone comes first. The card never decides: skipping it is always fine, and everything it offers
+is also on the stage. *Hide lines to say* keeps only the next step.
 
 **Who's here.** The rail shows the room as faces — each person's character, or a monogram in
 their own ink — lit while their stage or phone is open, dimmed when they've stepped away. As
@@ -253,21 +264,29 @@ people arrive while the room gathers (the first step), the stage says so, once, 
 reconnects, only the faces change: a shared screen never calls someone out, and nothing covers
 the conversation. (Earlier builds had playful lines; on a screen the whole team watches, a joke
 about a named person reads differently to the person named.) The facilitator's list says who's connected now, who's here without a device, and who
-isn't here yet.
+isn't here yet. Every count in the retro — the rail's "5 of 6 here", the vote's "of how many", the
+recap — counts the same people (lib/attendance.ts): the retro open, or marked here. The recap shows
+the faces of those who came and nobody else.
 
 **Quiet ways in.** A call is often two voices and a row of muted tiles. Muni doesn't call on
 anyone. It offers ways in that cost a moment: a *check-in* the facilitator can ask on a topic or an
 idea (one tap is a whole answer; a line is optional), and *Add to this discussion* on every phone.
 They're offered, never required. Nothing waits for everyone, and not answering means nothing. The
 facilitator's margin holds *Ask the room* — *Ask how it showed up*, then a
-quiet count and *Share answers*. When the answers are shared, they land in the talk itself: the
-counts in words at display size ("2 felt this · 1 not in their work") and the lines people wrote,
+quiet count and *Share answers* (the cue offers the same at the moment it fits). When the answers
+are shared, they land in the talk after the topic's own thoughts, under *What the room said*, and
+the screen brings them into view — the thoughts are what the room is there for, so they come
+first. The counts in words at display size ("2 felt this · 1 not in their work") and the lines people wrote,
 each beside its answer, in the category-in-the-margin voice. There are no percentages, no bars and
 no summary written for people. A concern about an idea is set in the accent italic and listed
 first, so a majority can't make it disappear. One answer reads as one answer; none shows nothing
 at all. The phone's check-in is the one tinted panel on the page: three full-width answers with a
 drawn check mark, "Saving…" until the server has it, then a line saying it can still change. A
 topic's own words stay visible above and below it.
+
+**Agree on the shared screen** asks one thing first — the change — and only then how we'll know it
+helped and who owns it; a date and the theme it came from wait behind a link. Using an idea from
+the talk fills the change and opens the rest.
 
 Presenting (**H**) removes every control, so the shared screen shows only the room's words. The
 phone carries the private things — your votes, your answers, what you add without your name, and

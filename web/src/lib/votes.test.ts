@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { votePurse } from './votes'
+import { fairBudget, votePurse } from './votes'
 
 const round = (budget: number, mine: string[]) => ({ budget, my_votes: mine, my_remaining: budget - mine.length })
 
@@ -20,5 +20,13 @@ describe('vote purse', () => {
     // A vote on a topic no longer listed still counts against the budget.
     expect(votePurse({ budget: 2, my_votes: ['gone'], my_remaining: 1 }, ['a', 'b', 'c'])).toEqual({ size: 2, used: 0, left: 1 })
     expect(votePurse(round(3, []), [])).toEqual({ size: 0, used: 0, left: 0 })
+  })
+})
+
+describe('fair budget', () => {
+  it('is never more than half the topics, so choosing always leaves something out', () => {
+    expect([1, 2, 3, 4, 5, 6, 7, 12].map((n) => fairBudget(3, n))).toEqual([1, 1, 1, 2, 2, 3, 3, 3])
+    expect(fairBudget(5, 12)).toBe(5)
+    expect(fairBudget(1, 9)).toBe(1)
   })
 })

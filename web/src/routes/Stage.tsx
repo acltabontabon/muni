@@ -8,13 +8,15 @@ import { PHASE_LABEL, categoryMeta } from '@/lib/categories'
 import { applyAppearance } from '@/lib/prefs'
 import { useStage } from '@/lib/stage'
 import { talkTime } from '@/lib/talk-time'
-import { votePurse } from '@/lib/votes'
+import { fairBudget, votePurse } from '@/lib/votes'
+import { isHere } from '@/lib/attendance'
+import { cueFor, type Cue as CueLine, type CueAction, type CueState } from '@/lib/cue'
 import { shortDate } from '@/lib/schedule'
 import { Button, Dialog, Spinner, fmtClock, useCountdown, useDocumentTitle, useToast } from '@/ui'
 import { ReconnectingBar } from '@/ui/status'
 import { ExperimentEditor } from '@/ui/experiments'
 import { ConfirmDialog, useSprintControl } from '@/ui/sprint-bar'
-import { BehindLine, CouldntLoad, NoteField, PastExperiment, RetroMap, Thought, TopicHorizon, worthKeeping } from '@/ui/retro'
+import { BehindLine, CouldntLoad, NoteField, PastExperiment, RetroMap, Thought, TopicHorizon, VERDICTS, worthKeeping } from '@/ui/retro'
 import { ASK, CheckinResult, kindWord } from '@/ui/checkin'
 import { Mark } from '@/brand/Mark'
 import { Face } from '@/ui/faces'
@@ -62,6 +64,8 @@ function StageRoom({ sprintId }: { sprintId: string }) {
   const st = useStage(sprintId)
   const { sprint, stage, grouping, votes, experiments, previous, command } = st
   const [reader, setReader] = useState<string | null>(null) // theme id, or 'ungrouped'
+  // Asking to end the retro: Agree's button or the cue's.
+  const [ending, setEnding] = useState(false)
   useDocumentTitle(sprint ? `${sprint.name} · retro` : 'Retro')
   useEffect(() => {
     applyAppearance({ force: (params.get('theme') as 'light' | 'dark' | null) ?? 'dark' })
@@ -159,7 +163,7 @@ function StageRoom({ sprintId }: { sprintId: string }) {
   }
 
   return (
-    <div className="stage retro min-h-dvh text-ink" data-presenting={presenting || undefined}>
+    <div className="stage retro min-h-dvh text-ink" data-presenting={presenting || undefined} data-cue={(controls && running) || undefined}>
       <Rail stage={stage} name={sprint.name} controls={controls} onStep={toStep} onForward={forward} topics={topics} topicAt={topicAt} themes={themes} sprintId={sprintId} onPresent={st.putStage} command={command} />
       <Arrivals key={String(fac)} stage={stage} />
       <main className="retro-main">
@@ -168,8 +172,9 @@ function StageRoom({ sprintId }: { sprintId: string }) {
         {stage.phase === 'look_back' ? <LookBack n={phaseIdx + 1} stage={stage} previous={previous} wins={worthKeeping([...themes.flatMap((t) => t.entries), ...ungrouped])} controls={controls} onVerdict={async (e, status) => { try { st.putPrevious(await patch<Experiment[]>(`/api/sprints/${sprintId}/experiments/previous/${e.id}`, { status })) } catch (err) { toast(err instanceof ApiError ? err.message : 'Couldn’t save', 'danger') } }} /> : null}
         {stage.phase === 'choose' ? <Choose n={phaseIdx + 1} stage={stage} themes={themes} ungrouped={ungrouped} votes={votes} controls={controls} sprintId={sprintId} budget={sprint.vote_budget} onRead={setReader} onVotes={st.putVotes} /> : null}
         {stage.phase === 'talk' ? <Talk n={phaseIdx + 1} stage={stage} themes={themes} ungrouped={ungrouped} topics={topics} controls={controls} command={run} onNote={saveNote} sprintId={sprintId} checkins={{ list: st.checkins, put: st.putCheckin }} /> : null}
-        {stage.phase === 'agree' ? <Agree n={phaseIdx + 1} themes={themes} experiments={experiments} controls={controls} sprintId={sprintId} participants={sprint.participants} onChange={() => void st.refresh('experiments')} checkins={{ list: st.checkins, put: st.putCheckin }} onEnd={async () => { try { await post(`/api/sprints/${sprintId}/transition`, { to: 'completed' }); nav(`/sprints/${sprintId}`) } catch (e) { toast(e instanceof ApiError ? e.message : 'Couldn’t end the retro', 'danger') } }} /> : null}
+        {stage.phase === 'agree' ? <Agree n={phaseIdx + 1} themes={themes} experiments={experiments} controls={controls} sprintId={sprintId} participants={sprint.participants} onChange={() => void st.refresh('experiments')} checkins={{ list: st.checkins, put: st.putCheckin }} ending={ending} setEnding={setEnding} onEnd={async () => { try { await post(`/api/sprints/${sprintId}/transition`, { to: 'completed' }); nav(`/sprints/${sprintId}`) } catch (e) { toast(e instanceof ApiError ? e.message : 'Couldn’t end the retro', 'danger') } }} /> : null}
       </main>
+      {controls && running ? <CueDock stage={stage} themes={themes} topics={topics} topicAt={topicAt} previous={previous} votes={votes} budget={sprint.vote_budget} experiments={experiments} checkins={{ list: st.checkins, put: st.putCheckin }} sprintId={sprintId} run={run} onForward={forward} onEnd={() => setEnding(true)} /> : null}
       <div className="retro-corner">
         {fac ? (
           <>
@@ -223,7 +228,7 @@ function Rail({ stage, name, controls, onStep, onForward, topics, topicAt, theme
   const nextStep = stage.phases[idx + 1]
   const nextTopic = stage.phase === 'talk' && topicAt >= 0 && topicAt < topics.length - 1 ? topics[topicAt + 1] : null
   const nextLabel = nextTopic ? `Next topic` : nextStep ? PHASE_LABEL[nextStep] : null
-  const present = stage.attendance.filter((a) => a.present)
+  const here = stage.attendance.filter(isHere)
   // Who else is here is the facilitator's to know: a screen that's only told about you says nothing.
   const others = stage.attendance.some((a) => !a.is_you)
   return (
@@ -246,8 +251,8 @@ function Rail({ stage, name, controls, onStep, onForward, topics, topicAt, theme
             <People stage={stage} sprintId={sprintId} onPresent={onPresent} command={command} />
           ) : others ? (
             <span className="retro-room retro-room--still">
-              <span className="retro-room-faces" aria-hidden>{stage.attendance.filter((a) => a.connected || a.present).slice(0, 5).map((a) => <Face key={a.account_id} a={a} state={a.connected ? 'on' : a.present ? 'here' : 'away'} />)}</span>
-              <span className="retro-room-n">{present.length}<span> here</span></span>
+              <span className="retro-room-faces" aria-hidden>{here.slice(0, 5).map((a) => <Face key={a.account_id} a={a} state={a.connected ? 'on' : 'here'} />)}</span>
+              <span className="retro-room-n">{here.length}<span> here</span></span>
             </span>
           ) : null}
           {controls && nextLabel ? (
@@ -329,6 +334,8 @@ function People({ stage, sprintId, onPresent, command }: { stage: StageSnapshot;
   const [saving, setSaving] = useState<string | null>(null)
   const people = [...stage.attendance].sort((a, b) => Number(b.connected) - Number(a.connected) || Number(b.present) - Number(a.present) || a.display_name.localeCompare(b.display_name))
   const connected = people.filter((a) => a.connected).length
+  // One number everywhere: here is connected, or marked here without a device (lib/attendance).
+  const here = people.filter(isHere).length
   // The answer is the stage as it is now: shown at once, with nothing read again.
   const mark = async (a: Attendee) => {
     setSaving(a.account_id)
@@ -343,16 +350,16 @@ function People({ stage, sprintId, onPresent, command }: { stage: StageSnapshot;
   return (
     <Popover.Root>
       <Popover.Trigger asChild>
-        <button className="retro-room" aria-label={`Who’s here: ${connected} of ${people.length} connected`}>
+        <button className="retro-room" aria-label={`Who’s here: ${here} of ${people.length}`}>
           <span className="retro-room-faces" aria-hidden>
             {people.slice(0, 5).map((a) => <Face key={a.account_id} a={a} state={a.connected ? 'on' : a.present ? 'here' : 'away'} />)}
           </span>
-          <span className="retro-room-n">{connected}<span>/{people.length}</span></span>
+          <span className="retro-room-n">{here}<span> of {people.length} here</span></span>
         </button>
       </Popover.Trigger>
       <Popover.Portal>
         <Popover.Content align="end" sideOffset={8} className="retro-pop anim-rise">
-          <p className="retro-pop-title">Who’s here <span>{connected} of {people.length} connected</span></p>
+          <p className="retro-pop-title">Who’s here <span>{here} of {people.length}{connected !== here ? ` · ${connected} connected` : ''}</span></p>
           <p className="retro-pop-hint">Lit while someone has the retro open, on the stage or their phone. Tick someone who’s in the room without a device.</p>
           <ul className="retro-pop-list">
             {people.map((a) => (
@@ -390,7 +397,8 @@ function LookBack({ n, stage, previous, wins, controls, onVerdict }: { n: number
       {stage.opening_question && !isLocked(stage.opening_question) ? (
         <p className="retro-opening"><span className="retro-note-label">While everyone arrives</span><em>{stage.opening_question}</em></p>
       ) : null}
-      <RetroMap phases={stage.phases} plan={stage.plan} now={stage.phase} />
+      {/* The steps and their times are news once: after that, the rail says where the retro is. */}
+      {previous.length ? null : <RetroMap phases={stage.phases} plan={stage.plan} now={stage.phase} />}
       <div className="retro-two">
         {previous.length ? (
           <ol className="retro-exps">{previous.map((e) => <PastExperiment key={e.id} e={e} onVerdict={controls ? (s) => onVerdict(e, s) : undefined} />)}</ol>
@@ -417,20 +425,20 @@ function Choose({ n: step, stage, themes, ungrouped, votes, controls, sprintId, 
   const totals = !round ? closed?.totals ?? null : null
   const max = totals ? Math.max(1, ...Object.values(totals)) : 1
   const list = totals ? [...themes].sort((a, b) => (totals[b.id] ?? 0) - (totals[a.id] ?? 0)) : themes
-  const { reach, minutes, per } = talkTime(stage.plan, themes.length)
-  // What a person can cast: the budget, but one vote per topic at most.
+  const { reach, per } = talkTime(stage.plan, themes.length)
+  // What a person can cast: the round's budget (never more than half the topics), one vote per topic.
   const purse = round ? votePurse(round, themes.map((t) => t.id)) : null
-  const each = purse?.size ?? Math.min(budget, themes.length)
-  // Who could be voting: the people in the room (a device open, or marked here), not everyone invited.
-  const people = Math.max(stage.attendance.filter((a) => a.connected || a.present).length, round?.voters ?? 0, 1)
+  const each = purse?.size ?? fairBudget(budget, themes.length)
+  const votesWord = `${nWord(each)} ${each === 1 ? 'vote' : 'votes'}`
+  // Who could be voting: the people here (lib/attendance), the same count as the rail's.
+  const people = Math.max(stage.attendance.filter(isHere).length, round?.voters ?? 0, 1)
   const single = themes.length <= 1
+  const time = reach >= themes.length ? <>There’s time for all {nWord(themes.length)}, about {per} minutes each.</> : <>There’s time for about <strong>{nWord(reach)}</strong> of these {nWord(themes.length)}.</>
   const sub = single
     ? 'There’s only one topic, so there’s nothing to choose between. Move on and talk about it.'
     : totals
       ? <>The votes are in. The talk starts at the top and goes down the list — there’s time for about <strong>{nWord(reach)}</strong>.</>
-      : reach >= themes.length
-        ? <>The talk has about {minutes} minutes: enough for <strong>all {nWord(themes.length)} topics</strong>, around {per} minutes each. Vote for the ones that matter most to you — the most-voted go first.</>
-        : <>The talk has about {minutes} minutes: time for about <strong>{nWord(reach)} of these {nWord(themes.length)} topics</strong>, around {per} minutes each. Vote for the ones you most want to talk about — the most-voted go first.</>
+      : <>Everyone has <strong>{votesWord}</strong>, for what they most want to talk about. The most-voted go first. {time}</>
   return (
     <section>
       <Head n={step} kicker="Choose" title={<>What matters <em>most</em>?</>} sub={sub} />
@@ -467,21 +475,16 @@ function Choose({ n: step, stage, themes, ungrouped, votes, controls, sprintId, 
           {round && controls && !single ? (
             <div className="rm-block rm-block--lead">
               <p className="retro-note-label">Votes so far</p>
-              <p className="rm-big">{round.voters ?? 0}<span> of {people} {people === 1 ? 'person' : 'people'}</span></p>
+              <p className="rm-big">{round.voters ?? 0}<span> of {people} here</span></p>
               <span className="rm-dots" aria-hidden>{Array.from({ length: people }, (_, i) => <i key={i} data-on={i < (round.voters ?? 0) || undefined} />)}</span>
-              <p className="rm-text">Move on when most have voted. <strong>Next: Talk</strong> counts the votes and opens the top topic.</p>
-              {purse ? <p className="rm-text rm-quiet">{purse.left < purse.size ? `Your own votes: ${purse.size - purse.left} cast.` : 'Your own votes go on your phone, or in Your own votes and answers — never on this screen.'}</p> : null}
+              <p className="rm-text rm-quiet">{purse && purse.left < purse.size ? `Your own: ${purse.size - purse.left} cast, on your phone.` : 'Your own votes go on your phone — never on this screen.'}</p>
             </div>
           ) : null}
           {!single && !totals ? (
             <div className="rm-block">
-              <p className="retro-note-label">How voting works</p>
-              <ol className="rm-steps">
-                <li><strong>{each === 1 ? 'One vote each.' : `${nWord(each)[0].toUpperCase()}${nWord(each).slice(1)} votes each, one per topic.`}</strong> {each === 1 ? 'The one topic that matters most to you.' : `Like picking your top ${nWord(each)}: enough to say what matters, too few to vote for everything.`}</li>
-                <li><strong>Private.</strong> Nobody sees whose votes are whose, not even the facilitator. The counts appear when the room moves on.</li>
-                <li><strong>Then the talk</strong> takes the topics from the top. Anything not reached stays on the sprint’s page.</li>
-              </ol>
-              {controls ? <p className="rm-text rm-quiet">The number of votes is set in the sprint’s setup (1–10).</p> : <p className="rm-text">Vote on your phone, or in Vote and add privately.</p>}
+              <p className="retro-note-label">Voting</p>
+              <p className="rm-text"><strong>{votesWord[0].toUpperCase() + votesWord.slice(1)} each</strong>{each > 1 ? ', one per topic' : ''}, {controls ? 'on phones' : 'on your phone'}. Private: nobody sees whose are whose, not even the facilitator. The counts appear when the room moves on.</p>
+              {!controls ? <p className="rm-text rm-quiet">No phone? Use Vote and add privately.</p> : null}
             </div>
           ) : null}
           {totals ? (
@@ -532,12 +535,40 @@ function useAsking(sprintId: string, checkins: Checkins) {
   return { open, share }
 }
 
+/** The current topic's check-ins: asked about the topic, and about its idea as it's worded now. */
+function topicChecks(stage: StageSnapshot, checkins: CheckinView[]) {
+  const id = stage.current_theme_id
+  const topic = id ? checkins.find((c) => c.theme_id === id && c.kind === 'topic') ?? null : null
+  const action = id ? checkins.find((c) => c.theme_id === id && c.kind === 'action') ?? null : null
+  // An idea reworded after it was checked: its answers were about other words, so they aren't its answers.
+  const reworded = !!action && !!stage.notes.could_try && action.could_try !== stage.notes.could_try
+  return { topic, action, reworded }
+}
+
+/**
+ * The talk. The topic's own thoughts come first — they're what the room is there to talk about —
+ * then what the room said along the way: check-ins shared, and what was added from phones. When one
+ * of those arrives, the screen brings it into view.
+ */
 function Talk({ n, stage, themes, ungrouped, topics, controls, command, onNote, sprintId, checkins }: { n: number; stage: StageSnapshot; themes: ThemeView[]; ungrouped: SharedEntry[]; topics: string[]; controls: boolean; command: (c: Parameters<Command>[0]) => void; onNote: (themeId: string, field: 'takeaway' | 'could_try', value: string) => Promise<void>; sprintId: string; checkins: Checkins }) {
   const current = stage.current_theme_id
   const theme = current && current !== 'ungrouped' ? themes.find((t) => t.id === current) ?? null : null
   const pos = current ? topics.indexOf(current) : -1
   const title = (id: string) => (id === 'ungrouped' ? 'Not in a theme' : themes.find((t) => t.id === id)?.title ?? '')
   const asking = useAsking(sprintId, checkins)
+  const { topic: topicCheck, action: actionCheck, reworded } = topicChecks(stage, checkins.list)
+  const said = useRef<HTMLDivElement>(null)
+  // What the room said, as a key: it changes when a check-in is shared or something added is shown.
+  const heard = `${current}:${topicCheck?.status}:${reworded ? '' : actionCheck?.status}:${theme?.context.length ?? 0}`
+  const lastHeard = useRef(heard)
+  useEffect(() => {
+    const before = lastHeard.current
+    lastHeard.current = heard
+    // A new topic starts at the top; only something new within the same topic is brought into view.
+    if (before === heard || before.split(':')[0] !== heard.split(':')[0]) return
+    const reduce = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches
+    said.current?.scrollIntoView?.({ behavior: reduce ? 'auto' : 'smooth', block: 'nearest' })
+  }, [heard])
   if (!current || pos < 0)
     return (
       <section>
@@ -555,10 +586,9 @@ function Talk({ n, stage, themes, ungrouped, topics, controls, command, onNote, 
       </section>
     )
   const entries = theme ? theme.entries : ungrouped
-  const topicCheck = theme ? checkins.list.find((c) => c.theme_id === theme.id && c.kind === 'topic') ?? null : null
-  const actionCheck = theme ? checkins.list.find((c) => c.theme_id === theme.id && c.kind === 'action') ?? null : null
-  // An idea reworded after it was checked: its answers were about other words, so they aren't shown as its answers.
-  const reworded = !!actionCheck && !!stage.notes.could_try && actionCheck.could_try !== stage.notes.could_try
+  const moments = [topicCheck, reworded ? null : actionCheck].filter((c): c is CheckinView => !!c)
+  const shared = moments.filter((c) => c.status === 'shared' && c.results?.responded)
+  const asked = moments.filter((c) => c.status === 'open')
   return (
     <section key={current} className="retro-talk anim-rise">
       <TopicHorizon topics={topics} current={current} discussed={stage.discussed_theme_ids} titleOf={title} onPick={controls ? (id) => command({ type: 'set_topic', theme_id: id }) : undefined} />
@@ -566,48 +596,40 @@ function Talk({ n, stage, themes, ungrouped, topics, controls, command, onNote, 
         <p className="retro-kicker retro-kicker--now"><span>{String(n).padStart(2, '0')}</span>Now talking about · topic {pos + 1} of {topics.length}{typeof theme?.votes === 'number' && theme.votes > 0 ? ` · ${theme.votes} ${theme.votes === 1 ? 'vote' : 'votes'}` : ''}</p>
         <h1 className="retro-talk-title">{theme ? theme.title : 'Not in a theme'}</h1>
         {theme?.question ? <p className="retro-talk-q">{theme.question}</p> : !theme ? <p className="retro-talk-q">The thoughts nobody grouped, exactly as written.</p> : null}
-        {topicCheck ? <Moment c={topicCheck} /> : null}
-        {actionCheck && !reworded ? <Moment c={actionCheck} /> : null}
+        {asked.map((c) => <Moment key={c.id} c={c} />)}
         <ul className="retro-thoughts retro-thoughts--talk">{entries.map((e) => <Thought key={e.id} e={e} />)}</ul>
-        {theme?.context.length ? (
-          <div className="retro-added">
-            <h2 className="retro-col-title">Added during the retro <span>without names</span></h2>
-            <ul className="retro-thoughts">
+        <div ref={said} className="retro-said">
+          {shared.length || theme?.context.length ? <h2 className="retro-col-title retro-said-title">What the room said <span>without names</span></h2> : null}
+          {shared.map((c) => <Moment key={c.id} c={c} />)}
+          {theme?.context.length ? (
+            <ul className="retro-thoughts retro-said-added">
               {theme.context.map((c) => (
                 <li key={c.id} className="retro-thought retro-thought--added anim-rise">
-                  <span className="retro-cat">{kindWord(c.kind)}</span>
+                  <span className="retro-cat">{kindWord(c.kind) || 'added'}</span>
                   <div className="retro-words"><p className="retro-text">{c.body}</p></div>
                 </li>
               ))}
             </ul>
-          </div>
-        ) : null}
+          ) : null}
+        </div>
       </div>
       <aside className="retro-margin">
         <Clock stage={stage} controls={controls} command={command} />
-        {controls && theme ? (
-          <div className="rm-block">
-            <p className="retro-note-label">Ask the room</p>
-            <p className="rm-text rm-quiet">A private question on every phone: did this show up in your work? Useful when only a few are talking.</p>
-            <div className="retro-asks">
-              <AskControl c={topicCheck} idle="Ask how it showed up" onOpen={() => asking.open(theme.id, 'topic')} onShare={asking.share} />
-            </div>
-          </div>
-        ) : null}
         {theme ? (
           <div className="rm-block">
             <Note label="We’ll remember" value={stage.notes.takeaway} controls={controls} placeholder="What the room takes from this, in a line" onSave={(v) => onNote(theme.id, 'takeaway', v)} />
             <div className="retro-note-group">
               <Note label="We could try" value={stage.notes.could_try} controls={controls} placeholder="An idea to try — it waits for Agree" onSave={(v) => onNote(theme.id, 'could_try', v)} />
-              {controls && stage.notes.could_try ? <AskControl c={reworded ? null : actionCheck} idle={reworded ? 'Check this wording with the room' : 'Check it with the room'} onOpen={() => asking.open(theme.id, 'action', reworded)} onShare={asking.share} quiet /> : null}
+              {controls && stage.notes.could_try ? <AskControl c={reworded ? null : actionCheck} idle={reworded ? 'Check this wording with the room' : 'Check it with the room'} onOpen={() => asking.open(theme.id, 'action', reworded)} onShare={asking.share} /> : null}
             </div>
             {!controls && !stage.notes.takeaway && !stage.notes.could_try ? <p className="rm-text rm-quiet">What the room will remember, and ideas to try, appear here.</p> : null}
           </div>
         ) : null}
-        {controls && stage.has_unreleased_context ? (
-          <button className="retro-waiting" onClick={() => command({ type: 'release_context' })}>
-            <span>Someone added to the discussion from their phone, without a name.</span> Share it with the room
-          </button>
+        {controls && theme ? (
+          <div className="rm-block">
+            <p className="retro-note-label">Ask the room</p>
+            <div className="retro-asks"><AskControl c={topicCheck} idle="Ask how it showed up" onOpen={() => asking.open(theme.id, 'topic')} onShare={asking.share} /></div>
+          </div>
         ) : null}
         {!controls ? <p className="rm-text rm-quiet">On your phone: add an example, another view or a question — without your name.</p> : null}
       </aside>
@@ -634,16 +656,18 @@ function Moment({ c }: { c: CheckinView }) {
   )
 }
 
-/** The facilitator's side of a check-in: ask; then share when it helps, or just keep talking. */
-function AskControl({ c, idle, onOpen, onShare, quiet }: { c: CheckinView | null; idle: string; onOpen: () => void; onShare: (c: CheckinView) => void; quiet?: boolean }) {
-  if (!c) return <button className={quiet ? 'retro-link retro-ask-quiet' : 'retro-ask'} onClick={onOpen}>{idle}</button>
+/**
+ * The facilitator's side of a check-in, in one line: ask; while it's open, how many have answered
+ * and a way to share; once shared, what came back. The cue suggests when — this is always here.
+ */
+function AskControl({ c, idle, onOpen, onShare }: { c: CheckinView | null; idle: string; onOpen: () => void; onShare: (c: CheckinView) => void }) {
+  if (!c) return <button className="retro-link retro-ask-quiet" onClick={onOpen}>{idle}</button>
   if (c.status === 'open')
     return (
-      <div className="retro-asking">
-        <p className="retro-asking-n">{c.answers ? `${c.answers} ${c.answers === 1 ? 'answer' : 'answers'} so far` : 'Asked · no answers yet'}</p>
-        <button className="retro-ask retro-ask--share" onClick={() => onShare(c)}>Share answers</button>
-        <p className="retro-ask-hint">Shows the counts and lines, without names, and closes it. Or keep talking: it stays open.</p>
-      </div>
+      <p className="retro-asking">
+        <span className="retro-asking-n">{c.answers ? `${c.answers} ${c.answers === 1 ? 'answer' : 'answers'} so far` : 'Asked · no answers yet'}</span>
+        <button className="retro-link" onClick={() => onShare(c)}>Share answers</button>
+      </p>
     )
   return <p className="retro-ask-hint">{c.results?.responded ? `Shared · ${c.results.responded} ${c.results.responded === 1 ? 'answer' : 'answers'}` : 'Shared · no answers came in'}</p>
 }
@@ -677,17 +701,124 @@ function Note({ label, value, controls, placeholder, onSave }: { label: string; 
   )
 }
 
+// ---------- the cue: one line to say, one thing to do ----------
+const CUE_SAY = 'muni.cue.say'
+function readSay() {
+  try {
+    return localStorage.getItem(CUE_SAY) !== 'off'
+  } catch {
+    return true
+  }
+}
+
+/**
+ * The facilitator's cue, docked at the foot of their screen and never on the presenting one: the
+ * line to say next and the one thing to do (lib/cue.ts reads the room). A first retro can be run
+ * from it alone; the lines can be turned off once they're second nature, and the rest of the stage
+ * works the same either way.
+ */
+function CueDock({ stage, themes, topics, topicAt, previous, votes, budget, experiments, checkins, sprintId, run, onForward, onEnd }: { stage: StageSnapshot; themes: ThemeView[]; topics: string[]; topicAt: number; previous: Experiment[]; votes: ReturnType<typeof useStage>['votes']; budget: number; experiments: Experiment[]; checkins: Checkins; sprintId: string; run: (c: Parameters<Command>[0]) => Promise<void>; onForward: () => void; onEnd: () => void }) {
+  const [say, setSay] = useState(readSay)
+  const asking = useAsking(sprintId, checkins)
+  const remaining = useCountdown(stage.timer.ends_at ?? null, stage.timer.remaining_secs, stage.server_time)
+  const idx = stage.phases.indexOf(stage.phase)
+  const nextStep = stage.phases[idx + 1] ? PHASE_LABEL[stage.phases[idx + 1]] : null
+  const theme = stage.phase === 'talk' && stage.current_theme_id && stage.current_theme_id !== 'ungrouped' ? themes.find((t) => t.id === stage.current_theme_id) ?? null : null
+  const checks = topicChecks(stage, checkins.list)
+  const round = votes?.current ?? null
+  const totals = !round ? votes?.previous.find((r) => r.status === 'closed')?.totals ?? null : null
+  const counted = !!totals
+  // The most-voted topic, as the talk will open it (ties keep the themes' order).
+  const top = totals ? [...themes].sort((a, b) => (totals[b.id] ?? 0) - (totals[a.id] ?? 0))[0]?.title ?? null : null
+  const here = stage.attendance.filter(isHere).length
+  const title = (id: string | undefined) => (!id ? null : id === 'ungrouped' ? 'Not in a theme' : themes.find((t) => t.id === id)?.title ?? null)
+  const asked = (c: CheckinView | null) => (c ? { status: c.status, answers: c.answers } : null)
+  const state: CueState | null =
+    stage.phase === 'look_back'
+      ? { phase: 'look_back', undecided: previous.filter((e) => !(VERDICTS as readonly string[]).includes(e.status)).map((e) => e.change_to_try), decided: previous.filter((e) => (VERDICTS as readonly string[]).includes(e.status)).length, here, total: stage.attendance.length, next: nextStep }
+      : stage.phase === 'choose'
+        ? { phase: 'choose', topics: themes.length, votes: round ? votePurse(round, themes.map((t) => t.id)).size : fairBudget(budget, themes.length), voters: round?.voters ?? null, people: Math.max(here, round?.voters ?? 0, 1), counted, top, next: nextStep }
+        : stage.phase === 'talk' && stage.current_theme_id
+          ? {
+              phase: 'talk',
+              grouped: !!theme,
+              question: theme?.question || null,
+              takeaway: stage.notes.takeaway,
+              couldTry: stage.notes.could_try,
+              topicCheck: asked(checks.topic),
+              actionCheck: checks.reworded ? null : asked(checks.action),
+              waiting: !!stage.has_unreleased_context,
+              over: !!stage.timer.total_secs && remaining === 0,
+              nextTopic: topicAt >= 0 && topicAt < topics.length - 1 ? title(topics[topicAt + 1]) : null,
+              next: nextStep,
+            }
+          : stage.phase === 'agree'
+            ? { phase: 'agree', experiments: experiments.length, ideas: themes.filter((t) => t.could_try).length, ownerless: experiments.filter((e) => !e.owner_account_id).length }
+            : null
+  if (!state) return null
+  const cue = cueFor(state)
+  const focus = (label: string) => {
+    const el = document.querySelector<HTMLTextAreaElement>(`.retro-margin textarea[aria-label="${label}"]`)
+    el?.focus()
+    el?.scrollIntoView?.({ block: 'nearest' })
+  }
+  const act = (a: CueAction) => {
+    if (a === 'next') onForward()
+    else if (a === 'end') onEnd()
+    else if (a === 'release') void run({ type: 'release_context' })
+    else if (a === 'more_time') void run({ type: 'timer_adjust', delta_secs: 120 })
+    else if (a === 'write_remember') focus('We’ll remember')
+    else if (a === 'write_try') focus('We could try')
+    else if (a === 'ask_topic' && theme) void asking.open(theme.id, 'topic')
+    else if (a === 'ask_action' && theme) void asking.open(theme.id, 'action', !!checks.action)
+    else if (a === 'share_topic' && checks.topic) void asking.share(checks.topic)
+    else if (a === 'share_action' && checks.action) void asking.share(checks.action)
+  }
+  const toggle = () => {
+    setSay(!say)
+    try {
+      localStorage.setItem(CUE_SAY, say ? 'off' : 'on')
+    } catch {
+      /* remembered for this visit only */
+    }
+  }
+  return <CueCard cue={cue} say={say} onToggle={toggle} onAct={act} />
+}
+
+function CueCard({ cue, say, onToggle, onAct }: { cue: CueLine; say: boolean; onToggle: () => void; onAct: (a: CueAction) => void }) {
+  const line = say ? cue.say : null
+  return (
+    <aside className="cue" aria-label="Your cue">
+      <div className="cue-head">
+        <p className="cue-label">Your cue <span>only on your screen · H to present</span></p>
+        <button className="cue-toggle" aria-pressed={say} onClick={onToggle}>{say ? 'Hide lines to say' : 'Show lines to say'}</button>
+      </div>
+      <div aria-live="polite">
+        <div className="cue-body anim-rise" key={`${cue.say}|${cue.act?.do}|${cue.alt?.do}`}>
+          {line ? <p className="cue-say">“{line}”</p> : null}
+          {cue.hint ? <p className="cue-hint">{cue.hint}</p> : null}
+        </div>
+      </div>
+      {cue.act || cue.alt ? (
+        <div className="cue-do">
+          {cue.act ? <button className="cue-act" onClick={() => onAct(cue.act!.do)}>{cue.act.label}{cue.act.do === 'next' ? <ArrowRight className="size-4" aria-hidden /> : null}</button> : null}
+          {cue.alt ? <button className="cue-alt" onClick={() => onAct(cue.alt!.do)}>{cue.alt.label}</button> : null}
+        </div>
+      ) : null}
+    </aside>
+  )
+}
+
 // ---------- 4 · Agree ----------
 /** How far the room has got: at most three is the aim, so the count is said against it. */
 const agreedCount = (n: number) => (n === 0 ? 'none yet' : n <= 3 ? `${n} of up to 3` : `${n} — more than most teams can carry`)
 
-function Agree({ n, themes, experiments, controls, sprintId, participants, onChange, onEnd, checkins }: { n: number; themes: ThemeView[]; experiments: Experiment[]; controls: boolean; sprintId: string; participants: { account_id: string; display_name: string; is_facilitator: boolean; is_you: boolean }[]; onChange: () => void; onEnd: () => Promise<void>; checkins: Checkins }) {
+function Agree({ n, themes, experiments, controls, sprintId, participants, onChange, onEnd, checkins, ending, setEnding }: { n: number; themes: ThemeView[]; experiments: Experiment[]; controls: boolean; sprintId: string; participants: { account_id: string; display_name: string; is_facilitator: boolean; is_you: boolean }[]; onChange: () => void; onEnd: () => Promise<void>; checkins: Checkins; ending: boolean; setEnding: (on: boolean) => void }) {
   const ideas = themes.filter((t) => t.could_try || t.takeaway)
   const tryable = ideas.filter((t) => t.could_try)
   const asking = useAsking(sprintId, checkins)
   // The idea in the form: it fills the change in place, keeping whatever else was already typed there.
   const [seed, setSeed] = useState<{ text: string; themeId: string } | null>(null)
-  const [ending, setEnding] = useState(false)
   // Ending takes a moment, and everyone's screen moves with it: once asked, it isn't asked twice.
   const [closing, setClosing] = useState(false)
   const end = async () => {
@@ -701,7 +832,7 @@ function Agree({ n, themes, experiments, controls, sprintId, participants, onCha
   }
   const waiting = experiments.filter((e) => e.status === 'proposed')
   const sub = controls
-    ? 'Agree on one to three small changes for the next sprint. Each gets an owner, who says yes on their phone. They come back at the start of the next retro.'
+    ? 'One to three small changes for the next sprint, each with an owner. They come back at the start of the next retro.'
     : 'The team agrees on one to three small changes for the next sprint. If you’re asked to own one, your phone asks you to say yes.'
   return (
     <section>
@@ -727,7 +858,7 @@ function Agree({ n, themes, experiments, controls, sprintId, participants, onCha
           )}
           {controls ? (
             <div className="retro-editor">
-              <ExperimentEditor sprintId={sprintId} participants={participants} themes={themes.map((t) => ({ id: t.id, title: t.title }))} seed={seed} existingCount={experiments.length} onSaved={() => { setSeed(null); onChange() }} />
+              <ExperimentEditor stepwise sprintId={sprintId} participants={participants} themes={themes.map((t) => ({ id: t.id, title: t.title }))} seed={seed} existingCount={experiments.length} onSaved={() => { setSeed(null); onChange() }} />
             </div>
           ) : null}
         </div>
@@ -770,7 +901,7 @@ function Agree({ n, themes, experiments, controls, sprintId, participants, onCha
       {controls ? (
         <div className="retro-end">
           <Button size="lg" variant="primary" onClick={() => setEnding(true)}>End the retro</Button>
-          <span>When you’re done. Every screen and phone shows the retro is done; the sprint’s page keeps what the team agreed, and experiments can still be added there.</span>
+          <span>Every screen and phone shows it’s done; the sprint’s page keeps what the team agreed.</span>
         </div>
       ) : null}
       <Dialog open={ending} onOpenChange={(o) => !closing && setEnding(o)} title="End the retro?" description="Every screen and phone shows the retro is done. The sprint’s page keeps what the team will try, and what it said.">
@@ -793,5 +924,5 @@ function IdeaCheck({ c, idea, controls, onOpen, onShare }: { c: CheckinView | nu
   const reworded = !!c && c.could_try !== idea
   if (c && !reworded && c.status === 'shared') return c.results?.responded ? <div className="retro-idea-check"><CheckinResult c={c} /></div> : <p className="retro-ask-hint">Checked · no answers came in</p>
   if (!controls) return c && !reworded ? <p className="retro-ask-hint">Being checked on phones</p> : null
-  return <AskControl c={reworded ? null : c} idle={reworded ? 'Check this wording with the room' : 'Check it with the room'} onOpen={() => onOpen(reworded)} onShare={onShare} quiet />
+  return <AskControl c={reworded ? null : c} idle={reworded ? 'Check this wording with the room' : 'Check it with the room'} onOpen={() => onOpen(reworded)} onShare={onShare} />
 }

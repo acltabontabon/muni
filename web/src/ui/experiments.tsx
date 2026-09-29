@@ -8,7 +8,7 @@ import { Button, ErrorText, Help, Input, Label, Select, Textarea } from '@/ui'
  * it. Wording that reads like an intention ("be better") gets a suggestion, never a wall: the
  * facilitator can sharpen it or keep it as written, because a room mid-retro must never be stuck.
  */
-export function ExperimentEditor({ sprintId, participants, themes, defaultThemeId, defaultText, seed, existingCount, onSaved }: { sprintId: string; participants: Participant[]; themes: { id: string; title: string }[]; defaultThemeId?: string; defaultText?: string; /** An idea to start from ("Use this idea"): fills the change and its theme in place, keeping the rest of what's typed. */ seed?: { text: string; themeId: string } | null; existingCount: number; onSaved: () => void }) {
+export function ExperimentEditor({ sprintId, participants, themes, defaultThemeId, defaultText, seed, existingCount, onSaved, stepwise }: { sprintId: string; participants: Participant[]; themes: { id: string; title: string }[]; defaultThemeId?: string; defaultText?: string; /** An idea to start from ("Use this idea"): fills the change and its theme in place, keeping the rest of what's typed. */ seed?: { text: string; themeId: string } | null; existingCount: number; onSaved: () => void; /** On the shared screen: one question at a time — the change first, then how we'll know and who owns it; the date and theme only when asked for. */ stepwise?: boolean }) {
   const [change, setChange] = useState(seed?.text ?? defaultText ?? '')
   const [signal, setSignal] = useState('')
   const [owner, setOwner] = useState('')
@@ -19,6 +19,7 @@ export function ExperimentEditor({ sprintId, participants, themes, defaultThemeI
   const [override, setOverride] = useState(false)
   /** The suggestion shown for the wording that's in the box now; saving again keeps it as written. */
   const [nudged, setNudged] = useState<string | null>(null)
+  const [details, setDetails] = useState(false)
   const box = useRef<HTMLTextAreaElement>(null)
   const [seeded, setSeeded] = useState(seed)
   if (seed !== seeded) {
@@ -36,6 +37,9 @@ export function ExperimentEditor({ sprintId, participants, themes, defaultThemeI
   }, [seed])
   const nudge = nudged !== null && nudged === change ? vague(change) : null
   const fromTheme = themes.find((t) => t.id === theme)
+  // Stepwise, the rest of the form waits for the change: an empty form is one question, not six.
+  const started = !stepwise || !!change.trim()
+  const more = !stepwise || details || !!review
   const submit = async (e: FormEvent) => {
     e.preventDefault()
     setError('')
@@ -52,6 +56,7 @@ export function ExperimentEditor({ sprintId, participants, themes, defaultThemeI
       setTheme('')
       setOverride(false)
       setNudged(null)
+      setDetails(false)
       onSaved()
     } catch (err) {
       if (err instanceof ApiError && err.code === 'vague') setNudged(change)
@@ -91,6 +96,8 @@ export function ExperimentEditor({ sprintId, participants, themes, defaultThemeI
           <Help className="mt-1"><span id="ex-change-help">Small and specific, with a when — something the team could start on Monday.</span></Help>
         )}
       </div>
+      {started ? (
+      <>
       <div>
         <Label htmlFor="ex-signal">How will we know it helped?</Label>
         <Input id="ex-signal" value={signal} onChange={(e) => setSignal(e.target.value)} placeholder="PRs wait less than a day for a first review." maxLength={300} required />
@@ -106,12 +113,14 @@ export function ExperimentEditor({ sprintId, participants, themes, defaultThemeI
           </Select>
           <Help className="mt-1"><span id="ex-owner-help">They’re asked on their phone to say yes.</span></Help>
         </div>
+        {more ? (
         <div>
           <Label htmlFor="ex-review">Look at it again on</Label>
           <Input id="ex-review" type="date" value={review} onChange={(e) => setReview(e.target.value)} aria-describedby="ex-review-help" />
           <Help className="mt-1"><span id="ex-review-help">Leave empty for the next retro.</span></Help>
         </div>
-        {themes.length && !fromTheme ? (
+        ) : null}
+        {more && themes.length && !fromTheme ? (
           <div>
             <Label htmlFor="ex-theme">Came from</Label>
             <Select id="ex-theme" value={theme} onChange={(e) => setTheme(e.target.value)}>
@@ -123,10 +132,13 @@ export function ExperimentEditor({ sprintId, participants, themes, defaultThemeI
           </div>
         ) : null}
       </div>
+      {!more ? <button type="button" className="exp-form-more" onClick={() => setDetails(true)}>A date to look at it again{themes.length && !fromTheme ? ', or the theme it came from' : ''}</button> : null}
+      </>
+      ) : null}
       <ErrorText>{error}</ErrorText>
       <div className="exp-form-foot">
         <Button type="submit" variant="primary" busy={busy}>{nudge ? 'Add it as it is' : override ? 'Add it anyway' : 'Add experiment'}</Button>
-        <span>{owner ? 'It’s proposed until they say yes.' : 'You can choose an owner now or later.'}</span>
+        <span>{!started ? 'Then: how we’ll know it helped, and who owns it.' : owner ? 'It’s proposed until they say yes.' : 'You can choose an owner now or later.'}</span>
       </div>
     </form>
   )

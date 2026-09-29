@@ -411,6 +411,7 @@ export function SprintSetup() {
                   <Label htmlFor="f-vote_budget">Votes per person</Label>
                   <Input id="f-vote_budget" type="number" min={1} max={10} value={f.vote_budget} onChange={(e) => set('vote_budget', Number(e.target.value))} {...invalid('vote_budget')} />
                   <Problem id="p-vote_budget">{shown('vote_budget')}</Problem>
+                  {!shown('vote_budget') ? <Help>The most anyone gets. A retro never gives more than half its topics, so voting always means leaving some out.</Help> : null}
                 </div>
                 <div>
                   <Label htmlFor="f-ref" hint="optional">Tracker id</Label>

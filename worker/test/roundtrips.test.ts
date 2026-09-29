@@ -55,7 +55,8 @@ describe('database round trips', () => {
   it('the votes: the session and one batch, however many rounds there have been', async () => {
     const { owner, members, ws } = await team(2)
     const s = await sprint(owner, members, ws, 'collecting')
-    for (const [i, u] of members.entries()) await entry(u, s, 'improve', `thought ${i}`)
+    // Four topics, so each round gives two votes (never more than half the topics).
+    for (const [i, u] of [...members, ...members].entries()) await entry(u, s, 'improve', `thought ${i}`)
     const shared = await closeCollection(owner, s)
     const themes: string[] = []
     for (const e of shared) themes.push((await post(`/api/sprints/${s}/themes`, owner, { title: `T ${e.id.slice(0, 4)}`, entry_ids: [e.id] })).body.themes.at(-1).id)
@@ -72,9 +73,9 @@ describe('database round trips', () => {
     expect(byFac.current).toMatchObject({ status: 'open', voters: 2, my_votes: [], totals: null })
     expect(byFac.previous.map((r: { status: string; totals: Record<string, number> | null }) => [r.status, r.totals])).toEqual([['cancelled', null], ['closed', { [themes[0]]: 2, [themes[1]]: 1 }]])
     const mine = (await get(`/api/sprints/${s}/votes`, members[0])).body
-    expect(mine.current).toMatchObject({ voters: null, my_remaining: 1 })
-    expect([...mine.current.my_votes].sort()).toEqual([...themes].sort())
-    expect(mine.previous[1].my_votes.sort()).toEqual([...themes].sort())
+    expect(mine.current).toMatchObject({ voters: null, my_remaining: 0 })
+    expect([...mine.current.my_votes].sort()).toEqual([themes[0], themes[1]].sort())
+    expect(mine.previous[1].my_votes.sort()).toEqual([themes[0], themes[1]].sort())
   })
 
   it('making a sprint: the same trips for one participant or many', async () => {

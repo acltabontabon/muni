@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest'
 import { env } from 'cloudflare:test'
 import { closeCollection, del, entry, get, go, patch, post, sprint, team, type User } from './harness'
 import { structuralChange } from '../src/routes/themes'
+import { fairBudget } from '../src/routes/voting'
 import { batch } from '../src/lib/db'
 import type { SprintCtx } from '../src/lib/auth'
 
@@ -24,9 +25,9 @@ async function readyWithThemes(owner: User, members: User[], ws: string, n: numb
 describe('voting', () => {
   it('enforces the budget under concurrent casts', async () => {
     const { owner, members, ws } = await team(1)
-    const { s, themes } = await readyWithThemes(owner, members, ws, 5, { vote_budget: 3 })
+    const { s, themes } = await readyWithThemes(owner, members, ws, 6, { vote_budget: 3 })
     expect((await post(`/api/sprints/${s}/votes/rounds`, owner)).status).toBe(200)
-    const casts = Array.from({ length: 10 }, (_, i) => post(`/api/sprints/${s}/votes`, members[0], { theme_id: themes[i % 5], cast: true }))
+    const casts = Array.from({ length: 10 }, (_, i) => post(`/api/sprints/${s}/votes`, members[0], { theme_id: themes[i % 6], cast: true }))
     const results = await Promise.all(casts)
     for (const r of results) expect([200, 409]).toContain(r.status)
     const n = await env.DB.prepare('SELECT count(*) AS n FROM votes WHERE account_id = ? AND round_id IN (SELECT id FROM vote_rounds WHERE sprint_id = ?)').bind(members[0].account_id, s).first<{ n: number }>()
@@ -46,7 +47,7 @@ describe('voting', () => {
 
   it('allows one vote per theme, and withdrawing', async () => {
     const { owner, members, ws } = await team(1)
-    const { s, themes } = await readyWithThemes(owner, members, ws, 2, { vote_budget: 3 })
+    const { s, themes } = await readyWithThemes(owner, members, ws, 6, { vote_budget: 3 })
     await post(`/api/sprints/${s}/votes/rounds`, owner)
     const first = await post(`/api/sprints/${s}/votes`, members[0], { theme_id: themes[0], cast: true })
     expect(first.status).toBe(200)
@@ -70,7 +71,7 @@ describe('voting', () => {
 
   it('shows totals only after the round closes', async () => {
     const { owner, members, ws } = await team(2)
-    const { s, themes } = await readyWithThemes(owner, members, ws, 2)
+    const { s, themes } = await readyWithThemes(owner, members, ws, 4)
     // No round yet: casting is refused.
     expect((await post(`/api/sprints/${s}/votes`, members[0], { theme_id: themes[0], cast: true })).status).toBe(409)
     await post(`/api/sprints/${s}/votes/rounds`, owner)
@@ -209,18 +210,19 @@ describe('voting', () => {
     expect(open!.n).toBe(1)
     // The budget can't change while a round is open.
     expect((await patch(`/api/sprints/${s}`, owner, { vote_budget: 5 })).status).toBe(409)
-    // After a close, a new round can open (a second round in sequence) with the current budget.
+    // After a close, a new round can open (a second round in sequence) with the current budget —
+    // its fair share: one topic is one vote, whatever the setting.
     await post(`/api/sprints/${s}/votes/rounds/close`, owner, { action: 'close' })
     const third = await post(`/api/sprints/${s}/votes/rounds`, owner)
     expect(third.status).toBe(200)
-    expect(third.body.current.budget).toBe(3)
+    expect(third.body.current.budget).toBe(1)
     expect(third.body.previous).toHaveLength(2)
   })
 
   it('suggests an order from the totals on close, sinking parked themes', async () => {
     const { owner, members, ws } = await team(2)
-    const { s, themes } = await readyWithThemes(owner, members, ws, 4)
-    const [a, b, c, d] = themes
+    const { s, themes } = await readyWithThemes(owner, members, ws, 6)
+    const [a, b, c, d, e, f] = themes
     expect((await patch(`/api/sprints/${s}/themes/${d}`, owner, { parked: true })).status).toBe(200)
     await post(`/api/sprints/${s}/votes/rounds`, owner)
     await post(`/api/sprints/${s}/votes`, members[0], { theme_id: c, cast: true })
@@ -228,11 +230,26 @@ describe('voting', () => {
     await post(`/api/sprints/${s}/votes`, members[0], { theme_id: b, cast: true })
     expect((await post(`/api/sprints/${s}/votes`, members[1], { theme_id: d, cast: true })).status).toBe(404) // parked
     const before = await get(`/api/sprints/${s}/themes`, owner)
-    expect(before.body.themes.map((t: { id: string }) => t.id)).toEqual([a, b, c, d])
+    expect(before.body.themes.map((t: { id: string }) => t.id)).toEqual([a, b, c, d, e, f])
     await post(`/api/sprints/${s}/votes/rounds/close`, owner, { action: 'close' })
     const after = await get(`/api/sprints/${s}/themes`, owner)
-    expect(after.body.themes.map((t: { id: string }) => t.id)).toEqual([c, b, a, d])
-    expect(after.body.themes.map((t: { votes: number }) => t.votes)).toEqual([2, 1, 0, 0])
-    expect(after.body.themes.map((t: { position: number }) => t.position)).toEqual([0, 1, 2, 3])
+    expect(after.body.themes.map((t: { id: string }) => t.id)).toEqual([c, b, a, e, f, d])
+    expect(after.body.themes.map((t: { votes: number }) => t.votes)).toEqual([2, 1, 0, 0, 0, 0])
+    expect(after.body.themes.map((t: { position: number }) => t.position)).toEqual([0, 1, 2, 3, 4, 5])
+  })
+
+  it('never gives more votes than half the topics, so a vote always leaves something out', async () => {
+    expect([2, 3, 4, 5, 6, 7, 12].map((n) => fairBudget(3, n))).toEqual([1, 1, 2, 2, 3, 3, 3])
+    expect(fairBudget(5, 12)).toBe(5)
+    expect(fairBudget(3, 1)).toBe(1)
+    // A round opened over three topics with the default of three gives one vote: the one that matters most.
+    const { owner, members, ws } = await team(2)
+    const { s, themes } = await readyWithThemes(owner, members, ws, 3, { vote_budget: 3 })
+    const opened = await post(`/api/sprints/${s}/votes/rounds`, owner)
+    expect(opened.body.current).toMatchObject({ budget: 1, my_remaining: 1 })
+    expect((await post(`/api/sprints/${s}/votes`, members[0], { theme_id: themes[0], cast: true })).status).toBe(200)
+    expect((await post(`/api/sprints/${s}/votes`, members[0], { theme_id: themes[1], cast: true })).status).toBe(409)
+    // The setting itself is unchanged: it's the most a round can give.
+    expect((await get(`/api/sprints/${s}`, owner)).body.vote_budget).toBe(3)
   })
 })

@@ -24,8 +24,30 @@ those as highlights. The app's About → What's new and each GitHub release are 
   needed, and in an encrypted sprint that’s still collecting, a new key starts for what’s written
   next, while thoughts already written stay sealed to the old facilitator’s key. Removing someone
   who facilitates now points to this, and a workspace with a single owner suggests adding another.
+- **A cue for the facilitator.** The stage now shows the facilitator — only on their own screen,
+  never when presenting — a line to say and the one thing to do next: ask about last time’s
+  experiments, when most have voted, when to ask the room or share its answers, what to note, when
+  to move on, and when to end. A first retro can be run from it alone; *Hide lines to say* keeps just
+  the next step once it’s second nature.
 
 ### Changed
+
+- **Votes that make you choose.** A retro never gives more votes than half its topics (at least
+  one), so voting always means leaving something out: three topics give one vote each — the one
+  that matters most — and six give three. The sprint’s setting is the most it gives. Before, three
+  votes over three topics let everyone vote for everything, and the order said nothing.
+- **The talk puts the thoughts first.** On the stage, a topic’s thoughts come before what the room
+  said about them — shared answers and what was added from phones — and the screen brings those
+  into view when they arrive. The facilitator’s margin is shorter: the clock, the notes, and a
+  one-line way to ask the room.
+- **A quieter stage.** The steps’ map shows only on a team’s first retro, and voting is explained in
+  a line instead of a list.
+- **One count of who’s here.** The stage’s rail, the vote’s “of how many” and the list of who’s
+  here now count the same people: anyone with the retro open, or marked here without a device.
+- **The recap shows who came, and only them.** It no longer lists who didn’t, or says they
+  “couldn’t make it”.
+- **A lighter Agree.** Adding an experiment on the stage asks one thing first — the change — then
+  how you’ll know it helped and who owns it; a review date and the theme wait behind a link.
 
 - **A retro without themes is a full retro.** Starting the retro gathers any thoughts not in a theme
   into one topic of their own — *Everything else*, or *Everything we wrote* when there are no themes

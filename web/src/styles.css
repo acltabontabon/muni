@@ -1530,9 +1530,6 @@ button.sort-slip-btn:hover .sort-check { border-color: var(--accent); }
 .retro-talk-title { margin-top: 0.6rem; font-family: var(--font-display); font-size: clamp(2.1rem, 1.5rem + 2.4vw, 3.6rem); font-weight: 600; line-height: 1.05; letter-spacing: -0.035em; }
 .retro-talk-q { max-width: 44rem; margin-top: 0.85rem; font-family: var(--font-wordmark); font-size: clamp(1.2rem, 1.05rem + 0.6vw, 1.55rem); font-style: italic; line-height: 1.4; color: var(--ink-soft); }
 .retro-talk-q--phone { margin: -0.4rem 0 0.4rem; font-size: 1.15rem; }
-.retro-added { margin-top: 2rem; padding-top: 1.2rem; border-top: 1px dashed var(--line-strong); }
-.retro-added ul, .retro-added-list { display: grid; gap: 0.65rem; margin: 0.7rem 0 0; padding: 0; list-style: none; }
-.retro-added li, .retro-added-list li { padding-left: 0.9rem; border-left: 2px solid var(--accent); font-size: 16px; line-height: 1.5; }
 .retro-margin { display: grid; align-content: start; gap: 1.75rem; }
 @media (min-width: 1024px) { .retro-margin { position: sticky; top: 5.5rem; align-self: start; padding-left: 1.75rem; border-left: 1px solid var(--line); } }
 .retro-note-label { font-size: 11.5px; font-weight: 650; letter-spacing: 0.12em; text-transform: uppercase; color: var(--ink-faint); }
@@ -1551,9 +1548,6 @@ button.sort-slip-btn:hover .sort-check { border-color: var(--accent); }
 .retro-field:hover { border-bottom-color: var(--ink-faint); }
 .retro-field:focus, .retro-field:focus-visible { outline: none; border-bottom-color: var(--accent); }
 .retro-saved { position: absolute; right: 0; bottom: -1.35rem; font-size: 12px; color: var(--status-ink); animation: fade 160ms ease-out both; }
-.retro-waiting { display: grid; gap: 0.2rem; padding: 0.85rem 1rem; border: 1px dashed var(--accent); border-radius: 12px; text-align: left; font-size: 14px; font-weight: 600; color: var(--accent-ink); }
-.retro-waiting span { font-weight: 400; color: var(--ink-soft); }
-.retro-waiting:hover { background: color-mix(in oklab, var(--accent) 10%, transparent); }
 .retro-topicbar { grid-column: 1 / -1; padding-top: 1.2rem; border-top: 1px solid var(--line); }
 .retro-topicbar ol { display: flex; flex-wrap: wrap; gap: 0.4rem; margin: 0; padding: 0; list-style: none; }
 .retro-topicbar li > * { display: inline-flex; align-items: baseline; gap: 0.45rem; max-width: 18rem; min-height: 2.25rem; padding: 0.4rem 0.9rem; border-radius: 999px; font-size: 14px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: var(--ink-faint); }
@@ -1569,10 +1563,6 @@ button.sort-slip-btn:hover .sort-check { border-color: var(--accent); }
 .retro-seen { font-size: 13.5px; line-height: 1.45; color: var(--ink-soft); }
 .retro-seen span { display: block; margin-bottom: 0.1rem; font-size: 11.5px; font-weight: 650; letter-spacing: 0.12em; text-transform: uppercase; color: var(--ink-faint); }
 .retro-asks { display: grid; gap: 0.5rem; }
-.retro-ask { justify-self: start; min-height: 2.5rem; padding: 0.4rem 1.05rem; border: 1px solid var(--line-strong); border-radius: 999px; font-size: 14.5px; color: var(--ink); transition: background-color 140ms ease, border-color 140ms ease; }
-.retro-ask:hover { border-color: var(--ink-soft); background: color-mix(in oklab, var(--ink) 5%, transparent); }
-.retro-ask--share { border-color: var(--accent); background: color-mix(in oklab, var(--accent) 16%, transparent); }
-.retro-ask--share:hover { background: color-mix(in oklab, var(--accent) 26%, transparent); border-color: var(--accent); }
 .retro-ask-quiet { justify-self: start; font-size: 14px; color: var(--ink-soft); }
 .retro-asking { display: grid; gap: 0.5rem; }
 .retro-asking-n { font-family: var(--font-wordmark); font-size: 15px; font-style: italic; color: var(--ink-soft); font-variant-numeric: tabular-nums; }
@@ -1682,6 +1672,45 @@ button.sort-slip-btn:hover .sort-check { border-color: var(--accent); }
 .exp-form-foot { display: flex; flex-wrap: wrap; align-items: center; gap: 0.6rem 1rem; font-size: 13.5px; color: var(--ink-soft); }
 .retro-end { display: flex; flex-wrap: wrap; align-items: center; gap: 0.8rem 1.2rem; margin-top: 3.5rem; padding-top: 1.8rem; border-top: 1px solid var(--line); font-size: 14.5px; color: var(--ink-soft); }
 
+/* The talk: what the room said, after the thoughts it's about. */
+.retro-said { scroll-margin-bottom: 15rem; }
+.retro-said:not(:empty) { margin-top: 2.6rem; padding-top: 1.3rem; border-top: 1px dashed var(--line-strong); }
+.retro-said > .ci-moment:first-of-type { margin-top: 1rem; }
+.retro-said-added { display: grid; gap: 0.65rem; margin: 1.3rem 0 0; padding: 0; list-style: none; }
+.retro-said-added li { padding-left: 0.9rem; border-left: 2px solid var(--accent); }
+.retro-asking { display: flex; flex-wrap: wrap; align-items: baseline; gap: 0.2rem 0.8rem; }
+.exp-form-more { justify-self: start; font-size: 13.5px; color: var(--ink-soft); text-decoration: underline; text-underline-offset: 3px; text-decoration-color: var(--line-strong); }
+.exp-form-more:hover { color: var(--ink); }
+
+/*
+ * The facilitator's cue: one line to say and one thing to do, docked in the facilitator's margin —
+ * lined up with the stage's right edge, just above the corner's chips, where the steps' own margins
+ * leave room — so the thoughts and topics stay clear. Never on a presenting screen.
+ */
+.retro[data-cue] .retro-main { padding-bottom: 18rem; }
+.cue { position: fixed; z-index: 29; bottom: 3.35rem; right: max(1.25rem, calc((100vw - 76rem) / 2)); width: min(22.5rem, calc(100vw - 2.5rem)); display: grid; gap: 0.5rem; padding: 0.8rem 1.1rem 0.95rem 1.25rem; border-radius: 16px; background: color-mix(in oklab, var(--card) 94%, transparent); backdrop-filter: blur(12px); box-shadow: 0 0 0 1px var(--line), inset 3px 0 0 var(--accent), 0 22px 44px -22px rgb(0 0 0 / 0.6); }
+.cue-head { display: flex; align-items: baseline; justify-content: space-between; gap: 1rem; }
+.cue-label { font-size: 11px; font-weight: 650; letter-spacing: 0.14em; text-transform: uppercase; color: var(--accent-ink); }
+.cue-label span { display: block; margin: 0.1rem 0 0; font-family: var(--font-wordmark); font-size: 12.5px; font-style: italic; font-weight: 400; letter-spacing: 0; text-transform: none; color: var(--ink-faint); }
+.cue-toggle { flex: none; font-size: 12px; color: var(--ink-faint); text-decoration: underline; text-underline-offset: 3px; text-decoration-color: var(--line-strong); }
+.cue-toggle:hover { color: var(--ink-soft); }
+.cue-body { display: grid; gap: 0.3rem; }
+.cue-body:empty { display: none; }
+.cue-say { font-family: var(--font-wordmark); font-size: clamp(1.08rem, 1rem + 0.25vw, 1.22rem); font-style: italic; line-height: 1.4; color: var(--ink); text-wrap: pretty; }
+.cue-hint { font-size: 13.5px; line-height: 1.5; color: var(--ink-soft); text-wrap: pretty; }
+.cue-do { display: flex; flex-wrap: wrap; align-items: center; gap: 0.5rem 0.6rem; margin-top: 0.2rem; }
+.cue-act { display: inline-flex; align-items: center; gap: 0.45rem; min-height: 2.4rem; padding: 0 1.1rem; border-radius: 999px; background: var(--action); color: var(--action-ink); font-size: 14.5px; font-weight: 600; transition: background-color 140ms ease; }
+.cue-act:hover { background: color-mix(in oklab, var(--action) 84%, var(--accent)); }
+.cue-alt { display: inline-flex; align-items: center; min-height: 2.4rem; padding: 0 1rem; border: 1px solid var(--line-strong); border-radius: 999px; font-size: 14px; color: var(--ink); transition: background-color 140ms ease, border-color 140ms ease; }
+.cue-alt:hover { border-color: var(--ink-soft); background: color-mix(in oklab, var(--ink) 5%, transparent); }
+@media (max-width: 1023px) {
+  .cue { left: 0.75rem; right: 0.75rem; width: auto; }
+  .retro[data-cue] .retro-main { padding-bottom: 19rem; }
+}
+@media (max-width: 767px) {
+  .cue-label span { display: none; }
+}
+
 .retro-corner { position: fixed; right: 0.75rem; bottom: 0.75rem; z-index: 30; display: flex; gap: 0.5rem; }
 .retro-chip { display: inline-flex; align-items: center; gap: 0.4rem; min-height: 2rem; padding: 0 0.85rem; border-radius: 999px; background: var(--card); box-shadow: 0 0 0 1px var(--line); font-size: 12.5px; color: var(--ink-soft); }
 .retro-chip:hover { color: var(--ink); }
@@ -1736,10 +1765,6 @@ button.retro-room:hover { color: var(--ink); background: color-mix(in oklab, var
 .rm-text { font-size: 14.5px; line-height: 1.55; color: var(--ink-soft); }
 .rm-text strong { font-weight: 600; color: var(--ink); }
 .rm-quiet { font-size: 13.5px; color: var(--ink-faint); }
-.rm-steps { display: grid; gap: 0.65rem; margin: 0.1rem 0 0; padding: 0; list-style: none; counter-reset: rm; }
-.rm-steps li { position: relative; padding-left: 1.6rem; font-size: 14.5px; line-height: 1.55; color: var(--ink-soft); counter-increment: rm; }
-.rm-steps li::before { content: counter(rm); position: absolute; left: 0; top: 0; font-family: var(--font-wordmark); font-size: 15px; font-style: italic; color: var(--accent-ink); }
-.rm-steps strong { font-weight: 600; color: var(--ink); }
 .retro-margin .retro-note + .retro-note-group { margin-top: 0.4rem; }
 
 /* The retro at a glance, on its first step. */

@@ -80,10 +80,25 @@ export async function votingState(db: D1Database, ctx: SprintCtx) {
   return { current, previous }
 }
 
-/** Opens a round at this grouping revision. The partial unique index (one open round per sprint) makes a concurrent second open a no-op: false. */
-export async function openRound(db: D1Database, sprintId: string, budget: number): Promise<boolean> {
-  const res = await run(db, 'INSERT OR IGNORE INTO vote_rounds (id, sprint_id, budget, grouping_revision, opened_at) SELECT ?, id, ?, grouping_revision, ? FROM sprints WHERE id = ?', uuid(), budget, Date.now(), sprintId)
-  return !!res.meta.changes
+/**
+ * The votes a round actually gives: the sprint's setting, but never more than half the topics (and
+ * at least one). A vote only says something when it means leaving something out: three votes, one
+ * per topic, over three topics lets everyone vote for everything, and the order then comes from
+ * who didn't bother. Half is also where a person's choice can say the most (n choose n/2).
+ * web/src/lib/votes.ts says the same to people before a round opens.
+ */
+export const fairBudget = (budget: number, topics: number) => Math.max(1, Math.min(budget, Math.floor(topics / 2)))
+
+/**
+ * Opens a round at this grouping revision, with the fair share of `budget` for the topics there are
+ * now. Returns the round's budget, or null when one was already open: the partial unique index (one
+ * open round per sprint) makes a concurrent second open a no-op.
+ */
+export async function openRound(db: D1Database, sprintId: string, budget: number): Promise<number | null> {
+  const topics = await count(db, 'SELECT count(*) AS n FROM themes WHERE sprint_id = ? AND parked = 0', sprintId)
+  const fair = fairBudget(budget, topics)
+  const res = await run(db, 'INSERT OR IGNORE INTO vote_rounds (id, sprint_id, budget, grouping_revision, opened_at) SELECT ?, id, ?, grouping_revision, ? FROM sprints WHERE id = ?', uuid(), fair, Date.now(), sprintId)
+  return res.meta.changes ? fair : null
 }
 
 /** Closes (or cancels) the open round; a close orders the themes by its totals — flagged first, parked last. False when none was open. */
@@ -117,8 +132,9 @@ voting.post('/api/sprints/:sprintId/votes/rounds', async (c) => {
   const budget = Number(body.budget ?? ctx.sprint.vote_budget)
   if (!(budget >= 1 && budget <= 10)) throw bad('votes per person must be between 1 and 10')
   if (!(await count(c.env.DB, 'SELECT count(*) AS n FROM themes WHERE sprint_id = ? AND parked = 0', ctx.sprint.id))) throw conflict('there are no themes to vote on yet')
-  if (!(await openRound(c.env.DB, ctx.sprint.id, budget))) throw conflict('a voting round is already open')
-  await audit(c.env.DB, ctx.sprint.workspace_id, ctx.sprint.id, ctx.auth.account.id, 'votes.round_opened', { budget })
+  const opened = await openRound(c.env.DB, ctx.sprint.id, budget)
+  if (opened === null) throw conflict('a voting round is already open')
+  await audit(c.env.DB, ctx.sprint.workspace_id, ctx.sprint.id, ctx.auth.account.id, 'votes.round_opened', { budget: opened })
   await hint(c.env, ctx.sprint.id, 'votes')
   return c.json(await votingState(c.env.DB, ctx))
 })

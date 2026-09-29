@@ -81,7 +81,8 @@ stage also says so, once), and the facilitator can mark someone present who join
    to keep. A team's first retro skips straight to that. If the sprint has an opening question, it
    is shown here while people arrive.
 2. **Choose** — what matters most? Voting opens by itself: everyone votes privately on their phone
-   (three votes each by default, at most one per theme — so with two themes, two). Nobody sees how
+   (at most one per theme, and never more votes than half the topics — so three topics give one vote
+   each, six give three; the sprint’s setting, three by default, is the most). Nobody sees how
    the votes fall until the step ends; the facilitator sees only how many people have voted, never
    who voted for what.
    With fewer than two topics, there's nothing to choose between, and the retro goes straight to
@@ -108,6 +109,12 @@ stage also says so, once), and the facilitator can mark someone present who join
 4. **Agree** — what will we try? The ideas from the talk wait here; one to three become
    experiments, each with an owner who says yes on their own phone. **End the retro** shows every
    screen and phone that it's done, with the way to the sprint's page — now its recap.
+
+**The facilitator's cue.** At the foot of the facilitator's own screen (never a presenting one), a
+cue says a line they could say and the one thing to do next — asking about last time's experiments,
+moving on once most have voted, asking the room or sharing its answers, noting what the room will
+remember, checking an idea, moving to the next topic, ending. Following it is optional; everything
+it suggests is also on the stage. **Hide lines to say** keeps only the next step.
 
 The facilitator moves on with **Next** (or →; ← goes back — a topic within the talk, otherwise a
 step; the arrow keys work only while nothing else — a dialog, a menu, a field — has them); the steps

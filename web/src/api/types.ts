@@ -6,6 +6,7 @@ export type {
   CaptureTarget,
   Category,
   AdditionKind,
+  AttendeeView,
   CheckinKind,
   CheckinView,
   Command,

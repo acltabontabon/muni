@@ -164,11 +164,13 @@ describe('who is connected', () => {
     const s = await sprint(owner, members, ws, 'collecting')
     await entry(voter, s, 'improve', 'one thought')
     await entry(other, s, 'improve', 'another thought')
+    await entry(other, s, 'keep', 'a third thought')
+    await entry(voter, s, 'keep', 'a fourth thought')
     const shared = await closeCollection(owner, s)
     const themes: string[] = []
     for (const e of shared) themes.push((await post(`/api/sprints/${s}/themes`, owner, { title: `T ${e.id.slice(0, 4)}`, entry_ids: [e.id] })).body.themes.at(-1).id)
     expect((await go(owner, s, 'ready')).status).toBe(200)
-    expect((await post(`/api/sprints/${s}/votes/rounds`, owner)).status).toBe(200)
+    expect((await post(`/api/sprints/${s}/votes/rounds`, owner)).status).toBe(200) // four topics: two votes
     expect((await post(`/api/sprints/${s}/votes`, voter, { theme_id: themes[0], cast: true })).status).toBe(200)
     // The voter's stage and phone, the facilitator, and someone else.
     const [stage, phone, fac, theirs] = await Promise.all([openSocket(voter, s), openSocket(voter, s), openSocket(owner, s), openSocket(other, s)])
@@ -177,7 +179,7 @@ describe('who is connected', () => {
     const marks = [stage, phone, fac, theirs].map((x) => x.messages.length)
     const heard = (i: number) => [stage, phone, fac, theirs][i].messages.slice(marks[i]).some((m) => m.includes('"resource":"votes"'))
     // A second vote: the facilitator's count of voters doesn't move, but the voter's votes left do.
-    expect((await post(`/api/sprints/${s}/votes`, voter, { theme_id: themes[1], cast: true })).body.current.my_remaining).toBe(1)
+    expect((await post(`/api/sprints/${s}/votes`, voter, { theme_id: themes[1], cast: true })).body.current.my_remaining).toBe(0)
     for (let i = 0; i < 80 && !(heard(0) && heard(1)); i++) await sleep(25)
     await sleep(200)
     expect([heard(0), heard(1), heard(2), heard(3)]).toEqual([true, true, false, false])

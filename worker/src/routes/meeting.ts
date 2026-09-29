@@ -171,8 +171,9 @@ async function stepChanges(db: D1Database, ctx: SprintCtx, cmd: CommandBody, cur
   const changed: Resource[] = []
   if (cmd.phase === 'choose') {
     const s = await one<{ themed: number; voted: number }>(db, "SELECT (SELECT count(*) FROM themes WHERE sprint_id = ? AND parked = 0) >= 2 AS themed, EXISTS (SELECT 1 FROM vote_rounds WHERE sprint_id = ? AND status IN ('open', 'closed')) AS voted", sid, sid)
-    if (bool(s?.themed) && !bool(s?.voted) && (await openRound(db, sid, ctx.sprint.vote_budget))) {
-      await audit(db, ctx.sprint.workspace_id, sid, ctx.auth.account.id, 'votes.round_opened', { budget: ctx.sprint.vote_budget })
+    const opened = bool(s?.themed) && !bool(s?.voted) ? await openRound(db, sid, ctx.sprint.vote_budget) : null
+    if (opened !== null) {
+      await audit(db, ctx.sprint.workspace_id, sid, ctx.auth.account.id, 'votes.round_opened', { budget: opened })
       changed.push('votes')
     }
   }

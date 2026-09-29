@@ -118,11 +118,13 @@ export function OutcomesView({ s, onCount, refresh = 0 }: { s: SprintDetail; onC
   )
 }
 
-/** When, how long, and who was there — faces, lit for those who came. */
+/**
+ * When, how long, and who was there. Only the faces of those who came: a recap everyone reads never
+ * lists who didn't, or guesses why.
+ */
 function RecapHead({ s, meeting, topics, experiments }: { s: SprintDetail; meeting: StageSnapshot | null; topics: number; experiments: number }) {
   const here = meeting ? meeting.attendance.filter((a) => a.present) : []
-  const away = meeting ? meeting.attendance.filter((a) => !a.present) : []
-  const people = meeting ? [...here, ...away] : s.participants.map((p) => ({ ...p, avatar_id: null, present: false, connected: false }))
+  const people = meeting ? here : s.participants.map((p) => ({ ...p, avatar_id: null, present: false, connected: false }))
   return (
     <header className="recap-head">
       <p className="recap-kicker">The retro{meeting ? <> · {longDate(meeting.started_at)}{meeting.ended_at ? <> · {((m) => `${m} ${m === 1 ? 'minute' : 'minutes'}`)(minutesBetween(meeting.started_at, meeting.ended_at))}</> : null}</> : null}</p>
@@ -131,7 +133,7 @@ function RecapHead({ s, meeting, topics, experiments }: { s: SprintDetail; meeti
         {people.map((a) => (
           <li key={a.account_id} data-here={a.present || undefined}>
             <Face a={a} state={a.present ? 'on' : 'away'} size="xl" />
-            <span className="recap-person">{a.display_name.split(/\s+/)[0]}{a.is_facilitator ? <em>facilitated</em> : !a.present && meeting ? <em>couldn’t make it</em> : null}</span>
+            <span className="recap-person">{a.display_name.split(/\s+/)[0]}{a.is_facilitator ? <em>facilitated</em> : null}</span>
           </li>
         ))}
       </ul>

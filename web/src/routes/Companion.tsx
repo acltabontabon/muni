@@ -230,14 +230,15 @@ function Choosing({ themes, round, closed, paused, plan, onVote }: { themes: The
           ? 'Only one topic this time — nothing to choose. The talk starts with it.'
           : totals
             ? <>The votes are in. The talk starts at the top — time for about {reach}.</>
-            : reach >= themes.length
-              ? <>There’s time for all {themes.length} topics, around {per} minutes each. Vote for the ones that matter most to you; the most-voted go first.</>
-              : <>There’s time to talk about roughly <strong>{reach}</strong> of these {themes.length}, around {per} minutes each. Vote for the ones you most want to talk about; the most-voted go first.</>}
+            : <>
+                {purse ? <><strong>{purse.size} {purse.size === 1 ? 'vote' : 'votes'}</strong> for {themes.length} topics: pick what you most want to talk about. The most-voted go first. </> : 'Vote for what you most want to talk about; the most-voted go first. '}
+                {reach >= themes.length ? `There’s time for all ${themes.length}, around ${per} minutes each.` : <>There’s time for roughly <strong>{reach}</strong> of them.</>}
+              </>}
       </p>
       {purse && !single ? (
         <div className="vote-purse" data-spent={spent || undefined}>
           <span className="vote-purse-coins" aria-hidden>{Array.from({ length: purse.size }, (_, i) => <i key={i} data-used={i >= purse.left || undefined} />)}</span>
-          <span><strong>{purse.left}</strong> of {purse.size} {purse.size === 1 ? 'vote' : 'votes'} left · one per topic · nobody sees yours</span>
+          <span><strong>{purse.left}</strong> of {purse.size} {purse.size === 1 ? 'vote' : 'votes'} left{purse.size > 1 ? ' · one per topic' : ''} · nobody sees yours</span>
         </div>
       ) : null}
       <ol className="retro-topics retro-topics--phone">
@@ -256,7 +257,7 @@ function Choosing({ themes, round, closed, paused, plan, onVote }: { themes: The
                 </details>
                 {round && !single ? (
                   <button className="retro-vote retro-vote--wide" aria-pressed={!!cast} disabled={paused || (!cast && spent)} onClick={() => onVote(t, !cast)}>
-                    {cast ? 'Voted ✓ · tap to take it back' : spent ? 'No votes left — take one back to move it' : 'Vote for this'}
+                    {cast ? 'Voted ✓ · tap to take it back' : spent ? (purse?.size === 1 ? 'Your vote is on another topic — take it back to move it' : 'No votes left — take one back to move it') : 'Vote for this'}
                   </button>
                 ) : null}
               </div>
@@ -265,7 +266,7 @@ function Choosing({ themes, round, closed, paused, plan, onVote }: { themes: The
           )
         })}
       </ol>
-      {round && !single ? <p className="retro-aside-line">You can move your votes until the facilitator moves on. Then they’re counted, and the talk begins.</p> : null}
+      {round && !single ? <p className="retro-aside-line">You can move your {purse?.size === 1 ? 'vote' : 'votes'} until the facilitator moves on. Then the votes are counted, and the talk begins.</p> : null}
     </section>
   )
 }
