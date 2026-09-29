@@ -129,7 +129,13 @@ export function sprintPlan(s: PlanInput, opts: { online?: boolean; now?: number 
         control = { kind: 'transition', to: 'preparing', label: 'Close collection…', confirm: 'close' }
         consequence = 'Stops new thoughts and reveals them, without names, to everyone in the sprint.'
       }
-      if (fac) more = [invite, edit]
+      // Alone, inviting is the thing to do next, so it's out where it can be seen; after that, it's routine.
+      if (fac) {
+        if (s.participant_count <= 1) {
+          secondary = [invite]
+          more = [edit]
+        } else more = [invite, edit]
+      }
       if (fac && s.participant_count <= 1) notes.push('Only you are in this sprint. Invite your team so there’s something to talk about.')
       if (fac && r.past) notes.push('The planned retro time has passed. Nothing changes by itself: collection stays open until you close it.')
       break

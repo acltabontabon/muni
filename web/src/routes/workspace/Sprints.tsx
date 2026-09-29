@@ -14,8 +14,9 @@ import { PHASE_OF, STATUS_PHRASE } from '@/lib/lifecycle'
 import { useResource } from '@/lib/resource'
 import { dateRange, dayKey, describeRetro, shortDate } from '@/lib/schedule'
 import { useDocumentTitle } from '@/ui'
-import { Postcard } from '@/ui/art'
+import { EveningAhead } from '@/guide/Sky'
 import { initials, SectionError, SectionPending, useWorkspaceShell } from './Layout'
+import { useGuidePage } from '@/guide/GuideProvider'
 
 /** The order an open sprint is chosen as "the" current one. */
 const ORDER = ['live', 'ready', 'preparing', 'collecting', 'draft']
@@ -33,6 +34,7 @@ export function WorkspaceSprints() {
   const lead = active.find((s) => s.is_participant) ?? active[0] ?? null
   // Who's in the current sprint (the list only counts them).
   const detail = useResource<SprintDetail>(lead ? `/api/sprints/${lead.id}` : null)
+  useGuidePage({ at: 'workspace', workspaceId: ws.id, sprints: list ? list.length : null, online: !offline })
 
   if (sprints.error) return <SectionError error={sprints.error} onRetry={() => { void sprints.reload(); void experiments.reload() }} what="this workspace’s sprints" />
   // First visit: the page appears once, when the list and its experiments are both here.
@@ -54,12 +56,12 @@ export function WorkspaceSprints() {
           <h2 id="first" className="chapter-title">Set up your first <em>sprint</em></h2>
           <p className="chapter-body mt-3">A sprint gives the team a place to write thoughts as things happen, then a retro to talk them through. Setup takes a minute: a name, the dates, and who’s in.</p>
           {!offline ? (
-            <Link to={`/workspaces/${ws.id}/sprints/new`} className="ws-btn ws-btn--primary mt-6">Set up a sprint <ArrowRight className="size-4" aria-hidden /></Link>
+            <Link to={`/workspaces/${ws.id}/sprints/new`} className="ws-btn ws-btn--primary mt-6" data-guide="setup-sprint">Set up a sprint <ArrowRight className="size-4" aria-hidden /></Link>
           ) : (
             <p className="mt-4 text-sm text-ink-soft">Setting up a sprint needs a connection.</p>
           )}
         </div>
-        <Postcard framing="close" className="ws-first-art" />
+        <EveningAhead className="ws-first-art" />
       </section>
     )
 

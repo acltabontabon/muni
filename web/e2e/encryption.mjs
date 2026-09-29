@@ -17,7 +17,7 @@ const SECRET = `Synthetic-${tag}: the staging database fell over on Wednesday`
 
 async function api(page, method, path, body) {
   return page.evaluate(async ([m, p, b]) => {
-    const csrf = document.cookie.match(/muni_csrf=([^;]+)/)?.[1] ?? ''
+    const csrf = decodeURIComponent((document.cookie.match(/__Host-muni_csrf=([^;]+)/) ?? document.cookie.match(/muni_csrf=([^;]+)/))?.[1] ?? '')
     const r = await fetch(p, { method: m, headers: { 'content-type': 'application/json', 'x-csrf-token': csrf }, body: b ? JSON.stringify(b) : undefined })
     return { status: r.status, body: await r.json().catch(() => null) }
   }, [method, path, body])
@@ -46,7 +46,11 @@ async function signIn(ctx, _email, name) {
   await page.waitForSelector('text=Add a second passkey')
   await page.click('button:has-text("Not now")')
   await page.waitForURL((u) => !u.pathname.startsWith('/signin'))
+  // A new account's first evening: past the prologue, and the guide hidden (e2e/firstrun.mjs covers it).
+  await page.locator('.prologue-skip').click({ timeout: 8000 }).catch(() => {})
   await page.locator('button:has-text("Decide later")').click({ timeout: 3000 }).catch(() => {})
+  await page.evaluate(() => fetch('/api/auth/me', { method: 'PATCH', headers: { 'content-type': 'application/json', 'x-csrf-token': decodeURIComponent((document.cookie.match(/__Host-muni_csrf=([^;]+)/) ?? document.cookie.match(/muni_csrf=([^;]+)/))?.[1] ?? '') }, body: JSON.stringify({ guide: 'hidden' }) })).catch(() => {})
+  await page.reload()
   return page
 }
 /** Keys are set up without asking; a recovery key is optional (made here for the new-device step). */

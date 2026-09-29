@@ -664,6 +664,9 @@ body {
 .ws-first { display: grid; gap: 2rem; align-items: center; max-width: 52rem; }
 @media (min-width: 768px) { .ws-first { grid-template-columns: minmax(0, 1fr) 13rem; gap: 3.5rem; } }
 .ws-first-art { width: 100%; max-width: 13rem; aspect-ratio: 3 / 2; }
+/* The evening ahead: stars over a horizon, the glow gathering where the sun went down. */
+.evening-ahead { display: grid; align-items: end; max-width: 15rem; padding: 0 0.5rem 0.9rem; border-bottom: 1px solid var(--line-strong); background: radial-gradient(120% 70% at 50% 100%, color-mix(in oklab, var(--sky-glow) 45%, transparent) 0%, transparent 70%); }
+.evening-ahead-sky { width: 100%; height: auto; overflow: visible; }
 
 /* People: a directory. */
 .people-lede { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 0.75rem 2rem; font-size: 15px; line-height: 1.5; color: var(--ink-soft); }
@@ -1966,4 +1969,220 @@ button.retro-room:hover { color: var(--ink); background: color-mix(in oklab, var
   .recap-topic { grid-template-columns: 1.6rem minmax(0, 1fr) 3.5rem; }
   .recap-topic-votes i { width: 3rem; }
   .recap-people li { width: 4.2rem; }
+}
+
+/* ─────────────────────────────────────────────── The first evening
+   A new account's guide through its team's first sprint (lib/guide.ts). The prologue carries the
+   entrance's evening on, full-bleed: the same shore, the sun settling a little further with each
+   line. Then one firefly — the scene's own light — settles on the next real control, with a note
+   beside it; it never holds a control of its own. The sky keeps the evening's stars, and the first
+   retro's end brings them down onto the mark. Every motion happens once and comes to rest. */
+
+.prologue {
+  --e-bg: var(--paper);
+  --e-panel: var(--card);
+  --pro-pad: clamp(20px, 5vw, 80px);
+  position: relative;
+  display: grid;
+  grid-template-rows: auto auto minmax(220px, 1fr);
+  min-height: 100dvh;
+  padding: max(clamp(20px, 4vh, 44px), env(safe-area-inset-top)) max(var(--pro-pad), env(safe-area-inset-right)) 0 max(var(--pro-pad), env(safe-area-inset-left));
+  background: linear-gradient(180deg, var(--sky-top) 0%, var(--sky-top) 38%, color-mix(in oklab, var(--sky-top) 70%, var(--sky-glow)) 100%);
+  color: var(--ink);
+  isolation: isolate;
+  overflow: hidden;
+}
+.prologue-over { position: fixed; inset: 0; z-index: 70; overflow-y: auto; overscroll-behavior: contain; background: var(--paper); }
+.prologue-top { display: flex; align-items: center; justify-content: space-between; gap: 16px; min-height: 44px; }
+.prologue-wordmark { display: inline-flex; align-items: center; gap: 4px; }
+.prologue-wordmark span { font-family: var(--font-wordmark); font-weight: 500; font-size: 26px; letter-spacing: -0.02em; line-height: 1; }
+.prologue-skip, .prologue-back, .prologue-alt { min-height: 44px; padding: 0 2px; font-size: 15px; color: var(--ink-soft); text-decoration: underline; text-decoration-color: var(--line-strong); text-underline-offset: 4px; }
+.prologue-skip:hover, .prologue-back:hover, .prologue-alt:hover { color: var(--ink); text-decoration-color: var(--accent); }
+.prologue-words { position: relative; z-index: 1; max-width: 48rem; padding: clamp(24px, 7vh, 88px) 0 clamp(12px, 3vh, 28px); }
+.prologue-kicker { display: flex; gap: 0.45em; font-size: 12px; font-weight: 600; letter-spacing: 0.14em; text-transform: uppercase; color: var(--accent-ink); }
+.prologue-kicker span:last-child { color: var(--ink-faint); font-weight: 500; font-variant-numeric: tabular-nums; }
+.prologue-say { min-height: calc(2 * 1.02em * 3); }
+.prologue-line {
+  margin-top: 14px;
+  max-width: 17ch;
+  font-family: var(--font-display);
+  font-weight: 600;
+  font-size: clamp(2.2rem, 4.8vw, 4.4rem);
+  line-height: 1.01;
+  letter-spacing: -0.045em;
+  text-wrap: balance;
+  animation: prologue-in 720ms var(--ease-out-soft) 1 both;
+}
+.prologue-line em { font-family: var(--font-wordmark); font-style: italic; font-weight: 350; letter-spacing: -0.02em; color: var(--accent); padding-right: 0.04em; }
+.prologue-sub { margin-top: 18px; max-width: 42ch; font-size: 1.0625rem; line-height: 1.55; color: var(--ink-soft); text-wrap: pretty; animation: prologue-in 720ms var(--ease-out-soft) 140ms 1 both; }
+@keyframes prologue-in { from { opacity: 0; transform: translateY(16px); } to { opacity: 1; transform: none; } }
+
+.prologue-nav { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 22px; margin-top: 30px; }
+.prologue-ticks { display: flex; gap: 6px; margin-right: 4px; }
+.prologue-ticks li { width: 16px; height: 2px; border-radius: 2px; background: var(--line-strong); transition: width 320ms var(--ease-out-soft), background-color 320ms; }
+.prologue-ticks li[data-on] { background: var(--ink-soft); }
+.prologue-ticks li[data-now] { width: 34px; background: var(--accent); }
+.prologue-next { min-width: 8.5rem; }
+.prologue[data-final] .prologue-nav { margin-top: 18px; }
+
+.prologue-last { display: grid; gap: 24px; margin-top: 26px; animation: prologue-in 820ms var(--ease-out-soft) 260ms 1 both; }
+.prologue-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 12px 24px; }
+.prologue-note { flex-basis: 100%; max-width: 40ch; color: var(--ink-soft); line-height: 1.55; }
+.prologue-evening { display: flex; align-items: center; gap: 18px; max-width: 36rem; }
+.prologue-evening p { font-size: 14px; line-height: 1.5; color: var(--ink-soft); max-width: 34ch; }
+.evening-sky { flex: none; width: 132px; height: auto; overflow: visible; }
+.evening-star circle { fill: var(--sky-top); stroke: var(--ink-soft); stroke-width: 0.5; }
+.evening-star .evening-first { stroke: var(--accent); stroke-width: 0.75; }
+.evening-star { animation: fade 600ms ease-out 1 both; }
+
+.prologue-scene { position: relative; min-height: 0; margin: 0 calc(-1 * max(var(--pro-pad), env(safe-area-inset-right))) 0 calc(-1 * max(var(--pro-pad), env(safe-area-inset-left))); -webkit-user-select: none; user-select: none; }
+.prologue-scene .scene { position: absolute; inset: 0; width: 100%; height: 100%; display: block; overflow: visible; }
+.prologue[data-paused] .scene * { animation-play-state: paused !important; }
+
+/* Wide: a poster. The words in the left column, the evening standing whole in the right. */
+@media (min-width: 900px) and (min-height: 561px) {
+  .prologue { grid-template-columns: minmax(0, 1fr) minmax(0, 1.05fr); grid-template-rows: auto minmax(0, 1fr); column-gap: clamp(24px, 4vw, 72px); height: 100dvh; min-height: 560px; }
+  .prologue-top { grid-column: 1 / -1; grid-row: 1; position: relative; z-index: 2; }
+  .prologue-words { grid-column: 1; grid-row: 2; align-self: center; padding: 0 0 clamp(40px, 9vh, 120px); }
+  .prologue-line { font-size: clamp(2.4rem, 4.1vw, 4.2rem); }
+  .prologue-scene { grid-column: 2; grid-row: 1 / -1; margin: calc(-1 * max(clamp(20px, 4vh, 44px), env(safe-area-inset-top))) calc(-1 * max(var(--pro-pad), env(safe-area-inset-right))) 0 0; }
+  .prologue-scene .scene { top: 6%; height: 94%; }
+}
+@media (max-width: 899px), (max-height: 560px) and (orientation: landscape) {
+  .prologue { grid-template-rows: auto auto minmax(180px, 1fr); }
+  .prologue-words { padding-top: clamp(16px, 4svh, 40px); }
+  .prologue-line { font-size: clamp(1.95rem, 8.6vw, 2.9rem); }
+  .prologue-sub { margin-top: 12px; font-size: 1rem; }
+  .prologue-nav { margin-top: 22px; }
+  .prologue-say { min-height: 0; }
+}
+@media (max-width: 480px) {
+  .prologue-next { flex: 1; }
+  .prologue-actions > .ws-btn, .prologue-actions > button:first-child { flex: 1 1 100%; }
+  .prologue-evening { gap: 14px; }
+  .evening-sky { width: 92px; }
+}
+
+/* The firefly and its note: one light, on the step's own control. */
+.guide-layer { position: fixed; inset: 0; z-index: 35; pointer-events: none; }
+.firefly {
+  position: absolute;
+  left: 0;
+  top: 0;
+  display: grid;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  margin: -22px 0 0 -22px;
+  border-radius: 999px;
+  pointer-events: auto;
+}
+/* The button's place is its transform; the light inside it makes the entrance. */
+.firefly-body { display: grid; place-items: center; width: 100%; height: 100%; animation: firefly-arrive 1100ms var(--ease-out-soft) 1 both; }
+.firefly-body > * { grid-area: 1 / 1; }
+.firefly[data-away] { opacity: 0; pointer-events: none; }
+.firefly:focus-visible { outline-offset: -8px; }
+.firefly-glow { width: 34px; height: 34px; border-radius: 999px; background: radial-gradient(circle, color-mix(in oklab, var(--light) 50%, transparent) 0%, color-mix(in oklab, var(--light) 18%, transparent) 42%, transparent 70%); animation: firefly-breathe 2.4s ease-in-out 1s 1 both; }
+.firefly-core { position: relative; width: 9px; height: 9px; border-radius: 999px; background: var(--light); box-shadow: 0 0 0 2px color-mix(in oklab, var(--paper) 88%, transparent), 0 0 10px 2px color-mix(in oklab, var(--light) 60%, transparent); }
+.guide-layer[data-glide] .firefly { transition: transform 820ms cubic-bezier(0.45, 0.05, 0.2, 1); }
+@keyframes firefly-arrive {
+  0% { opacity: 0; translate: -30px -40px; scale: 0.5; }
+  55% { opacity: 1; translate: 5px 4px; scale: 1.1; }
+  100% { opacity: 1; translate: 0 0; scale: 1; }
+}
+/* One swell as it settles, then still: the light stays lit, and nothing moves. */
+@keyframes firefly-breathe { 0% { opacity: 0.5; scale: 0.8; } 45% { opacity: 1; scale: 1.25; } 100% { opacity: 0.9; scale: 1; } }
+
+.guide-note {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: min(20.5rem, calc(100vw - 24px));
+  padding: 14px 16px 8px 18px;
+  border-radius: 14px;
+  background: var(--card);
+  box-shadow: 0 0 0 1px var(--line), var(--shadow-float);
+  color: var(--ink);
+  pointer-events: auto;
+  animation: guide-in 320ms var(--ease-out-soft) 1 both;
+}
+/* Its own entrance: the note's place is its transform, so the entrance moves with `translate`. */
+@keyframes guide-in { from { opacity: 0; translate: 0 8px; } to { opacity: 1; translate: 0 0; } }
+.guide-note-kicker { display: flex; align-items: center; gap: 7px; font-size: 11px; font-weight: 600; letter-spacing: 0.12em; text-transform: uppercase; color: var(--accent-ink); }
+.guide-note-kicker::before { content: ''; width: 5px; height: 5px; border-radius: 999px; background: var(--light); box-shadow: 0 0 6px var(--light); }
+.guide-note-line { margin-top: 6px; font-family: var(--font-wordmark); font-style: italic; font-size: 1.22rem; line-height: 1.22; letter-spacing: -0.01em; text-wrap: balance; }
+.guide-note-text { margin-top: 5px; font-size: 14px; line-height: 1.5; color: var(--ink-soft); text-wrap: pretty; }
+.guide-note-acts { display: flex; flex-wrap: wrap; align-items: center; gap: 0 14px; margin-top: 6px; font-size: 13px; }
+.guide-note-acts button { min-height: 32px; color: var(--ink-soft); text-decoration: underline; text-decoration-color: var(--line-strong); text-underline-offset: 3px; }
+.guide-note-acts button:hover { color: var(--ink); text-decoration-color: var(--accent); }
+.guide-note-acts .guide-note-hide { margin-left: auto; color: var(--ink-faint); }
+.guide-note[data-docked] {
+  top: auto;
+  right: 0;
+  bottom: 0;
+  width: auto;
+  padding: 14px max(20px, env(safe-area-inset-right)) max(10px, env(safe-area-inset-bottom)) max(20px, env(safe-area-inset-left));
+  border-radius: 0;
+  background: color-mix(in oklab, var(--paper) 97%, transparent);
+  box-shadow: 0 -1px 0 var(--line), 0 -18px 40px -28px rgb(0 0 0 / 0.35);
+}
+
+/* The sky: the evening's stars, lit as they happen. */
+.sky-em { font-family: var(--font-wordmark); font-style: italic; font-weight: 400; color: var(--accent); }
+.sky-night { padding: 10px 14px 4px; border-radius: 12px; background: linear-gradient(180deg, var(--sky-top), color-mix(in oklab, var(--sky-top) 55%, var(--sky-glow))); }
+.sky-svg { display: block; width: 100%; height: auto; max-height: 11rem; overflow: visible; }
+.sky-path { fill: none; stroke: var(--light); stroke-width: 0.22; stroke-linejoin: round; opacity: 0.7; }
+.sky-core { fill: var(--sky-top); stroke: var(--ink-faint); stroke-width: 0.4; }
+.sky-star[data-lit] .sky-core { fill: var(--light); stroke: none; }
+.sky-star[data-next] .sky-core { stroke: var(--accent); stroke-width: 0.6; }
+.sky-count { margin-top: 8px; font-size: 13px; color: var(--ink-faint); font-variant-numeric: tabular-nums; }
+.sky-list { margin-top: 6px; }
+.sky-list li { display: flex; align-items: center; gap: 12px; padding: 8px 0; border-top: 1px solid var(--line); font-size: 15px; color: var(--ink-faint); }
+.sky-list li[data-lit] { color: var(--ink); }
+.sky-mark { flex: none; width: 8px; height: 8px; border-radius: 999px; box-shadow: inset 0 0 0 1.25px var(--line-strong); }
+.sky-list li[data-lit] .sky-mark { background: var(--light); box-shadow: 0 0 7px color-mix(in oklab, var(--light) 70%, transparent); }
+.sky-list li[data-next] { color: var(--ink); }
+.sky-list li[data-next] .sky-mark { box-shadow: inset 0 0 0 1.5px var(--accent); }
+.sky-next { margin-left: auto; font-family: var(--font-wordmark); font-size: 14px; color: var(--accent-ink); }
+.sky-acts { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px 16px; margin-top: 18px; font-size: 14px; }
+.sky-acts > button:not([class*='rounded-full']) { min-height: 36px; color: var(--ink-soft); text-decoration: underline; text-decoration-color: var(--line-strong); text-underline-offset: 3px; }
+.sky-acts > button:not([class*='rounded-full']):hover { color: var(--ink); text-decoration-color: var(--accent); }
+
+/* The closing: the evening's stars come down onto the mark, once. */
+.first-evening { display: grid; grid-template-columns: minmax(0, 9.5rem) minmax(0, 1fr); align-items: center; gap: 12px 44px; margin-bottom: 32px; padding: 20px 0 32px; border-bottom: 1px solid var(--line); }
+.first-evening-art { display: block; width: 100%; height: auto; overflow: visible; }
+.fe-arch { fill: none; stroke: var(--ink); stroke-width: 7; stroke-linecap: round; stroke-dasharray: 1; stroke-dashoffset: 1; animation: fe-draw 1200ms cubic-bezier(0.6, 0.1, 0.2, 1) 1700ms 1 both; }
+.fe-arch + .fe-arch { animation-delay: 2100ms; }
+.fe-reflection path { fill: none; stroke: var(--ink); stroke-width: 5; stroke-linecap: round; }
+.fe-reflection { opacity: 0; animation: fe-reflect 900ms ease-out 3300ms 1 both; }
+.fe-dusk { opacity: 0; animation: fade 1400ms ease-out 1 both; }
+.fe-water { stroke: var(--line-strong); stroke-width: 0.5; opacity: 0; animation: fade 900ms ease-out 3200ms 1 both; }
+.fe-star { animation: fe-come 1500ms cubic-bezier(0.5, 0, 0.15, 1) 1 both; }
+.fe-core { fill: var(--light); }
+.fe-halo { fill: var(--light); opacity: 0.22; animation: fe-out 900ms ease-out 2700ms 1 both; }
+.fe-star:not([data-dot]) .fe-core { animation: fe-out 600ms ease-out 3000ms 1 both; }
+.fe-star[data-dot] .fe-core { animation: fe-dot 800ms ease-out 3000ms 1 both; }
+.first-evening-title { font-family: var(--font-display); font-weight: 600; font-size: clamp(1.6rem, 3vw, 2.25rem); line-height: 1.1; letter-spacing: -0.035em; animation: prologue-in 700ms var(--ease-out-soft) 3100ms 1 both; }
+.first-evening-title em { font-family: var(--font-wordmark); font-style: italic; font-weight: 350; color: var(--accent); }
+.first-evening-text { margin-top: 10px; max-width: 54ch; line-height: 1.55; color: var(--ink-soft); animation: prologue-in 700ms var(--ease-out-soft) 3300ms 1 both; }
+.first-evening-close { margin-top: 12px; min-height: 36px; font-size: 14px; color: var(--ink-soft); text-decoration: underline; text-decoration-color: var(--line-strong); text-underline-offset: 3px; animation: fade 400ms ease-out 3600ms 1 both; }
+.first-evening-close:hover { color: var(--ink); text-decoration-color: var(--accent); }
+.first-evening[data-paused] * { animation-play-state: paused !important; }
+@keyframes fe-come { 0% { opacity: 0; transform: translate(var(--dx), var(--dy)); } 18% { opacity: 1; } 100% { opacity: 1; transform: none; } }
+@keyframes fe-draw { to { stroke-dashoffset: 0; } }
+@keyframes fe-reflect { to { opacity: 0.09; } }
+@keyframes fe-out { to { opacity: 0; } }
+@keyframes fe-dot { to { fill: var(--accent); } }
+@media (max-width: 639px) {
+  .first-evening { grid-template-columns: 1fr; gap: 4px; }
+  .first-evening-art { width: 7.5rem; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .prologue *, .guide-layer *, .first-evening * { animation: none !important; transition: none !important; }
+  .evening-path, .fe-arch { stroke-dashoffset: 0; }
+  .fe-reflection { opacity: 0.09; }
+  .fe-dusk, .fe-water { opacity: 1; }
+  .fe-halo, .fe-star:not([data-dot]) .fe-core { opacity: 0; }
+  .fe-star[data-dot] .fe-core { fill: var(--accent); }
 }

@@ -7,7 +7,7 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useRef, use
 
 // ---------- Button ----------
 type Variant = 'primary' | 'secondary' | 'ghost' | 'danger' | 'quiet'
-export function Button({ variant = 'secondary', size = 'md', className, busy, children, ...rest }: ButtonHTMLAttributes<HTMLButtonElement> & { variant?: Variant; size?: 'sm' | 'md' | 'lg'; busy?: boolean }) {
+export function Button({ variant = 'secondary', size = 'md', className, busy, children, ...rest }: ButtonHTMLAttributes<HTMLButtonElement> & { variant?: Variant; size?: 'sm' | 'md' | 'lg'; busy?: boolean; ref?: Ref<HTMLButtonElement> }) {
   const base = 'inline-flex items-center justify-center gap-2 rounded-full font-medium transition-[background,transform,opacity] duration-150 active:scale-[0.98] disabled:pointer-events-none whitespace-nowrap select-none'
   const sizes = { sm: 'h-9 px-3.5 text-sm', md: 'h-11 px-5 text-[15px]', lg: 'h-13 px-7 text-base' }
   const variants: Record<Variant, string> = {

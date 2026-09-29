@@ -18,6 +18,7 @@ import { ResourceProvider } from './lib/resource'
 import { OfflineStart } from './ui/status'
 import { isPersonalPath, WorldProvider } from './worlds/world'
 import { CharacterGate } from './worlds/Character'
+import { GuideProvider, useGuide } from './guide/GuideProvider'
 
 // What a phone opens most — home, a sprint's page, the retro companion, signing in and joining —
 // is in the first load. The rest loads when it's first opened.
@@ -30,6 +31,7 @@ const About = lazyPart(() => import('./routes/About'), (m) => m.About)
 const WhatsNew = lazyPart(() => import('./routes/About'), (m) => m.WhatsNew)
 const WorkspacePeople = lazyPart(() => import('./routes/workspace/People'), (m) => m.WorkspacePeople)
 const WorkspaceSettings = lazyPart(() => import('./routes/workspace/Settings'), (m) => m.WorkspaceSettings)
+const PrologueGate = lazyPart(() => import('./ui/prologue'), (m) => m.PrologueGate)
 
 /** The old address of a sprint's outcomes: a finished sprint's page is its outcomes now. */
 function OutcomesRedirect() {
@@ -39,6 +41,7 @@ function OutcomesRedirect() {
 
 function Protected({ children }: { children: React.ReactElement }) {
   const { me, loading, offline } = useAuth()
+  const { stage } = useGuide()
   const loc = useLocation()
   if (loading)
     return (
@@ -52,6 +55,14 @@ function Protected({ children }: { children: React.ReactElement }) {
   // Verified but no name chosen yet (an interrupted first sign-in): finish that here, on the same URL,
   // so the deep link is kept and nothing else is reachable first.
   if (me.needs_name && !offline) return <NameGate />
+  // A new account's first page, or the page an invitation just brought someone to: the first
+  // evening's prologue, once. Before the character chooser, so the entrance's evening goes on.
+  if (stage === 'prologue' && !offline && (isPersonalPath(loc.pathname) || (loc.state as { arrived?: boolean } | null)?.arrived))
+    return (
+      <Suspense fallback={<Loading page />}>
+        <PrologueGate />
+      </Suspense>
+    )
   // A new account's first visit to its own pages: choose a character (or decide later). Never in
   // front of a shared page someone was sent to (a room, a join link), and never offline.
   if (me.avatar?.intro === 'choose' && !offline && isPersonalPath(loc.pathname)) return <CharacterGate />
@@ -94,6 +105,7 @@ export function App() {
     <WorldProvider>
     <LocalProvider key={me?.account_id ?? 'signed-out'} accountId={me?.account_id ?? null}>
     <ResourceProvider>
+    <GuideProvider>
     <RouteBoundary>
     <Suspense fallback={<Loading page />}>
     <Routes>
@@ -131,6 +143,7 @@ export function App() {
     </Routes>
     </Suspense>
     </RouteBoundary>
+    </GuideProvider>
     </ResourceProvider>
     </LocalProvider>
     </WorldProvider>

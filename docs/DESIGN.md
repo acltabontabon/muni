@@ -136,7 +136,8 @@ empty state only after an answer says there's nothing; a failed load says so in 
 
 ## Illustration
 
-The entrance's duyan scene appears at a few deliberate moments, never as a full-height backdrop:
+The entrance's duyan scene fills the screen only at the entrance and in the first evening's prologue
+(before any work begins). Elsewhere it appears at a few deliberate moments, never as a backdrop:
 a small postcard beside “My thoughts” (and larger in its empty state), the horizon under a
 workspace's name, and the evening with kept lights on a completed retro. Saved thoughts are
 passages in a journal: text first, a margin marker with the category, one ⋯ menu each.
@@ -150,6 +151,40 @@ Category accents are restrained and always paired with an icon and a label:
 | Improve | wrench | `#3d5775` | `#8fa9c7` |
 | Stop | hand | `#963a2c` | `#d98876` |
 | Try | flask | `#664c71` | `#b8a0c4` |
+
+## The first evening
+
+A new account's guide through its team's first sprint, from starting the team to the end of the first
+retro (`web/src/lib/guide.ts`, `web/src/guide/`). It exists so nobody has to read these docs first.
+
+- **The prologue.** Once, right after signing up (or joining a team through an invitation), before
+  the character chooser: the entrance's evening goes on, full-bleed — on a wide screen a poster, the
+  words on the left and the evening standing whole on the right. Five short lines tell what a sprint
+  in Muni is (three for someone joining a team); the sun settles and a thought is kept as a light
+  with each one. The last line asks where to begin: *Start a team* (the new-workspace dialog opens
+  once the character is chosen) or *I have an invitation*; a member goes to their sprint's writer.
+  Skip and Esc are always there; it can be watched again from the sky.
+- **The firefly.** One light, the scene's own `--light`, settles on the corner of the *next real
+  control* — never a control of its own, never a status — with a note beside it: a line in the
+  italic serif, one plain sentence, *Later*, *The whole evening*, *Hide the guide*. Doing the thing
+  is doing the step. It says nothing when the page already does (while others write, while the
+  thoughts are read before the retro), never nudges the facilitator to close collection before the
+  sprint's last day (or a day before the retro), and never appears on the stage (the cue has it
+  there), the phone's room or the themes table. In the writing field it waits as a light, because
+  the page already asks the question. On a phone the note docks at the bottom behind a hairline and
+  folds while someone types. It is a floating layer like a menu, above the page and under dialogs.
+- **The sky.** The evening's stars: seven for someone starting a team (the team, a first sprint,
+  people to talk with, a first thought, the reveal, the retro, one thing to try), four for a member.
+  They light from what has actually happened (`GET /api/me/guide`), and hairlines join only the lit
+  ones, so the constellation forms as the team goes. A team with no sprint yet sees the same sky
+  beside *Set up your first sprint*, its first star lit.
+- **The closing.** When the first retro is done, once, on the sprint's page: the stars come down
+  onto the points of Muni's mark, the arches are drawn through them, the last star becomes the rubric
+  dot, and the reflection settles under a waterline — *The first evening, kept.* The guide retires.
+
+Where someone is (prologue, on, hidden, done) belongs to the account, so it's the same on every
+device; *Later* belongs to the tab. Accounts from before the guide are done. New guidance for the
+facilitator during the retro belongs in the cue, not here.
 
 ## A sprint's page
 
@@ -376,8 +411,10 @@ No glassmorphism, no gradients on text.
 
 ## Motion
 
-- 160–240ms ease-out for state changes. Nothing loops. The one longer motion is
-  the 260 ms fade when a character's room changes (see *Characters and worlds*).
+- 160–240ms ease-out for state changes. Nothing loops. The longer motions are the 260 ms fade when
+  a character's room changes (see *Characters and worlds*) and the first evening's: each prologue
+  line rising in 720 ms, the firefly's arrival (1.1 s) and three breaths, its flight to the next
+  control (0.8 s), and the closing (about 4 s). All happen once and come to rest.
 - Every animation is gated on `prefers-reduced-motion`; reduced motion swaps
   to opacity-only transitions.
 - Muni makes no sound.

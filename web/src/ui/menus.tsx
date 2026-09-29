@@ -6,7 +6,7 @@ import { useEffect, useRef, useState, type FormEvent, type ReactNode } from 'rea
 import { Link, useNavigate } from 'react-router'
 import * as Popover from '@radix-ui/react-popover'
 import { clsx } from 'clsx'
-import { Check, ChevronDown, ChevronRight, Download, LayoutList, LogOut, Monitor, Moon, Info, Plus, Settings2, Smile, Sun, Trash2, Users } from 'lucide-react'
+import { Check, ChevronDown, ChevronRight, Download, LayoutList, LogOut, Monitor, Moon, Info, Plus, Settings2, Smile, Sun, Trash2, Users, Sparkle } from 'lucide-react'
 import { ApiError, post } from '@/api/client'
 import type { Me, Workspace } from '@/api/types'
 import { useAuth } from '@/lib/auth'
@@ -21,6 +21,7 @@ import { useDeviceKeys } from '@/lib/e2ee/E2eeProvider'
 import { Button, Dialog, ErrorText, Input, Label, Switch, useToast } from '@/ui'
 import { menuKeys } from '@/ui/menu-keys'
 import { Portrait } from '@/worlds/portraits'
+import { useGuide } from '@/guide/GuideProvider'
 import { useWorld } from '@/worlds/world'
 
 const panel = 'z-50 w-[min(20rem,calc(100vw-24px))] rounded-2xl border border-line bg-card p-1.5 shadow-[var(--shadow-float)] anim-rise'
@@ -156,6 +157,7 @@ export function AccountMenu() {
   const [dialog, setDialog] = useState<null | 'signout' | 'clear' | 'keep-off' | 'install'>(null)
   const [theme, setTheme] = useState(readPrefs().theme ?? 'system')
   const world = useWorld()
+  const guide = useGuide()
   if (!me) return null
   const initial = me.display_name.trim()[0]?.toUpperCase() ?? '·'
   const close = (d: typeof dialog = null) => {
@@ -192,6 +194,19 @@ export function AccountMenu() {
               <span className="flex-1">Character</span>
               <span className="acct-value">{world.character ? world.character.name : 'Choose one'}</span>
             </button>
+            {guide.stage !== 'done' ? (
+              <button
+                className={clsx(item, 'acct-row')}
+                onClick={() => {
+                  setOpen(false)
+                  guide.openSky()
+                }}
+              >
+                <Sparkle className="size-4 text-ink-soft" aria-hidden />
+                <span className="flex-1">The first evening</span>
+                <span className="acct-value">{guide.stage === 'hidden' ? 'Guide hidden' : 'Guide on'}</span>
+              </button>
+            ) : null}
             <div className={clsx(item, 'acct-row cursor-default hover:bg-transparent')}>
               {theme === 'dark' ? <Moon className="size-4 text-ink-soft" aria-hidden /> : theme === 'light' ? <Sun className="size-4 text-ink-soft" aria-hidden /> : <Monitor className="size-4 text-ink-soft" aria-hidden />}
               <span className="flex-1" id="acct-theme">Theme</span>

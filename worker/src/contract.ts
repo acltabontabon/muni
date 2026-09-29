@@ -43,8 +43,21 @@ export interface Me {
    * chooser ('choose', a new account) or nothing more ('done').
    */
   avatar: { id: string | null; theme: boolean; intro: 'choose' | 'done' }
+  /**
+   * The first evening, the guide through a team's first sprint: 'prologue' (a new account, shown it
+   * once), 'on', 'hidden' (by the person, who can bring it back) or 'done' (for good).
+   */
+  guide: GuideStage
   /** Only on sign-in responses: whether that verification created a new account. */
   created?: boolean
+}
+export type GuideStage = 'prologue' | 'on' | 'hidden' | 'done'
+/** The first evening's stars. Starters (who started a team or facilitate) walk all seven; members the last four. */
+export type Milestone = 'team' | 'sprint' | 'people' | 'thought' | 'reveal' | 'retro' | 'agreed'
+/** GET /api/me/guide: only ever about the person asking. */
+export interface GuideView {
+  track: 'starter' | 'member'
+  reached: Milestone[]
 }
 export interface PasskeyInfo {
   id: string

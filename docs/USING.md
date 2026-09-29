@@ -3,6 +3,16 @@
 Muni lives at **https://act.munimuni.app**. It works in any modern browser; installing it is
 optional and changes nothing about what it can do.
 
+## Your first evening
+
+The first time you open Muni, a short prologue tells what a sprint in Muni is, in five lines (tap,
+swipe or → to go on; Skip whenever you like). After that, until your team's first retro is done, a
+small light — a firefly — sits on the one thing to do next: create the team, set up the first sprint,
+invite people, open collection, write, close collection, group the thoughts, start the retro. Its note
+says what that control is for. *Later* puts a step off for now; *Hide the guide* puts it away (bring
+it back from the account menu: **The first evening**). The same place shows the evening's stars,
+lighting up as your team's first sprint goes by. On the stage the facilitator's cue takes over.
+
 ## Writing a thought
 
 Open Muni and your sprint is there, with a place to write: *What’s worth remembering?* Write

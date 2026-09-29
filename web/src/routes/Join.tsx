@@ -41,7 +41,7 @@ export function Join() {
   }, [load, me?.account_id])
   // Already in: straight on to where the code leads.
   useEffect(() => {
-    if (me && preview?.state === 'member') nav(destination(preview), { replace: true })
+    if (me && preview?.state === 'member') nav(destination(preview), { replace: true, state: { arrived: true } })
   }, [me, preview, nav])
 
   let body
@@ -92,7 +92,7 @@ export function Join() {
         <p className="quiet mt-6"><Link to="/" className="entrance-link">Go to Muni</Link></p>
       </Step>
     )
-  else body = <RequestStep token={token} preview={preview} onPending={setRequestId} onMember={(to) => nav(to, { replace: true })} onNeedsName={refresh} />
+  else body = <RequestStep token={token} preview={preview} onPending={setRequestId} onMember={(to) => nav(to, { replace: true, state: { arrived: true } })} onNeedsName={refresh} />
 
   return <EntranceShell progress={me ? (requestId ? PROGRESS.name : PROGRESS.done) : progress}>{body}</EntranceShell>
 }
@@ -218,7 +218,7 @@ export function Waiting({ requestId, onAgain }: { requestId: string; onAgain?: (
     return (
       <Step describedBy="join-in" title="You’re in." lead={<>You’ve joined {req.workspace_name}.{req.workspace_id ? null : ' Your access has since changed — ask the team if that’s unexpected.'}</>}>
         {req.workspace_id ? (
-          <Button variant="primary" size="lg" className="mt-6 w-full" onClick={() => nav(destination(req), { replace: true })} autoFocus>Continue</Button>
+          <Button variant="primary" size="lg" className="mt-6 w-full" onClick={() => nav(destination(req), { replace: true, state: { arrived: true } })} autoFocus>Continue</Button>
         ) : (
           <p className="quiet mt-6"><Link to="/" className="entrance-link">Go to Muni</Link></p>
         )}

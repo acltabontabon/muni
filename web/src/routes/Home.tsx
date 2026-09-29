@@ -27,6 +27,7 @@ import { Spinner, useDocumentTitle } from '@/ui'
 import { LocalThoughtList } from '@/ui/capture'
 import { JournalScene } from '@/ui/journal'
 import { NewWorkspaceDialog } from '@/ui/menus'
+import { takeIntent, useGuidePage } from '@/guide/GuideProvider'
 import { AppShell } from '@/ui/shell'
 import { RetroWhen } from '@/ui/when'
 import { useWorld } from '@/worlds/world'
@@ -99,6 +100,10 @@ export function Home() {
     }
   }, [needList, wsId])
 
+  // The first evening: a workspace with no sprints yet points at setting one up.
+  const listed = sprints && sprints.ws === wsId ? sprints.list : undefined
+  useGuidePage(wsId && !offline && listed !== undefined && me?.workspaces.length ? { at: 'workspace', workspaceId: wsId, sprints: listed ? listed.length : null, online: !offline } : null)
+
   // An old deep link (/capture?sprint=…) goes straight to that sprint.
   const deep = params.get('sprint')
   if (deep) return <Navigate to={`/sprints/${deep}`} replace state={{ write: true }} />
@@ -135,7 +140,7 @@ export function Home() {
             </Link>
           ) : null}
           <Link to={`/workspaces/${ws.id}`} className="text-ink-soft underline underline-offset-4 hover:text-ink">All sprints</Link>
-          <Link to={`/workspaces/${ws.id}/sprints/new`} className="text-ink-soft underline underline-offset-4 hover:text-ink">Set up a sprint</Link>
+          <Link to={`/workspaces/${ws.id}/sprints/new`} className="text-ink-soft underline underline-offset-4 hover:text-ink" data-guide="setup-sprint">Set up a sprint</Link>
         </p>
       ) : null}
     </div>
@@ -274,13 +279,15 @@ function Welcome() {
   const { me, refresh } = useAuth()
   const { world } = useWorld()
   const nav = useNavigate()
-  const [creating, setCreating] = useState(false)
+  // "Start a team", chosen at the end of the prologue, opens the dialog as the page arrives.
+  const [creating, setCreating] = useState(() => takeIntent('new-workspace'))
+  useGuidePage({ at: 'welcome' })
   const body = (
     <>
       <PendingJoins />
       <p className="mt-2 max-w-prose text-lg text-ink-soft">If you were invited to a team, open your invite link or scan the team’s QR code. It brings you straight to your sprint.</p>
       <p className="mt-6 text-sm text-ink-soft">
-        Starting a team yourself? <button className="font-medium text-ink underline underline-offset-4 hover:decoration-accent" onClick={() => setCreating(true)}>Create a workspace</button>
+        Starting a team yourself? <button className="font-medium text-ink underline underline-offset-4 hover:decoration-accent" data-guide="new-workspace" onClick={() => setCreating(true)}>Create a workspace</button>
       </p>
     </>
   )

@@ -449,6 +449,7 @@ export function Writer({ closed, fieldId = 'thought-field', level = 1 }: { /** S
           ref={area}
           id={fieldId}
           name="thought"
+          data-guide="writer"
           className="room-field"
           value={p.body}
           onChange={(e) => set({ body: e.target.value })}

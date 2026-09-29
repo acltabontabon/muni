@@ -18,6 +18,14 @@ those as highlights. The app's About → What's new and each GitHub release are 
 
 ### Added
 
+- **The first evening: a guide for new people.** A new account starts with a short prologue — the
+  sign-in's evening going on, five lines on what a sprint in Muni is — then a firefly settles on the
+  one real control to use next, from creating the team to starting the first retro, with a line on
+  what it's for. It keeps quiet when there's nothing to do, never hurries anyone to close
+  collection, and stays off the stage, where the facilitator's cue guides. Its stars light as the
+  team's first sprint goes by (account menu → **The first evening**), and when the first retro is
+  done they come together as Muni's mark and the guide retires. *Later* and *Hide the guide* are
+  always there. Accounts from before this update don't see it.
 - **Owners can take over a stranded sprint.** If a sprint’s facilitator can’t carry on — they’ve
   lost their passkey, say — a workspace owner can choose **More → Take over facilitating…** on the
   sprint’s page and run it from there. It says first what that means: the owner joins the sprint if
@@ -32,6 +40,9 @@ those as highlights. The app's About → What's new and each GitHub release are 
 
 ### Changed
 
+- A facilitator who is alone in a collecting sprint now sees **Invite people** on the sprint's page
+  itself, not under More. A team with no sprint yet sees the evening's sky beside *Set up your first
+  sprint*.
 - **Votes that make you choose.** A retro never gives more votes than half its topics (at least
   one), so voting always means leaving something out: three topics give one vote each — the one
   that matters most — and six give three. The sprint’s setting is the most it gives. Before, three

@@ -9,6 +9,7 @@ import { clientClass, limit } from '../lib/ratelimit'
 import { jsonBody, maskEmail, nonempty } from '../lib/util'
 import { accountByEmail, EMAIL_OF_A, emailOf, setAccountEmail } from '../lib/accounts'
 import { INTRO, introName, isAvatarId } from '../lib/avatars'
+import { GUIDE, guideName, guideView, isGuideChoice } from '../lib/guide'
 import { deleteAccount, free, openSprints, retroRooms, standing } from '../lib/departure'
 import { mayGrant } from '../lib/grants'
 import { HAS_SEAT } from '../lib/limits'
@@ -23,7 +24,7 @@ export async function buildMe(env: HonoEnv['Bindings'], accountId: string, sessi
   // Every app start reads this: one round trip to the database.
   const [accountRows, workspaceRows, pendingRows] = await db.batch([
     db.prepare(
-      `SELECT a.display_name, a.name_set_at, a.avatar_id, a.avatar_theme, a.avatar_intro, ${EMAIL_OF_A} AS email,
+      `SELECT a.display_name, a.name_set_at, a.avatar_id, a.avatar_theme, a.avatar_intro, a.guide, ${EMAIL_OF_A} AS email,
               (SELECT COALESCE(MAX(expires_at), ?) FROM sessions WHERE account_id = a.id AND revoked_at IS NULL) AS expires,
               (SELECT count(*) FROM webauthn_credentials WHERE account_id = a.id) AS passkeys
          FROM accounts a WHERE a.id = ?`,
@@ -31,7 +32,7 @@ export async function buildMe(env: HonoEnv['Bindings'], accountId: string, sessi
     db.prepare('SELECT w.id, w.name, m.role, w.is_demo FROM memberships m JOIN workspaces w ON w.id = m.workspace_id WHERE m.account_id = ? AND m.revoked_at IS NULL ORDER BY w.created_at').bind(accountId),
     db.prepare("SELECT r.id, w.name AS workspace_name, r.created_at FROM join_requests r JOIN workspaces w ON w.id = r.workspace_id WHERE r.account_id = ? AND r.status = 'pending' ORDER BY r.created_at DESC LIMIT 10").bind(accountId),
   ])
-  const acct = accountRows.results[0] as { display_name: string; name_set_at: number | null; avatar_id: string | null; avatar_theme: number; avatar_intro: number; email: string | null; expires: number; passkeys: number } | undefined
+  const acct = accountRows.results[0] as { display_name: string; name_set_at: number | null; avatar_id: string | null; avatar_theme: number; avatar_intro: number; guide: number; email: string | null; expires: number; passkeys: number } | undefined
   const rows = workspaceRows.results as { id: string; name: string; role: string; is_demo: number }[]
   const pending = pendingRows.results as { id: string; workspace_name: string; created_at: number }[]
   const authedAt = session?.authenticatedAt ?? Date.now()
@@ -52,6 +53,7 @@ export async function buildMe(env: HonoEnv['Bindings'], accountId: string, sessi
     pending_join_requests: pending.map((p) => ({ id: p.id, workspace_name: p.workspace_name, created_at: new Date(p.created_at).toISOString() })),
     /** Yours alone: no other response carries it. An id this build doesn't know reads as none. */
     avatar: { id: isAvatarId(acct?.avatar_id) ? acct.avatar_id : null, theme: (acct?.avatar_theme ?? 1) === 1, intro: introName(acct?.avatar_intro) },
+    guide: guideName(acct?.guide),
     ...(extra.created !== undefined ? { created: extra.created } : {}),
   }
 }
@@ -68,7 +70,7 @@ auth.get('/api/auth/me', async (c) => {
  */
 auth.patch('/api/auth/me', async (c) => {
   const a = await requireAuth(c, config(c.env), c.env.DB)
-  const body = await jsonBody<{ display_name?: unknown; avatar_id?: unknown; avatar_theme?: unknown; avatar_intro?: unknown }>(c)
+  const body = await jsonBody<{ display_name?: unknown; avatar_id?: unknown; avatar_theme?: unknown; avatar_intro?: unknown; guide?: unknown }>(c)
   const sets: string[] = []
   const args: unknown[] = []
   if (body.display_name !== undefined) {
@@ -93,9 +95,21 @@ auth.patch('/api/auth/me', async (c) => {
       args.push(INTRO.done)
     }
   }
+  if (body.guide !== undefined) {
+    if (!isGuideChoice(body.guide)) throw bad('guide can be on, hidden or done')
+    // Once the first evening is done, it stays done.
+    sets.push(`guide = CASE WHEN guide = ${GUIDE.done} THEN ${GUIDE.done} ELSE ? END`)
+    args.push(GUIDE[body.guide])
+  }
   if (!sets.length) throw bad('nothing to change')
   await run(c.env.DB, `UPDATE accounts SET ${sets.join(', ')} WHERE id = ?`, ...args, a.account.id)
   return c.json(await buildMe(c.env, a.account.id, a))
+})
+
+/** Which of the first evening's milestones you've reached (the guide's sky). Only ever about you. */
+auth.get('/api/me/guide', async (c) => {
+  const a = await requireAuth(c, config(c.env), c.env.DB)
+  return c.json(await guideView(c.env.DB, a.account.id))
 })
 
 /**

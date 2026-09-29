@@ -64,7 +64,7 @@ export function Invite() {
       />
     )
   else if (me.needs_name) body = <NameStep onDone={async () => { setProgress(PROGRESS.done); await refresh() }} />
-  else body = <Join token={token} workspace={preview.workspace_name ?? 'this workspace'} name={me.display_name} onJoined={(to) => nav(to, { replace: true })} onNeedsName={refresh} />
+  else body = <Join token={token} workspace={preview.workspace_name ?? 'this workspace'} name={me.display_name} onJoined={(to) => nav(to, { replace: true, state: { arrived: true } })} onNeedsName={refresh} />
 
   return <EntranceShell progress={me ? Math.max(progress, me.needs_name ? PROGRESS.name : PROGRESS.done) : progress}>{body}</EntranceShell>
 }

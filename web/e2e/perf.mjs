@@ -11,12 +11,16 @@
  *
  *   MUNI_URL=http://localhost:8799 node e2e/perf.mjs            # prints a table + JSON
  *   BUDGET=1 … node e2e/perf.mjs                                # exits 1 when a budget is exceeded
+ *   GUIDE=on … node e2e/perf.mjs                                # with the first evening's firefly out
  */
 import { chromium } from 'playwright'
 import { writeFileSync } from 'node:fs'
 
 const BASE = process.env.MUNI_URL ?? 'http://localhost:8799'
 const IDLE_S = Number(process.env.IDLE_S ?? 15)
+// With the first evening's guide on, a page's firefly arrives and swells once (about 3.5 s, once per
+// step): pages are measured after it has come to rest.
+const SETTLE_MS = 3000 + (process.env.GUIDE ? 4500 : 0)
 const OUT = process.env.OUT ?? null
 const tag = crypto.randomUUID().slice(0, 6)
 const d = (n) => new Date(Date.now() + n * 86400000).toISOString().slice(0, 10)
@@ -37,7 +41,7 @@ async function account(prefix, name) {
     return t ? JSON.parse(t) : null
   }
   // A signed-in account, made by the development-only endpoint (passkeys themselves: e2e/passkeys.mjs).
-  const me = await req('POST', '/api/dev/session', { name })
+  const me = await req('POST', '/api/dev/session', { name, ...(process.env.GUIDE ? { guide: process.env.GUIDE } : {}) })
   if (me.needs_name) await req('PATCH', '/api/auth/me', { display_name: name })
   return { id: me.account_id, req, cookies: () => [...jar].map(([n, value]) => ({ name: n, value, domain: new URL(BASE).hostname, path: '/' })) }
 }
@@ -138,7 +142,7 @@ try {
     const s = await session({ cookies: a.cookies(), ws: ws.id, theme })
     await s.page.goto(`${BASE}/`)
     await s.page.locator('textarea[name="thought"]').first().waitFor()
-    await s.page.waitForTimeout(3000)
+    await s.page.waitForTimeout(SETTLE_MS)
     record(`home ${world ?? 'muni'} (${theme}, phone)`, await idle(s))
     await s.ctx.close()
   }
@@ -147,7 +151,7 @@ try {
   for (const path of want('pages') ? [`/sprints/${sprint.id}`, '/account', `/workspaces/${ws.id}`] : []) {
     const s = await session({ cookies: a.cookies(), ws: ws.id })
     await s.page.goto(BASE + path)
-    await s.page.waitForTimeout(3000)
+    await s.page.waitForTimeout(SETTLE_MS)
     const label = path.replace(sprint.id, ':id').replace(ws.id, ':id')
     record(path.startsWith('/workspaces/') ? `${label} (phone) 3–${3 + IDLE_S} s` : `${label} (phone)`, await idle(s))
     if (path.startsWith('/workspaces/')) {

@@ -310,6 +310,7 @@ function ComposerView({ choices, headingLevel = 1, fieldId, closed, s }: Compose
         ref={area}
         id={bodyId}
         name="thought"
+        data-guide="writer"
         className="journal-field"
         value={p.body}
         onChange={(e) => set({ body: e.target.value })}

@@ -107,6 +107,7 @@ promises about any particular phone.
 | --- | --- |
 | Any page left alone (after its first breath) | ≤ 2 frames/s, ≤ 1 paint/s, ≤ 1 timer/s, 0 requests, ≤ 8 ms/s main thread |
 | Scene motion after load or a finished step | finite; at rest by ~20 s (a phone's entrance by ~8 s) |
+| The first evening's firefly, on each new step | finite; one arrival and one swell, at rest ~3.5 s after it appears (`GUIDE=on` measures pages after it) |
 | Write ⇄ Sprints, per round trip | ≤ 8 API requests |
 | After 12 round trips | ≤ 20 listeners, ≤ 200 DOM nodes left behind |
 | Typing | ≤ 200 ms/s main thread at 4× slowdown |

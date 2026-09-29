@@ -57,6 +57,20 @@ describe('role boundaries', () => {
   })
 })
 
+describe('inviting', () => {
+  it('is out in view while the facilitator is alone, and in More once the team is in', () => {
+    const kinds = (a: Action[]) => a.map((x) => x.kind)
+    for (const st of ['draft', 'collecting']) {
+      const alone = sprintPlan(sprint(st, 'facilitator', { participant_count: 1 }))
+      expect(kinds(alone.secondary), st).toContain('invite')
+      expect(kinds(alone.more), st).not.toContain('invite')
+    }
+    const team = sprintPlan(sprint('collecting', 'facilitator'))
+    expect(kinds(team.secondary)).not.toContain('invite')
+    expect(kinds(team.more)).toContain('invite')
+  })
+})
+
 describe('the lifecycle people see', () => {
   it('has five phases; preparing and ready are the same "closed"', () => {
     expect(new Set(STATES.map((s) => PHASE_OF[s]))).toEqual(new Set(['draft', 'collecting', 'closed', 'live', 'done']))

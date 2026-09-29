@@ -112,7 +112,11 @@ let firstCredential
   check('onboarding offers a second passkey, never an email', (await page.locator('button:has-text("Add a second passkey")').count()) === 1 && (await page.locator('input[type=email]').count()) === 0)
   await page.click('button:has-text("Not now")')
   await out(page)
-  // A new account's first page: choose a character (web/e2e/worlds.mjs covers the chooser itself).
+  // A new account's first page: the first evening's prologue (e2e/firstrun.mjs), then a character
+  // (web/e2e/worlds.mjs covers the chooser itself).
+  await page.locator('.prologue').waitFor()
+  check('a new account meets the first evening’s prologue first', (await page.locator('.w-chooser').count()) === 0)
+  await page.locator('.prologue-skip').click()
   await page.waitForSelector('.w-chooser')
   check('a new account meets the character chooser once', (await page.locator('.w-tile').count()) === 8)
   await page.click('button:has-text("Choose Kape")')
@@ -321,7 +325,11 @@ let firstCredential
   await page.goto(`${BASE}/signin`)
   await createAccount(page, 'Sam Signout')
   await out(page)
+  // A new account's first evening: past the prologue, and the guide hidden (e2e/firstrun.mjs covers it).
+  await page.locator('.prologue-skip').click({ timeout: 8000 }).catch(() => {})
   await page.locator('button:has-text("Decide later")').click({ timeout: 5000 }).catch(() => {})
+  await page.evaluate(() => fetch('/api/auth/me', { method: 'PATCH', headers: { 'content-type': 'application/json', 'x-csrf-token': decodeURIComponent((document.cookie.match(/__Host-muni_csrf=([^;]+)/) ?? document.cookie.match(/muni_csrf=([^;]+)/))?.[1] ?? '') }, body: JSON.stringify({ guide: 'hidden' }) })).catch(() => {})
+  await page.reload()
   // The same synced passkey on another device: a second session.
   const other = await newCtx()
   const op = await other.newPage()

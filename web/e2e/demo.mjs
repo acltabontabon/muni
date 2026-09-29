@@ -250,7 +250,11 @@ async function signUp(name, phone = false) {
   await page.waitForSelector('text=Add a second passkey')
   await page.click('button:has-text("Not now")')
   await page.waitForURL((u) => !u.pathname.startsWith('/signin'))
+  // A new account's first evening: past the prologue, and the guide hidden (e2e/firstrun.mjs covers it).
+  await page.locator('.prologue-skip').click({ timeout: 8000 }).catch(() => {})
   await page.locator('button:has-text("Decide later")').click({ timeout: 5000 }).catch(() => {})
+  await page.evaluate(() => fetch('/api/auth/me', { method: 'PATCH', headers: { 'content-type': 'application/json', 'x-csrf-token': decodeURIComponent((document.cookie.match(/__Host-muni_csrf=([^;]+)/) ?? document.cookie.match(/muni_csrf=([^;]+)/))?.[1] ?? '') }, body: JSON.stringify({ guide: 'hidden' }) })).catch(() => {})
+  await page.reload()
   // Keys are made without asking; wait until this device holds them (once more after a reload if slow).
   const unlocked = () => page.waitForSelector('text=Your encrypted writing is unlocked on this device.', { timeout: 20000 })
   await page.goto(`${BASE}/account#encryption`)

@@ -14,6 +14,7 @@ import { isLocked, keyring } from '@/lib/e2ee/keyring'
 import { b64u } from '@/lib/e2ee/crypto'
 import { useDeviceKeys } from '@/lib/e2ee/E2eeProvider'
 import { DeviceKeyNotice } from '@/ui/keys'
+import { useGuidePage } from '@/guide/GuideProvider'
 
 const tzOptions = () => {
   try {
@@ -253,6 +254,7 @@ export function SprintSetup() {
     }
   }
 
+  useGuidePage(ws && !sprintId ? { at: 'setup', workspaceId: ws.workspace.id, creating: true, online: typeof navigator === 'undefined' || navigator.onLine } : null)
   if (!ws)
     return (
       <AppShell>
@@ -436,7 +438,7 @@ export function SprintSetup() {
                 <Button type="button" variant="ghost" onClick={() => nav(-1)}>Cancel</Button>
                 <span className="hidden text-sm text-ink-soft sm:ml-auto sm:inline">{count} {count === 1 ? 'person' : 'people'}{preview ? ` · retro ${preview.date}` : ''}</span>
                 <Button type="button" busy={busy === 'draft'} disabled={!!busy} onClick={() => submit('draft')}>Save as draft</Button>
-                <Button type="submit" variant="primary" size="lg" busy={busy === 'open'} disabled={!!busy}>Create and open collection</Button>
+                <Button type="submit" variant="primary" size="lg" busy={busy === 'open'} disabled={!!busy} data-guide="create-open">Create and open collection</Button>
               </>
             )}
           </div>

@@ -182,7 +182,7 @@ export function SprintBar({
             {facts.length ? <span className="sbar-facts">{facts.join(' · ')}</span> : null}
             {(compact || slim) && when && plan.phase !== 'live' && plan.phase !== 'done' ? <span className="sbar-when">{when.replace(/^retro /, 'retro planned ')}</span> : null}
             {compact || slim ? (
-              <button type="button" className="sbar-toggle" aria-expanded={open} onClick={() => setOpen((o) => !o)}>
+              <button type="button" className="sbar-toggle" data-guide="details" aria-expanded={open} onClick={() => setOpen((o) => !o)}>
                 {open ? 'Less' : 'Details'}
               </button>
             ) : null}
@@ -227,7 +227,7 @@ function ActionButton({ a, control, primary }: { a: Action; control: SprintContr
   // Going somewhere is a link, so it opens in a new tab and reads as one.
   if (a.kind === 'link')
     return (
-      <Link to={a.href} className={`ws-btn ${primary ? 'ws-btn--primary' : 'ws-btn--secondary'} sbar-button`}>
+      <Link to={a.href} className={`ws-btn ${primary ? 'ws-btn--primary' : 'ws-btn--secondary'} sbar-button`} data-guide={primary ? 'sprint-primary' : undefined}>
         {a.label} <ArrowRight className="size-4" aria-hidden />
       </Link>
     )
@@ -235,6 +235,7 @@ function ActionButton({ a, control, primary }: { a: Action; control: SprintContr
     <Button
       variant={primary ? 'primary' : 'secondary'}
       className="sbar-button"
+      data-guide={primary ? 'sprint-primary' : undefined}
       busy={isTransition && control.busy === a.to}
       disabled={(isTransition && !control.online) || (!!control.busy && isTransition)}
       onClick={() => control.run(a)}
@@ -245,9 +246,9 @@ function ActionButton({ a, control, primary }: { a: Action; control: SprintContr
 }
 
 function QuietAction({ a, control }: { a: Action; control: SprintControl }) {
-  if (a.kind === 'link') return <Link to={a.href} className="sbar-link">{a.label}</Link>
+  if (a.kind === 'link') return <Link to={a.href} className="sbar-link" data-guide={a.href.endsWith('/prepare') ? 'prepare' : undefined}>{a.label}</Link>
   return (
-    <button type="button" className="sbar-link" disabled={a.kind === 'transition' && (!control.online || !!control.busy)} onClick={() => control.run(a)}>
+    <button type="button" className="sbar-link" data-guide={a.kind === 'invite' ? 'invite' : undefined} disabled={a.kind === 'transition' && (!control.online || !!control.busy)} onClick={() => control.run(a)}>
       {a.label}
     </button>
   )
@@ -259,7 +260,7 @@ function MoreMenu({ actions, control }: { actions: Action[]; control: SprintCont
   return (
     <Popover.Root open={open} onOpenChange={setOpen}>
       <Popover.Trigger asChild>
-        <button type="button" className="sbar-link sbar-more" aria-haspopup="menu">
+        <button type="button" className="sbar-link sbar-more" data-guide="more" aria-haspopup="menu">
           <MoreHorizontal className="size-4" aria-hidden /> More
         </button>
       </Popover.Trigger>

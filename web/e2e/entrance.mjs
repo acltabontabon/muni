@@ -190,7 +190,11 @@ try {
     await page.getByRole('button', { name: 'Not now' }).click()
     await page.waitForURL((u) => !u.pathname.startsWith('/signin'))
     // A new account meets the character chooser first (e2e/worlds.mjs covers it).
+    // A new account's first evening: past the prologue, and the guide hidden (e2e/firstrun.mjs covers it).
+    await page.locator('.prologue-skip').click({ timeout: 8000 }).catch(() => {})
     await page.locator('button:has-text("Decide later")').click({ timeout: 5000 }).catch(() => {})
+    await page.evaluate(() => fetch('/api/auth/me', { method: 'PATCH', headers: { 'content-type': 'application/json', 'x-csrf-token': decodeURIComponent((document.cookie.match(/__Host-muni_csrf=([^;]+)/) ?? document.cookie.match(/muni_csrf=([^;]+)/))?.[1] ?? '') }, body: JSON.stringify({ guide: 'hidden' }) })).catch(() => {})
+    await page.reload()
     const me = (await api(page, 'GET', '/api/auth/me')).body
     check('The account exists with one passkey and no email', me.passkeys === 1 && me.email === null)
 

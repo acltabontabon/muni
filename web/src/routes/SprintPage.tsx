@@ -44,6 +44,8 @@ import { useWorld } from '@/worlds/world'
 import { lazyPart, Loading } from '@/ui/lazy'
 import { TeamThoughts } from '@/ui/team-thoughts'
 import { Commitments } from './Home'
+import { useGuidePage } from '@/guide/GuideProvider'
+import { FirstEveningClosing } from '@/guide/Sky'
 
 // A finished sprint's recap loads when one is opened; writing and the retro don't wait for it.
 const OutcomesView = lazyPart(() => import('./Outcomes'), (m) => m.OutcomesView)
@@ -197,6 +199,28 @@ function SprintView({ sprintId }: { sprintId: string }) {
     el.focus({ preventScroll: true })
   })
 
+  // The first evening: what this page knows, for the guide to point at the next real control.
+  const pending = local.items.some((i) => i.sprintId === sprintId)
+  useGuidePage(
+    s && !error
+      ? {
+          at: 'sprint',
+          workspaceId: s.workspace_id,
+          phase: PHASE_OF[s.status] ?? 'draft',
+          fac: s.is_facilitator,
+          participant: s.is_participant,
+          people: s.participants.length,
+          wrote: collected === null ? (pending ? true : null) : collected > 0 || pending,
+          themes: s.theme_count ?? 0,
+          can: { open: s.allowed_transitions.includes('collecting'), close: s.allowed_transitions.includes('preparing'), start: s.allowed_transitions.includes('live') },
+          endsOn: s.ends_on,
+          retroAt: s.retro_at,
+          online: !offline,
+        }
+      : null,
+  )
+  const demo = !!me?.workspaces.find((w) => w.id === s?.workspace_id)?.is_demo
+
   if (error)
     return (
       <AppShell>
@@ -323,6 +347,7 @@ function SprintView({ sprintId }: { sprintId: string }) {
       <div className={world ? 'room sprint-done' : 'sprint-done'} data-room={world ?? undefined} data-mode={world ? 'done' : undefined}>
         {world ? header : null}
         {notices}
+        {participant && !demo ? <FirstEveningClosing /> : null}
         <Suspense fallback={<Loading />}>
           <OutcomesView s={s} onCount={setAgreed} refresh={refresh} />
         </Suspense>
@@ -364,7 +389,7 @@ function SprintView({ sprintId }: { sprintId: string }) {
       if (participant && !fac) {
         text = 'Vote, answer and add from this device. Your votes, answers and additions never carry your name.'
         action = (
-          <Link to={`/sprints/${sprintId}/room`} className="ws-btn ws-btn--primary">
+          <Link to={`/sprints/${sprintId}/room`} className="ws-btn ws-btn--primary" data-guide="join-retro">
             Join the retro <ArrowRight className="size-4" aria-hidden />
           </Link>
         )
@@ -388,7 +413,6 @@ function SprintView({ sprintId }: { sprintId: string }) {
     const reveal = participant && phase === 'closed'
     const list = reveal ? <TeamThoughts sprintId={sprintId} refresh={refresh} /> : participant && phase !== 'draft' && phase !== 'collecting' ? thoughts(world ? <RoomEmpty /> : undefined) : null
     // Something of yours that didn't reach the sprint (it needs a decision) keeps the fold open.
-    const pending = local.items.some((i) => i.sprintId === sprintId)
     const more = reveal ? (
       <>
         <details className="sprint-fold" open={pending || undefined}>

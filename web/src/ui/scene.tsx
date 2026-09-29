@@ -192,8 +192,10 @@ export function useStill(ref: RefObject<Element | null>) {
 }
 
 /** `frame` crops the same drawing for the app's small postcards (a viewBox in scene units). */
-export function DuyanScene({ progress, className, frame }: { progress: number; className?: string; frame?: string }) {
-  const upright = useUpright() && !frame
+export function DuyanScene({ progress, className, frame, upright: force }: { progress: number; className?: string; frame?: string; upright?: boolean }) {
+  // `upright` holds the scene upright at any width (a tall column beside words).
+  const compact = useUpright()
+  const upright = (force || compact) && !frame
   const c = upright ? UPRIGHT : WIDE
   // 0 → 1 across the steps: the sun (or moon) settles, and one light is kept per finished step.
   const kept = progress >= 1 ? 4 : progress >= 0.8 ? 2 : progress >= 0.5 ? 1 : 0

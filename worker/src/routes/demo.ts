@@ -9,6 +9,7 @@ import { all, batch, one, run } from '../lib/db'
 import { notFound } from '../lib/errors'
 import { addDays, jsonBody, localDate } from '../lib/util'
 import { INTRO } from '../lib/avatars'
+import { GUIDE } from '../lib/guide'
 import { newAccountStatement } from '../lib/accounts'
 
 const isoHandle = () => btoa(String.fromCharCode(...crypto.getRandomValues(new Uint8Array(32)))).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '')
@@ -135,15 +136,16 @@ demo.post('/api/demo/seed', async (c) => {
 demo.post('/api/dev/session', async (c) => {
   const cfg = config(c.env)
   if (cfg.env === 'production' || !cfg.allowDemoSeed) throw notFound()
-  const body = await jsonBody<{ name?: string; intro?: 'choose' | 'done' }>(c)
-  // Scripts and tests aren't interrupted by the character chooser unless they ask to see it.
+  const body = await jsonBody<{ name?: string; intro?: 'choose' | 'done'; guide?: 'prologue' | 'on' | 'done' }>(c)
+  // Scripts and tests aren't interrupted by the character chooser or the first evening unless they ask.
   const intro = INTRO[body.intro === 'choose' ? 'choose' : 'done']
+  const guide = GUIDE[body.guide === 'prologue' || body.guide === 'on' ? body.guide : 'done']
   const id = uuid()
   const name = typeof body.name === 'string' ? body.name.trim().slice(0, 80) : ''
   const [sql, ...args] = newAccountStatement(id, name, isoHandle())
   await batch(c.env.DB, [
     [sql, ...args],
-    ['UPDATE accounts SET avatar_intro = ?, name_set_at = ? WHERE id = ?', intro, name ? Date.now() : null, id],
+    ['UPDATE accounts SET avatar_intro = ?, guide = ?, name_set_at = ? WHERE id = ?', intro, guide, name ? Date.now() : null, id],
   ])
   const session = await createSession(c.env.DB, id, cfg.sessionTtlDays, { method: 'passkey', clientLabel: 'Development' })
   setSessionCookies(c, cfg, session)
