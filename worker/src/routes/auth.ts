@@ -6,7 +6,7 @@ import { sha256Hex } from '../lib/crypto'
 import { all, batch, one, run } from '../lib/db'
 import { AppError, bad } from '../lib/errors'
 import { clientClass, limit } from '../lib/ratelimit'
-import { maskEmail, nonempty } from '../lib/util'
+import { jsonBody, maskEmail, nonempty } from '../lib/util'
 import { accountByEmail, emailOf, setAccountEmail } from '../lib/accounts'
 import { INTRO, introName, isAvatarId } from '../lib/avatars'
 import { deleteAccount, free, openSprints, standing } from '../lib/departure'
@@ -69,8 +69,7 @@ auth.get('/api/auth/me', async (c) => {
  */
 auth.patch('/api/auth/me', async (c) => {
   const a = await requireAuth(c, config(c.env), c.env.DB)
-  const raw: unknown = await c.req.json().catch(() => null)
-  const body = (raw && typeof raw === 'object' && !Array.isArray(raw) ? raw : {}) as { display_name?: unknown; avatar_id?: unknown; avatar_theme?: unknown; avatar_intro?: unknown }
+  const body = await jsonBody<{ display_name?: unknown; avatar_id?: unknown; avatar_theme?: unknown; avatar_intro?: unknown }>(c)
   const sets: string[] = []
   const args: unknown[] = []
   if (body.display_name !== undefined) {
@@ -120,7 +119,7 @@ auth.delete('/api/auth/me', async (c) => {
   const cfg = config(c.env)
   const a = await requireAuth(c, cfg, c.env.DB)
   requireRecentAuth(a)
-  const body = (await c.req.json().catch(() => ({}))) as { confirm?: unknown }
+  const body = await jsonBody<{ confirm?: unknown }>(c)
   if (body.confirm !== true) throw bad('confirm that you want to delete your account')
   const me = a.account.id
   const workspaces = await standing(c.env.DB, me)
@@ -228,8 +227,8 @@ async function liveInvite(db: D1Database, token: string): Promise<InviteRow | nu
  * the fragment (`/invite#<token>`), which browsers don't send, and these endpoints read it from JSON.
  * URLs end up in platform request logs; bodies don't.
  */
-const bodyToken = async (c: { req: { json: () => Promise<unknown> } }) => {
-  const b = (await c.req.json().catch(() => ({}))) as { token?: unknown }
+const bodyToken = async (c: { req: { text: () => Promise<string> } }) => {
+  const b = await jsonBody<{ token?: unknown }>(c)
   return typeof b.token === 'string' ? b.token.trim() : ''
 }
 

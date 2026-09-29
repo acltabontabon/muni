@@ -122,7 +122,8 @@ export class MeetingRoom implements DurableObject {
     const url = new URL(req.url)
     const path = url.pathname
     if (path === "/ws") return this.openSocket(req)
-    const body = req.method === 'POST' ? ((await req.json().catch(() => ({}))) as Record<string, unknown>) : {}
+    const raw = req.method === 'POST' ? await req.json().catch(() => null) : null
+    const body = (raw && typeof raw === 'object' ? raw : {}) as Record<string, unknown>
     switch (path) {
       case '/state':
         return Response.json(await this.state())
@@ -260,7 +261,7 @@ export class MeetingRoom implements DurableObject {
   private async command(body: Record<string, unknown>): Promise<Response> {
     const account = String(body.account ?? '')
     const expected = Number(body.expected_version)
-    const cmd = body.command as Command
+    const cmd = (body.command && typeof body.command === 'object' ? body.command : {}) as Command
     const m = await this.meeting()
     if (!m || m.ended_at) return Response.json({ error: 'the retro isn’t live', code: 'conflict' }, { status: 409 })
     if (m.version !== expected) return Response.json({ error: 'the stage changed since you last saw it — it’s been refreshed, try again', code: 'conflict' }, { status: 409 })
@@ -269,6 +270,10 @@ export class MeetingRoom implements DurableObject {
     if (m.controller_account_id && m.controller_account_id !== account && controllerPresent && cmd.type !== 'take_control') {
       return Response.json({ error: 'another facilitator is controlling the stage — take control explicitly to continue', code: 'conflict' }, { status: 409 })
     }
+    // The Worker validates commands; this keeps a malformed one from ever reaching the stored state.
+    const finite = (v: unknown) => typeof v === 'number' && Number.isFinite(v)
+    if ((cmd.type === 'set_agenda' && !Array.isArray(cmd.items)) || (cmd.type === 'timer_start' && !finite(cmd.secs)) || (cmd.type === 'timer_adjust' && !finite(cmd.delta_secs)))
+      return Response.json({ error: 'that command is malformed', code: 'bad_request' }, { status: 400 })
     const now = Date.now()
     let action = 'meeting.command'
     /** A topic's timebox: the talk's minutes shared across the first three topics, running from the moment it opens. Guidance, not a cut-off. */
@@ -303,7 +308,7 @@ export class MeetingRoom implements DurableObject {
         break
       }
       case 'set_agenda':
-        m.agenda = (cmd.items ?? []).slice(0, 40).map((i) => ({ theme_id: String(i.theme_id), reason: i.reason ? String(i.reason).slice(0, 12_000) : null /* opaque: an envelope in encrypted sprints */ }))
+        m.agenda = cmd.items.slice(0, 40).map((i) => ({ theme_id: String(i?.theme_id), reason: typeof i?.reason === 'string' && i.reason ? i.reason.slice(0, 12_000) : null /* opaque: an envelope in encrypted sprints */ }))
         action = 'meeting.agenda_changed'
         break
       case 'set_plan': {

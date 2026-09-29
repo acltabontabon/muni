@@ -8,7 +8,7 @@ import { uuid } from '../lib/crypto'
 import { all, audit, count, one, run } from '../lib/db'
 import { AppError, bad, conflict, forbidden, notFound } from '../lib/errors'
 import { hint } from '../lib/live'
-import { addDays } from '../lib/util'
+import { addDays, isDate, jsonBody } from '../lib/util'
 
 export const commitments = new Hono<HonoEnv>()
 export const OUTCOMES = ['proposed', 'accepted', 'helped', 'did_not_help', 'inconclusive', 'not_tried']
@@ -53,6 +53,13 @@ function vague(change: string): string | null {
   return null
 }
 
+/** A review date, when one is given: a real date, or a 400 (never quietly replaced by the default). */
+function reviewOn(v: unknown): string | null {
+  if (v === undefined || v === null || v === '') return null
+  if (!isDate(v)) throw bad('the review date must be a real date, as YYYY-MM-DD')
+  return v
+}
+
 export const listFor = async (db: D1Database, sprintId: string) => (await all<ExperimentRow>(db, `${EXP_SELECT} WHERE e.sprint_id = ? ORDER BY e.created_at LIMIT 50`, sprintId)).map(expView)
 
 commitments.get('/api/sprints/:sprintId/experiments', async (c) => {
@@ -72,7 +79,7 @@ commitments.post('/api/sprints/:sprintId/experiments', async (c) => {
   const ctx = await requireSprint(c, config(c.env), c.env.DB, c.req.param('sprintId'))
   requireFacilitator(ctx)
   if (!['live', 'completed', 'ready'].includes(ctx.sprint.status)) throw conflict('experiments are agreed during or after the retro')
-  const body = (await c.req.json().catch(() => ({}))) as Record<string, unknown>
+  const body = await jsonBody<Record<string, unknown>>(c)
   const encrypted = isEncrypted(ctx.sprint)
   // The "too vague" check reads the text, so for encrypted sprints it runs on the facilitator's device.
   const change = content(encrypted, body.change_to_try, 500, 'The change to try', true)!
@@ -82,7 +89,7 @@ commitments.post('/api/sprints/:sprintId/experiments', async (c) => {
   const n = await count(db, 'SELECT count(*) AS n FROM experiments WHERE sprint_id = ?', ctx.sprint.id)
   if (n >= 10) throw conflict('ten experiments is the hard limit')
   if (n >= 3 && body.override_limit !== true) throw conflict('three experiments is plenty for one sprint. Add another only if you’re sure the team can carry it — confirm to continue')
-  let review = typeof body.review_on === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(body.review_on) ? body.review_on : null
+  let review = reviewOn(body.review_on)
   if (!review) {
     const s = await one<{ ends_on: string }>(db, 'SELECT ends_on FROM sprints WHERE id = ?', ctx.sprint.id)
     review = addDays(s!.ends_on, 14)
@@ -106,7 +113,7 @@ commitments.patch('/api/sprints/:sprintId/experiments/:experimentId', async (c) 
   if (!row) throw notFound('experiment not found')
   const isOwner = row.owner_account_id === ctx.auth.account.id
   if (!(ctx.isFacilitator || isOwner)) throw forbidden('only the facilitator or the experiment’s owner can edit it')
-  const body = (await c.req.json().catch(() => ({}))) as Record<string, unknown>
+  const body = await jsonBody<Record<string, unknown>>(c)
   if (body.change_to_try !== undefined) {
     const ch = content(isEncrypted(ctx.sprint), body.change_to_try, 500, 'The change to try', true)!
     if (!isEncrypted(ctx.sprint)) checkVague(ch, body)
@@ -118,7 +125,8 @@ commitments.patch('/api/sprints/:sprintId/experiments/:experimentId', async (c) 
     if (body.owner_account_id && !(await count(db, 'SELECT count(*) AS n FROM sprint_participants WHERE sprint_id = ? AND account_id = ?', ctx.sprint.id, String(body.owner_account_id)))) throw bad('the owner must be a participant in this sprint')
     await run(db, "UPDATE experiments SET owner_account_id=?, owner_accepted_at=NULL, status=CASE WHEN status IN ('proposed','accepted') THEN 'proposed' ELSE status END, updated_at=? WHERE id=?", body.owner_account_id ? String(body.owner_account_id) : null, Date.now(), eid)
   }
-  if (typeof body.review_on === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(body.review_on)) await run(db, 'UPDATE experiments SET review_on=?, updated_at=? WHERE id=?', body.review_on, Date.now(), eid)
+  const review = reviewOn(body.review_on)
+  if (review) await run(db, 'UPDATE experiments SET review_on=?, updated_at=? WHERE id=?', review, Date.now(), eid)
   if (body.status !== undefined) {
     const st = String(body.status)
     if (!OUTCOMES.includes(st)) throw bad('unknown status')
@@ -137,7 +145,7 @@ commitments.patch('/api/sprints/:sprintId/experiments/:experimentId', async (c) 
 commitments.post('/api/sprints/:sprintId/experiments/:experimentId/accept', async (c) => {
   const ctx = await requireSprint(c, config(c.env), c.env.DB, c.req.param('sprintId'))
   requireParticipant(ctx)
-  const body = (await c.req.json().catch(() => ({}))) as { accept?: boolean }
+  const body = await jsonBody<{ accept?: boolean }>(c)
   const eid = c.req.param('experimentId')
   const res = body.accept
     ? await run(c.env.DB, "UPDATE experiments SET owner_accepted_at=?, status='accepted', updated_at=? WHERE id=? AND sprint_id=? AND owner_account_id=? AND status='proposed'", Date.now(), Date.now(), eid, ctx.sprint.id, ctx.auth.account.id)
@@ -216,7 +224,7 @@ commitments.put('/api/sprints/:sprintId/recap', async (c) => {
   const ctx = await requireSprint(c, config(c.env), c.env.DB, c.req.param('sprintId'))
   requireFacilitator(ctx)
   if (!['live', 'completed', 'archived'].includes(ctx.sprint.status)) throw conflict('the recap is written during or after the retro')
-  const body = (await c.req.json().catch(() => ({}))) as { body?: string; publish?: boolean }
+  const body = await jsonBody<{ body?: string; publish?: boolean }>(c)
   // A recap draft is generated from the meeting record, which the server can only read for a
   // sprint set up without encryption. Encrypted sprints draft it on the facilitator's device.
   if (isEncrypted(ctx.sprint) && typeof body.body !== 'string') throw new AppError(409, 'encrypted_recap', 'this sprint is encrypted, so its recap is drafted on your device')

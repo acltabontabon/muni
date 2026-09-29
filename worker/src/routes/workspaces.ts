@@ -7,7 +7,7 @@ import { all, audit, batch, bool, count, one, run } from '../lib/db'
 import { AppError, bad, conflict, forbidden, notFound } from '../lib/errors'
 import { templates } from '../lib/email'
 import { limit } from '../lib/ratelimit'
-import { nonempty, normalizeEmail } from '../lib/util'
+import { jsonBody, nonempty, normalizeEmail } from '../lib/util'
 import { enqueue, runSoon } from '../jobs'
 import { revokeLive } from '../lib/live'
 import { deleteWorkspaces, facilitated, openSprints, revokeMembership, standing } from '../lib/departure'
@@ -31,7 +31,7 @@ workspaces.post('/api/workspaces', async (c) => {
   const cfg = config(c.env)
   const { requireAuth } = await import('../lib/auth')
   const a = await requireAuth(c, cfg, c.env.DB)
-  const body = (await c.req.json().catch(() => ({}))) as { name?: string }
+  const body = await jsonBody<{ name?: string }>(c)
   const name = nonempty(body.name, 80, 'Workspace name')
   const id = uuid()
   await batch(c.env.DB, [
@@ -67,7 +67,7 @@ workspaces.get('/api/workspaces/:workspaceId', async (c) => {
 workspaces.patch('/api/workspaces/:workspaceId', async (c) => {
   const m = await requireMember(c, config(c.env), c.env.DB, c.req.param('workspaceId'))
   requireOwner(m)
-  const body = (await c.req.json().catch(() => ({}))) as { name?: string; retention_days?: number; outcome_retention_days?: number }
+  const body = await jsonBody<{ name?: string; retention_days?: number; outcome_retention_days?: number }>(c)
   if (body.name !== undefined) await run(c.env.DB, 'UPDATE workspaces SET name = ? WHERE id = ?', nonempty(body.name, 80, 'Workspace name'), m.workspaceId)
   if (body.retention_days !== undefined) {
     const d = Number(body.retention_days)
@@ -88,9 +88,10 @@ workspaces.post('/api/workspaces/:workspaceId/invitations', async (c) => {
   const cfg = config(c.env)
   const m = await requireMember(c, cfg, c.env.DB, c.req.param('workspaceId'))
   if (!(await canInvite(c.env.DB, m.workspaceId, m.auth.account.id, m.role))) throw forbidden('only owners and facilitators can invite')
-  const body = (await c.req.json().catch(() => ({}))) as { email?: string; sprint_id?: string }
-  const email = normalizeEmail(body.email ?? '')
+  const body = await jsonBody<{ email?: unknown; sprint_id?: unknown }>(c)
+  const email = normalizeEmail(body.email)
   if (!email) throw bad('enter a valid email address')
+  if (body.sprint_id !== undefined && body.sprint_id !== null && typeof body.sprint_id !== 'string') throw bad('sprint_id must be an id')
   await limit(c.env.DB, `invite:${m.workspaceId}`, 60, 3_600_000)
   if (body.sprint_id) {
     // Adding someone to a sprint is the facilitator's call for that sprint (as with POST /participants),
@@ -154,7 +155,7 @@ workspaces.delete('/api/workspaces/:workspaceId/members/:accountId', async (c) =
 workspaces.post('/api/workspaces/:workspaceId/leave', async (c) => {
   const m = await requireMember(c, config(c.env), c.env.DB, c.req.param('workspaceId'))
   const me = m.auth.account.id
-  const body = (await c.req.json().catch(() => ({}))) as { delete_workspace?: boolean }
+  const body = await jsonBody<{ delete_workspace?: boolean }>(c)
   const [s] = await standing(c.env.DB, me, m.workspaceId)
   if (!s) throw notFound()
   if (s.facilitating.length)
@@ -176,7 +177,7 @@ workspaces.post('/api/workspaces/:workspaceId/leave', async (c) => {
 workspaces.patch('/api/workspaces/:workspaceId/members/:accountId', async (c) => {
   const m = await requireMember(c, config(c.env), c.env.DB, c.req.param('workspaceId'))
   requireOwner(m)
-  const body = (await c.req.json().catch(() => ({}))) as { role?: string }
+  const body = await jsonBody<{ role?: string }>(c)
   if (body.role !== 'owner' && body.role !== 'member') throw bad('role must be owner or member')
   if (body.role === 'member') {
     const owners = await all<{ account_id: string }>(c.env.DB, "SELECT account_id FROM memberships WHERE workspace_id = ? AND role = 'owner' AND revoked_at IS NULL", m.workspaceId)

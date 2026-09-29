@@ -7,7 +7,7 @@ import { buildMe } from './auth'
 import { uuid } from '../lib/crypto'
 import { all, batch, one, run } from '../lib/db'
 import { notFound } from '../lib/errors'
-import { addDays, localDate } from '../lib/util'
+import { addDays, jsonBody, localDate } from '../lib/util'
 import { INTRO } from '../lib/avatars'
 import { newAccountStatement } from '../lib/accounts'
 
@@ -135,7 +135,7 @@ demo.post('/api/demo/seed', async (c) => {
 demo.post('/api/dev/session', async (c) => {
   const cfg = config(c.env)
   if (cfg.env === 'production' || !cfg.allowDemoSeed) throw notFound()
-  const body = (await c.req.json().catch(() => ({}))) as { name?: string; intro?: 'choose' | 'done' }
+  const body = await jsonBody<{ name?: string; intro?: 'choose' | 'done' }>(c)
   // Scripts and tests aren't interrupted by the character chooser unless they ask to see it.
   const intro = INTRO[body.intro === 'choose' ? 'choose' : 'done']
   const id = uuid()

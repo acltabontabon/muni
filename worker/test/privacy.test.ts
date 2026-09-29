@@ -1,6 +1,7 @@
 /** The privacy boundary, tested from the outside, through the public HTTP API. */
 import { describe, expect, it, vi } from 'vitest'
 import { env } from 'cloudflare:test'
+import { MeetingRoom } from '../src/room'
 import { closeCollection, entry, get, go, ids, openSocket, patch, post, req, runJobs, sprint, team } from './harness'
 
 /** Any shared payload must not carry these keys next to entry text. */
@@ -89,11 +90,23 @@ describe('privacy', () => {
       expect((await req('GET', `/api/sprints/${s}/export.csv?scope=raw`, owner)).status).toBe(200)
       expect((await post(`/api/workspaces/${ws}/invitations`, owner, { email: `${needle}@example.com` })).status).toBe(200)
       await runJobs()
-      // An unexpected failure is logged (path, method, a short error) — and still carries no content.
-      // A non-list participant_ids isn't validated today, so it reaches the error logger; if it ever is
-      // validated, provoke the logger another way, or this test stops proving the spy sees anything.
-      const broken = await post(`/api/workspaces/${ws}/sprints`, owner, { name: `${needle} sprint`, timezone: 'UTC', starts_on: '2026-09-01', ends_on: '2026-09-10', retro_date: '2026-09-11', retro_time: '10:00', participant_ids: 'not-a-list', facilitator_id: owner.account_id })
-      expect(broken.status).toBe(500)
+      // Malformed input is a plain 400, not a failure.
+      const malformed = await post(`/api/workspaces/${ws}/sprints`, owner, { name: `${needle} sprint`, timezone: 'UTC', starts_on: '2026-09-01', ends_on: '2026-09-10', retro_date: '2026-09-11', retro_time: '10:00', participant_ids: 'not-a-list', facilitator_id: owner.account_id })
+      expect(malformed.status).toBe(400)
+      // An unexpected failure is logged (path, method, a short error) — and still carries no content:
+      // here the room fails while a note with the needle in it is being added.
+      const theme = (await post(`/api/sprints/${s}/themes`, owner, { title: 'T' })).body.themes[0].id as string
+      expect((await go(owner, s, 'live')).status).toBe(200)
+      const real = MeetingRoom.prototype.fetch
+      const room = vi.spyOn(MeetingRoom.prototype, 'fetch').mockImplementation(function (this: MeetingRoom, r: Request) {
+        if (new URL(r.url).pathname === '/state') throw new Error('the room fell over')
+        return real.call(this, r)
+      })
+      try {
+        expect((await post(`/api/sprints/${s}/meeting/context`, members[1], { theme_id: theme, body: `${needle} context` })).status).toBe(500)
+      } finally {
+        room.mockRestore()
+      }
       expect(lines.some((l) => l.includes('request failed')), 'the spy sees the Worker’s own error log').toBe(true)
       const all = lines.join('\n')
       expect(all).not.toContain(needle)

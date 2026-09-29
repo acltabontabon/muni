@@ -6,7 +6,7 @@ import { uuid } from '../lib/crypto'
 import { all, audit, batch, bool, count, one, run } from '../lib/db'
 import { bad, conflict, forbidden, notFound } from '../lib/errors'
 import { hint, revokeLive, room, roomCall } from '../lib/live'
-import { addDays, daysBetween, localDate, localLabel, nonempty, optional, resolveLocal } from '../lib/util'
+import { addDays, daysBetween, idList, isDate, jsonBody, localDate, localLabel, nonempty, optional, resolveLocal } from '../lib/util'
 import { cancelReminders, scheduleReminders } from '../jobs'
 import { defaultPlan } from '../room'
 import { content, ENCRYPTION, isEncrypted, publicKey } from '../lib/sealed'
@@ -159,7 +159,7 @@ function validateSchedule(s: ScheduleInput) {
   const retro_date = nonempty(s.retro_date, 10, 'Retro date')
   const retro_time = nonempty(s.retro_time, 5, 'Retro time')
   const dur = Number(s.retro_duration_min ?? 45)
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(starts_on) || !/^\d{4}-\d{2}-\d{2}$/.test(ends_on) || !/^\d{4}-\d{2}-\d{2}$/.test(retro_date)) throw bad('dates must be YYYY-MM-DD')
+  if (!isDate(starts_on) || !isDate(ends_on) || !isDate(retro_date)) throw bad('dates must be real dates, as YYYY-MM-DD')
   if (starts_on > ends_on) throw bad('the sprint can’t end before it starts')
   if (daysBetween(starts_on, ends_on) > 120) throw bad('sprints longer than 120 days aren’t supported')
   if (retro_date < starts_on) throw bad('the retro can’t happen before the sprint starts')
@@ -175,7 +175,7 @@ async function activeMember(db: D1Database, workspaceId: string, accountId: stri
 sprints.post('/api/workspaces/:workspaceId/sprints', async (c) => {
   const cfg = config(c.env)
   const m = await requireMember(c, cfg, c.env.DB, c.req.param('workspaceId'))
-  const body = (await c.req.json().catch(() => ({}))) as Record<string, unknown> & ScheduleInput
+  const body = await jsonBody<Record<string, unknown> & ScheduleInput>(c)
   const name = nonempty(body.name, 120, 'Sprint name')
   const external_ref = optional(body.external_ref, 60, 'External id')
   const goal = optional(body.goal, 300, 'Sprint goal')
@@ -188,7 +188,7 @@ sprints.post('/api/workspaces/:workspaceId/sprints', async (c) => {
   const budget = Number(body.vote_budget ?? 3)
   if (!(budget >= 1 && budget <= 10)) throw bad('votes per person must be between 1 and 10')
   const facilitator = String(body.facilitator_id ?? '')
-  const ids = new Set<string>([...((body.participant_ids as string[]) ?? []).map(String), facilitator])
+  const ids = new Set<string>([...idList(body.participant_ids, 'participant_ids'), facilitator])
   if (ids.size > 60) throw bad('a sprint can have at most 60 participants')
   for (const id of ids) if (!(await activeMember(c.env.DB, m.workspaceId, id))) throw bad('every participant must be a member of this workspace')
   // An encrypted sprint's keys are bound to its id before it exists, so the client chooses it.
@@ -264,7 +264,7 @@ sprints.patch('/api/sprints/:sprintId', async (c) => {
   const ctx = await requireSprint(c, cfg, c.env.DB, c.req.param('sprintId'))
   requireFacilitator(ctx)
   if (['completed', 'archived'].includes(ctx.sprint.status)) throw conflict('this sprint is finished and can’t be edited')
-  const body = (await c.req.json().catch(() => ({}))) as Record<string, unknown>
+  const body = await jsonBody<Record<string, unknown>>(c)
   const db = c.env.DB
   const sid = ctx.sprint.id
   if (body.name !== undefined) await run(db, 'UPDATE sprints SET name = ?, updated_at = ? WHERE id = ?', nonempty(body.name, 120, 'Sprint name'), Date.now(), sid)
@@ -314,7 +314,7 @@ sprints.post('/api/sprints/:sprintId/participants', async (c) => {
   const ctx = await requireSprint(c, config(c.env), c.env.DB, c.req.param('sprintId'))
   requireFacilitator(ctx)
   if (['completed', 'archived'].includes(ctx.sprint.status)) throw conflict('this sprint is finished')
-  const body = (await c.req.json().catch(() => ({}))) as { account_id?: string }
+  const body = await jsonBody<{ account_id?: string }>(c)
   const id = String(body.account_id ?? '')
   if (!(await activeMember(c.env.DB, ctx.sprint.workspace_id, id))) throw bad('that person isn’t a member of this workspace')
   await run(c.env.DB, 'INSERT OR IGNORE INTO sprint_participants (sprint_id, account_id, is_facilitator, created_at) VALUES (?,?,0,?)', ctx.sprint.id, id, Date.now())
@@ -336,7 +336,7 @@ sprints.delete('/api/sprints/:sprintId/participants/:accountId', async (c) => {
 sprints.patch('/api/sprints/:sprintId/me', async (c) => {
   const ctx = await requireSprint(c, config(c.env), c.env.DB, c.req.param('sprintId'))
   requireParticipant(ctx)
-  const body = (await c.req.json().catch(() => ({}))) as { reminders_opt_out?: boolean }
+  const body = await jsonBody<{ reminders_opt_out?: boolean }>(c)
   await run(c.env.DB, 'UPDATE sprint_participants SET reminders_opt_out = ? WHERE sprint_id = ? AND account_id = ?', body.reminders_opt_out ? 1 : 0, ctx.sprint.id, ctx.auth.account.id)
   return c.json({ ok: true })
 })
@@ -357,7 +357,7 @@ export async function ensureRoom(env: HonoEnv['Bindings'], ctx: SprintCtx) {
 sprints.post('/api/sprints/:sprintId/transition', async (c) => {
   const ctx = await requireSprint(c, config(c.env), c.env.DB, c.req.param('sprintId'))
   requireFacilitator(ctx)
-  const body = (await c.req.json().catch(() => ({}))) as { to?: string; confirm?: boolean; key_wraps?: unknown; sprint_key?: { version?: unknown; public_key?: unknown } }
+  const body = await jsonBody<{ to?: string; confirm?: boolean; key_wraps?: unknown; sprint_key?: { version?: unknown; public_key?: unknown } }>(c)
   const to = String(body.to ?? '')
   if (!STATUSES.includes(to)) throw bad('unknown status')
   const db = c.env.DB

@@ -20,6 +20,7 @@ import { randomToken, sha256Hex, uuid } from '../lib/crypto'
 import { all, audit, batch, count, one, run } from '../lib/db'
 import { AppError, bad, conflict, forbidden, notFound } from '../lib/errors'
 import { clientClass, limit } from '../lib/ratelimit'
+import { jsonBody } from '../lib/util'
 import { canInvite } from './workspaces'
 
 export const join = new Hono<HonoEnv>()
@@ -57,8 +58,8 @@ interface RequestRow {
 }
 
 const iso = (n: number | null) => (n === null ? null : new Date(n).toISOString())
-const tokenOf = async (c: { req: { json: () => Promise<unknown> } }) => {
-  const b = (await c.req.json().catch(() => ({}))) as { token?: unknown }
+const tokenOf = async (c: { req: { text: () => Promise<string> } }) => {
+  const b = await jsonBody<{ token?: unknown }>(c)
   const t = typeof b.token === 'string' ? b.token.trim() : ''
   return t.length >= 20 && t.length <= 128 ? t : ''
 }
@@ -124,7 +125,7 @@ async function linkView(db: D1Database, l: LinkRow) {
 join.post('/api/workspaces/:workspaceId/join-links', async (c) => {
   const cfg = config(c.env)
   const m = await requireMember(c, cfg, c.env.DB, c.req.param('workspaceId'))
-  const body = (await c.req.json().catch(() => ({}))) as { sprint_id?: unknown; expires_in_hours?: unknown; max_requests?: unknown; replace?: unknown; mode?: unknown }
+  const body = await jsonBody<{ sprint_id?: unknown; expires_in_hours?: unknown; max_requests?: unknown; replace?: unknown; mode?: unknown }>(c)
   const sprintId = typeof body.sprint_id === 'string' && body.sprint_id ? body.sprint_id : null
   // 'direct': a personal link for one person, used once, that joins without a separate approval —
   // the manager approves by choosing whom to send it to. 'approval': a team QR anyone may scan.

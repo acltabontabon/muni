@@ -18,6 +18,7 @@ import { all, audit, count, one, run } from '../lib/db'
 import { AppError, bad, conflict, forbidden, notFound } from '../lib/errors'
 import { limit } from '../lib/ratelimit'
 import { isEncrypted, passkeyWrap, publicKey, recoveryBlob, wrapped } from '../lib/sealed'
+import { isObject, jsonBody } from '../lib/util'
 
 export const keys = new Hono<HonoEnv>()
 
@@ -71,7 +72,7 @@ async function passkeyWrapStatement(db: D1Database, a: Auth, input: unknown, k: 
 keys.put('/api/me/keys', async (c) => {
   const a = await requireAuth(c, config(c.env), c.env.DB)
   const db = c.env.DB
-  const body = (await c.req.json().catch(() => ({}))) as { public_key?: unknown; recovery_blob?: unknown; replace?: boolean; passkey_wrap?: unknown; device?: unknown }
+  const body = await jsonBody<{ public_key?: unknown; recovery_blob?: unknown; replace?: boolean; passkey_wrap?: unknown; device?: unknown }>(c)
   // The device that made this key and already keeps it (so a reload can't lose a published key).
   const device = typeof body.device === 'string' && UUID.test(body.device) ? body.device : ''
   const pk = publicKey(body.public_key)
@@ -116,7 +117,7 @@ keys.put('/api/me/keys/passkeys/:credential', async (c) => {
   const a = await requireAuth(c, config(c.env), c.env.DB)
   requireRecentAuth(a)
   const db = c.env.DB
-  const body = (await c.req.json().catch(() => ({}))) as { wrapped?: unknown; key_version?: unknown; public_key?: unknown }
+  const body = await jsonBody<{ wrapped?: unknown; key_version?: unknown; public_key?: unknown }>(c)
   const k = await one<KeyRow>(db, 'SELECT * FROM account_keys WHERE account_id = ?', a.account.id)
   if (!k) throw conflict('set up encryption on a device first')
   if (body.public_key !== k.public_key || Number(body.key_version) !== k.key_version) throw new AppError(409, 'key_changed', 'your encryption key changed on another device — reload and try again')
@@ -143,7 +144,7 @@ keys.put('/api/me/devices/:id', async (c) => {
   const db = c.env.DB
   const id = c.req.param('id')
   if (!UUID.test(id)) throw bad('not a device id')
-  const body = (await c.req.json().catch(() => ({}))) as { replaces?: unknown; installed?: unknown; for_version?: unknown }
+  const body = await jsonBody<{ replaces?: unknown; installed?: unknown; for_version?: unknown }>(c)
   const k = await one<KeyRow>(db, 'SELECT * FROM account_keys WHERE account_id = ?', a.account.id)
   if (!k && body.for_version === undefined) throw conflict('set up encryption on a device first')
   const current = k?.key_version ?? 0
@@ -202,7 +203,7 @@ keys.delete('/api/me/devices/:id', async (c) => {
 /** A new recovery key (the old one stops working), and/or "I've saved it". */
 keys.post('/api/me/keys/recovery', async (c) => {
   const a = await requireAuth(c, config(c.env), c.env.DB)
-  const body = (await c.req.json().catch(() => ({}))) as { recovery_blob?: unknown; confirmed?: boolean }
+  const body = await jsonBody<{ recovery_blob?: unknown; confirmed?: boolean }>(c)
   const k = await one<KeyRow>(c.env.DB, 'SELECT * FROM account_keys WHERE account_id = ?', a.account.id)
   if (!k) throw conflict('set up encryption on a device first')
   // A new recovery key replaces the old one (a recovery setting): it needs a recent sign-in.
@@ -223,6 +224,7 @@ export type WrapInput = { account_id?: unknown; version?: unknown; wrapped?: unk
 export async function wrapStatements(db: D1Database, sprintId: string, actorId: string, input: unknown, opts: { sealedVersion: number | null }) {
   if (!Array.isArray(input)) return []
   if (input.length > 70) throw bad('too many keys at once')
+  if (!input.every(isObject)) throw bad('not a wrapped key')
   const participants = await all<{ account_id: string; is_facilitator: number; public_key: string | null }>(
     db,
     'SELECT sp.account_id, sp.is_facilitator, k.public_key FROM sprint_participants sp LEFT JOIN account_keys k ON k.account_id = sp.account_id WHERE sp.sprint_id = ?',
@@ -296,8 +298,9 @@ keys.post('/api/sprints/:sprintId/keys/wraps', async (c) => {
   const db = c.env.DB
   const enc = await one<{ encryption: string | null; status: string }>(db, 'SELECT encryption, status FROM sprints WHERE id = ?', ctx.sprint.id)
   if (!isEncrypted(enc ?? {})) throw conflict('this sprint isn’t encrypted')
-  const body = (await c.req.json().catch(() => ({}))) as { wraps?: unknown }
+  const body = await jsonBody<{ wraps?: unknown }>(c)
   const list = Array.isArray(body.wraps) ? (body.wraps as WrapInput[]) : []
+  if (!list.every(isObject)) throw bad('not a wrapped key')
   for (const v of new Set(list.map((w) => Number(w.version))))
     if (!(await count(db, 'SELECT count(*) AS n FROM sprint_key_wraps WHERE sprint_id = ? AND version = ? AND account_id = ?', ctx.sprint.id, v, ctx.auth.account.id)))
       throw forbidden('you can only share a key you hold')

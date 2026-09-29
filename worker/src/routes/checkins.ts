@@ -22,6 +22,7 @@ import { all, audit, batch, count, one, run } from '../lib/db'
 import { AppError, bad, conflict, notFound } from '../lib/errors'
 import { hint } from '../lib/live'
 import { content, isEncrypted } from '../lib/sealed'
+import { jsonBody } from '../lib/util'
 
 export const checkins = new Hono<HonoEnv>()
 
@@ -97,7 +98,7 @@ checkins.post('/api/sprints/:sprintId/checkins', async (c) => {
   const ctx = await requireSprint(c, config(c.env), c.env.DB, c.req.param('sprintId'))
   requireFacilitator(ctx)
   live(ctx, 'check-ins open')
-  const body = (await c.req.json().catch(() => ({}))) as { theme_id?: string; kind?: string; renew?: boolean }
+  const body = await jsonBody<{ theme_id?: string; kind?: string; renew?: boolean }>(c)
   const db = c.env.DB
   const kind = body.kind === 'action' ? 'action' : body.kind === 'topic' ? 'topic' : null
   if (!kind) throw bad('kind must be topic or action')
@@ -132,7 +133,7 @@ checkins.put('/api/sprints/:sprintId/checkins/:checkinId/response', async (c) =>
   const db = c.env.DB
   const r = await find(db, ctx, c.req.param('checkinId'))
   if (r.status !== 'open') throw new AppError(409, 'checkin_shared', 'These answers were just shared, so yours wasn’t added. Anything you wrote is still here.')
-  const body = (await c.req.json().catch(() => ({}))) as { choice?: string; note?: string }
+  const body = await jsonBody<{ choice?: string; note?: string }>(c)
   const me = ctx.auth.account.id
   const prior = await one<{ choice: string; note: string | null }>(db, 'SELECT choice, note FROM checkin_responses WHERE checkin_id = ? AND account_id = ?', r.id, me)
   const choice = body.choice === undefined ? prior?.choice : String(body.choice)

@@ -239,6 +239,9 @@ describe('encrypted sprints', () => {
     const outsider = newKeyPair()
     expect((await post(`/api/sprints/${s.id}/keys/wraps`, maya.user, { wraps: [{ ...wrap(late, s.secret, 1), recipient_public_key: b64u(outsider.pk) }] })).status).toBe(409)
     expect((await post(`/api/sprints/${s.id}/keys/wraps`, maya.user, { wraps: [{ ...wrap(late, s.secret, 1), account_id: crypto.randomUUID() }] })).status).toBe(403)
+    expect((await post(`/api/sprints/${s.id}/keys/wraps`, maya.user, { wraps: [null] })).status).toBe(400)
+    expect((await post(`/api/sprints/${s.id}/transition`, fac.user, { to: 'preparing', confirm: true, key_wraps: [null, 'w1.x'] })).status).toBe(400)
+    expect((await get(`/api/sprints/${s.id}`, fac.user)).body.status).toBe('collecting')
     expect((await post(`/api/sprints/${s.id}/keys/wraps`, maya.user, { wraps: [wrap(late, s.secret, 1)] })).status).toBe(200)
     const lv = (await get(`/api/sprints/${s.id}/keys`, late.user)).body as { my_wraps: { version: number; wrapped: string }[] }
     expect(unwrapSprintSecret(late.keys.sk, lv.my_wraps[0].wrapped, { sprintId: s.id, version: 1, recipientId: late.user.account_id })).toEqual(s.secret)

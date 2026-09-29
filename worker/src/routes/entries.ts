@@ -11,7 +11,7 @@ import { requireParticipant, requireSprint, type SprintCtx } from '../lib/auth'
 import { uuid } from '../lib/crypto'
 import { all, count, one, run } from '../lib/db'
 import { AppError, bad, conflict, notFound } from '../lib/errors'
-import { nonempty, optional } from '../lib/util'
+import { jsonBody, nonempty, optional } from '../lib/util'
 import { content, encryptionRequired, entryBinding, isEncrypted } from '../lib/sealed'
 
 export const entries = new Hono<HonoEnv>()
@@ -75,7 +75,7 @@ entries.post('/api/sprints/:sprintId/entries', async (c) => {
   const cfg = config(c.env)
   const ctx = await requireSprint(c, cfg, c.env.DB, c.req.param('sprintId'))
   requireParticipant(ctx)
-  const body = (await c.req.json().catch(() => ({}))) as Record<string, unknown>
+  const body = await jsonBody<Record<string, unknown>>(c)
   const encrypted = isEncrypted(ctx.sprint)
   const v = validate(cfg.entryMaxChars, body, encrypted)
   const key = typeof body.idempotency_key === 'string' && body.idempotency_key.trim() && body.idempotency_key.length <= 64 ? body.idempotency_key.trim() : null
@@ -128,7 +128,7 @@ entries.patch('/api/sprints/:sprintId/entries/:entryId', async (c) => {
   const cfg = config(c.env)
   const ctx = await requireSprint(c, cfg, c.env.DB, c.req.param('sprintId'))
   requireParticipant(ctx)
-  const v = validate(cfg.entryMaxChars, (await c.req.json().catch(() => ({}))) as Record<string, unknown>, isEncrypted(ctx.sprint))
+  const v = validate(cfg.entryMaxChars, await jsonBody(c), isEncrypted(ctx.sprint))
   if (isEncrypted(ctx.sprint)) requireEnvelope(v.body, ctx.sprint.id, c.req.param('entryId'))
   // Ownership and phase are enforced in the WHERE clause: a non-owner gets 404, a closed sprint 409.
   const res = await run(

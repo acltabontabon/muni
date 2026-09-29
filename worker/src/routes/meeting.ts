@@ -13,7 +13,8 @@ import { uuid } from '../lib/crypto'
 import { all, audit, bool, count, one, run } from '../lib/db'
 import { bad, conflict, notFound } from '../lib/errors'
 import { hint, room, roomCall, roomSocketHeaders } from '../lib/live'
-import type { RoomState } from '../room'
+import { isObject, jsonBody } from '../lib/util'
+import type { AgendaItem, RoomState } from '../room'
 import { PHASES } from '../room'
 import { ensureRoom } from './sprints'
 import { closeRound, openRound } from './voting'
@@ -98,13 +99,35 @@ meeting.get('/api/sprints/:sprintId/ws', async (c) => {
   return room(c.env, ctx.sprint.id).fetch('https://room/ws', { headers: roomSocketHeaders(c.req.raw.headers, ctx.auth.account.id, ctx.isFacilitator) })
 })
 
+type CommandBody = { type?: string; theme_id?: string | null; discussed?: boolean; phase?: string; items?: unknown; agenda?: unknown; topic?: string | null; secs?: unknown; delta_secs?: unknown; plan?: unknown }
+const seconds = (v: unknown) => typeof v === 'number' && Number.isFinite(v)
+
+/**
+ * A command as the room may receive it: an object whose fields have the types the room relies on.
+ * Anything else is a 400 here, before the room or D1 sees it.
+ */
+function commandOf(raw: unknown, encrypted: boolean): CommandBody {
+  if (!isObject(raw) || typeof raw.type !== 'string') throw bad('a command needs a type')
+  const cmd = { ...raw } as CommandBody
+  if (cmd.theme_id !== undefined && cmd.theme_id !== null && typeof cmd.theme_id !== 'string') throw bad('theme_id must be an id')
+  if (cmd.type === 'set_phase' && !(PHASES as readonly string[]).includes(String(cmd.phase))) throw bad('unknown phase')
+  if (cmd.type === 'timer_start' && !seconds(cmd.secs)) throw bad('secs must be a number of seconds')
+  if (cmd.type === 'timer_adjust' && !seconds(cmd.delta_secs)) throw bad('delta_secs must be a number of seconds')
+  if (cmd.type === 'set_agenda') {
+    if (!Array.isArray(cmd.items) || !cmd.items.every((i) => isObject(i) && typeof i.theme_id === 'string')) throw bad('items must be a list of themes')
+    // A reason is shown to everyone, so it's content: sealed in encrypted sprints.
+    cmd.items = cmd.items.map((i: Record<string, unknown>) => ({ theme_id: i.theme_id as string, reason: content(encrypted, i.reason, 200, 'The reason', false) }))
+  }
+  return cmd
+}
+
 /** Facilitator commands applied by the room only if `expected_version` matches. Content-side effects (context release, discussed flags) live here in D1. */
 meeting.post('/api/sprints/:sprintId/meeting/command', async (c) => {
   const ctx = await requireSprint(c, config(c.env), c.env.DB, c.req.param('sprintId'))
   requireFacilitator(ctx)
   if (ctx.sprint.status !== 'live') throw conflict('the retro isn’t live')
-  const body = (await c.req.json().catch(() => ({}))) as { expected_version?: number; command?: { type?: string; theme_id?: string; discussed?: boolean; phase?: string; items?: unknown; agenda?: unknown; topic?: string | null } }
-  const cmd = body.command ?? {}
+  const body = await jsonBody<{ expected_version?: number; command?: unknown }>(c)
+  const cmd = commandOf(body.command, isEncrypted(ctx.sprint))
   const db = c.env.DB
   // 'ungrouped' is a pseudo-topic: the stage opens the ungrouped pool directly.
   // A topic the room opens counts as discussed: there's no separate "mark as discussed" to remember.
@@ -143,9 +166,9 @@ meeting.post('/api/sprints/:sprintId/meeting/command', async (c) => {
       if (order[0]) await opened(order[0].id)
     }
   }
-  if (cmd.type === 'set_agenda' && Array.isArray(cmd.items)) {
+  if (cmd.type === 'set_agenda') {
     const valid = new Set((await all<{ id: string }>(db, 'SELECT id FROM themes WHERE sprint_id = ?', ctx.sprint.id)).map((t) => t.id))
-    cmd.items = (cmd.items as { theme_id: string; reason?: string }[]).filter((i) => valid.has(String(i.theme_id)))
+    cmd.items = (cmd.items as AgendaItem[]).filter((i) => valid.has(i.theme_id))
   }
   if (cmd.type === 'release_context') {
     const b = await one<{ b: number }>(db, 'SELECT COALESCE(MAX(released_batch),0)+1 AS b FROM context_additions WHERE sprint_id=?', ctx.sprint.id)
@@ -183,7 +206,7 @@ async function attendance(env: HonoEnv['Bindings'], ctx: SprintCtx, target: stri
 meeting.post('/api/sprints/:sprintId/meeting/attendance', async (c) => {
   const ctx = await requireSprint(c, config(c.env), c.env.DB, c.req.param('sprintId'))
   requireParticipant(ctx)
-  const body = (await c.req.json().catch(() => ({}))) as { present?: boolean }
+  const body = await jsonBody<{ present?: boolean }>(c)
   await attendance(c.env, ctx, ctx.auth.account.id, typeof body.present === 'boolean' ? body.present : undefined)
   return c.json(await snapshot(c.env, ctx))
 })
@@ -192,7 +215,7 @@ meeting.post('/api/sprints/:sprintId/meeting/attendance', async (c) => {
 meeting.post('/api/sprints/:sprintId/meeting/attendance/:accountId', async (c) => {
   const ctx = await requireSprint(c, config(c.env), c.env.DB, c.req.param('sprintId'))
   requireFacilitator(ctx)
-  const body = (await c.req.json().catch(() => ({}))) as { present?: boolean }
+  const body = await jsonBody<{ present?: boolean }>(c)
   await attendance(c.env, ctx, c.req.param('accountId'), typeof body.present === 'boolean' ? body.present : undefined)
   return c.json(await snapshot(c.env, ctx))
 })
@@ -207,7 +230,7 @@ meeting.post('/api/sprints/:sprintId/meeting/context', async (c) => {
   const ctx = await requireSprint(c, cfg, c.env.DB, c.req.param('sprintId'))
   requireParticipant(ctx)
   if (ctx.sprint.status !== 'live') throw conflict('context can be added while the retro is live')
-  const body = (await c.req.json().catch(() => ({}))) as { theme_id?: string; body?: string; kind?: string; idempotency_key?: string }
+  const body = await jsonBody<{ theme_id?: string; body?: string; kind?: string; idempotency_key?: string }>(c)
   const kind = body.kind === undefined || body.kind === null || body.kind === '' ? null : ['example', 'view', 'question'].includes(String(body.kind)) ? String(body.kind) : null
   if (body.kind && !kind) throw bad('kind must be example, view or question')
   const text = content(isEncrypted(ctx.sprint), body.body, cfg.entryMaxChars, 'The note', true)!
@@ -226,7 +249,7 @@ meeting.put('/api/sprints/:sprintId/meeting/notes/:themeId', async (c) => {
   requireFacilitator(ctx)
   const tid = c.req.param('themeId')
   if (!(await count(c.env.DB, 'SELECT count(*) AS n FROM themes WHERE id = ? AND sprint_id = ?', tid, ctx.sprint.id))) throw notFound('theme not found')
-  const body = (await c.req.json().catch(() => ({}))) as Record<string, unknown>
+  const body = await jsonBody<Record<string, unknown>>(c)
   const f = (k: string) => content(isEncrypted(ctx.sprint), body[k], 4000, k, false)
   await run(
     c.env.DB,

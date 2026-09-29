@@ -2,8 +2,43 @@ import { bad } from './errors'
 
 export const now = () => Date.now()
 
-export function normalizeEmail(raw: string): string | null {
-  const e = (raw ?? '').trim().toLowerCase()
+/**
+ * A request's JSON body as a plain object. No body at all reads as `{}`; anything else that isn't a
+ * JSON object (malformed JSON, `null`, a list, a number) is a 400 here rather than a crash later.
+ */
+export async function jsonBody<T = Record<string, unknown>>(c: { req: { text: () => Promise<string> } }): Promise<T> {
+  const text = await c.req.text()
+  if (!text.trim()) return {} as T
+  let v: unknown
+  try {
+    v = JSON.parse(text)
+  } catch {
+    throw bad('the request body isn’t valid JSON')
+  }
+  if (!isObject(v)) throw bad('the request body must be a JSON object')
+  return v as T
+}
+
+export const isObject = (v: unknown): v is Record<string, unknown> => !!v && typeof v === 'object' && !Array.isArray(v)
+
+/** An optional list of ids in a request: absent is empty; anything but a list of strings is a 400. */
+export function idList(v: unknown, field: string): string[] {
+  if (v === undefined || v === null) return []
+  if (!Array.isArray(v) || !v.every((x) => typeof x === 'string')) throw bad(`${field} must be a list of ids`)
+  return v
+}
+
+/** A calendar date as YYYY-MM-DD that exists (no 2026-02-30). */
+export function isDate(s: unknown): s is string {
+  if (typeof s !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(s)) return false
+  const [y, m, d] = s.split('-').map(Number)
+  const t = new Date(Date.UTC(y, m - 1, d))
+  return t.getUTCFullYear() === y && t.getUTCMonth() === m - 1 && t.getUTCDate() === d
+}
+
+export function normalizeEmail(raw: unknown): string | null {
+  if (typeof raw !== 'string') return null
+  const e = raw.trim().toLowerCase()
   const at = e.indexOf('@')
   if (at <= 0) return null
   const domain = e.slice(at + 1)
@@ -53,7 +88,7 @@ export function localLabel(tz: string, atMs: number): string {
 
 /** Resolves a local date + wall time in a timezone to an instant. Nonexistent local times are rejected. */
 export function resolveLocal(tz: string, date: string, time: string): number {
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) throw bad('dates must be YYYY-MM-DD')
+  if (!isDate(date)) throw bad('dates must be real dates, as YYYY-MM-DD')
   const m = /^(\d{2}):(\d{2})$/.exec(time)
   if (!m) throw bad('retro time must be HH:MM')
   let fmt: Intl.DateTimeFormat

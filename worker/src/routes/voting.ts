@@ -12,6 +12,7 @@ import { uuid } from '../lib/crypto'
 import { all, audit, batch, count, one, run } from '../lib/db'
 import { bad, conflict, forbidden, notFound } from '../lib/errors'
 import { hint } from '../lib/live'
+import { jsonBody } from '../lib/util'
 
 export const voting = new Hono<HonoEnv>()
 
@@ -102,7 +103,7 @@ voting.post('/api/sprints/:sprintId/votes/rounds', async (c) => {
   const ctx = await requireSprint(c, config(c.env), c.env.DB, c.req.param('sprintId'))
   requireFacilitator(ctx)
   if (!['ready', 'live'].includes(ctx.sprint.status)) throw conflict('voting opens once the themes are ready')
-  const body = (await c.req.json().catch(() => ({}))) as { budget?: number }
+  const body = await jsonBody<{ budget?: number }>(c)
   const budget = Number(body.budget ?? ctx.sprint.vote_budget)
   if (!(budget >= 1 && budget <= 10)) throw bad('votes per person must be between 1 and 10')
   if (!(await count(c.env.DB, 'SELECT count(*) AS n FROM themes WHERE sprint_id = ? AND parked = 0', ctx.sprint.id))) throw conflict('there are no themes to vote on yet')
@@ -116,7 +117,7 @@ voting.post('/api/sprints/:sprintId/votes/rounds', async (c) => {
 voting.post('/api/sprints/:sprintId/votes', async (c) => {
   const ctx = await requireSprint(c, config(c.env), c.env.DB, c.req.param('sprintId'))
   if (!ctx.isParticipant) throw forbidden('only sprint participants can vote')
-  const body = (await c.req.json().catch(() => ({}))) as { theme_id?: string; cast?: boolean }
+  const body = await jsonBody<{ theme_id?: string; cast?: boolean }>(c)
   const themeId = String(body.theme_id ?? '')
   const db = c.env.DB
   const round = await one<{ id: string; budget: number; grouping_revision: number }>(db, "SELECT id, budget, grouping_revision FROM vote_rounds WHERE sprint_id = ? AND status = 'open'", ctx.sprint.id)
@@ -150,7 +151,7 @@ voting.post('/api/sprints/:sprintId/votes', async (c) => {
 voting.post('/api/sprints/:sprintId/votes/rounds/close', async (c) => {
   const ctx = await requireSprint(c, config(c.env), c.env.DB, c.req.param('sprintId'))
   requireFacilitator(ctx)
-  const body = (await c.req.json().catch(() => ({}))) as { action?: string; reason?: string }
+  const body = await jsonBody<{ action?: string; reason?: string }>(c)
   const status = body.action === 'close' ? 'closed' : body.action === 'cancel' ? 'cancelled' : null
   if (!status) throw bad('action must be close or cancel')
   const db = c.env.DB
