@@ -798,7 +798,8 @@ const ALIASES: Record<string, string[]> = { theme_title: ['title'], cancel_reaso
  * signing out, switching account and any change of this device's key empty it (`clearCaches`).
  */
 const openCache = new Map<string, string | EntryContent>()
-const OPEN_CACHE_MAX = 5000
+/** Several sprints' worth; the oldest go first. */
+const OPEN_CACHE_MAX = 2000
 function remember(key: string, value: string | EntryContent) {
   if (openCache.size >= OPEN_CACHE_MAX) openCache.delete(openCache.keys().next().value!)
   openCache.set(key, value)
