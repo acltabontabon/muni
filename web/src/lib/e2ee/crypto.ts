@@ -80,12 +80,19 @@ function equal(a: Uint8Array, b: Uint8Array) {
 
 const derive = (ikm: Uint8Array, salt: Uint8Array, info: string, len = 32) => hkdf(sha256, ikm, salt, utf8(info), len)
 
+/** A key that was wiped (the keyring zeroes keys when it locks) is never used, for sealing or opening. */
+function usable(key: Uint8Array) {
+  if (key.every((b) => b === 0)) throw new CryptoError('no-key', 'this key is no longer available')
+}
+
 type Box = { n: string; c: string }
 function aeadSeal(key: Uint8Array, plaintext: Uint8Array, aad: string): Box {
+  usable(key)
   const n = randomBytes(24)
   return { n: b64u(n), c: b64u(xchacha20poly1305(key, n, utf8(aad)).encrypt(plaintext)) }
 }
 function aeadOpen(key: Uint8Array, box: Box, aad: string): Uint8Array {
+  usable(key)
   const n = fromB64u(box.n, 24)
   const c = fromB64u(box.c)
   if (c.length < 16) throw new CryptoError('malformed', 'ciphertext too short')
@@ -117,9 +124,10 @@ export function sealTo(recipient: Uint8Array, plaintext: Uint8Array, context: st
   const key = derive(agree(eph.sk, recipient), concat(eph.pk, recipient), 'muni sealed box v1')
   return { e: b64u(eph.pk), ...aeadSeal(key, plaintext, context) }
 }
-export function openSealed(sk: Uint8Array, box: Sealed, context: string): Uint8Array {
+/** `pk`: the recipient's public key when the caller already has it (deriving it again costs a scalar multiplication). */
+export function openSealed(sk: Uint8Array, box: Sealed, context: string, pk: Uint8Array = publicKeyOf(sk)): Uint8Array {
+  usable(sk)
   const eph = fromB64u(box.e, 32)
-  const pk = publicKeyOf(sk)
   const key = derive(agree(sk, eph), concat(eph, pk), 'muni sealed box v1')
   return aeadOpen(key, box, context)
 }
@@ -210,10 +218,10 @@ const wrapContext = (sprintId: string, version: number, recipientId: string) => 
 export function wrapSprintSecret(recipientPk: Uint8Array, secret: Uint8Array, c: { sprintId: string; version: number; recipientId: string }): string {
   return WRAP + b64u(utf8(JSON.stringify({ v: 1, ...sealTo(recipientPk, secret, wrapContext(c.sprintId, c.version, c.recipientId)) })))
 }
-export function unwrapSprintSecret(sk: Uint8Array, wrapped: string, c: { sprintId: string; version: number; recipientId: string }): Uint8Array {
+export function unwrapSprintSecret(sk: Uint8Array, wrapped: string, c: { sprintId: string; version: number; recipientId: string }, pk?: Uint8Array): Uint8Array {
   const box = parseJson(wrapped, WRAP) as Sealed & { v: number }
   if (box.v !== 1) throw new CryptoError('version', 'unsupported key format')
-  const secret = openSealed(sk, box, wrapContext(c.sprintId, c.version, c.recipientId))
+  const secret = openSealed(sk, box, wrapContext(c.sprintId, c.version, c.recipientId), pk)
   if (secret.length !== 32) throw new CryptoError('malformed', 'bad sprint secret')
   return secret
 }
@@ -283,14 +291,17 @@ export function sealEntry(c: { sprintId: string; recordId: string; version: numb
   const env: EntryEnvelope = { v: 2, t: 'e', s: c.sprintId, k: c.version, r: c.recordId, ...body, ws: sealTo(c.sprintPk, cek, `muni:cek:sprint|${aad}`), wa: sealTo(c.authorPk, cek, `muni:cek:author|${aad}`) }
   return ENVELOPE + b64u(utf8(JSON.stringify(env)))
 }
-/** Opens a thought with whichever key this device has: the sprint's, or the author's own. */
-export function openEntry(env: EntryEnvelope, expect: { sprintId: string; recordId: string }, keys: { sprint?: SprintKeys | null; accountSk?: Uint8Array | null }): EntryContent {
+/**
+ * Opens a thought with whichever key this device has: the sprint's, or the author's own. The
+ * public keys that go with them are passed when known (`accountPk`), so none is derived again.
+ */
+export function openEntry(env: EntryEnvelope, expect: { sprintId: string; recordId: string }, keys: { sprint?: SprintKeys | null; accountSk?: Uint8Array | null; accountPk?: Uint8Array | null }): EntryContent {
   if (env.s !== expect.sprintId) throw new CryptoError('mismatch', 'thought from another sprint')
   if (env.r !== expect.recordId) throw new CryptoError('mismatch', 'thought in the wrong place')
   const aad = entryAad(env.s, env.r, env.k)
   let cek: Uint8Array | null = null
-  if (keys.sprint && keys.sprint.version === env.k) cek = openSealed(keys.sprint.sk, env.ws, `muni:cek:sprint|${aad}`)
-  else if (keys.accountSk) cek = openSealed(keys.accountSk, env.wa, `muni:cek:author|${aad}`)
+  if (keys.sprint && keys.sprint.version === env.k) cek = openSealed(keys.sprint.sk, env.ws, `muni:cek:sprint|${aad}`, keys.sprint.pk)
+  else if (keys.accountSk) cek = openSealed(keys.accountSk, env.wa, `muni:cek:author|${aad}`, keys.accountPk ?? undefined)
   if (!cek) throw new CryptoError('no-key', 'this device doesn’t have the key')
   const v = JSON.parse(td.decode(aeadOpen(cek, env, aad)))
   if (typeof v?.body !== 'string') throw new CryptoError('malformed', 'bad thought')

@@ -26,6 +26,12 @@ import type { MyKeys, SprintKeyView } from '@/api/types'
 /** Shown in place of anything this device can't open. UI checks `isLocked`. */
 export const LOCKED = '⁣Can’t be shown on this device — it doesn’t have the key.'
 export const isLocked = (s: unknown) => typeof s === 'string' && s.startsWith('⁣')
+/**
+ * Text that is, or was built from, the "can't be shown" marker (a form that copied it, then was
+ * edited around it). Saving it would replace the real words for everyone, so it's never sent.
+ */
+export const hasPlaceholder = (s: unknown) => typeof s === 'string' && (s.includes('⁣') || s.includes(LOCKED.slice(1)))
+const PLACEHOLDER_REFUSED = 'Part of this is the “can’t be shown on this device” note, not your text, and saving it would replace the real words for everyone. Unlock this device, reload, then try again.'
 
 type Fetcher = <T>(method: string, path: string, body?: unknown) => Promise<T>
 
@@ -57,6 +63,8 @@ let store: DeviceStore = defaultDeviceStore()
 let fetcher: Fetcher | null = null
 let accountId: string | null = null
 let sk: Uint8Array | null = null
+/** `sk`'s public key, derived once when the key is set (not on every thought opened). */
+let myPk: Uint8Array | null = null
 let server: MyKeys | null = null
 let state: DeviceState = { kind: 'signed-out' }
 let epoch = 0
@@ -114,14 +122,29 @@ function pendingFor(id: string) {
   pendingPrf = pendingPrf.filter((p) => now - p.at < PRF_TTL_MS)
   return pendingPrf.filter((p) => p.accountId === id)
 }
+/** Secrets leave memory zeroed, not just dropped (crypto.ts refuses a zeroed key). */
+const wipe = (b: Uint8Array | null | undefined) => b?.fill(0)
+/** The account key in use here (null: none). The one it replaces is wiped. */
+function setKey(next: Uint8Array | null) {
+  if (sk && sk !== next) wipe(sk)
+  sk = next
+  myPk = next ? publicKeyOf(next) : null
+}
+/** Everything opened with the account key: sprint keys and the values they opened. */
 function clearCaches() {
+  for (const s of sprints.values())
+    for (const k of s.keys.values()) {
+      wipe(k.sk)
+      wipe(k.dk)
+    }
   sprints.clear()
   inflight.clear()
+  openCache.clear()
 }
 function readyState(persisted: boolean | null): DeviceState {
   return {
     kind: 'ready',
-    fingerprint: fingerprint(publicKeyOf(sk!)),
+    fingerprint: fingerprint(myPk!),
     recoverySaved: !!server?.recovery_confirmed_at,
     methods: { passkeys: server?.passkeys?.length ?? 0, recovery: !!server?.recovery_blob, thisDevice: persisted !== false },
     persisted,
@@ -153,8 +176,8 @@ async function reopen(my: number, depth = 0): Promise<void> {
   if (sk) {
     if (matches(sk, k)) return settleReady(my, state.kind === 'ready' ? state.persisted : true)
     // Replaced on another device ("Start over"): this key can't be used any more.
-    sk = null
     clearCaches()
+    setKey(null)
   }
 
   if (!k.public_key) {
@@ -222,10 +245,10 @@ let lastCeremony: { accountId: string; credentialId: string; prf: boolean; at: n
 type Via = 'device' | 'kept' | 'made' | 'passkey' | 'recovery'
 
 /** The key is open: usable at once; kept for next time (and passkeys enrolled) right after. */
-async function unlocked(my: number, opened: Uint8Array, via: Via) {
+async function unlocked(my: number, key: Uint8Array, via: Via) {
   if (my !== epoch) return
-  sk = opened
   clearCaches()
+  setKey(key)
   keysEpoch++
   const alreadyKept = via === 'device' || via === 'kept'
   set(readyState(alreadyKept ? true : null))
@@ -370,8 +393,8 @@ async function setUpNew(my: number, id: string, depth: number) {
   if (my !== epoch) return
   if (!matches(kp.sk, server)) return reopen(my, depth + 1)
   if (kept) return unlocked(my, kp.sk, 'kept')
-  sk = kp.sk
   clearCaches()
+  setKey(kp.sk)
   keysEpoch++
   return settleReady(my, false)
 }
@@ -388,7 +411,7 @@ export const keyring = {
   accountId: () => accountId,
   /** Bumped each time a key becomes usable here: views that showed "can't be shown" read again. */
   keysEpoch: () => keysEpoch,
-  publicKey: () => (sk ? publicKeyOf(sk) : server?.public_key ? fromB64u(server.public_key, 32) : null),
+  publicKey: () => (sk && myPk ? myPk.slice() : server?.public_key ? fromB64u(server.public_key, 32) : null),
   /** Whether this passkey (WebAuthn credential id) can unlock the account's current key. */
   canUnlockWith: (webauthnId: string) => !!server?.passkeys?.some((w) => w.webauthn_id === webauthnId),
   /** This device's id for the signed-in account's envelope, if it keeps one. */
@@ -475,12 +498,13 @@ export const keyring = {
   lock() {
     epoch++
     accountId = null
-    sk = null
+    clearCaches()
+    setKey(null)
     server = null
     fetcher = null
     pendingPrf = []
     lastCeremony = null
-    clearCaches()
+    for (const s of pendingSecrets.values()) wipe(s)
     pendingSecrets.clear()
     changes.clear()
     set({ kind: 'signed-out' })
@@ -694,10 +718,18 @@ export const keyring = {
     return sealField(sprintKeys(secret, version), sprintId, field, text)
   },
 
-  /** Every version this device holds, sealed to one person (a new facilitator). */
-  async wrapAllFor(sprintId: string, recipient: { account_id: string; public_key: string }) {
+  /**
+   * Every version this device holds, sealed to one person (a new facilitator). While collecting,
+   * the still-sealed version must be among them: without it they couldn't reveal the thoughts, and
+   * the server refuses the handover. A key that changed since this device pinned it is never used.
+   */
+  async wrapAllFor(sprintId: string, recipient: { account_id: string; public_key: string; display_name?: string }) {
     const s = await keyring.sprint(sprintId, true)
-    return [...(s?.keys.keys() ?? [])].map((version) => ({ account_id: recipient.account_id, version, recipient_public_key: recipient.public_key, wrapped: wrapSprintSecret(fromB64u(recipient.public_key, 32), secretOf(sprintId, version), { sprintId, version, recipientId: recipient.account_id }) }))
+    const sealed = s?.view.sealed_version ?? null
+    if (!s || !s.keys.size || (sealed !== null && !s.keys.has(sealed))) throw new CryptoError('no-key', 'This device doesn’t hold the sprint’s key, so it can’t pass it on. Save the setup from a device where you can read this sprint.')
+    if (!(await keyring.trust(sprintId, recipient.account_id, recipient.display_name ?? 'The new facilitator', recipient.public_key)))
+      throw new CryptoError('mismatch', `${recipient.display_name ? `${recipient.display_name}’s` : 'Their'} encryption key changed since this device last saw it, so the sprint’s key wasn’t shared with it. Confirm the new key with them on the sprint’s page first.`)
+    return [...s.keys.keys()].map((version) => ({ account_id: recipient.account_id, version, recipient_public_key: recipient.public_key, wrapped: wrapSprintSecret(fromB64u(recipient.public_key, 32), secretOf(sprintId, version), { sprintId, version, recipientId: recipient.account_id }) }))
   },
 
   // ---------------------------------------------------------------- responses & requests
@@ -716,7 +748,9 @@ async function loadSprint(sprintId: string): Promise<SprintState> {
   if (view.encryption && sk && accountId)
     for (const w of view.my_wraps ?? []) {
       try {
-        keys.set(w.version, sprintKeys(unwrapSprintSecret(sk, w.wrapped, { sprintId, version: w.version, recipientId: accountId }), w.version))
+        const secret = unwrapSprintSecret(sk, w.wrapped, { sprintId, version: w.version, recipientId: accountId }, myPk ?? undefined)
+        keys.set(w.version, sprintKeys(secret, w.version))
+        wipe(secret)
       } catch {
         /* sealed to an older key of ours: unusable, and never guessed around */
       }
@@ -734,14 +768,42 @@ function secretOf(sprintId: string, version: number): Uint8Array {
   const s = sprints.get(sprintId)
   const wrap = s?.view.my_wraps?.find((w) => w.version === version)
   if (!wrap || !sk || !accountId) throw new CryptoError('no-key', 'This device doesn’t hold that key.')
-  return unwrapSprintSecret(sk, wrap.wrapped, { sprintId, version, recipientId: accountId })
+  return unwrapSprintSecret(sk, wrap.wrapped, { sprintId, version, recipientId: accountId }, myPk ?? undefined)
 }
 
 // Some fields carry a copy of another field's text (an experiment keeps its theme's title).
 const ALIASES: Record<string, string[]> = { theme_title: ['title'], cancel_reason: ['reason'], reason: ['order_reason', 'reason'] }
 
+/**
+ * What envelopes opened to, so a list read again (every hint refetches it) isn't decrypted again.
+ * Keyed by the envelope and everything else that decides what it opens to: the field it came in,
+ * the sprint it was delivered with and the record it belongs to. Only what opened is kept — "can't
+ * be shown" may change once a key arrives — and only for the account whose keys opened it: locking,
+ * signing out, switching account and any change of this device's key empty it (`clearCaches`).
+ */
+const openCache = new Map<string, string | EntryContent>()
+const OPEN_CACHE_MAX = 5000
+function remember(key: string, value: string | EntryContent) {
+  if (openCache.size >= OPEN_CACHE_MAX) openCache.delete(openCache.keys().next().value!)
+  openCache.set(key, value)
+}
+
 async function openString(value: string, field: string, owner: Record<string, unknown> | null, sprintHint: string | null): Promise<unknown> {
-  staleCheck?.()
+  // An envelope must belong to the sprint it was delivered with.
+  const declared = (owner?.sprint_id as string | undefined) ?? sprintHint
+  const recordId = (owner?.id as string | undefined) ?? ''
+  const cacheKey = `${field}\n${declared ?? ''}\n${recordId}\n${value}`
+  const hit = openCache.get(cacheKey)
+  if (hit !== undefined) return typeof hit === 'string' ? hit : { ...hit }
+  const my = epoch
+  const out = await openFresh(value, field, declared, recordId)
+  // Locked (or switched account) while this was being opened: nothing opened then is shown or kept.
+  if (my !== epoch) return LOCKED
+  if (out !== LOCKED) remember(cacheKey, typeof out === 'string' ? out : { ...out })
+  return out
+}
+
+async function openFresh(value: string, field: string, declared: string | null, recordId: string): Promise<string | EntryContent> {
   let env
   try {
     env = parseEnvelope(value)
@@ -749,8 +811,6 @@ async function openString(value: string, field: string, owner: Record<string, un
     return LOCKED
   }
   const sprintId = env.s
-  // An envelope must belong to the sprint it was delivered with.
-  const declared = (owner?.sprint_id as string | undefined) ?? sprintHint
   if (declared && declared !== sprintId) return LOCKED
   let s: SprintState | null
   try {
@@ -759,11 +819,7 @@ async function openString(value: string, field: string, owner: Record<string, un
     return LOCKED
   }
   try {
-    if (env.t === 'e') {
-      const recordId = (owner?.id as string | undefined) ?? ''
-      const content = openEntry(env, { sprintId, recordId }, { sprint: s?.keys.get(env.k) ?? null, accountSk: sk })
-      return content
-    }
+    if (env.t === 'e') return openEntry(env, { sprintId, recordId }, { sprint: s?.keys.get(env.k) ?? null, accountSk: sk, accountPk: myPk })
     const keys = s?.keys.get(env.k)
     if (!keys) return LOCKED
     const allowed = ALIASES[field] ?? [field]
@@ -777,8 +833,19 @@ async function openString(value: string, field: string, owner: Record<string, un
   }
 }
 
+/** Whether a response carries anything encrypted: stops at the first envelope, copies nothing. */
+function containsEnvelope(v: unknown): boolean {
+  if (typeof v === 'string') return isEnvelope(v)
+  if (!v || typeof v !== 'object') return false
+  if (Array.isArray(v)) return v.some(containsEnvelope)
+  for (const x of Object.values(v)) if (containsEnvelope(x)) return true
+  return false
+}
+
 /** Replaces every envelope in a response with what it says (or LOCKED). Returns a new value. */
 async function decryptDeep<T>(data: T, sprintHint: string | null = null): Promise<T> {
+  // Another tab may have signed out since this one looked: checked once for the whole response.
+  staleCheck?.()
   const walk = async (v: unknown, field: string, owner: Record<string, unknown> | null): Promise<unknown> => {
     if (typeof v === 'string') return isEnvelope(v) ? openString(v, field, owner, sprintHint) : v
     if (Array.isArray(v)) return Promise.all(v.map((x) => walk(x, field, owner)))
@@ -819,8 +886,17 @@ const SEALED: [RegExp, string[]][] = [
 /** A submitted thought, edited in place: its whole content travels as one envelope, bound to that record. */
 const ENTRY = /^\/api\/sprints\/([^/]+)\/entries\/([^/]+)$/
 
+/** Any string anywhere in a request body that carries the "can't be shown" marker. */
+function carriesPlaceholder(v: unknown): boolean {
+  if (typeof v === 'string') return hasPlaceholder(v)
+  if (!v || typeof v !== 'object') return false
+  return (Array.isArray(v) ? v : Object.values(v)).some(carriesPlaceholder)
+}
+
 async function sealRequest(method: string, path: string, body: unknown): Promise<unknown> {
   if (method === 'GET' || !body || typeof body !== 'object') return body
+  // Whatever the form: the marker never goes out in place of someone's words, sealed or not.
+  if (carriesPlaceholder(body)) throw new CryptoError('mismatch', PLACEHOLDER_REFUSED)
   const m = path.match(/^\/api\/sprints\/([^/?]+)/)
   if (!m) return body
   const entry = method === 'PATCH' ? path.split('?')[0].match(ENTRY) : null
@@ -843,9 +919,11 @@ async function sealRequest(method: string, path: string, body: unknown): Promise
   const present = rule[1].filter((f) => typeof o[f] === 'string' && (o[f] as string).trim() !== '')
   if (!present.length) return body
   // Throws when this device can't seal: the request is never sent in plaintext.
+  const my = epoch
   const keys = await keyring.writeKeys(sprintId)
+  if (my !== epoch) throw new CryptoError('no-key', 'You signed out.')
   for (const f of present) o[f] = sealField(keys, sprintId, f === 'reset_voting_reason' ? 'reason' : f, (o[f] as string).trim())
   return o
 }
 
-export { fingerprint, fromB64u }
+export { containsEnvelope, fingerprint, fromB64u }

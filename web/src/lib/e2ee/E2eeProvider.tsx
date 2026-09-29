@@ -6,14 +6,15 @@ import { useEffect, useSyncExternalStore, type ReactNode } from 'react'
 import { api, setContentHooks } from '@/api/client'
 import { useAuth } from '@/lib/auth'
 import { checkElsewhere, onAuthElsewhere } from '@/lib/signout'
-import { keyring, type DeviceState, type KeyChange } from './keyring'
+import { containsEnvelope, keyring, type DeviceState, type KeyChange } from './keyring'
 
 const fetcher = <T,>(method: string, path: string, body?: unknown) => api<T>(path, { method, json: body, plain: true })
 const sprintOf = (path: string) => path.match(/^\/api\/sprints\/([^/?]+)/)?.[1] ?? null
 
 setContentHooks({
   seal: (method, path, body) => keyring.sealRequest(method, path, body),
-  open: (data, path) => (JSON.stringify(data ?? null).includes('"e1.') ? keyring.decryptDeep(data, sprintOf(path)) : Promise.resolve(data)),
+  // Most responses carry nothing encrypted: looked through once, stopping at the first envelope.
+  open: (data, path) => (containsEnvelope(data) ? keyring.decryptDeep(data, sprintOf(path)) : Promise.resolve(data)),
 })
 
 if (typeof window !== 'undefined') {

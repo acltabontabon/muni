@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it } from 'vitest'
 import { sha256 } from '@noble/hashes/sha2.js'
-import { b64u, newKeyPair, newRecoveryKey, newSprintSecret, sealEntry, sealField, sprintKeys, wrapForRecovery, wrapSprintSecret, type KeyPair } from './crypto'
-import { isLocked, keyring, LOCKED } from './keyring'
+import { b64u, newKeyPair, newRecoveryKey, newSprintSecret, sealEntry, sealField, sprintKeys, unwrapSprintSecret, wrapForRecovery, wrapSprintSecret, type KeyPair } from './crypto'
+import { containsEnvelope, hasPlaceholder, isLocked, keyring, LOCKED } from './keyring'
 import { memoryDeviceStore } from './devicestore'
 import { deviceKek, openForDevice, PRF_INPUT } from './wrap'
 import type { MyKeys, SprintKeyView } from '@/api/types'
@@ -645,5 +645,119 @@ describe('sharing keys', () => {
     keyring.forgetSprint(sp.id)
     expect(await keyring.missingWraps(sp.id)).toHaveLength(0)
     expect(await keyring.missingWraps(sp.id, { reveal: true })).toHaveLength(1)
+  })
+})
+
+describe('opened values', () => {
+  it('reads a list again without opening it again, but never serves a changed envelope from memory', async () => {
+    const srv = await signedIn()
+    const sp = sprintFor(srv, srv.pk)
+    const title = sealField(sp.keys, sp.id, 'title', 'Synthetic theme')
+    const body = sealEntry({ sprintId: sp.id, recordId: 'r1', version: 1, sprintPk: sp.keys.pk, authorPk: newKeyPair().pk }, { body: 'Synthetic thought', impact: null, might_help: null })
+    const list = { themes: [{ id: 't1', title, entries: [{ id: 'r1', body }] }] }
+    expect((await keyring.decryptDeep(list, sp.id)).themes[0].entries[0].body).toBe('Synthetic thought')
+    // The key goes away (from the server's answer, and so from this device): what was opened stays readable…
+    srv.s.sprints.get(sp.id)!.my_wraps = []
+    keyring.forgetSprint(sp.id)
+    const again = await keyring.decryptDeep(list, sp.id)
+    expect(again.themes[0].title).toBe('Synthetic theme')
+    expect(again.themes[0].entries[0].body).toBe('Synthetic thought')
+    // …but anything else is opened afresh: a new envelope, or the same one somewhere else.
+    expect((await keyring.decryptDeep({ title: sealField(sp.keys, sp.id, 'title', 'Synthetic theme') }, sp.id)).title).toBe(LOCKED)
+    expect((await keyring.decryptDeep({ summary: title }, sp.id)).summary).toBe(LOCKED)
+    expect((await keyring.decryptDeep({ title }, crypto.randomUUID())).title).toBe(LOCKED)
+    expect((await keyring.decryptDeep({ id: 'r2', body }, sp.id)).body).toBe(LOCKED)
+  })
+
+  it('never survive locking, signing out or another account signing in', async () => {
+    const srv = await signedIn()
+    const sp = sprintFor(srv, srv.pk)
+    const title = sealField(sp.keys, sp.id, 'title', 'Synthetic theme')
+    expect((await keyring.decryptDeep({ title }, sp.id)).title).toBe('Synthetic theme')
+    srv.s.sprints.get(sp.id)!.my_wraps = []
+    await signOut(srv)
+    expect((await keyring.decryptDeep({ title }, sp.id)).title).toBe(LOCKED)
+    await srv.signInWith(srv.passkey)
+    expect(keyring.state().kind).toBe('ready')
+    expect((await keyring.decryptDeep({ title }, sp.id)).title).toBe(LOCKED)
+    // Opened as one person, then someone else signs in on this tab.
+    const a = await signedIn()
+    const spa = sprintFor(a, a.pk)
+    const theirs = sealField(spa.keys, spa.id, 'title', 'Synthetic, theirs')
+    expect((await keyring.decryptDeep({ title: theirs }, spa.id)).title).toBe('Synthetic, theirs')
+    await newAccount()
+    expect((await keyring.decryptDeep({ title: theirs }, spa.id)).title).toBe(LOCKED)
+  })
+
+  it('a response being opened when the tab locks shows nothing it opened', async () => {
+    const srv = await signedIn()
+    const sp = sprintFor(srv, srv.pk)
+    const hold = srv.holdNext(/\/keys$/)
+    const opening = keyring.decryptDeep({ title: sealField(sp.keys, sp.id, 'title', 'Synthetic') }, sp.id)
+    await hold.arrived
+    keyring.lock()
+    hold.release()
+    expect((await opening).title).toBe(LOCKED)
+  })
+
+  it('finds envelopes without copying the response', () => {
+    expect(containsEnvelope({ a: [{ b: 'plain' }, { c: 'e1.abc' }] })).toBe(true)
+    expect(containsEnvelope({ a: ['plain', 3, null, { b: 'text with "e1. inside' }] })).toBe(false)
+    expect(containsEnvelope(null)).toBe(false)
+  })
+})
+
+describe('the “can’t be shown” marker', () => {
+  it('is never sent in place of someone’s words, encrypted sprint or not', async () => {
+    const srv = await signedIn()
+    const sp = sprintFor(srv, srv.pk)
+    const plain = crypto.randomUUID()
+    const refused: [string, string, unknown][] = [
+      ['PUT', `/api/sprints/${sp.id}/recap`, { body: LOCKED }],
+      ['PUT', `/api/sprints/${plain}/recap`, { body: `# Recap\n\n${LOCKED}` }],
+      ['PATCH', `/api/sprints/${sp.id}`, { name: 'Sprint 9', opening_question: `${LOCKED} Anything else?` }],
+      // The invisible mark deleted, the words kept: still the marker.
+      ['PATCH', `/api/sprints/${sp.id}/experiments/x1`, { outcome_note: LOCKED.slice(1) }],
+      ['PATCH', `/api/sprints/${sp.id}/entries/r1`, { body: LOCKED, category: null }],
+      ['POST', `/api/sprints/${sp.id}/themes`, { title: 'Fine', entry_ids: [LOCKED] }],
+    ]
+    for (const [method, path, body] of refused) await expect(keyring.sealRequest(method, path, body)).rejects.toMatchObject({ code: 'mismatch' })
+    expect(hasPlaceholder('An ordinary sentence.')).toBe(false)
+    expect(await keyring.sealRequest('PUT', `/api/sprints/${plain}/recap`, { body: 'Ordinary words' })).toEqual({ body: 'Ordinary words' })
+  })
+})
+
+describe('keys leave memory', () => {
+  it('zeroed when the tab locks, and never used after', async () => {
+    const srv = await signedIn()
+    const sp = sprintFor(srv, srv.pk)
+    const keys = await keyring.writeKeys(sp.id)
+    keyring.lock()
+    expect(keys.dk.every((b) => b === 0) && keys.sk.every((b) => b === 0)).toBe(true)
+    expect(() => sealField(keys, sp.id, 'title', 'Synthetic')).toThrow()
+  })
+})
+
+describe('handing over facilitation', () => {
+  it('wraps every version this device holds, the still-sealed one included, for the new facilitator', async () => {
+    const srv = await signedIn()
+    const maya = { id: 'maya', name: 'Maya', keys: newKeyPair() }
+    const sp = sprintFor(srv, srv.pk, { others: [maya] })
+    srv.s.sprints.get(sp.id)!.sealed_version = 1
+    keyring.forgetSprint(sp.id)
+    const wraps = await keyring.wrapAllFor(sp.id, { account_id: 'maya', public_key: b64u(maya.keys.pk), display_name: 'Maya' })
+    expect(wraps.map((w) => [w.account_id, w.version])).toEqual([['maya', 1]])
+    expect(unwrapSprintSecret(maya.keys.sk, wraps[0].wrapped, { sprintId: sp.id, version: 1, recipientId: 'maya' })).toEqual(sp.secret)
+  })
+
+  it('refuses when this device lacks the still-sealed version, or the recipient’s key changed', async () => {
+    const srv = await signedIn()
+    const maya = { id: 'maya', name: 'Maya', keys: newKeyPair() }
+    const sp = sprintFor(srv, srv.pk, { others: [maya], holds: false })
+    srv.s.sprints.get(sp.id)!.sealed_version = 1
+    await expect(keyring.wrapAllFor(sp.id, { account_id: 'maya', public_key: b64u(maya.keys.pk) })).rejects.toMatchObject({ code: 'no-key' })
+    const held = sprintFor(srv, srv.pk, { others: [maya] })
+    await keyring.wrapAllFor(held.id, { account_id: 'maya', public_key: b64u(maya.keys.pk), display_name: 'Maya' })
+    await expect(keyring.wrapAllFor(held.id, { account_id: 'maya', public_key: b64u(newKeyPair().pk), display_name: 'Maya' })).rejects.toMatchObject({ code: 'mismatch' })
   })
 })
