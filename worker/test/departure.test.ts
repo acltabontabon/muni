@@ -1,7 +1,7 @@
 /** Leaving a workspace and deleting an account: who may go, and what stays with the team. */
 import { describe, expect, it } from 'vitest'
 import { env } from 'cloudflare:test'
-import { ageSession, closeCollection, del, entry, get, go, patch, post, signin, sprint, tag, team } from './harness'
+import { ageSession, closeCollection, del, entry, get, go, patch, post, roomState, signin, sprint, tag, team } from './harness'
 import { deleteAccount, revokeMembership } from '../src/lib/departure'
 
 const n = async (sql: string, ...args: unknown[]) => (await env.DB.prepare(sql).bind(...args).first<{ n: number }>())!.n
@@ -24,6 +24,15 @@ async function traces(accountId: string) {
 }
 
 describe('leaving a workspace', () => {
+  it('leaving in the middle of a retro takes them out of its room', async () => {
+    const { owner, members, ws } = await team(2)
+    const [leaver, stays] = members
+    const s = await sprint(owner, members, ws, 'live')
+    for (const u of [leaver, stays]) await post(`/api/sprints/${s}/meeting/attendance`, u, { present: true })
+    expect((await post(`/api/workspaces/${ws}/leave`, leaver)).status).toBe(200)
+    expect(Object.keys((await roomState(s)).attendance)).toEqual([stays.account_id])
+  })
+
   it('a member leaves: access ends, unfinished sprints lose them, what they submitted stays', async () => {
     const { owner, members, ws } = await team(2)
     const [leaver, stays] = members
@@ -239,6 +248,25 @@ describe('deleting an account', () => {
     expect(audit.some((e) => e.action === 'account.deleted' && e.actor_gone)).toBe(true)
     expect(audit.find((e) => e.action === 'invitation.accepted' && e.actor_gone)).toBeTruthy()
     expect(audit.filter((e) => e.actor_name === null).every((e) => e.actor_gone)).toBe(true)
+  })
+
+  it('leaves no room with anything that names them, and forgets the rooms of workspaces that went with them', async () => {
+    const { owner, members, ws } = await team(2)
+    const [gone, stays] = members
+    // A retro they came to, finished; and one under way that they leave from, then come back to.
+    const done = await sprint(owner, members, ws, 'live')
+    for (const u of [gone, stays]) await post(`/api/sprints/${done}/meeting/attendance`, u, { present: true })
+    expect((await go(owner, done, 'completed')).status).toBe(200)
+    // Their own workspace, whose retro they ran alone.
+    const solo = (await post('/api/workspaces', gone, { name: 'Mine alone' })).body.id as string
+    const own = await sprint(gone, [gone], solo, 'live')
+    await post(`/api/sprints/${own}/meeting/attendance`, gone, { present: true })
+    expect(JSON.stringify(await roomState(done))).toContain(gone.account_id)
+    expect((await del('/api/auth/me', gone, { confirm: true })).status).toBe(200)
+    const kept = await roomState(done)
+    expect(JSON.stringify(kept)).not.toContain(gone.account_id)
+    expect(Object.keys(kept.attendance)).toEqual([stays.account_id])
+    expect(await roomState(own)).toEqual({ meeting: null, attendance: {}, connected: [] })
   })
 
   it('keeps votes from a closed round in the totals, tied to no one', async () => {

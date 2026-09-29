@@ -9,9 +9,9 @@ import { clientClass, limit } from '../lib/ratelimit'
 import { jsonBody, maskEmail, nonempty } from '../lib/util'
 import { accountByEmail, emailOf, setAccountEmail } from '../lib/accounts'
 import { INTRO, introName, isAvatarId } from '../lib/avatars'
-import { deleteAccount, free, openSprints, standing } from '../lib/departure'
+import { deleteAccount, free, openSprints, retroRooms, standing } from '../lib/departure'
 import { mayGrant } from '../lib/grants'
-import { revokeLive } from '../lib/live'
+import { forgetRoom, revokeLive } from '../lib/live'
 
 export const auth = new Hono<HonoEnv>()
 
@@ -125,19 +125,27 @@ auth.delete('/api/auth/me', async (c) => {
   const me = a.account.id
   const workspaces = await standing(c.env.DB, me)
   if (!workspaces.every(free)) throw new AppError(409, 'not_free', 'hand on what others depend on first', { workspaces: workspaces.filter((w) => !free(w)) })
-  const [email, creds, open] = await Promise.all([
+  const sole = workspaces.filter((w) => w.sole).map((w) => w.workspace_id)
+  const [email, creds, open, rooms, goneRooms] = await Promise.all([
     emailOf(c.env.DB, me),
     all<{ credential_id: string }>(c.env.DB, 'SELECT credential_id FROM webauthn_credentials WHERE account_id = ?', me),
     openSprints(c.env.DB, me),
+    retroRooms(c.env.DB, { accountId: me }),
+    retroRooms(c.env.DB, { workspaceIds: sole }),
   ])
-  const done = await batch(c.env.DB, deleteAccount(me, email, workspaces.filter((w) => w.sole).map((w) => w.workspace_id)))
+  const done = await batch(c.env.DB, deleteAccount(me, email, sole))
   // Someone joined a workspace only they owned, or handed them a sprint, since they were checked:
   // nothing was deleted, and they're told what now needs handing on.
   if (!done[done.length - 1].meta.changes) {
     const now = await standing(c.env.DB, me)
     throw new AppError(409, 'not_free', 'something changed just now — hand on what others depend on first', { workspaces: now.filter((w) => !free(w)) })
   }
-  await Promise.all(open.map((id) => revokeLive(c.env, id, me)))
+  // Their connections close and no room keeps anything naming them; the rooms of sprints that went
+  // with a workspace keep nothing at all.
+  await Promise.all([
+    ...[...new Set([...open, ...rooms])].filter((id) => !goneRooms.includes(id)).map((id) => revokeLive(c.env, id, me)),
+    ...goneRooms.map((id) => forgetRoom(c.env, id)),
+  ])
   clearSessionCookies(c, cfg)
   return c.json({ ok: true, rp_id: cfg.webauthn.rpId, credential_ids: creds.map((r) => r.credential_id) })
 })

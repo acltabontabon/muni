@@ -10,6 +10,7 @@ import { uuid } from './lib/crypto'
 import { all, one, run, type Statement } from './lib/db'
 import { sendMail, templates } from './lib/email'
 import { AppError } from './lib/errors'
+import { forgetRoom } from './lib/live'
 import { addDays, daysBetween, resolveLocal } from './lib/util'
 
 export async function enqueue(db: D1Database, kind: string, payload: Record<string, unknown>, runAt: number, key: string | null): Promise<void> {
@@ -44,6 +45,7 @@ interface JobRow {
 }
 
 export async function runDue(env: AppEnv, max = 20): Promise<number> {
+  await reap(env.DB)
   let ran = 0
   for (let i = 0; i < max; i++) {
     const job = await claim(env.DB)
@@ -54,12 +56,30 @@ export async function runDue(env: AppEnv, max = 20): Promise<number> {
   return ran
 }
 
+/**
+ * A job still 'running' after 10 minutes stopped without finishing (its isolate died, perhaps
+ * because of the job itself). It counts as a failed attempt: back to the queue behind everything
+ * already due, or — out of attempts — given up, so one that keeps crashing can't run forever
+ * ahead of the rest.
+ */
+async function reap(db: D1Database) {
+  const now = Date.now()
+  await run(
+    db,
+    `UPDATE jobs SET locked_at = NULL, last_error = 'stopped without finishing', run_at = ?,
+       status = CASE WHEN attempts >= max_attempts THEN 'failed' ELSE 'queued' END,
+       finished_at = CASE WHEN attempts >= max_attempts THEN ? ELSE finished_at END,
+       payload = CASE WHEN attempts >= max_attempts AND kind = 'email' THEN '{}' ELSE payload END
+     WHERE status = 'running' AND locked_at < ?`,
+    now, now, now - 10 * 60_000,
+  )
+}
+
 async function claim(db: D1Database): Promise<JobRow | null> {
-  // Reclaim jobs stuck in 'running' for 10 minutes (an isolate died mid-job).
-  const stale = Date.now() - 10 * 60_000
-  const cand = await one<JobRow>(db, "SELECT id, kind, payload, attempts, max_attempts FROM jobs WHERE (status = 'queued' AND run_at <= ?) OR (status = 'running' AND locked_at < ?) ORDER BY run_at LIMIT 1", Date.now(), stale)
+  const now = Date.now()
+  const cand = await one<JobRow>(db, "SELECT id, kind, payload, attempts, max_attempts FROM jobs WHERE status = 'queued' AND run_at <= ? ORDER BY run_at LIMIT 1", now)
   if (!cand) return null
-  const r = await run(db, "UPDATE jobs SET status='running', locked_at=?, attempts=attempts+1 WHERE id=? AND ((status='queued' AND run_at <= ?) OR (status='running' AND locked_at < ?))", Date.now(), cand.id, Date.now(), stale)
+  const r = await run(db, "UPDATE jobs SET status='running', locked_at=?, attempts=attempts+1 WHERE id=? AND status='queued' AND run_at <= ?", now, cand.id, now)
   if (!r.meta.changes) return null
   return { ...cand, attempts: cand.attempts + 1 }
 }
@@ -139,7 +159,11 @@ async function reminders(env: AppEnv, sprintId: string, kind: string) {
   }
 }
 
-/** Retention: content-derived records are deleted after the workspace window; outcomes under the separate, disclosed window. */
+/**
+ * Retention: content-derived records are deleted after the workspace window; outcomes under the
+ * separate, disclosed window — both only once a sprint is finished. The room's record of a purged
+ * sprint's retro (who came, the agenda) goes with its content.
+ */
 export async function retention(env: AppEnv) {
   const db = env.DB
   const now = Date.now()
@@ -149,10 +173,16 @@ export async function retention(env: AppEnv) {
      AND COALESCE(s.completed_at, s.updated_at) < ? - w.retention_days * 86400000 LIMIT 50`,
     now,
   )
-  for (const s of due) await purgeSprintContent(db, s.id, s.workspace_id)
+  for (const s of due) {
+    await purgeSprintContent(db, s.id, s.workspace_id)
+    await forgetRoom(env, s.id)
+  }
+  const outcomesDue = "SELECT s.id FROM sprints s JOIN workspaces w ON w.id = s.workspace_id WHERE s.status IN ('completed','archived') AND COALESCE(s.completed_at, s.updated_at) < ? - w.outcome_retention_days * 86400000"
   await db.batch([
-    db.prepare('DELETE FROM experiments WHERE sprint_id IN (SELECT s.id FROM sprints s JOIN workspaces w ON w.id = s.workspace_id WHERE COALESCE(s.completed_at, s.updated_at) < ? - w.outcome_retention_days * 86400000)').bind(now),
-    db.prepare('DELETE FROM recaps WHERE sprint_id IN (SELECT s.id FROM sprints s JOIN workspaces w ON w.id = s.workspace_id WHERE COALESCE(s.completed_at, s.updated_at) < ? - w.outcome_retention_days * 86400000)').bind(now),
+    db.prepare(`DELETE FROM experiments WHERE sprint_id IN (${outcomesDue})`).bind(now),
+    db.prepare(`DELETE FROM recaps WHERE sprint_id IN (${outcomesDue})`).bind(now),
+    // An invitation's address is kept while it can be used, and 30 days after it was used, withdrawn or expired.
+    db.prepare('DELETE FROM invitations WHERE COALESCE(accepted_at, revoked_at, expires_at) < ?').bind(now - 30 * 86_400_000),
     db.prepare('DELETE FROM sessions WHERE expires_at < ? OR revoked_at < ?').bind(now - 7 * 86_400_000, now - 7 * 86_400_000),
     db.prepare("DELETE FROM jobs WHERE status IN ('succeeded','cancelled') AND finished_at < ?").bind(now - 30 * 86_400_000),
     db.prepare("DELETE FROM jobs WHERE status = 'failed' AND finished_at < ?").bind(now - 90 * 86_400_000),

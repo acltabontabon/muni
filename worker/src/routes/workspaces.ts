@@ -3,15 +3,15 @@ import type { HonoEnv } from '../env'
 import { config } from '../lib/config'
 import { requireAuth, requireMember, requireOwner } from '../lib/auth'
 import { randomToken, sha256Hex, uuid } from '../lib/crypto'
-import { all, audit, auditStmt, batch, bool, count, one, run } from '../lib/db'
+import { all, assignments, audit, auditStmt, batch, bool, count, one, run } from '../lib/db'
 import { AppError, bad, conflict, forbidden, notFound } from '../lib/errors'
 import { templates } from '../lib/email'
 import { mayGrant, mayRevoke } from '../lib/grants'
 import { accountBucket, limit } from '../lib/ratelimit'
 import { jsonBody, nonempty, normalizeEmail } from '../lib/util'
 import { enqueueStatement, runSoon } from '../jobs'
-import { revokeLive } from '../lib/live'
-import { deleteWorkspaces, facilitated, openSprints, revokeMembership, standing, type Standing } from '../lib/departure'
+import { forgetRoom, revokeLive } from '../lib/live'
+import { deleteWorkspaces, facilitated, openSprints, retroRooms, revokeMembership, standing, type Standing } from '../lib/departure'
 import { EMAIL_OF_A } from '../lib/accounts'
 
 export const workspaces = new Hono<HonoEnv>()
@@ -70,16 +70,25 @@ workspaces.patch('/api/workspaces/:workspaceId', async (c) => {
   const m = await requireMember(c, config(c.env), c.env.DB, c.req.param('workspaceId'))
   requireOwner(m)
   const body = await jsonBody<{ name?: string; retention_days?: number; outcome_retention_days?: number }>(c)
-  if (body.name !== undefined) await run(c.env.DB, 'UPDATE workspaces SET name = ? WHERE id = ?', nonempty(body.name, 80, 'Workspace name'), m.workspaceId)
-  if (body.retention_days !== undefined) {
-    const d = Number(body.retention_days)
-    if (!(d >= 7 && d <= 3650)) throw bad('retention must be between 7 and 3650 days')
-    await run(c.env.DB, 'UPDATE workspaces SET retention_days = ? WHERE id = ?', d, m.workspaceId)
+  const { sets, args, set } = assignments()
+  if (body.name !== undefined) set('name = ?', nonempty(body.name, 80, 'Workspace name'))
+  const content = body.retention_days === undefined ? null : Number(body.retention_days)
+  if (content !== null) {
+    if (!(content >= 7 && content <= 3650)) throw bad('retention must be between 7 and 3650 days')
+    set('retention_days = ?', content)
   }
-  if (body.outcome_retention_days !== undefined) {
-    const d = Number(body.outcome_retention_days)
-    if (!(d >= 30 && d <= 3650)) throw bad('outcome retention must be between 30 and 3650 days')
-    await run(c.env.DB, 'UPDATE workspaces SET outcome_retention_days = ? WHERE id = ?', d, m.workspaceId)
+  const outcomes = body.outcome_retention_days === undefined ? null : Number(body.outcome_retention_days)
+  if (outcomes !== null) {
+    if (!(outcomes >= 30 && outcomes <= 3650)) throw bad('outcome retention must be between 30 and 3650 days')
+    set('outcome_retention_days = ?', outcomes)
+  }
+  // All at once. A change to either window goes ahead only if outcomes (experiments, the published
+  // recap) are then kept at least as long as the content they came from — checked in the same
+  // statement against the stored window for the one not sent.
+  const windows = content !== null || outcomes !== null
+  if (sets.length) {
+    const r = await run(c.env.DB, `UPDATE workspaces SET ${sets.join(', ')} WHERE id = ?${windows ? ' AND COALESCE(?, outcome_retention_days) >= COALESCE(?, retention_days)' : ''}`, ...args, m.workspaceId, ...(windows ? [outcomes, content] : []))
+    if (!r.meta.changes) throw bad('outcomes are kept at least as long as the content they come from — make outcome retention at least as long as content retention')
   }
   await audit(c.env.DB, m.workspaceId, null, m.auth.account.id, 'workspace.settings_updated')
   return c.json(await loadWorkspace(c.env, m.workspaceId, m.role))
@@ -194,8 +203,10 @@ workspaces.post('/api/workspaces/:workspaceId/leave', async (c) => {
   const liveSprints = await openSprints(c.env.DB, me, m.workspaceId)
   if (s.sole) {
     if (body.delete_workspace !== true) throw new AppError(409, 'sole_member', 'you’re the only one here, so leaving deletes the workspace')
+    const rooms = await retroRooms(c.env.DB, { workspaceIds: [m.workspaceId] })
     const res = await batch(c.env.DB, deleteWorkspaces([m.workspaceId], me))
     if (!res[res.length - 1].meta.changes) throw new AppError(409, 'not_alone', 'someone just joined — leave again to see what that means')
+    await Promise.all(rooms.map((id) => forgetRoom(c.env, id)))
   } else {
     const [done] = await batch(c.env.DB, revokeMembership(m.workspaceId, me, me, 'membership.left'))
     if (!done.meta.changes) {

@@ -1,7 +1,7 @@
 /** Retention: content is purged after the workspace window; outcomes live under their own, longer window. */
 import { describe, expect, it } from 'vitest'
 import { env } from 'cloudflare:test'
-import { closeCollection, command, entry, get, go, ids, patch, post, put, sprint, team, type User } from './harness'
+import { closeCollection, command, entry, get, go, ids, patch, post, put, roomState, sprint, team, type User } from './harness'
 import { retention } from '../src/jobs'
 
 const DAY = 86_400_000
@@ -91,6 +91,59 @@ describe('retention', () => {
     expect(await n('SELECT count(*) AS n FROM recaps WHERE sprint_id = ?', s)).toBe(0)
     expect((await get(`/api/sprints/${s}/recap`, owner)).body.exists).toBe(false)
     expect(await n('SELECT count(*) AS n FROM experiments WHERE sprint_id = ?', s)).toBe(1)
+  })
+
+  it('never deletes the outcomes of a sprint that isn’t finished, however old', async () => {
+    const { owner, members, ws } = await team(1)
+    expect((await patch(`/api/workspaces/${ws}`, owner, { retention_days: 30, outcome_retention_days: 30 })).status).toBe(200)
+    const s = await sprint(owner, members, ws, 'live')
+    expect((await post(`/api/sprints/${s}/experiments`, owner, { change_to_try: 'For the next sprint, reserve a daily 15-minute review window', success_signal: 'PRs wait less than a day' })).status).toBe(200)
+    expect((await put(`/api/sprints/${s}/recap`, owner, { body: 'We talked; this is what we kept.' })).status).toBe(200)
+    await env.DB.prepare('UPDATE sprints SET updated_at = ? WHERE id = ?').bind(Date.now() - 31 * DAY, s).run()
+    await retention(env as any)
+    expect(await n('SELECT count(*) AS n FROM experiments WHERE sprint_id = ?', s)).toBe(1)
+    expect(await n('SELECT count(*) AS n FROM recaps WHERE sprint_id = ?', s)).toBe(1)
+  })
+
+  it('keeps outcomes at least as long as the content they come from', async () => {
+    const { owner, ws } = await team(0)
+    const settings = async () => {
+      const w = (await get(`/api/workspaces/${ws}`, owner)).body.workspace
+      return [w.name, w.retention_days, w.outcome_retention_days]
+    }
+    const before = await settings()
+    expect(before.slice(1)).toEqual([90, 730])
+    for (const change of [{ outcome_retention_days: 60 }, { retention_days: 100, outcome_retention_days: 60 }, { name: 'Renamed', retention_days: 800 }]) {
+      const r = await patch(`/api/workspaces/${ws}`, owner, change)
+      expect(r.status, JSON.stringify(change)).toBe(400)
+    }
+    expect(await settings()).toEqual(before)
+    expect((await patch(`/api/workspaces/${ws}`, owner, { retention_days: 60, outcome_retention_days: 60 })).status).toBe(200)
+    expect((await patch(`/api/workspaces/${ws}`, owner, { name: 'Renamed' })).body.name).toBe('Renamed')
+  })
+
+  it('takes the room’s record of the retro with the content', async () => {
+    const { owner, members, ws } = await team(2)
+    const { s } = await completedSprint(owner, members, ws, true)
+    expect((await post(`/api/sprints/${s}/meeting/attendance`, members[1], { present: true })).status).toBe(200)
+    expect(JSON.stringify(await roomState(s))).toContain(members[1].account_id) // who came
+    await env.DB.prepare('UPDATE sprints SET completed_at = ? WHERE id = ?').bind(Date.now() - 100 * DAY, s).run()
+    await retention(env as any)
+    expect(await roomState(s)).toEqual({ meeting: null, attendance: {}, connected: [] })
+  })
+
+  it('keeps an invitation’s address for 30 days after it was used, withdrawn or expired', async () => {
+    const { owner, ws } = await team(0)
+    const at = (email: string) => env.DB.prepare('SELECT count(*) AS n FROM invitations WHERE email = ?').bind(email).first<{ n: number }>().then((r) => r!.n)
+    const addr = (k: string) => `${k}-${ws.slice(0, 8)}@example.com`
+    for (const k of ['live', 'used', 'withdrawn', 'expired', 'recent']) expect((await post(`/api/workspaces/${ws}/invitations`, owner, { email: addr(k) })).status).toBe(200)
+    const old = Date.now() - 31 * DAY
+    await env.DB.prepare('UPDATE invitations SET accepted_at = ? WHERE email = ?').bind(old, addr('used')).run()
+    await env.DB.prepare('UPDATE invitations SET revoked_at = ? WHERE email = ?').bind(old, addr('withdrawn')).run()
+    await env.DB.prepare('UPDATE invitations SET expires_at = ? WHERE email = ?').bind(old, addr('expired')).run()
+    await env.DB.prepare('UPDATE invitations SET expires_at = ? WHERE email = ?').bind(Date.now() - DAY, addr('recent')).run()
+    await retention(env as any)
+    expect(await Promise.all(['live', 'used', 'withdrawn', 'expired', 'recent'].map((k) => at(addr(k))))).toEqual([1, 0, 0, 0, 1])
   })
 
   it('honours a shorter workspace window and deletes outcomes only beyond the outcome window', async () => {

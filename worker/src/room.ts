@@ -162,21 +162,13 @@ export class MeetingRoom implements DurableObject {
         for (const resource of resources) this.broadcast({ type: 'hint', resource, version: m?.version ?? 0 }, body.to as Audience | undefined)
         return Response.json({ ok: true })
       }
-      case '/revoke': {
-        const account = String(body.account_id ?? '')
-        for (const ws of this.ctx.getWebSockets()) {
-          const att = ws.deserializeAttachment() as Attachment | null
-          if (att?.a === account) {
-            try {
-              ws.send(JSON.stringify({ type: 'revoked' }))
-              ws.close(4003, 'revoked')
-            } catch {
-              /* already closed */
-            }
-          }
-        }
+      case '/revoke':
+        return this.revoke(String(body.account_id ?? ''))
+      case '/forget':
+        // The sprint's content was purged, or the sprint deleted: nothing about its retro stays here.
+        await this.ctx.storage.deleteAll()
+        this.handover = null
         return Response.json({ ok: true })
-      }
       default:
         return new Response('not found', { status: 404 })
     }
@@ -213,6 +205,32 @@ export class MeetingRoom implements DurableObject {
       const att = ws.deserializeAttachment() as Attachment | null
       if (att?.a) ws.serializeAttachment({ a: att.a, f: att.a === account } satisfies Attachment)
     }
+    return Response.json({ ok: true })
+  }
+
+  /**
+   * Someone left the sprint (or deleted their account): their connections close, and the room keeps
+   * nothing that names them — their attendance, or them as the stage's controller.
+   */
+  private async revoke(account: string): Promise<Response> {
+    for (const ws of this.ctx.getWebSockets()) {
+      const att = ws.deserializeAttachment() as Attachment | null
+      if (att?.a === account) {
+        try {
+          ws.send(JSON.stringify({ type: 'revoked' }))
+          ws.close(4003, 'revoked')
+        } catch {
+          /* already closed */
+        }
+      }
+    }
+    const [m, att] = [await this.meeting(), await this.attendance()]
+    if (account in att) {
+      delete att[account]
+      await this.ctx.storage.put({ attendance: att })
+    }
+    if (m && m.controller_account_id === account) await this.ctx.storage.put({ meeting: { ...m, controller_account_id: null } })
+    if (this.handover?.account === account) this.handover = null
     return Response.json({ ok: true })
   }
 

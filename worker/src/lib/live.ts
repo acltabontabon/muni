@@ -47,11 +47,21 @@ export async function handOver(env: { ROOMS: DurableObjectNamespace }, sprintId:
   }
 }
 
+/** Closes someone's connections to a sprint's room, and the room forgets them (attendance, control). */
 export async function revokeLive(env: { ROOMS: DurableObjectNamespace }, sprintId: string, accountId: string): Promise<void> {
   try {
     await call(room(env, sprintId), '/revoke', { account_id: accountId })
   } catch {
     /* best effort; membership is re-checked on every join and command */
+  }
+}
+
+/** The room keeps nothing of a sprint whose content was purged, or that was deleted. */
+export async function forgetRoom(env: { ROOMS: DurableObjectNamespace }, sprintId: string): Promise<void> {
+  try {
+    await call(room(env, sprintId), '/forget', {})
+  } catch {
+    /* best effort, like every call to a room */
   }
 }
 

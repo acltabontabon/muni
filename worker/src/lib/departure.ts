@@ -71,6 +71,17 @@ export async function facilitated(db: D1Database, by: { accountId?: string; work
 /** Whether this standing lets them go (a sole workspace goes with them). */
 export const free = (s: Standing) => !s.last_owner && s.facilitating.length === 0
 
+/** Sprints whose rooms have held a retro — only those keep anything — by participant, or by workspace. */
+export async function retroRooms(db: D1Database, by: { accountId: string } | { workspaceIds: string[] }): Promise<string[]> {
+  const rows =
+    'accountId' in by
+      ? await all<{ id: string }>(db, 'SELECT s.id FROM sprint_participants sp JOIN sprints s ON s.id = sp.sprint_id WHERE sp.account_id = ? AND s.session_started_at IS NOT NULL', by.accountId)
+      : by.workspaceIds.length
+        ? await all<{ id: string }>(db, 'SELECT id FROM sprints WHERE workspace_id IN (SELECT value FROM json_each(?)) AND session_started_at IS NOT NULL', JSON.stringify(by.workspaceIds))
+        : []
+  return rows.map((r) => r.id)
+}
+
 /** Unfinished sprints they're in, whose live connections close once they've gone. */
 export async function openSprints(db: D1Database, accountId: string, workspaceId?: string): Promise<string[]> {
   const rows = await all<{ id: string }>(
