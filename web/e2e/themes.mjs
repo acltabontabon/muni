@@ -145,9 +145,18 @@ try {
   await page.waitForFunction(() => document.querySelectorAll('.sort-loose .sort-slip').length === 3)
   check('The bar’s “or add to” names every theme', (await themes()).themes[1].entries.length === 1)
   await pile(page, 1).scrollIntoViewIfNeeded()
+  const calls = []
+  const record = (r) => {
+    const path = new URL(r.url()).pathname
+    if (path.startsWith('/api/')) calls.push(`${r.method()} ${path}`)
+  }
+  page.on('request', record)
   await loose(page, 'Three PRs').dragTo(pile(page, 1))
   await page.waitForFunction(() => document.querySelectorAll('.sort-pile:not(.sort-pile--ghost)')[1]?.querySelectorAll('.sort-slip').length === 2)
+  await page.waitForTimeout(1500) // the room's hint about the change arrives meanwhile
+  page.off('request', record)
   check('Dragging a thought onto a theme still works', (await themes()).themes[1].entries.length === 2)
+  check('…in one request: its answer is the table, and its own hint isn’t read again', calls.length === 1 && calls[0].startsWith('PATCH '), calls.join(', '))
   if (SHOTS) await page.screenshot({ path: `${SHOTS}/themes-two.png`, fullPage: true })
 
   // The ⋯ menu: notes, flag, merge, remove.

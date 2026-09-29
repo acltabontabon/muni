@@ -90,6 +90,9 @@ async function signInWithPasskey(page) {
 async function signOut(page) {
   // From the home page: Account lists other sessions, each with its own "Sign out" button.
   await page.goto(`${BASE}/`)
+  // "/" goes on to the sprint that's collecting: the menu is opened once that has happened, or the
+  // page it opened on is replaced under it.
+  await page.waitForLoadState('networkidle').catch(() => {})
   await page.locator('header button').last().click()
   await page.locator('[data-radix-popper-content-wrapper] button:has-text("Sign out")').click()
   await page.getByRole('dialog').getByRole('button', { name: /^Sign out$/ }).click()
