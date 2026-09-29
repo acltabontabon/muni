@@ -26,15 +26,8 @@ interface RoundRow {
   grouping_revision: number
 }
 
-async function roundView(db: D1Database, ctx: SprintCtx, r: RoundRow) {
-  const mine = await all<{ theme_id: string }>(db, 'SELECT theme_id FROM votes WHERE round_id = ? AND account_id = ?', r.id, ctx.auth.account.id)
-  let totals: Record<string, number> | null = null
-  if (r.status === 'closed') {
-    totals = {}
-    for (const t of await all<{ theme_id: string; n: number }>(db, 'SELECT theme_id, count(*) AS n FROM votes WHERE round_id = ? GROUP BY theme_id', r.id)) totals[t.theme_id] = Number(t.n)
-  }
-  // The facilitator, while voting is open: how many people have voted so far (never who, or for what).
-  const voters = r.status === 'open' && ctx.isFacilitator ? Number((await one<{ n: number }>(db, 'SELECT count(DISTINCT account_id) AS n FROM votes WHERE round_id = ?', r.id))?.n ?? 0) : null
+/** What each round holds for the caller: their own votes, the totals of a closed one, and (the facilitator's, while open) how many have voted. */
+function roundView(ctx: SprintCtx, r: RoundRow, mine: string[], totals: Record<string, number> | null, voters: number | null) {
   return {
     id: r.id,
     status: r.status,
@@ -43,19 +36,44 @@ async function roundView(db: D1Database, ctx: SprintCtx, r: RoundRow) {
     cancel_reason: r.cancel_reason,
     opened_at: new Date(r.opened_at).toISOString(),
     closed_at: r.closed_at ? new Date(r.closed_at).toISOString() : null,
-    my_votes: mine.map((m) => m.theme_id),
+    my_votes: mine,
     my_remaining: r.budget - mine.length,
-    totals,
+    totals: r.status === 'closed' ? (totals ?? {}) : null,
     eligible: ctx.isParticipant,
   }
 }
 
+/**
+ * The sprint's latest rounds as the caller may see them, in one round trip however many there are:
+ * the rounds, the caller's own votes in them, the totals of closed ones and — for the facilitator —
+ * how many have voted in an open one (never who, or for what).
+ */
 export async function votingState(db: D1Database, ctx: SprintCtx) {
-  const rows = await all<RoundRow>(db, 'SELECT id, status, budget, cancel_reason, opened_at, closed_at, grouping_revision FROM vote_rounds WHERE sprint_id = ? ORDER BY opened_at DESC LIMIT 20', ctx.sprint.id)
+  const sid = ctx.sprint.id
+  const ROUNDS = 'SELECT id, status FROM vote_rounds WHERE sprint_id = ? ORDER BY opened_at DESC LIMIT 20'
+  const [roundRows, mineRows, totalRows, voterRows] = await db.batch([
+    db.prepare('SELECT id, status, budget, cancel_reason, opened_at, closed_at, grouping_revision FROM vote_rounds WHERE sprint_id = ? ORDER BY opened_at DESC LIMIT 20').bind(sid),
+    db.prepare(`SELECT round_id, theme_id FROM votes WHERE account_id = ? AND round_id IN (SELECT id FROM (${ROUNDS}))`).bind(ctx.auth.account.id, sid),
+    db.prepare(`SELECT round_id, theme_id, count(*) AS n FROM votes WHERE round_id IN (SELECT id FROM (${ROUNDS}) WHERE status = 'closed') GROUP BY round_id, theme_id`).bind(sid),
+    db.prepare(`SELECT round_id, count(DISTINCT account_id) AS n FROM votes WHERE ? AND round_id IN (SELECT id FROM vote_rounds WHERE sprint_id = ? AND status = 'open') GROUP BY round_id`).bind(ctx.isFacilitator ? 1 : 0, sid),
+  ])
+  const mine = new Map<string, string[]>()
+  for (const v of mineRows.results as { round_id: string; theme_id: string }[]) {
+    const list = mine.get(v.round_id)
+    if (list) list.push(v.theme_id)
+    else mine.set(v.round_id, [v.theme_id])
+  }
+  const totals = new Map<string, Record<string, number>>()
+  for (const t of totalRows.results as { round_id: string; theme_id: string; n: number }[]) {
+    const tally = totals.get(t.round_id) ?? {}
+    tally[t.theme_id] = Number(t.n)
+    totals.set(t.round_id, tally)
+  }
+  const voters = new Map((voterRows.results as { round_id: string; n: number }[]).map((v) => [v.round_id, Number(v.n)]))
   let current = null
   const previous = []
-  for (const r of rows) {
-    const v = await roundView(db, ctx, r)
+  for (const r of roundRows.results as RoundRow[]) {
+    const v = roundView(ctx, r, mine.get(r.id) ?? [], totals.get(r.id) ?? null, r.status === 'open' && ctx.isFacilitator ? (voters.get(r.id) ?? 0) : null)
     if (v.status === 'open' && !current) current = v
     else previous.push(v)
   }
@@ -133,10 +151,12 @@ voting.post('/api/sprints/:sprintId/votes', async (c) => {
   } else {
     await run(db, 'DELETE FROM votes WHERE round_id = ? AND theme_id = ? AND account_id = ?', round.id, themeId, me)
   }
-  // Nobody learns what anyone voted for. Only the facilitator's count of voters moves: when this
-  // person goes from no votes to some, or back to none, the facilitator's screen reads it again.
+  // Nobody learns what anyone voted for. The voter's own other tabs (the stage, their phone) follow
+  // every change, to show the votes they have left. Beyond that only the facilitator's count of
+  // voters moves: when this person goes from no votes to some, or back to none, it reads it again.
   const mine = await count(db, 'SELECT count(*) AS n FROM votes WHERE round_id = ? AND account_id = ?', round.id, me)
-  if ((body.cast && mine === 1) || (!body.cast && mine === 0)) await hint(c.env, ctx.sprint.id, 'votes', { facilitators: true })
+  const counted = (body.cast && mine === 1) || (!body.cast && mine === 0)
+  await hint(c.env, ctx.sprint.id, 'votes', { facilitators: counted, accounts: [me] })
   return c.json(await votingState(db, ctx))
 })
 

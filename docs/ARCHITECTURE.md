@@ -45,8 +45,9 @@ and reading the meeting re-initialises a missing session, so a failed call is re
 client then fetches a fresh, authorized snapshot over HTTP. A broadcast therefore can't carry
 anything a recipient may not see, and reconnecting is just fetching again. Hints that only change
 the facilitator's view — someone arriving or leaving, an answer or an addition coming in — go only
-to the facilitator's sockets and the person's own tabs; the room follows a handover of facilitation
-on the sockets already open. Clients gather hints for a moment and read each part once, in order,
+to the facilitator's sockets and the person's own tabs (a vote goes to the voter's own tabs, and to
+the facilitator's only when their count of voters moves); the room follows a handover of
+facilitation on the sockets already open, and the previous facilitator stops controlling the stage. Clients gather hints for a moment and read each part once, in order,
 dropping an answer older than one already shown. Sockets use the Hibernation API, so an idle room
 costs nothing.
 
@@ -225,6 +226,7 @@ For ten participants, ~100 entries and one hour-long live retro per sprint, one 
 live snapshot reads several tables); the Worker then answers `503 quota`, and says a write may not
 have been saved. Caps are enforced where data is written (`lib/limits.ts`), so every read returns
 everything there is: 60 participants per sprint, 200 thoughts per person and 12,000 per sprint,
-40 themes, 100 retro additions per person. Each account can send 20 invitation emails and create
-10 workspaces a day, and the deployment sends at most `EMAIL_DAILY_LIMIT` emails a day (80 by
-default).
+40 themes, 100 retro additions per person. Each account can send 20 invitation emails, create
+10 workspaces and create 20 sprints a day; a workspace sends at most 3 reminder emails a day per
+active member (a reminder reaches each participant once per sprint and moment, so a team never
+gets near it); and the deployment sends at most `EMAIL_DAILY_LIMIT` emails a day (80 by default).

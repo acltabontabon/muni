@@ -28,7 +28,7 @@ export async function record(db: D1Database, bucket: string): Promise<void> {
 }
 
 /** Buckets that count one account's own actions. They name the account, so they go with it. */
-export const ACCOUNT_BUCKETS = ['join-req', 'device-add', 'device-unlock', 'pk-reauth', 'pk-reg', 'invite-mail', 'workspace-new'] as const
+export const ACCOUNT_BUCKETS = ['join-req', 'device-add', 'device-unlock', 'pk-reauth', 'pk-reg', 'invite-mail', 'workspace-new', 'sprint-new'] as const
 export const accountBucket = (kind: (typeof ACCOUNT_BUCKETS)[number], accountId: string) => `${kind}:${accountId}`
 
 export function clientClass(req: Request): string {

@@ -68,11 +68,49 @@ commitments.get('/api/sprints/:sprintId/experiments', async (c) => {
   return c.json(await listFor(c.env.DB, ctx.sprint.id))
 })
 
+/** What earlier sprints agreed to try, as this sprint's retro looks back at it. */
+const previousFor = async (db: D1Database, ctx: SprintCtx) =>
+  (await all<ExperimentRow>(db, `${EXP_SELECT} WHERE e.workspace_id = ? AND e.sprint_id <> ? AND e.status <> 'proposed' AND s.starts_on <= (SELECT starts_on FROM sprints WHERE id = ?) ORDER BY s.starts_on DESC, e.created_at DESC LIMIT 12`, ctx.sprint.workspace_id, ctx.sprint.id, ctx.sprint.id)).map(expView)
+
+/** Whether a change was tried and helped: the verdicts a look back records. */
+const VERDICTS = ['helped', 'did_not_help', 'inconclusive', 'not_tried']
+
+/** A verdict reaches the experiment's own sprint and every live retro in the workspace (where it's usually given). */
+async function hintVerdict(env: HonoEnv['Bindings'], workspaceId: string, sprintIds: string[]) {
+  const live = await all<{ id: string }>(env.DB, "SELECT id FROM sprints WHERE workspace_id = ? AND status = 'live'", workspaceId)
+  await Promise.all([...new Set([...sprintIds, ...live.map((r) => r.id)])].map((id) => hint(env, id, 'commitments')))
+}
+
 commitments.get('/api/sprints/:sprintId/experiments/previous', async (c) => {
   const ctx = await requireSprint(c, config(c.env), c.env.DB, c.req.param('sprintId'))
   requireParticipant(ctx)
-  const rows = await all<ExperimentRow>(c.env.DB, `${EXP_SELECT} WHERE e.workspace_id = ? AND e.sprint_id <> ? AND e.status <> 'proposed' AND s.starts_on <= (SELECT starts_on FROM sprints WHERE id = ?) ORDER BY s.starts_on DESC, e.created_at DESC LIMIT 12`, ctx.sprint.workspace_id, ctx.sprint.id, ctx.sprint.id)
-  return c.json(rows.map(expView))
+  return c.json(await previousFor(c.env.DB, ctx))
+})
+
+/**
+ * The look back's verdict, recorded by this sprint's facilitator on an experiment an earlier sprint
+ * agreed — whoever facilitated that one. Only experiments this sprint's look back shows can be given
+ * one, and only the status changes (a verdict isn't sealed content, so nothing sealed is written).
+ * Answers with the look back's list, as GET …/experiments/previous does.
+ */
+commitments.patch('/api/sprints/:sprintId/experiments/previous/:experimentId', async (c) => {
+  const ctx = await requireSprint(c, config(c.env), c.env.DB, c.req.param('sprintId'))
+  requireFacilitator(ctx)
+  const db = c.env.DB
+  const eid = c.req.param('experimentId')
+  const body = await jsonBody<{ status?: unknown }>(c)
+  const st = String(body.status ?? '')
+  if (!VERDICTS.includes(st)) throw bad('status must be helped, did_not_help, inconclusive or not_tried')
+  const shown = (await previousFor(db, ctx)).find((e) => e.id === eid)
+  if (!shown) throw notFound('experiment not found')
+  const now = Date.now()
+  const [res] = await batch(db, [
+    ["UPDATE experiments SET status = ?, reviewed_at = ?, updated_at = ? WHERE id = ? AND workspace_id = ? AND sprint_id <> ? AND status <> 'proposed'", st, now, now, eid, ctx.sprint.workspace_id, ctx.sprint.id],
+    auditStmt(ctx.sprint.workspace_id, shown.sprint_id, ctx.auth.account.id, 'experiment.updated', { experiment_id: eid, reviewed_in: ctx.sprint.id }),
+  ])
+  if (!res.meta.changes) throw conflict('this experiment changed while you were looking — reload and try again')
+  await hintVerdict(c.env, ctx.sprint.workspace_id, [shown.sprint_id, ctx.sprint.id])
+  return c.json(await previousFor(db, ctx))
 })
 
 commitments.post('/api/sprints/:sprintId/experiments', async (c) => {
@@ -137,7 +175,7 @@ commitments.patch('/api/sprints/:sprintId/experiments/:experimentId', async (c) 
     const st = String(body.status)
     if (!OUTCOMES.includes(st)) throw bad('unknown status')
     if (st === 'accepted') throw bad('acceptance comes from the owner via /accept')
-    const reviewed = ['helped', 'did_not_help', 'inconclusive', 'not_tried'].includes(st)
+    const reviewed = VERDICTS.includes(st)
     // After a new owner's reset above: of two assignments to a column, SQLite keeps the last.
     set('status = ?, reviewed_at = CASE WHEN ? THEN ? ELSE reviewed_at END', st, reviewed ? 1 : 0, now)
   }
@@ -147,8 +185,7 @@ commitments.patch('/api/sprints/:sprintId/experiments/:experimentId', async (c) 
     auditStmt(ctx.sprint.workspace_id, ctx.sprint.id, ctx.auth.account.id, 'experiment.updated', { experiment_id: eid }),
   ])
   // A verdict is usually given at the next retro, looking back: that retro's screens follow too.
-  const live = await all<{ id: string }>(db, "SELECT id FROM sprints WHERE workspace_id = ? AND status = 'live' AND id <> ?", ctx.sprint.workspace_id, ctx.sprint.id)
-  await Promise.all([ctx.sprint.id, ...live.map((r) => r.id)].map((id) => hint(c.env, id, 'commitments')))
+  await hintVerdict(c.env, ctx.sprint.workspace_id, [ctx.sprint.id])
   return c.json(await listFor(db, ctx.sprint.id))
 })
 
@@ -157,9 +194,11 @@ commitments.post('/api/sprints/:sprintId/experiments/:experimentId/accept', asyn
   requireParticipant(ctx)
   const body = await jsonBody<{ accept?: boolean }>(c)
   const eid = c.req.param('experimentId')
+  // Declining hands back an experiment that's still to be tried; once an outcome is recorded, the
+  // owner stays with it (declining then would wipe the outcome back to "proposed").
   const res = body.accept
     ? await run(c.env.DB, "UPDATE experiments SET owner_accepted_at=?, status='accepted', updated_at=? WHERE id=? AND sprint_id=? AND owner_account_id=? AND status='proposed'", Date.now(), Date.now(), eid, ctx.sprint.id, ctx.auth.account.id)
-    : await run(c.env.DB, "UPDATE experiments SET owner_account_id=NULL, owner_accepted_at=NULL, status='proposed', updated_at=? WHERE id=? AND sprint_id=? AND owner_account_id=?", Date.now(), eid, ctx.sprint.id, ctx.auth.account.id)
+    : await run(c.env.DB, "UPDATE experiments SET owner_account_id=NULL, owner_accepted_at=NULL, status='proposed', updated_at=? WHERE id=? AND sprint_id=? AND owner_account_id=? AND status IN ('proposed','accepted')", Date.now(), eid, ctx.sprint.id, ctx.auth.account.id)
   if (!res.meta.changes) throw conflict('this experiment isn’t waiting on you')
   await hint(c.env, ctx.sprint.id, 'commitments')
   return c.json(await listFor(c.env.DB, ctx.sprint.id))
@@ -168,7 +207,13 @@ commitments.post('/api/sprints/:sprintId/experiments/:experimentId/accept', asyn
 commitments.delete('/api/sprints/:sprintId/experiments/:experimentId', async (c) => {
   const ctx = await requireSprint(c, config(c.env), c.env.DB, c.req.param('sprintId'))
   requireFacilitator(ctx)
-  await run(c.env.DB, "DELETE FROM experiments WHERE id=? AND sprint_id=? AND status IN ('proposed','accepted') AND reviewed_at IS NULL", c.req.param('experimentId'), ctx.sprint.id)
+  const eid = c.req.param('experimentId')
+  const res = await run(c.env.DB, "DELETE FROM experiments WHERE id=? AND sprint_id=? AND status IN ('proposed','accepted') AND reviewed_at IS NULL", eid, ctx.sprint.id)
+  if (!res.meta.changes) {
+    // Nothing was removed: say why, rather than an "ok" for an experiment that's still there.
+    if (await count(c.env.DB, 'SELECT count(*) AS n FROM experiments WHERE id = ? AND sprint_id = ?', eid, ctx.sprint.id)) throw conflict('this experiment has an outcome recorded, so it stays')
+    throw notFound('experiment not found')
+  }
   await hint(c.env, ctx.sprint.id, 'commitments')
   return c.json({ ok: true })
 })

@@ -1,6 +1,7 @@
 /** Sprint lifecycle: transitions, reopen, deletion, scheduling, participants. */
 import { describe, expect, it } from 'vitest'
 import { closeCollection, del, entry, get, go, ids, patch, post, signin, sprint, tag, team, inviteToken } from './harness'
+import { env } from 'cloudflare:test'
 import { failure } from '../src/lib/errors'
 
 describe('lifecycle', () => {
@@ -249,4 +250,26 @@ describe('lifecycle', () => {
     expect((await get(`/api/sprints/${s}`, u)).status).toBe(200)
     expect((await get(`/api/sprints/${s}`, u)).body.is_participant).toBe(true)
   })
+
+  it('refuses, before making anything, a sprint its creator couldn’t open — unless they own the workspace', async () => {
+    const { owner, members, ws } = await team(2)
+    const [maker, a] = members
+    const sprints = async () => Number((await env.DB.prepare('SELECT count(*) AS n FROM sprints WHERE workspace_id = ?').bind(ws).first<{ n: number }>())!.n)
+    const before = await sprints()
+    // A member making a sprint for others, without themselves in it.
+    const outside = await post(`/api/workspaces/${ws}/sprints`, maker, { ...SCHEDULE, name: 'For them', participant_ids: [a.account_id], facilitator_id: a.account_id })
+    expect(outside.status).toBe(403)
+    expect(outside.body.error).toBe('you need to be in the sprint you create, or be a workspace owner')
+    expect(await sprints()).toBe(before)
+    // In it, they can; an owner can make one for others (owners see a sprint's settings).
+    expect((await post(`/api/workspaces/${ws}/sprints`, maker, { ...SCHEDULE, name: 'With me', participant_ids: [a.account_id, maker.account_id], facilitator_id: a.account_id })).status).toBe(200)
+    const byOwner = await post(`/api/workspaces/${ws}/sprints`, owner, { ...SCHEDULE, name: 'For the team', participant_ids: [a.account_id], facilitator_id: maker.account_id })
+    expect(byOwner.status).toBe(200)
+    expect(byOwner.body.is_participant).toBe(false)
+    expect(await sprints()).toBe(before + 2)
+    // Everyone in it must be an active member.
+    expect((await post(`/api/workspaces/${ws}/sprints`, owner, { ...SCHEDULE, participant_ids: [crypto.randomUUID()], facilitator_id: owner.account_id })).status).toBe(400)
+  })
 })
+
+const SCHEDULE = { name: 'Sprint', timezone: 'Europe/Berlin', starts_on: '2026-09-14', ends_on: '2026-09-27', retro_date: '2026-09-28', retro_time: '14:00', reminders_enabled: false }

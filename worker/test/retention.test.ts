@@ -165,4 +165,39 @@ describe('retention', () => {
     expect((await get(`/api/workspaces/${ws}/experiments`, members[0])).body).toHaveLength(0)
     expect((await get(`/api/sprints/${s}`, owner)).status).toBe(200)
   })
+
+  it('works through a backlog of more than fifty sprints in one sweep, within its time budget', async () => {
+    const { owner, members, ws } = await team(1)
+    const s = await sprint(owner, members, ws, 'draft')
+    await env.DB.prepare(
+      `INSERT INTO sprints (id, workspace_id, name, timezone, starts_on, ends_on, retro_at, retro_local_date, retro_local_time, created_by, created_at, updated_at, status, completed_at)
+       SELECT lower(hex(randomblob(16))), workspace_id, name || ' ' || k.n, timezone, starts_on, ends_on, retro_at, retro_local_date, retro_local_time, created_by, created_at, updated_at, 'completed', ?
+         FROM sprints, (WITH RECURSIVE k(n) AS (SELECT 1 UNION ALL SELECT n + 1 FROM k WHERE n < 120) SELECT n FROM k) k WHERE sprints.id = ?`,
+    ).bind(Date.now() - 100 * DAY, s).run()
+    const waiting = () => n('SELECT count(*) AS n FROM sprints WHERE workspace_id = ? AND content_purged_at IS NULL AND status IN (?, ?)', ws, 'completed', 'archived')
+    expect(await waiting()).toBe(120)
+    await retention(env as any)
+    expect(await waiting()).toBe(0)
+    // Out of time, a sweep stops where it is; the next one carries on.
+    await env.DB.prepare("UPDATE sprints SET content_purged_at = NULL, status = 'completed' WHERE workspace_id = ? AND id <> ?").bind(ws, s).run()
+    await retention(env as any, 0)
+    expect(await waiting()).toBe(120)
+  })
+
+  it('finds what the daily sweep deletes by an index, not by reading whole tables', async () => {
+    const now = Date.now()
+    const sweeps: [string, ...unknown[]][] = [
+      ['DELETE FROM rate_events WHERE at < ?', now],
+      ['DELETE FROM sessions WHERE expires_at < ? OR revoked_at < ?', now, now],
+      ['DELETE FROM security_events WHERE created_at < ?', now],
+      ['DELETE FROM invitations WHERE COALESCE(accepted_at, revoked_at, expires_at) < ?', now],
+      ["UPDATE join_requests SET status = 'expired' WHERE status = 'pending' AND created_at < ?", now],
+      ["DELETE FROM join_requests WHERE status <> 'pending' AND COALESCE(decided_at, created_at) < ?", now],
+      ['DELETE FROM join_links WHERE COALESCE(revoked_at, expires_at) < ? AND NOT EXISTS (SELECT 1 FROM join_requests r WHERE r.link_id = join_links.id)', now],
+    ]
+    for (const [sql, ...args] of sweeps) {
+      const plan = (await env.DB.prepare(`EXPLAIN QUERY PLAN ${sql}`).bind(...args).all<{ detail: string }>()).results.map((r) => r.detail)
+      expect(plan.filter((d) => /^SCAN /.test(d)), `${sql}\n${plan.join('\n')}`).toEqual([])
+    }
+  })
 })

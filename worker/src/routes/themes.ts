@@ -51,7 +51,12 @@ export async function grouping(env: HonoEnv['Bindings'], ctx: SprintCtx) {
   const state = stateRows.results[0] as { grouping_revision: number; voting_open: number; voted: number }
   const byTheme = <T extends { theme_id: string | null }>(items: T[]) => {
     const m = new Map<string, T[]>()
-    for (const x of items) if (x.theme_id) m.set(x.theme_id, [...(m.get(x.theme_id) ?? []), x])
+    for (const x of items) {
+      if (!x.theme_id) continue
+      const list = m.get(x.theme_id)
+      if (list) list.push(x)
+      else m.set(x.theme_id, [x])
+    }
     return m
   }
   const entriesOf = byTheme(allEntries)
@@ -100,18 +105,23 @@ function requireEdit(ctx: SprintCtx) {
   if (!['preparing', 'ready', 'live'].includes(ctx.sprint.status)) throw conflict('themes can be edited once collection has closed and until the retro is completed')
 }
 
-/** A structural change invalidates an open vote round; refuses unless the facilitator gave a reason. Returns statements to include in the batch. */
+/**
+ * A structural change invalidates an open vote round; refuses unless the facilitator gave a reason.
+ * Returns statements to include in the batch. Whatever round is open when the batch runs is
+ * cancelled in it, with the revision bump: one opened after the check above can't survive with votes
+ * cast against themes that have since changed.
+ */
 export async function structuralChange(db: D1Database, ctx: SprintCtx, reason: unknown): Promise<[string, ...unknown[]][]> {
   const open = await one<{ id: string }>(db, "SELECT id FROM vote_rounds WHERE sprint_id = ? AND status = 'open'", ctx.sprint.id)
-  const stmts: [string, ...unknown[]][] = []
+  let stored: string | null = null
   if (open) {
     const r = typeof reason === 'string' ? reason.trim() : ''
     if (!r) throw conflict('a voting round is open. Changing themes now cancels it — give a short reason for participants to continue')
     // The reason is written by the facilitator and shown to participants: content, so sealed in encrypted sprints.
-    const stored = isEncrypted(ctx.sprint) ? content(true, r, 200, 'The reason', true)! : r.slice(0, 200)
-    // Only while it's still open: a round closed in the meantime keeps its result.
-    stmts.push(["UPDATE vote_rounds SET status='cancelled', cancel_reason=?, closed_at=? WHERE id=? AND status='open'", stored, Date.now(), open.id])
+    stored = isEncrypted(ctx.sprint) ? content(true, r, 200, 'The reason', true)! : r.slice(0, 200)
   }
+  // Only while it's still open: a round closed in the meantime keeps its result.
+  const stmts: [string, ...unknown[]][] = [["UPDATE vote_rounds SET status='cancelled', cancel_reason=?, closed_at=? WHERE sprint_id=? AND status='open'", stored, Date.now(), ctx.sprint.id]]
   stmts.push(['UPDATE sprints SET grouping_revision = grouping_revision + 1, updated_at = ? WHERE id = ?', Date.now(), ctx.sprint.id])
   stmts.push(['INSERT INTO audit_events (workspace_id, sprint_id, actor_id, action, meta, created_at) VALUES (?,?,?,?,?,?)', ctx.sprint.workspace_id, ctx.sprint.id, ctx.auth.account.id, 'grouping.changed', '{}', Date.now()])
   return stmts

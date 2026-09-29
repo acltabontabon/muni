@@ -28,4 +28,44 @@ describe('jobs', () => {
     await runDue(env as unknown as Parameters<typeof runDue>[0], 50)
     expect((await job(spent))!.attempts).toBe(5)
   })
+
+  it('move on to the next job when another runner claims the one found first', async () => {
+    await runDue(env as unknown as Parameters<typeof runDue>[0], 50) // nothing else due
+    const queued = async (to: string, runAt: number) => {
+      const id = crypto.randomUUID()
+      await env.DB.prepare("INSERT INTO jobs (id, kind, payload, run_at, created_at) VALUES (?, 'email', ?, ?, ?)").bind(id, JSON.stringify({ to, subject: 'hello', body: 'x' }), runAt, Date.now()).run()
+      return id
+    }
+    const first = await queued(`first-${tag()}@example.com`, Date.now() - 2000)
+    const second = await queued(`second-${tag()}@example.com`, Date.now() - 1000)
+    // The database as this runner sees it: another runner claims the first job just after this one found it.
+    let raced = false
+    const db = new Proxy(env.DB, {
+      get(target, prop) {
+        if (prop !== 'prepare') {
+          const v = Reflect.get(target, prop)
+          return typeof v === 'function' ? v.bind(target) : v
+        }
+        return (sql: string) => {
+          const stmt = target.prepare(sql)
+          if (raced || !sql.includes("FROM jobs WHERE status = 'queued'")) return stmt
+          return {
+            bind: (...args: unknown[]) => ({
+              first: async () => {
+                const row = await stmt.bind(...args).first<{ id: string }>()
+                raced = true
+                if (row) await target.prepare("UPDATE jobs SET status = 'running', locked_at = ? WHERE id = ?").bind(Date.now(), row.id).run()
+                return row
+              },
+            }),
+          }
+        }
+      },
+    })
+    await runDue({ ...(env as object), DB: db } as unknown as Parameters<typeof runDue>[0], 5)
+    expect(raced).toBe(true)
+    expect((await job(first))!.status).toBe('running') // the other runner's
+    expect((await job(second))!.status).toBe('succeeded')
+    await env.DB.prepare("UPDATE jobs SET status = 'succeeded' WHERE id = ?").bind(first).run()
+  })
 })

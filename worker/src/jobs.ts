@@ -6,10 +6,11 @@
 import type { Context } from 'hono'
 import type { AppEnv } from './env'
 import { config } from './lib/config'
-import { uuid } from './lib/crypto'
-import { all, one, run, type Statement } from './lib/db'
+import { sha256Hex, uuid } from './lib/crypto'
+import { all, batch, one, run, type Statement } from './lib/db'
 import { sendMail, templates } from './lib/email'
 import { AppError } from './lib/errors'
+import { REMINDER_EMAILS_PER_MEMBER_DAILY } from './lib/limits'
 import { forgetRoom } from './lib/live'
 import { addDays, daysBetween, resolveLocal } from './lib/util'
 
@@ -50,6 +51,8 @@ export async function runDue(env: AppEnv, max = 20): Promise<number> {
   for (let i = 0; i < max; i++) {
     const job = await claim(env.DB)
     if (!job) break
+    // Another runner took the job it found: the queue isn't empty, so try the next one.
+    if (job === 'lost') continue
     ran++
     await execute(env, job)
   }
@@ -75,12 +78,13 @@ async function reap(db: D1Database) {
   )
 }
 
-async function claim(db: D1Database): Promise<JobRow | null> {
+/** The next due job, now this runner's; null when none is due, 'lost' when another runner claimed it first. */
+async function claim(db: D1Database): Promise<JobRow | 'lost' | null> {
   const now = Date.now()
   const cand = await one<JobRow>(db, "SELECT id, kind, payload, attempts, max_attempts FROM jobs WHERE status = 'queued' AND run_at <= ? ORDER BY run_at LIMIT 1", now)
   if (!cand) return null
   const r = await run(db, "UPDATE jobs SET status='running', locked_at=?, attempts=attempts+1 WHERE id=? AND status='queued' AND run_at <= ?", now, cand.id, now)
-  if (!r.meta.changes) return null
+  if (!r.meta.changes) return 'lost'
   return { ...cand, attempts: cand.attempts + 1 }
 }
 
@@ -142,40 +146,76 @@ export async function cancelReminders(db: D1Database, sprintId: string) {
   await run(db, ...cancelRemindersStatement(sprintId))
 }
 
-/** Reminder emails go only to participants who added an address (passkey-only accounts get none). */
+/** The rate bucket counting a workspace's reminder emails (it names no account). */
+export const reminderBucket = (workspaceId: string) => `reminder-mail:${workspaceId}`
+
+/**
+ * Reminder emails go only to participants who added an address (passkey-only accounts get none),
+ * and a workspace sends at most REMINDER_EMAILS_PER_MEMBER_DAILY per active member a day: its
+ * reminders can't use up the deployment's daily email allowance, which invitations need too.
+ */
 async function reminders(env: AppEnv, sprintId: string, kind: string) {
-  const s = await one<{ name: string; status: string; reminders_enabled: number }>(env.DB, 'SELECT name, status, reminders_enabled FROM sprints WHERE id = ?', sprintId)
-  if (!s || s.status !== 'collecting' || !s.reminders_enabled) return
-  const recipients = await all<{ email: string }>(
-    env.DB,
-    `SELECT ae.email FROM sprint_participants sp JOIN account_emails ae ON ae.account_id = sp.account_id JOIN sprints s ON s.id = sp.sprint_id
-     JOIN memberships m ON m.workspace_id = s.workspace_id AND m.account_id = sp.account_id AND m.revoked_at IS NULL WHERE sp.sprint_id = ? AND sp.reminders_opt_out = 0 LIMIT 100`,
+  const db = env.DB
+  const s = await one<{ name: string; status: string; reminders_enabled: number; workspace_id: string; members: number; sent: number }>(
+    db,
+    `SELECT s.name, s.status, s.reminders_enabled, s.workspace_id,
+       (SELECT count(*) FROM memberships m WHERE m.workspace_id = s.workspace_id AND m.revoked_at IS NULL) AS members,
+       (SELECT count(*) FROM rate_events r WHERE r.bucket = 'reminder-mail:' || s.workspace_id AND r.at > ?) AS sent
+     FROM sprints s WHERE s.id = ?`,
+    Date.now() - 86_400_000,
     sprintId,
   )
+  if (!s || s.status !== 'collecting' || !s.reminders_enabled) return
+  const room = Number(s.members) * REMINDER_EMAILS_PER_MEMBER_DAILY - Number(s.sent)
+  if (room <= 0) return
+  const recipients = await all<{ email: string }>(
+    db,
+    `SELECT ae.email FROM sprint_participants sp JOIN account_emails ae ON ae.account_id = sp.account_id JOIN sprints s ON s.id = sp.sprint_id
+     JOIN memberships m ON m.workspace_id = s.workspace_id AND m.account_id = sp.account_id AND m.revoked_at IS NULL WHERE sp.sprint_id = ? AND sp.reminders_opt_out = 0 LIMIT ?`,
+    sprintId,
+    Math.min(100, room),
+  )
+  if (!recipients.length) return
   const link = `${config(env).publicOrigin}/sprints/${sprintId}`
+  const now = Date.now()
+  // One transaction for every recipient; a retry of this job queues nobody twice (the keys) and
+  // counts only the emails it actually queued.
+  const stmts: Statement[] = []
   for (const r of recipients) {
     const mail = templates.reminder(r.email, s.name, kind, link)
-    await enqueue(env.DB, 'email', { to: mail.to, subject: mail.subject, body: mail.body }, Date.now(), `reminder-mail:${sprintId}:${kind}:${await (await import('./lib/crypto')).sha256Hex(r.email)}`)
+    stmts.push(enqueueStatement('email', { to: mail.to, subject: mail.subject, body: mail.body }, now, `reminder-mail:${sprintId}:${kind}:${await sha256Hex(r.email)}`))
   }
+  const queued = (await batch(db, stmts)).reduce((n, r) => n + (r.meta.changes ? 1 : 0), 0)
+  if (queued) await run(db, `INSERT INTO rate_events (bucket, at) VALUES ${Array.from({ length: queued }, () => '(?, ?)').join(', ')}`, ...Array.from({ length: queued }, () => [reminderBucket(s.workspace_id), now]).flat())
 }
+
+/** How long one retention sweep may spend purging sprints, well inside a job's 25-second timeout. */
+const RETENTION_BUDGET_MS = 20_000
 
 /**
  * Retention: content-derived records are deleted after the workspace window; outcomes under the
  * separate, disclosed window — both only once a sprint is finished. The room's record of a purged
  * sprint's retro (who came, the agenda) goes with its content.
  */
-export async function retention(env: AppEnv) {
+export async function retention(env: AppEnv, budgetMs = RETENTION_BUDGET_MS) {
   const db = env.DB
   const now = Date.now()
-  const due = await all<{ id: string; workspace_id: string }>(
-    db,
-    `SELECT s.id, s.workspace_id FROM sprints s JOIN workspaces w ON w.id = s.workspace_id WHERE s.content_purged_at IS NULL AND s.status IN ('completed','archived')
-     AND COALESCE(s.completed_at, s.updated_at) < ? - w.retention_days * 86400000 LIMIT 50`,
-    now,
-  )
-  for (const s of due) {
-    await purgeSprintContent(db, s.id, s.workspace_id)
-    await forgetRoom(env, s.id)
+  // Sprints due for purging, fifty at a time, until none is left or the time budget is spent (the
+  // job's own timeout is longer): a backlog is worked through in a day, not fifty sprints a day.
+  // Each purge marks its sprint, so the next read moves on; what's left waits for tomorrow's sweep.
+  while (Date.now() - now < budgetMs) {
+    const due = await all<{ id: string; workspace_id: string }>(
+      db,
+      `SELECT s.id, s.workspace_id FROM sprints s JOIN workspaces w ON w.id = s.workspace_id WHERE s.content_purged_at IS NULL AND s.status IN ('completed','archived')
+       AND COALESCE(s.completed_at, s.updated_at) < ? - w.retention_days * 86400000 LIMIT 50`,
+      now,
+    )
+    if (!due.length) break
+    for (const s of due) {
+      if (Date.now() - now >= budgetMs) break
+      await purgeSprintContent(db, s.id, s.workspace_id)
+      await forgetRoom(env, s.id)
+    }
   }
   const outcomesDue = "SELECT s.id FROM sprints s JOIN workspaces w ON w.id = s.workspace_id WHERE s.status IN ('completed','archived') AND COALESCE(s.completed_at, s.updated_at) < ? - w.outcome_retention_days * 86400000"
   await db.batch([

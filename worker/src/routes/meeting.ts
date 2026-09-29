@@ -52,6 +52,15 @@ export async function snapshot(env: HonoEnv['Bindings'], ctx: SprintCtx, known?:
       await ensureRoom(env, ctx, { session: now.session_started_at })
       rs = (await roomCall<RoomState>(room(env, sid), '/state')).body
     }
+  } else if (rs.meeting && !rs.meeting.ended_at && !rs.meeting.cancelled && ctx.sprint.status !== 'live') {
+    // Reconciling the other way: D1 ended or cancelled the retro but the room didn't hear it (its
+    // call failed after D1 changed). The status is read again first, and the room is told to finish
+    // only the session seen here, so a retro going live again at this moment isn't the one ended.
+    const now = await one<{ status: string }>(db, 'SELECT status FROM sprints WHERE id = ?', sid)
+    if (now && now.status !== 'live') {
+      await roomCall(room(env, sid), ['completed', 'archived'].includes(now.status) ? '/end' : '/cancel', { session: rs.meeting.session ?? null })
+      rs = (await roomCall<RoomState>(room(env, sid), '/state')).body
+    }
   }
   const m = rs.meeting
   if (!m) throw notFound('the retro hasn’t started yet')
@@ -153,9 +162,11 @@ async function discussed(db: D1Database, sprintId: string, themeId: string): Pro
 /**
  * Steps carry their own housekeeping. Choosing opens the vote (once: coming back shows the result);
  * leaving it closes the vote, which orders the themes; talking follows that order, from the top.
- * Returns what changed, to announce once the stage has moved.
+ * Only the first arrival at the talk sets its agenda and opens its first topic: coming back with a
+ * topic in hand (`currentTopic`, as the room holds it) keeps the agenda, its reasons and what's been
+ * discussed as they are. Returns what changed, to announce once the stage has moved.
  */
-async function stepChanges(db: D1Database, ctx: SprintCtx, cmd: CommandBody): Promise<Resource[]> {
+async function stepChanges(db: D1Database, ctx: SprintCtx, cmd: CommandBody, currentTopic: string | null): Promise<Resource[]> {
   const sid = ctx.sprint.id
   const changed: Resource[] = []
   if (cmd.phase === 'choose') {
@@ -169,7 +180,7 @@ async function stepChanges(db: D1Database, ctx: SprintCtx, cmd: CommandBody): Pr
     await audit(db, ctx.sprint.workspace_id, sid, ctx.auth.account.id, 'votes.round_closed', { status: 'closed' })
     changed.push('votes', 'themes')
   }
-  if (cmd.phase === 'talk') {
+  if (cmd.phase === 'talk' && !currentTopic) {
     const [order, loose] = await db.batch([
       db.prepare('SELECT id FROM themes WHERE sprint_id = ? AND parked = 0 ORDER BY position, created_at').bind(sid),
       db.prepare('SELECT EXISTS (SELECT 1 FROM entries e LEFT JOIN theme_entries te ON te.entry_id = e.id WHERE e.sprint_id = ? AND te.theme_id IS NULL) AS n').bind(sid),
@@ -227,12 +238,13 @@ meeting.post('/api/sprints/:sprintId/meeting/command', async (c) => {
   let claim: string | undefined
   const changed: Resource[] = []
   if (cmd.type === 'set_phase' || topic) {
-    const held = await roomCall<{ claim?: string; error?: string; code?: string }>(stub, '/claim', { account: me, expected_version: expected, type: cmd.type })
+    const held = await roomCall<{ claim?: string; current_theme_id?: string | null; error?: string; code?: string }>(stub, '/claim', { account: me, expected_version: expected, type: cmd.type })
     if (held.status !== 200) return c.json({ error: held.body.error ?? 'command failed', code: held.body.code ?? 'conflict' }, held.status as 409)
     claim = held.body.claim
     try {
       if (topic) changed.push(...(await discussed(db, sid, topic)))
-      if (cmd.type === 'set_phase') changed.push(...(await stepChanges(db, ctx, cmd)))
+      // The topic in hand can't change while the stage is held for this command.
+      if (cmd.type === 'set_phase') changed.push(...(await stepChanges(db, ctx, cmd, held.body.current_theme_id ?? null)))
     } catch (e) {
       await roomCall(stub, '/release', { claim }).catch(() => undefined)
       throw e

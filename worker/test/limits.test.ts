@@ -4,8 +4,8 @@
  */
 import { describe, expect, it } from 'vitest'
 import { env } from 'cloudflare:test'
-import { MAX_NOTES_EACH, MAX_PARTICIPANTS, MAX_THEMES } from '../src/lib/limits'
-import { closeCollection, entry, get, go, inviteToken, post, signin, sprint, tag, team } from './harness'
+import { MAX_NOTES_EACH, MAX_PARTICIPANTS, MAX_THEMES, REMINDER_EMAILS_PER_MEMBER_DAILY, SPRINTS_DAILY } from '../src/lib/limits'
+import { closeCollection, entry, get, go, inviteToken, post, runJobs, signin, sprint, tag, team } from './harness'
 
 const n = async (sql: string, ...args: unknown[]) => Number((await env.DB.prepare(sql).bind(...args).first<{ n: number }>())!.n)
 /** Runs many rows' statements in batches. */
@@ -100,5 +100,38 @@ describe('limits', () => {
          FROM (WITH RECURSIVE k(n) AS (SELECT 1 UNION ALL SELECT n + 1 FROM k WHERE n < 250) SELECT n FROM k) k`,
     ).bind(ws, first, Date.now(), Date.now()).run()
     expect((await get(`/api/workspaces/${ws}/experiments`, owner)).body).toHaveLength(250)
+  })
+
+  it('let one account create at most SPRINTS_DAILY sprints a day', async () => {
+    const { owner, members, ws } = await team(1)
+    // Earlier today, all but one of the day's sprints were made.
+    await insert('INSERT INTO rate_events (bucket, at) VALUES (?, ?)', Array.from({ length: SPRINTS_DAILY - 1 }, () => [`sprint-new:${owner.account_id}`, Date.now() - 60_000]))
+    await sprint(owner, members, ws, 'draft')
+    const before = await n('SELECT count(*) AS n FROM sprints WHERE workspace_id = ?', ws)
+    const over = await post(`/api/workspaces/${ws}/sprints`, owner, { name: 'One more', timezone: 'Europe/Berlin', starts_on: '2026-09-14', ends_on: '2026-09-27', retro_date: '2026-09-28', retro_time: '14:00', participant_ids: [], facilitator_id: owner.account_id })
+    expect(over.status).toBe(429)
+    expect(over.body.error).toContain(`${SPRINTS_DAILY} sprints today`)
+    expect(await n('SELECT count(*) AS n FROM sprints WHERE workspace_id = ?', ws)).toBe(before)
+    // Someone else in the same workspace isn't held back by it.
+    expect((await post(`/api/workspaces/${ws}/sprints`, members[0], { name: 'Mine', timezone: 'Europe/Berlin', starts_on: '2026-09-14', ends_on: '2026-09-27', retro_date: '2026-09-28', retro_time: '14:00', participant_ids: [], facilitator_id: members[0].account_id })).status).toBe(200)
+  })
+
+  it('send a workspace at most REMINDER_EMAILS_PER_MEMBER_DAILY reminder emails a day per member', async () => {
+    const { owner, members, ws } = await team(1)
+    const cap = REMINDER_EMAILS_PER_MEMBER_DAILY * 2 // the owner and one member, both with an address
+    // Enough reminders due at once (four sprints, both moments) to queue twice the cap.
+    const sprints: string[] = []
+    for (let i = 0; i < 4; i++) sprints.push(await sprint(owner, members, ws, 'collecting', { reminders_enabled: true }))
+    await insert(
+      "INSERT INTO jobs (id, kind, payload, idempotency_key, run_at, created_at) VALUES (?, 'reminder', ?, ?, ?, ?)",
+      sprints.flatMap((s) => ['midpoint', 'day_before'].map((kind) => [crypto.randomUUID(), JSON.stringify({ sprint_id: s, kind }), `test-reminder:${s}:${kind}`, Date.now() - 1000, Date.now()])),
+    )
+    await runJobs()
+    const mails = await n(`SELECT count(*) AS n FROM jobs WHERE kind = 'email' AND (${sprints.map(() => 'instr(idempotency_key, ?) = 1').join(' OR ')})`, ...sprints.map((s) => `reminder-mail:${s}:`))
+    expect(mails).toBe(cap)
+    // Invitations still go out.
+    const email = `after-reminders-${tag()}@example.com`
+    expect((await post(`/api/workspaces/${ws}/invitations`, owner, { email })).status).toBe(200)
+    expect(await inviteToken(email)).toBeTruthy()
   })
 })

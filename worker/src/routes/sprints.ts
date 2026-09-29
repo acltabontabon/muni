@@ -4,14 +4,17 @@ import { config } from '../lib/config'
 import { loadSprintCtx, requireAuth, requireFacilitator, requireMember, requireParticipant, requireSprint, type SprintCtx } from '../lib/auth'
 import { uuid } from '../lib/crypto'
 import { all, assignments, audit, auditStmt, batch, bool, count, one, run, type Statement } from '../lib/db'
-import { bad, conflict, forbidden, notFound } from '../lib/errors'
+import { AppError, bad, conflict, forbidden, notFound } from '../lib/errors'
 import { handOver, hint, revokeLive, room, roomCall } from '../lib/live'
+import { accountBucket, limit } from '../lib/ratelimit'
 import { addDays, daysBetween, idList, isDate, jsonBody, localDate, localLabel, nonempty, optional, resolveLocal } from '../lib/util'
 import { cancelReminders, cancelRemindersStatement, scheduleReminders } from '../jobs'
 import { defaultPlan } from '../room'
 import { content, ENCRYPTION, isEncrypted, publicKey } from '../lib/sealed'
 import { sealedVersion, wrapStatements } from './keys'
-import { HAS_SEAT, MAX_PARTICIPANTS } from '../lib/limits'
+import { HAS_SEAT, MAX_PARTICIPANTS, SPRINTS_DAILY } from '../lib/limits'
+
+const DAY = 86_400_000
 
 export const sprints = new Hono<HonoEnv>()
 
@@ -198,11 +201,19 @@ sprints.post('/api/workspaces/:workspaceId/sprints', async (c) => {
   const facilitator = String(body.facilitator_id ?? '')
   const ids = new Set<string>([...idList(body.participant_ids, 'participant_ids'), facilitator])
   if (ids.size > MAX_PARTICIPANTS) throw bad(`a sprint can have at most ${MAX_PARTICIPANTS} participants`)
-  for (const id of ids) if (!(await activeMember(c.env.DB, m.workspaceId, id))) throw bad('every participant must be a member of this workspace')
+  // Someone who is neither in the sprint nor an owner couldn't open it afterwards: refused before
+  // anything is written, rather than leaving a sprint nobody who made it can see.
+  if (!ids.has(m.auth.account.id) && m.role !== 'owner') throw forbidden('you need to be in the sprint you create, or be a workspace owner')
+  // Everyone listed is an active member: one query, however many there are.
+  const listed = [...ids]
+  const members = await count(c.env.DB, `SELECT count(*) AS n FROM memberships WHERE workspace_id = ? AND revoked_at IS NULL AND account_id IN (${listed.map(() => '?').join(',')})`, m.workspaceId, ...listed)
+  if (members !== listed.length) throw bad('every participant must be a member of this workspace')
   // An encrypted sprint's keys are bound to its id before it exists, so the client chooses it.
   if (encrypted && (typeof body.id !== 'string' || !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/.test(body.id))) throw bad('an encrypted sprint needs its id from your device')
   if (encrypted && (await count(c.env.DB, 'SELECT count(*) AS n FROM sprints WHERE id = ?', body.id))) throw conflict('that sprint id is taken')
   const id = encrypted ? (body.id as string) : uuid()
+  // Each sprint can queue reminder emails, so making them is bounded like inviting is.
+  await limit(c.env.DB, accountBucket('sprint-new', m.auth.account.id), SPRINTS_DAILY, DAY, (s) => new AppError(429, 'rate_limited', `you’ve made ${SPRINTS_DAILY} sprints today, the most one person can — try again tomorrow`, { retry_after_seconds: s }))
   const now = Date.now()
   const stmts: [string, ...unknown[]][] = [
     [
@@ -382,6 +393,20 @@ export async function ensureRoom(env: HonoEnv['Bindings'], ctx: SprintCtx, opts:
   })
 }
 
+/**
+ * Tells the room a retro ended or was cancelled, after D1 says so. D1 has already changed, so a room
+ * that fails to hear it doesn't fail the request: the next read of the stage sees D1 and the room
+ * disagree and tells the room again (`snapshot` in meeting.ts).
+ */
+export async function tellRoom(env: HonoEnv['Bindings'], sprintId: string, path: '/end' | '/cancel') {
+  try {
+    const r = await roomCall(room(env, sprintId), path)
+    if (r.status >= 500) throw new Error(`room answered ${r.status}`)
+  } catch (e) {
+    console.error('room call failed', { path, error: String(e instanceof Error ? e.message : e).slice(0, 300) })
+  }
+}
+
 /** Move the sprint through its lifecycle. Every transition is checked server-side. */
 sprints.post('/api/sprints/:sprintId/transition', async (c) => {
   const ctx = await requireSprint(c, config(c.env), c.env.DB, c.req.param('sprintId'))
@@ -480,7 +505,7 @@ sprints.post('/api/sprints/:sprintId/transition', async (c) => {
         ["UPDATE vote_rounds SET status='cancelled', cancel_reason='session cancelled', closed_at=? WHERE sprint_id=? AND status='open'", now, sid],
       ])
       if (!res[0].meta.changes) throw conflict('the sprint changed while you were working — reload and try again')
-      await roomCall(room(c.env, sid), '/cancel')
+      await tellRoom(c.env, sid, '/cancel')
       break
     }
     case 'live>completed': {
@@ -489,7 +514,7 @@ sprints.post('/api/sprints/:sprintId/transition', async (c) => {
         ["UPDATE vote_rounds SET status='closed', closed_at=? WHERE sprint_id=? AND status='open'", now, sid],
       ])
       if (!res[0].meta.changes) throw conflict('the sprint changed while you were working — reload and try again')
-      await roomCall(room(c.env, sid), '/end')
+      await tellRoom(c.env, sid, '/end')
       break
     }
     case 'completed>archived':

@@ -278,19 +278,30 @@ auth.post('/api/invitations/accept', async (c) => {
   // Teammates see the name of whoever joins, so it's chosen before joining (never inferred).
   const named = await one<{ ok: number }>(c.env.DB, "SELECT (name_set_at IS NOT NULL AND trim(display_name) <> '') AS ok FROM accounts WHERE id = ?", a.account.id)
   if (!named?.ok) return c.json({ error: 'choose the name your teammates will see first', code: 'name_required' }, 409)
-  const claimed = await run(c.env.DB, 'UPDATE invitations SET accepted_at = ?, accepted_by = ? WHERE id = ? AND accepted_at IS NULL AND revoked_at IS NULL AND expires_at > ?', Date.now(), a.account.id, inv.id, Date.now())
-  if (!claimed.meta.changes) return c.json({ error: 'this invitation was already used', code: 'conflict' }, 409)
+  // One transaction, keyed on this account's claim of the token (as a personal link's redemption
+  // is): the one-use claim, the membership, the seat and the record all happen, or none does — a
+  // failure part-way never leaves the invitation used up with nobody let in. The same account's
+  // second tab, in the same millisecond, finds the claim its own: joining again changes nothing,
+  // and the record is written once.
+  const now = Date.now()
+  const won = 'EXISTS (SELECT 1 FROM invitations WHERE id = ? AND accepted_by = ? AND accepted_at = ?)'
   const stmts: [string, ...unknown[]][] = [
+    ['UPDATE invitations SET accepted_at = ?, accepted_by = ? WHERE id = ? AND accepted_at IS NULL AND revoked_at IS NULL AND expires_at > ?', now, a.account.id, inv.id, now],
     // A returning (previously removed) member comes back as a member: an old role is never restored by an invitation.
     [
-      `INSERT INTO memberships (workspace_id, account_id, role, created_at) VALUES (?,?,?,?)
+      `INSERT INTO memberships (workspace_id, account_id, role, created_at) SELECT ?, ?, 'member', ? WHERE ${won}
        ON CONFLICT(workspace_id, account_id) DO UPDATE SET role = CASE WHEN memberships.revoked_at IS NULL THEN memberships.role ELSE 'member' END, revoked_at = NULL`,
-      inv.workspace_id, a.account.id, 'member', Date.now(),
+      inv.workspace_id, a.account.id, now, inv.id, a.account.id, now,
     ],
-    ['INSERT INTO audit_events (workspace_id, actor_id, action, meta, created_at) VALUES (?,?,?,?,?)', inv.workspace_id, a.account.id, 'invitation.accepted', JSON.stringify({ invitation_id: inv.id }), Date.now()],
+    [
+      `INSERT INTO audit_events (workspace_id, actor_id, action, meta, created_at) SELECT ?, ?, 'invitation.accepted', ?, ? WHERE ${won}
+         AND NOT EXISTS (SELECT 1 FROM audit_events WHERE workspace_id = ? AND action = 'invitation.accepted' AND meta = ?)`,
+      inv.workspace_id, a.account.id, JSON.stringify({ invitation_id: inv.id }), now, inv.id, a.account.id, now, inv.workspace_id, JSON.stringify({ invitation_id: inv.id }),
+    ],
   ]
-  if (inv.sprint_id) stmts.push([`INSERT OR IGNORE INTO sprint_participants (sprint_id, account_id, is_facilitator, created_at) SELECT id, ?, 0, ? FROM sprints WHERE id = ? AND status NOT IN ('completed','archived') AND ${HAS_SEAT}`, a.account.id, Date.now(), inv.sprint_id])
-  await batch(c.env.DB, stmts)
+  if (inv.sprint_id) stmts.push([`INSERT OR IGNORE INTO sprint_participants (sprint_id, account_id, is_facilitator, created_at) SELECT id, ?, 0, ? FROM sprints WHERE id = ? AND status NOT IN ('completed','archived') AND ${HAS_SEAT} AND ${won}`, a.account.id, now, inv.sprint_id, inv.id, a.account.id, now])
+  const [claimed] = await batch(c.env.DB, stmts)
+  if (!claimed.meta.changes) return c.json({ error: 'this invitation was already used', code: 'conflict' }, 409)
   if (!a.account.email && !(await accountByEmail(c.env.DB, inv.email)) && (await setAccountEmail(c.env.DB, a.account.id, inv.email)))
     await securityEvent(c.env.DB, a.account.id, 'email.added', { via: 'invitation' })
   // The sprint, only if they're in it now (it may have finished, or be full).

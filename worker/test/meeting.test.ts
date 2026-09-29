@@ -136,7 +136,7 @@ describe('meeting', () => {
     expect((await get(`/api/sprints/${s}/votes`, owner)).body.current).toBeNull()
   })
 
-  it('requires an explicit take_control while another controller is connected', async () => {
+  it('leaves the stage to the new facilitator after a handover, though the old one is still connected', async () => {
     const { owner, members, ws } = await team(1)
     const { s } = await live(owner, members, ws)
     const before = await snap(owner, s)
@@ -145,19 +145,45 @@ describe('meeting', () => {
     const { socket, waitFor } = await openSocket(owner, s)
     await waitFor((m) => m.includes('"hello"'))
     expect((await snap(owner, s)).body.controller_stale).toBe(false)
-    // Facilitation moves to a member while the old facilitator is still connected.
+    // Facilitation moves to a member while the old facilitator is still connected, as a participant now.
     expect((await patch(`/api/sprints/${s}`, owner, { facilitator_id: members[0].account_id })).status).toBe(200)
-    const blocked = await command(members[0], s, { type: 'set_phase', phase: 'choose' })
+    expect((await roomState(s)).meeting.controller_account_id).toBeNull()
+    const next = await command(members[0], s, { type: 'set_phase', phase: 'choose' })
+    expect(next.status).toBe(200)
+    expect(next.body.you_control).toBe(true)
+    expect(next.body.controller_name).toBe('Member 0')
+    expect((await command(owner, s, { type: 'set_phase', phase: 'talk' })).status).toBe(403)
+    // A controller who no longer facilitates holds nothing, even if the room still names them.
+    await runInDurableObject(env.ROOMS.get(env.ROOMS.idFromName(s)), async (_room, state) => {
+      const m = (await state.storage.get<Record<string, unknown>>('meeting'))!
+      await state.storage.put('meeting', { ...m, controller_account_id: owner.account_id })
+    })
+    expect((await command(members[0], s, { type: 'set_phase', phase: 'look_back' })).status).toBe(200)
+    // Taking control stays a command anyone facilitating may send.
+    expect((await command(members[0], s, { type: 'take_control' })).status).toBe(200)
+    socket.close()
+  })
+
+  it('requires an explicit take_control while another facilitator is connected and controlling', async () => {
+    const { owner, members, ws } = await team(1)
+    const { s } = await live(owner, members, ws)
+    // Another facilitator's open socket, controlling the stage (as two facilitators' screens would).
+    const other = await env.ROOMS.get(env.ROOMS.idFromName(s)).fetch('https://room/ws', { headers: { upgrade: 'websocket', 'x-muni-account': members[0].account_id, 'x-muni-fac': '1', 'x-muni-at': String(Date.now()) } })
+    other.webSocket!.accept()
+    await runInDurableObject(env.ROOMS.get(env.ROOMS.idFromName(s)), async (_room, state) => {
+      const m = (await state.storage.get<Record<string, unknown>>('meeting'))!
+      await state.storage.put('meeting', { ...m, controller_account_id: members[0].account_id })
+    })
+    const blocked = await command(owner, s, { type: 'set_phase', phase: 'choose' })
     expect(blocked.status).toBe(409)
     expect(blocked.body.error).toContain('take control')
-    expect((await snap(members[0], s)).body.you_control).toBe(false)
-    const taken = await command(members[0], s, { type: 'take_control' })
+    // Refused by the stage, so D1 is untouched: no vote was opened.
+    expect(Number((await env.DB.prepare('SELECT count(*) AS n FROM vote_rounds WHERE sprint_id = ?').bind(s).first<{ n: number }>())!.n)).toBe(0)
+    const taken = await command(owner, s, { type: 'take_control' })
     expect(taken.status).toBe(200)
     expect(taken.body.you_control).toBe(true)
-    expect(taken.body.controller_name).toBe('Member 0')
-    expect((await command(members[0], s, { type: 'set_phase', phase: 'choose' })).status).toBe(200)
-    expect((await command(owner, s, { type: 'set_phase', phase: 'talk' })).status).toBe(403)
-    socket.close()
+    expect((await command(owner, s, { type: 'set_phase', phase: 'choose' })).status).toBe(200)
+    other.webSocket!.close()
   })
 
   it('marks who is here: people themselves, or the facilitator correcting it', async () => {
@@ -347,18 +373,12 @@ describe('meeting', () => {
     expect(await discussed()).toBe(1)
   })
 
-  it('leaves D1 alone when another facilitator holds the stage, and lets one of two commands through', async () => {
+  it('after a handover, lets one of two commands through and closes the vote once', async () => {
     const { owner, members, ws } = await team(2)
     const { s, themes } = await live(owner, members, ws)
     const { socket } = await openSocket(owner, s)
     await sleep(100)
     expect((await patch(`/api/sprints/${s}`, owner, { facilitator_id: members[0].account_id })).status).toBe(200)
-    // The new facilitator hasn't taken control from the old one, who is still connected.
-    const blocked = await command(members[0], s, { type: 'set_phase', phase: 'choose' })
-    expect(blocked.status).toBe(409)
-    expect(blocked.body.error).toContain('take control')
-    expect(Number((await env.DB.prepare('SELECT count(*) AS n FROM vote_rounds WHERE sprint_id = ?').bind(s).first<{ n: number }>())!.n)).toBe(0)
-    expect((await command(members[0], s, { type: 'take_control' })).status).toBe(200)
     expect((await command(members[0], s, { type: 'set_phase', phase: 'choose' })).status).toBe(200)
     await post(`/api/sprints/${s}/votes`, members[1], { theme_id: themes[0], cast: true })
     // Two commands at once: one goes ahead, and the vote is closed once.
@@ -397,5 +417,145 @@ describe('meeting', () => {
     expect(r.status).toBe(200)
     expect(r.body.agenda).toEqual([{ theme_id: themes[1], reason: 'most votes' }, { theme_id: themes[0], reason: null }])
     void ids
+  })
+
+  it('coming back to the talk keeps its agenda, its reasons, what’s been discussed and the topic in hand', async () => {
+    const { owner, members, ws } = await team(1)
+    const { s, themes } = await live(owner, members, ws)
+    const talk = await command(owner, s, { type: 'set_phase', phase: 'talk' })
+    const first = talk.body.current_theme_id as string
+    expect(talk.body.discussed_theme_ids).toEqual([first])
+    const second = themes.find((t) => t !== first)!
+    const agenda = [{ theme_id: second, reason: 'the team asked for it' }, { theme_id: first, reason: null }]
+    expect((await command(owner, s, { type: 'set_agenda', items: agenda })).body.agenda).toEqual(agenda)
+    // The first topic turns out not to have been discussed after all.
+    expect((await command(owner, s, { type: 'mark_discussed', theme_id: first, discussed: false })).body.discussed_theme_ids).toEqual([])
+    await command(owner, s, { type: 'set_phase', phase: 'agree' })
+    const back = await command(owner, s, { type: 'set_phase', phase: 'talk' })
+    expect(back.status).toBe(200)
+    expect(back.body.agenda).toEqual(agenda)
+    expect(back.body.current_theme_id).toBe(first)
+    expect(back.body.discussed_theme_ids).toEqual([])
+  })
+
+  it('keeps a topic’s clock while the room steps away from the talk, and brings it back paused', async () => {
+    const { owner, members, ws } = await team(1)
+    const { s } = await live(owner, members, ws)
+    const talk = await command(owner, s, { type: 'set_phase', phase: 'talk' })
+    const total = talk.body.timer.total_secs as number
+    expect(total).toBeGreaterThan(0)
+    const plus = await command(owner, s, { type: 'timer_adjust', delta_secs: 120 })
+    const left = plus.body.timer.remaining_secs as number
+    // Elsewhere, only the talk keeps a clock.
+    expect((await command(owner, s, { type: 'set_phase', phase: 'agree' })).body.timer).toMatchObject({ running: false, total_secs: 0 })
+    await sleep(1100)
+    const back = await command(owner, s, { type: 'set_phase', phase: 'talk' })
+    expect(back.body.timer.running).toBe(false)
+    expect(back.body.timer.total_secs).toBe(total + 120)
+    expect(Math.abs(back.body.timer.remaining_secs - left)).toBeLessThanOrEqual(1)
+    // …so the facilitator can resume it, or give it more.
+    expect((await command(owner, s, { type: 'timer_adjust', delta_secs: 120 })).body.timer.remaining_secs).toBe(back.body.timer.remaining_secs + 120)
+    const resumed = await command(owner, s, { type: 'timer_resume' })
+    expect(resumed.body.timer.running).toBe(true)
+    // Another topic opens with its own clock; the kept one doesn't come back for it.
+    await command(owner, s, { type: 'set_phase', phase: 'agree' })
+    const other = (await snap(owner, s)).body.agenda.map((a: { theme_id: string }) => a.theme_id).find((id: string) => id !== back.body.current_theme_id)
+    await command(owner, s, { type: 'set_topic', theme_id: other })
+    expect((await command(owner, s, { type: 'set_phase', phase: 'talk' })).body.timer.total_secs).not.toBe(total + 240)
+  })
+
+  it('adds time to what’s left, even long after it ran out, and resuming at zero starts the timebox again', async () => {
+    const { owner, members, ws } = await team(1)
+    const { s } = await live(owner, members, ws)
+    const talk = await command(owner, s, { type: 'set_phase', phase: 'talk' })
+    const per = talk.body.timer.total_secs as number
+    // Five minutes over.
+    await runInDurableObject(env.ROOMS.get(env.ROOMS.idFromName(s)), async (_room, state) => {
+      const m = (await state.storage.get<Record<string, unknown>>('meeting'))!
+      await state.storage.put('meeting', { ...m, timer_ends_at: Date.now() - 5 * 60_000 })
+    })
+    expect((await snap(owner, s)).body.timer.remaining_secs).toBe(0)
+    const plus = await command(owner, s, { type: 'timer_adjust', delta_secs: 120 })
+    expect(plus.body.timer.running).toBe(true)
+    expect(plus.body.timer.remaining_secs).toBeGreaterThanOrEqual(118)
+    expect(plus.body.timer.remaining_secs).toBeLessThanOrEqual(120)
+    // Paused, +2 adds to what's left too.
+    const paused = await command(owner, s, { type: 'timer_pause' })
+    expect((await command(owner, s, { type: 'timer_adjust', delta_secs: 120 })).body.timer.remaining_secs).toBe(paused.body.timer.remaining_secs + 120)
+    // Run out and paused at zero: resuming gives the topic its time back rather than doing nothing.
+    await command(owner, s, { type: 'timer_adjust', delta_secs: -3600 })
+    expect((await snap(owner, s)).body.timer).toMatchObject({ running: false, remaining_secs: 0 })
+    const resumed = await command(owner, s, { type: 'timer_resume' })
+    expect(resumed.body.timer.running).toBe(true)
+    expect(resumed.body.timer.total_secs).toBe(per)
+    expect(resumed.body.timer.remaining_secs).toBeGreaterThanOrEqual(per - 2)
+  })
+
+  it('a room told to forget its retro closes every connection, as ended', async () => {
+    const { owner, members, ws } = await team(1)
+    const { s } = await live(owner, members, ws)
+    const sockets = await Promise.all([openSocket(owner, s), openSocket(members[0], s)])
+    await Promise.all(sockets.map((x) => x.waitFor((m) => m.includes('"hello"'))))
+    const codes = sockets.map((x) => new Promise<number>((resolve) => x.socket.addEventListener('close', (e) => resolve(e.code))))
+    expect((await roomPost(s, '/forget')).status).toBe(200)
+    const closed = await Promise.race([Promise.all(codes), sleep(3000).then(() => null)])
+    expect(closed).toEqual([4003, 4003])
+    expect((await roomState(s)).meeting).toBeNull()
+  })
+
+  it('remembers a handover in storage, so a room woken from eviction still refuses a stale facilitator socket', async () => {
+    const { owner, members, ws } = await team(2)
+    const { s, themes } = await live(owner, members, ws)
+    const before = Date.now()
+    expect((await patch(`/api/sprints/${s}`, owner, { facilitator_id: members[0].account_id })).status).toBe(200)
+    // Evicted: nothing the object held in memory survives.
+    const stub = env.ROOMS.get(env.ROOMS.idFromName(s))
+    await runInDurableObject(stub, (room) => {
+      ;(room as unknown as Record<string, unknown>).handover = null
+    })
+    // The old facilitator's reconnect, checked against D1 just before the handover was saved.
+    const res = await stub.fetch('https://room/ws', { headers: { upgrade: 'websocket', 'x-muni-account': owner.account_id, 'x-muni-fac': '1', 'x-muni-at': String(before - 1) } })
+    const stale = res.webSocket!
+    stale.accept()
+    const messages: string[] = []
+    stale.addEventListener('message', (e) => messages.push(String(e.data)))
+    // Opening the vote is news for everyone; a vote coming in is the facilitator's alone.
+    expect((await post(`/api/sprints/${s}/votes/rounds`, members[0])).status).toBe(200)
+    await sleep(200)
+    const mark = messages.length
+    expect((await post(`/api/sprints/${s}/votes`, members[1], { theme_id: themes[0], cast: true })).status).toBe(200)
+    await sleep(300)
+    expect(messages.slice(mark).some((m) => m.includes('"resource":"votes"'))).toBe(false)
+    stale.close()
+  })
+
+  it('ends the retro in D1 even when the room can’t be reached, and the room catches up on the next read', async () => {
+    const { owner, members, ws } = await team(1)
+    for (const [to, path] of [['ready', '/cancel'], ['completed', '/end']] as const) {
+      const { s } = await live(owner, members, ws)
+      const real = MeetingRoom.prototype.fetch
+      const spy = vi.spyOn(MeetingRoom.prototype, 'fetch').mockImplementation(function (this: MeetingRoom, r: Request) {
+        if (new URL(r.url).pathname === path) throw new Error('the room is unreachable')
+        return real.call(this, r)
+      })
+      try {
+        const moved = await go(owner, s, to)
+        expect(moved.status).toBe(200)
+        expect(moved.body.status).toBe(to)
+      } finally {
+        spy.mockRestore()
+      }
+      const audited = await env.DB.prepare("SELECT count(*) AS n FROM audit_events WHERE sprint_id = ? AND action = 'sprint.transition' AND meta = ?").bind(s, JSON.stringify({ from: 'live', to })).first<{ n: number }>()
+      expect(audited!.n).toBe(1)
+      // The room didn't hear it: it still holds a running retro…
+      const stale = (await roomState(s)).meeting
+      expect(stale.ended_at).toBeNull()
+      // …until the stage is read, which sees D1 and tells the room.
+      const seen = await snap(owner, s)
+      expect(seen.status).toBe(200)
+      expect(seen.body.ended_at).not.toBeNull()
+      expect(seen.body.cancelled).toBe(to === 'ready')
+      expect((await roomState(s)).meeting.ended_at).not.toBeNull()
+    }
   })
 })

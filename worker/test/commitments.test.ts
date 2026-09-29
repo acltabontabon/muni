@@ -1,7 +1,8 @@
 /** Experiments, ownership, recap and exports after the retro. */
 import { describe, expect, it } from 'vitest'
+import { env } from 'cloudflare:test'
 import { endSentence } from '../src/routes/commitments'
-import { closeCollection, del, entry, get, go, ids, patch, post, put, req, sprint, team, type User } from './harness'
+import { closeCollection, del, entry, get, go, ids, openSocket, patch, post, put, req, sprint, team, type User } from './harness'
 
 const CHANGE = 'For the next sprint, reserve a 15-minute daily review window'
 const SIGNAL = 'PRs spend less time waiting'
@@ -107,9 +108,16 @@ describe('commitments', () => {
     expect(reviewed.status).toBe(200)
     expect(reviewed.body[0]).toMatchObject({ status: 'helped', outcome_note: 'review time halved' })
     expect(reviewed.body[0].reviewed_at).not.toBeNull()
-    // A reviewed experiment can no longer be deleted.
-    await del(`/api/sprints/${s}/experiments/${id}`, owner)
+    // A reviewed experiment can no longer be deleted — and the facilitator is told so.
+    const kept = await del(`/api/sprints/${s}/experiments/${id}`, owner)
+    expect(kept.status).toBe(409)
+    expect(kept.body.error).toContain('outcome recorded')
+    expect((await del(`/api/sprints/${s}/experiments/${crypto.randomUUID()}`, owner)).status).toBe(404)
     expect((await get(`/api/sprints/${s}/experiments`, owner)).body).toHaveLength(2)
+    // Nor can its owner decline it now: that would wipe the outcome back to "proposed".
+    const declined = await post(`/api/sprints/${s}/experiments/${id}/accept`, members[0], { accept: false })
+    expect(declined.status).toBe(409)
+    expect((await get(`/api/sprints/${s}/experiments`, owner)).body.find((e: { id: string }) => e.id === id)).toMatchObject({ status: 'helped', owner_account_id: members[0].account_id, owner_accepted: true })
     const next = await sprint(owner, members, ws, 'collecting', { starts_on: '2026-09-28', ends_on: '2026-10-11', retro_date: '2026-10-12' })
     const prev = await get(`/api/sprints/${next}/experiments/previous`, members[1])
     expect(prev.status).toBe(200)
@@ -119,6 +127,49 @@ describe('commitments', () => {
     expect((await get(`/api/sprints/${s}/experiments/previous`, owner)).body).toHaveLength(0)
     // Workspace-wide list for members.
     expect((await get(`/api/workspaces/${ws}/experiments`, members[1])).body).toHaveLength(2)
+  })
+
+  it('lets this retro’s facilitator record last time’s verdict, whoever facilitated then', async () => {
+    const { owner, members, ws } = await team(3)
+    const [was, now, other] = members
+    // Last sprint: facilitated by `was`, not by this sprint's facilitator.
+    const last = await sprint(was, [owner, now, other], ws, 'collecting', { facilitator_id: was.account_id })
+    await entry(other, last, 'improve', 'reviews take days')
+    await closeCollection(was, last)
+    await go(was, last, 'live')
+    const proposed = await propose(was, last, { owner_account_id: other.account_id })
+    const id = proposed.body[0].id as string
+    const never = (await propose(was, last, { change_to_try: `${CHANGE} (never picked up)` })).body[1].id as string
+    await post(`/api/sprints/${last}/experiments/${id}/accept`, other, { accept: true })
+    await go(was, last, 'completed')
+    // This sprint: `now` facilitates. The old route checks the earlier sprint, where `now` isn't the facilitator.
+    const next = await sprint(now, [owner, was, other], ws, 'collecting', { facilitator_id: now.account_id, starts_on: '2026-09-28', ends_on: '2026-10-11', retro_date: '2026-10-12' })
+    expect((await patch(`/api/sprints/${last}/experiments/${id}`, now, { status: 'helped' })).status).toBe(403)
+    const url = (e: string) => `/api/sprints/${next}/experiments/previous/${e}`
+    const screen = await openSocket(other, next)
+    await screen.waitFor((m) => m.includes('"hello"'))
+    const r = await patch(url(id), now, { status: 'did_not_help' })
+    expect(r.status).toBe(200)
+    // This retro's screens follow, as they do for any verdict.
+    expect(await screen.waitFor((m) => m.includes('"resource":"commitments"'))).toBe(true)
+    screen.socket.close()
+    // The same list the look back reads.
+    expect(r.body).toEqual((await get(`/api/sprints/${next}/experiments/previous`, now)).body)
+    expect(r.body[0]).toMatchObject({ id, sprint_id: last, status: 'did_not_help', owner_name: 'Member 2' })
+    expect(r.body[0].reviewed_at).not.toBeNull()
+    expect((await patch(url(id), now, { status: 'helped' })).body[0].status).toBe('helped')
+    // Only a verdict; only by this sprint's facilitator; only on what this look back shows.
+    expect((await patch(url(id), now, { status: 'accepted' })).status).toBe(400)
+    expect((await patch(url(id), now, { status: 'proposed' })).status).toBe(400)
+    expect((await patch(url(id), other, { status: 'not_tried' })).status).toBe(403)
+    expect((await patch(url(never), now, { status: 'helped' })).status).toBe(404) // never accepted: not looked back at
+    expect((await patch(url(crypto.randomUUID()), now, { status: 'helped' })).status).toBe(404)
+    expect((await patch(`/api/sprints/${last}/experiments/previous/${id}`, was, { status: 'inconclusive' })).status).toBe(404) // not before `last`
+    // Nothing else about it changed, and the change is recorded.
+    const row = (await get(`/api/sprints/${last}/experiments`, was)).body.find((e: { id: string }) => e.id === id)
+    expect(row).toMatchObject({ status: 'helped', owner_account_id: other.account_id, owner_accepted: true, change_to_try: CHANGE })
+    const audited = await env.DB.prepare("SELECT count(*) AS n FROM audit_events WHERE actor_id = ? AND action = 'experiment.updated' AND json_extract(meta, '$.experiment_id') = ?").bind(now.account_id, id).first<{ n: number }>()
+    expect(audited!.n).toBe(2)
   })
 
   it('keeps the recap as the facilitator wrote it, and shows it to participants once published', async () => {

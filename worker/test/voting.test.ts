@@ -155,6 +155,25 @@ describe('voting', () => {
     expect(round.totals).toEqual({ [themes[0]]: 1 })
   })
 
+  it('a theme change cancels a round opened after it looked, in the same transaction as the revision bump', async () => {
+    const { owner, members, ws } = await team(1)
+    const { s, themes } = await readyWithThemes(owner, members, ws, 2)
+    // The change looks while no round is open (so it needs no reason)…
+    const ctx = { auth: { account: { id: owner.account_id } }, sprint: { id: s, workspace_id: ws, encryption: null } } as unknown as SprintCtx
+    const change = await structuralChange(env.DB, ctx, undefined)
+    // …a round opens and takes a vote before it lands…
+    expect((await post(`/api/sprints/${s}/votes/rounds`, owner)).status).toBe(200)
+    expect((await post(`/api/sprints/${s}/votes`, members[0], { theme_id: themes[0], cast: true })).status).toBe(200)
+    await batch(env.DB, change)
+    // …and doesn't survive it with votes against themes that have changed.
+    const v = await get(`/api/sprints/${s}/votes`, owner)
+    expect(v.body.current).toBeNull()
+    expect(v.body.previous[0]).toMatchObject({ status: 'cancelled', totals: null })
+    // Voting can open again at the new revision.
+    expect((await post(`/api/sprints/${s}/votes/rounds`, owner)).status).toBe(200)
+    expect((await post(`/api/sprints/${s}/votes`, members[0], { theme_id: themes[0], cast: true })).status).toBe(200)
+  })
+
   it('rejects votes once the grouping revision moved on', async () => {
     const { owner, members, ws } = await team(1)
     const { s, themes } = await readyWithThemes(owner, members, ws, 1)

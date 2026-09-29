@@ -79,6 +79,30 @@ describe('invitations and membership', () => {
     const u = await signin(email)
     const results = await Promise.all([1, 2, 3, 4].map(() => post('/api/invitations/accept', u, { token: token })))
     expect(results.filter((r) => r.status === 200).length).toBe(1)
+    expect(Number((await env.DB.prepare("SELECT count(*) AS n FROM audit_events WHERE workspace_id = ? AND action = 'invitation.accepted'").bind(ws).first<{ n: number }>())!.n)).toBe(1)
+  })
+
+  it('never uses up an invitation without letting its holder in', async () => {
+    const { owner, ws } = await team(0)
+    const email = `atomic-${tag()}@example.com`
+    await post(`/api/workspaces/${ws}/invitations`, owner, { email })
+    const token = await inviteToken(email)
+    const u = await signin(email)
+    // Joining fails part-way (the membership can't be written)…
+    const trigger = `refuse_${tag()}`
+    await env.DB.prepare(`CREATE TRIGGER ${trigger} BEFORE INSERT ON memberships WHEN NEW.account_id = '${u.account_id}' BEGIN SELECT RAISE(ABORT, 'refused'); END`).run()
+    try {
+      expect((await post('/api/invitations/accept', u, { token })).status).not.toBe(200)
+    } finally {
+      await env.DB.prepare(`DROP TRIGGER ${trigger}`).run()
+    }
+    // …so the invitation is still there to use, and nothing half-joined is left behind.
+    const inv = await env.DB.prepare('SELECT accepted_at, accepted_by FROM invitations WHERE workspace_id = ? AND email = ?').bind(ws, email).first<{ accepted_at: number | null; accepted_by: string | null }>()
+    expect(inv).toEqual({ accepted_at: null, accepted_by: null })
+    const joined = await post('/api/invitations/accept', u, { token })
+    expect(joined.status).toBe(200)
+    expect(joined.body.workspace_id).toBe(ws)
+    expect((await get(`/api/workspaces/${ws}`, u)).status).toBe(200)
   })
 
   it('denies cross-workspace access without confirming existence', async () => {

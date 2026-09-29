@@ -27,6 +27,11 @@ export interface MeetingState {
   timer_ends_at: number | null
   timer_remaining_secs: number | null
   timer_total_secs: number | null
+  /**
+   * The topic's clock as it was when the room left the talk: coming back to the same topic brings it
+   * back, paused, instead of leaving the topic with no clock to pause or extend.
+   */
+  parked_clock?: { theme_id: string; remaining_secs: number; total_secs: number } | null
   controller_account_id: string | null
   controller_seen_at: number | null
   started_at: number
@@ -77,10 +82,13 @@ export function defaultPlan(totalMin: number): Record<string, number> {
 
 const refused = (status: number, code: string, error: string) => Response.json({ error, code }, { status })
 
-export class MeetingRoom implements DurableObject {
-  /** The latest handover heard of, for a socket whose request read who facilitates before it. */
-  private handover: { account: string; at: number } | null = null
+/** The latest handover heard of, for a socket whose request read who facilitates before it. */
+interface Handover {
+  account: string
+  at: number
+}
 
+export class MeetingRoom implements DurableObject {
   constructor(
     private ctx: DurableObjectState,
     private env: unknown,
@@ -101,6 +109,11 @@ export class MeetingRoom implements DurableObject {
     return (await this.ctx.storage.get<Record<string, Attendance>>('attendance')) ?? {}
   }
 
+  /** Kept in storage, not memory: a room evicted between a handover and a late reconnect still knows of it. */
+  private async lastHandover(): Promise<Handover | null> {
+    return (await this.ctx.storage.get<Handover>('handover')) ?? null
+  }
+
   private connectedAccounts(): string[] {
     const ids = new Set<string>()
     for (const ws of this.ctx.getWebSockets()) {
@@ -108,6 +121,14 @@ export class MeetingRoom implements DurableObject {
       if (att?.a) ids.add(att.a)
     }
     return [...ids]
+  }
+
+  /** Whether `account` is connected as a facilitator (a handover rewrites this on open sockets). */
+  private facilitatorConnected(account: string): boolean {
+    return this.ctx.getWebSockets().some((ws) => {
+      const att = ws.deserializeAttachment() as Attachment | null
+      return att?.a === account && att.f
+    })
   }
 
   /** To everyone connected, or only to the facilitator's sockets and/or some accounts' own. */
@@ -143,9 +164,9 @@ export class MeetingRoom implements DurableObject {
       case '/start':
         return this.start(body)
       case '/end':
-        return this.finish(false)
+        return this.finish(false, body)
       case '/cancel':
-        return this.finish(true)
+        return this.finish(true, body)
       case '/claim':
         return this.claim(body)
       case '/release':
@@ -165,9 +186,16 @@ export class MeetingRoom implements DurableObject {
       case '/revoke':
         return this.revoke(String(body.account_id ?? ''))
       case '/forget':
-        // The sprint's content was purged, or the sprint deleted: nothing about its retro stays here.
+        // The sprint's content was purged, or the sprint deleted: nothing about its retro stays here,
+        // and nobody stays connected to it. 4003 tells a client its access to the room has ended.
         await this.ctx.storage.deleteAll()
-        this.handover = null
+        for (const ws of this.ctx.getWebSockets()) {
+          try {
+            ws.close(4003, 'ended')
+          } catch {
+            /* already closed */
+          }
+        }
         return Response.json({ ok: true })
       default:
         return new Response('not found', { status: 404 })
@@ -180,7 +208,8 @@ export class MeetingRoom implements DurableObject {
     let fac = req.headers.get('x-muni-fac') === '1'
     // The Worker read who facilitates before a handover this object has since been told of.
     const readAt = Number(req.headers.get('x-muni-at')) || 0
-    if (this.handover && readAt < this.handover.at) fac = account === this.handover.account
+    const handover = await this.lastHandover()
+    if (handover && readAt < handover.at) fac = account === handover.account
     if (!account) return new Response('unauthorized', { status: 401 })
     const pair = new WebSocketPair()
     const [client, server] = [pair[0], pair[1]]
@@ -197,14 +226,18 @@ export class MeetingRoom implements DurableObject {
   /**
    * Facilitation was handed over (and saved in D1 at `at`): the new facilitator's open sockets get
    * what only the facilitator hears, and the previous one's stop getting it, without reconnecting.
+   * The stage stops being the previous facilitator's to control: they're usually still connected,
+   * as a participant now, and mustn't make the new facilitator take control from them.
    */
-  private setFacilitator(body: Record<string, unknown>): Response {
+  private async setFacilitator(body: Record<string, unknown>): Promise<Response> {
     const account = String(body.account_id ?? '')
-    this.handover = { account, at: Number(body.at) || Date.now() }
+    await this.ctx.storage.put('handover', { account, at: Number(body.at) || Date.now() } satisfies Handover)
     for (const ws of this.ctx.getWebSockets()) {
       const att = ws.deserializeAttachment() as Attachment | null
       if (att?.a) ws.serializeAttachment({ a: att.a, f: att.a === account } satisfies Attachment)
     }
+    const m = await this.meeting()
+    if (m && m.controller_account_id && m.controller_account_id !== account) await this.ctx.storage.put({ meeting: { ...m, controller_account_id: null } })
     return Response.json({ ok: true })
   }
 
@@ -230,7 +263,7 @@ export class MeetingRoom implements DurableObject {
       await this.ctx.storage.put({ attendance: att })
     }
     if (m && m.controller_account_id === account) await this.ctx.storage.put({ meeting: { ...m, controller_account_id: null } })
-    if (this.handover?.account === account) this.handover = null
+    if ((await this.lastHandover())?.account === account) await this.ctx.storage.delete('handover')
     return Response.json({ ok: true })
   }
 
@@ -311,9 +344,11 @@ export class MeetingRoom implements DurableObject {
     return Response.json({ ok: true, version: m.version, existed: false })
   }
 
-  private async finish(cancelled: boolean): Promise<Response> {
+  /** Ends or cancels the retro — only the session named in `body.session`, when one is named. */
+  private async finish(cancelled: boolean, body: Record<string, unknown>): Promise<Response> {
     const m = await this.meeting()
     if (!m) return Response.json({ ok: true })
+    if (typeof body.session === 'number' && typeof m.session === 'number' && body.session !== m.session) return Response.json({ ok: true })
     m.ended_at = m.ended_at ?? Date.now()
     m.cancelled = cancelled
     m.phase = cancelled ? m.phase : 'agree'
@@ -330,7 +365,9 @@ export class MeetingRoom implements DurableObject {
     if (!m || m.ended_at) return refused(409, 'conflict', 'the retro isn’t live')
     if (m.claim && m.claim.until > Date.now() && m.claim.token !== claim) return refused(409, 'conflict', 'the stage is changing right now — try again in a moment')
     if (m.version !== expected) return refused(409, 'conflict', 'the stage changed since you last saw it — it’s been refreshed, try again')
-    const controllerPresent = m.controller_account_id ? this.connectedAccounts().includes(m.controller_account_id) : false
+    // A controller counts only while connected as a facilitator: someone who has handed facilitation
+    // on, and is still here as a participant, holds nothing.
+    const controllerPresent = m.controller_account_id ? this.facilitatorConnected(m.controller_account_id) : false
     if (m.controller_account_id && m.controller_account_id !== account && controllerPresent && type !== 'take_control')
       return refused(409, 'conflict', 'another facilitator is controlling the stage — take control explicitly to continue')
     return null
@@ -347,7 +384,8 @@ export class MeetingRoom implements DurableObject {
     if (no) return no
     const claim = { token: crypto.randomUUID(), until: Date.now() + CLAIM_MS }
     await this.ctx.storage.put({ meeting: { ...m!, claim } })
-    return Response.json({ ok: true, claim: claim.token })
+    // The topic in hand, which can't change while the claim holds: whether the talk has begun.
+    return Response.json({ ok: true, claim: claim.token, current_theme_id: m!.current_theme_id })
   }
 
   private async release(body: Record<string, unknown>): Promise<Response> {
@@ -368,13 +406,16 @@ export class MeetingRoom implements DurableObject {
       return refused(400, 'bad_request', 'that command is malformed')
     const now = Date.now()
     let action = 'meeting.command'
-    /** A topic's timebox: the talk's minutes shared across the first three topics, running from the moment it opens. Guidance, not a cut-off. */
+    /** A topic's timebox: the talk's minutes shared across the first three topics. Guidance, not a cut-off. */
+    const perTopic = () => Math.floor(((m.plan.talk ?? 28) * 60) / Math.min(3, Math.max(1, m.agenda.length)))
+    /** Opens a topic with its timebox, running from the moment it opens. */
     const openTopic = (id: string | null) => {
       m.current_theme_id = id
-      const per = Math.floor(((m.plan.talk ?? 28) * 60) / Math.min(3, Math.max(1, m.agenda.length)))
+      const per = perTopic()
       m.timer_ends_at = id ? now + per * 1000 : null
       m.timer_remaining_secs = null
       m.timer_total_secs = id ? per : null
+      m.parked_clock = null
     }
     switch (cmd.type) {
       case 'take_control':
@@ -382,11 +423,25 @@ export class MeetingRoom implements DurableObject {
         break
       case 'set_phase': {
         if (!(PHASES as readonly string[]).includes(cmd.phase)) return refused(400, 'bad_request', 'unknown phase')
+        const was = m.phase
         m.phase = cmd.phase as Phase
-        if (Array.isArray(cmd.agenda)) m.agenda = cmd.agenda.slice(0, 40).map((i) => ({ theme_id: String(i.theme_id), reason: null }))
-        // Only the talk keeps a clock: arriving there opens its first topic (when one is given), anywhere else the clock stops.
-        if (m.phase === 'talk' && cmd.topic !== undefined && !m.current_theme_id) openTopic(cmd.topic)
-        else if (m.phase !== 'talk') {
+        // Only the talk keeps a clock. The first arrival there sets the agenda and opens its first
+        // topic (when one is given); coming back to a topic in hand brings back its clock, paused.
+        if (m.phase === 'talk' && !m.current_theme_id) {
+          if (Array.isArray(cmd.agenda)) m.agenda = cmd.agenda.slice(0, 40).map((i) => ({ theme_id: String(i.theme_id), reason: null }))
+          if (cmd.topic !== undefined) openTopic(cmd.topic)
+        } else if (m.phase === 'talk' && was !== 'talk') {
+          const parked = m.parked_clock
+          if (parked && parked.theme_id === m.current_theme_id) {
+            m.timer_ends_at = null
+            m.timer_remaining_secs = parked.remaining_secs
+            m.timer_total_secs = parked.total_secs
+          }
+          m.parked_clock = null
+        } else if (m.phase !== 'talk') {
+          // Leaving the talk keeps what the topic's clock had, for coming back to it.
+          if (was === 'talk' && m.current_theme_id && m.timer_total_secs !== null)
+            m.parked_clock = { theme_id: m.current_theme_id, remaining_secs: m.timer_ends_at ? Math.max(0, Math.round((m.timer_ends_at - now) / 1000)) : (m.timer_remaining_secs ?? 0), total_secs: m.timer_total_secs }
           m.timer_ends_at = null
           m.timer_remaining_secs = null
           m.timer_total_secs = null
@@ -426,14 +481,24 @@ export class MeetingRoom implements DurableObject {
         }
         break
       case 'timer_resume':
-        if (!m.timer_ends_at && (m.timer_remaining_secs ?? 0) > 0) {
-          m.timer_ends_at = now + (m.timer_remaining_secs ?? 0) * 1000
-          m.timer_remaining_secs = null
+        if (!m.timer_ends_at) {
+          // A clock that ran out starts again with a full timebox: the topic's (or, with no topic, the
+          // clock's own), as resuming at zero would otherwise do nothing.
+          let left = m.timer_remaining_secs ?? 0
+          if (left <= 0) {
+            left = m.current_theme_id ? perTopic() : (m.timer_total_secs ?? 0)
+            if (left > 0) m.timer_total_secs = left
+          }
+          if (left > 0) {
+            m.timer_ends_at = now + left * 1000
+            m.timer_remaining_secs = null
+          }
         }
         break
       case 'timer_adjust': {
         const delta = Math.min(3600, Math.max(-3600, Math.round(cmd.delta_secs)))
-        if (m.timer_ends_at) m.timer_ends_at = Math.max(now, m.timer_ends_at + delta * 1000)
+        // Added to what's left — from now, once the time is up — never to a deadline long passed.
+        if (m.timer_ends_at) m.timer_ends_at = Math.max(now, Math.max(now, m.timer_ends_at) + delta * 1000)
         else m.timer_remaining_secs = Math.max(0, (m.timer_remaining_secs ?? 0) + delta)
         m.timer_total_secs = Math.max(0, (m.timer_total_secs ?? 0) + delta)
         break

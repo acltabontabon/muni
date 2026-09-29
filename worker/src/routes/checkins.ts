@@ -63,7 +63,11 @@ async function views(db: D1Database, ctx: SprintCtx, only?: string) {
   type Response = { checkin_id: string; choice: string; note: string | null; n?: number }
   const of = (res: D1Result) => {
     const m = new Map<string, Response[]>()
-    for (const x of res.results as Response[]) m.set(x.checkin_id, [...(m.get(x.checkin_id) ?? []), x])
+    for (const x of res.results as Response[]) {
+      const list = m.get(x.checkin_id)
+      if (list) list.push(x)
+      else m.set(x.checkin_id, [x])
+    }
     return m
   }
   const [mineOf, countsOf, notesOf, answersOf] = [of(mine), of(counts), of(notes), of(answers)]
