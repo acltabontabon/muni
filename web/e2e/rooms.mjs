@@ -347,8 +347,11 @@ for (const W of WORLDS) try {
     const { ctx, page } = await open(ana, ws.id, { ready: '.room-sheet--state' })
     check('Closed: the sprint bar says so', /collection closed/i.test(await page.locator('.sbar-state').innerText()))
     check('Closed: no composer', (await field(page).count()) === 0)
+    await page.locator('.team-list .retro-thought').first().waitFor()
+    check('Closed: everyone’s thoughts are revealed in the room, without names', (await page.locator('.team-list .retro-thought').count()) >= 1)
+    await page.locator('summary', { hasText: 'Your thoughts in this sprint' }).click()
     await page.locator('.passage').first().waitFor()
-    check('Closed: thoughts are read-only', (await page.locator('.passage .passage-menu').count()) === 0)
+    check('Closed: your own thoughts, folded below, are read-only', (await page.locator('.passage .passage-menu').count()) === 0)
     await ctx.close()
   }
 } catch (e) {

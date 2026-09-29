@@ -5,7 +5,7 @@
  *
  *   Not open yet  a quiet note, until the facilitator opens collection
  *   Collecting    the writer (Muni's journal, or the person's character room) and their thoughts
- *   Closed        their thoughts, read-only, while the facilitator may group them into themes
+ *   Closed        everyone's thoughts, revealed without names, to read before the retro
  *   Retro         the way into the live retro
  *   Done          the outcomes: what the team agreed to try, and the recap
  *
@@ -42,6 +42,7 @@ import { RoomEmpty, StateWriter, Writer } from '@/worlds/room'
 import { Room } from '@/worlds/rooms'
 import { useWorld } from '@/worlds/world'
 import { lazyPart, Loading } from '@/ui/lazy'
+import { TeamThoughts } from '@/ui/team-thoughts'
 import { Commitments } from './Home'
 
 // A finished sprint's recap loads when one is opened; writing and the retro don't wait for it.
@@ -52,6 +53,12 @@ const toDest = (s: { id: string; workspace_id: string; name: string; encryption?
 
 export function SprintPage() {
   const { sprintId = '' } = useParams()
+  // Another sprint is another page: nothing on screen — its state, its destination for new words,
+  // whether it's encrypted — carries over from the one before.
+  return <SprintView key={sprintId} sprintId={sprintId} />
+}
+
+function SprintView({ sprintId }: { sprintId: string }) {
   const nav = useNavigate()
   const location = useLocation()
   const { me, offline: authOffline } = useAuth()
@@ -75,9 +82,15 @@ export function SprintPage() {
     localRef.current = local
   }, [local])
 
+  // Reads overlap (unlocking, the room's hints, a change made here): only the newest one's answer is shown.
+  const seq = useRef(0)
+  const loadedAt = useRef(0)
   const load = useCallback(async () => {
+    const my = ++seq.current
     try {
       const d = await get<SprintDetail>(`/api/sprints/${sprintId}`)
+      if (my !== seq.current) return
+      loadedAt.current = Date.now()
       if (status.current === 'collecting' && d.status !== 'collecting' && isComposerDirty()) setKept(true)
       status.current = d.status
       setS(d)
@@ -90,6 +103,7 @@ export function SprintPage() {
         localRef.current.cacheContext({ id: d.id, workspace_id: d.workspace_id, name: d.name, status: d.status, retro_local: d.retro_local, timezone: d.timezone }, d.workspace_name).catch(() => {})
       }
     } catch (err) {
+      if (my !== seq.current) return
       if (err instanceof ApiError && (err.status === 404 || err.status === 403)) return setError('This sprint doesn’t exist, or you’re not in its workspace.')
       // Anything else (no connection, a hiccup, a session to renew): keep what's on screen, and
       // the words being written with it. With nothing shown yet, what this device kept, if anything.
@@ -104,7 +118,14 @@ export function SprintPage() {
   // Read again when this device unlocks or locks (what can be shown changed), and when the
   // connection returns. Coming back to the tab is the room's to say (its "all", below): once.
   const { keysEpoch, state: keys, changes } = useDeviceKeys()
+  // A plaintext sprint reads the same whatever this device's keys do: only an encrypted one (or one
+  // not known yet) is read again when they change.
+  const encrypted = useRef<boolean | null>(null)
+  encrypted.current = s ? s.encryption === 'e1' : null
+  const first = useRef(true)
   useEffect(() => {
+    if (!first.current && encrypted.current === false) return
+    first.current = false
     load()
   }, [load, keys.kind, keysEpoch])
   useEffect(() => {
@@ -115,7 +136,8 @@ export function SprintPage() {
   useLive(
     sprintId,
     (r) => {
-      if (r === 'sprint' || r === 'all') load()
+      // The socket's first "all" on opening follows the page's own first read: once is enough.
+      if (r === 'sprint' || (r === 'all' && Date.now() - loadedAt.current > 2000)) load()
       if (r === 'commitments' || r === 'all' || r === 'sprint') setRefresh((n) => n + 1)
     },
     () => nav('/'),
@@ -139,6 +161,8 @@ export function SprintPage() {
     {
       online: !offline,
       onChanged: (d) => {
+        // What the change answered with is newer than any read still on its way.
+        seq.current++
         status.current = d.status
         setS(d)
         resources.invalidate('/api/me/capture-target')
@@ -303,10 +327,16 @@ export function SprintPage() {
           <OutcomesView s={s} onCount={setAgreed} refresh={refresh} />
         </Suspense>
         {participant ? (
-          <details className="sprint-fold">
-            <summary>Your thoughts in this sprint</summary>
-            <div className="mt-4">{thoughts()}</div>
-          </details>
+          <>
+            <details className="sprint-fold">
+              <summary>Everyone’s thoughts</summary>
+              <div className="mt-4"><TeamThoughts sprintId={sprintId} refresh={refresh} /></div>
+            </details>
+            <details className="sprint-fold">
+              <summary>Your thoughts in this sprint</summary>
+              <div className="mt-4">{thoughts()}</div>
+            </details>
+          </>
         ) : null}
       </div>
     )
@@ -327,12 +357,12 @@ export function SprintPage() {
       text = 'You’re not in this sprint, so there’s nothing for you to write here. The facilitator can add you.'
     } else if (phase === 'closed') {
       title = <>Ready for the <em>conversation</em></>
-      text = participant ? 'What you wrote comes up in the retro without your name.' : 'Collection is closed.'
+      text = participant ? 'Here’s everything the team wrote, without names. Read it before the retro — that’s where you’ll talk about it.' : 'Collection is closed.'
       lights = 2
     } else {
       title = <>The retro is <em>happening</em> now</>
       if (participant && !fac) {
-        text = 'Follow the conversation and take part from this device.'
+        text = 'Vote, answer and add from this device. Nothing you send carries your name.'
         action = (
           <Link to={`/sprints/${sprintId}/room`} className="ws-btn ws-btn--primary">
             Join the retro <ArrowRight className="size-4" aria-hidden />
@@ -347,18 +377,31 @@ export function SprintPage() {
         {action ? <div className="mt-5">{action}</div> : null}
       </div>
     )
-    const list = participant && phase !== 'draft' && phase !== 'collecting' ? thoughts(world ? <RoomEmpty /> : undefined) : null
+    // Closed: the reveal is the page — everyone's thoughts, with your own folded below them.
+    const reveal = participant && phase === 'closed'
+    const list = reveal ? <TeamThoughts sprintId={sprintId} refresh={refresh} /> : participant && phase !== 'draft' && phase !== 'collecting' ? thoughts(world ? <RoomEmpty /> : undefined) : null
+    // Something of yours that didn't reach the sprint (it needs a decision) keeps the fold open.
+    const pending = local.items.some((i) => i.sprintId === sprintId)
+    const more = reveal ? (
+      <>
+        <details className="sprint-fold" open={pending || undefined}>
+          <summary>Your thoughts in this sprint</summary>
+          <div className="mt-4">{thoughts()}</div>
+        </details>
+        {extras}
+      </>
+    ) : extras
     body = world ? (
       <Room
         world={world}
         mode="state"
-        empty={!!list && collected === 0}
+        empty={!reveal && !!list && collected === 0}
         notices={notices}
         bar={header}
         context={null}
         writing={<StateWriter title={title} level={2}>{sheet}</StateWriter>}
         collection={list}
-        extras={extras}
+        extras={more}
       />
     ) : (
       <>
@@ -369,7 +412,7 @@ export function SprintPage() {
           {notices}
           {sheet}
           {list ? <div className="mt-12">{list}</div> : null}
-          {extras}
+          {more}
         </div>
       </>
     )

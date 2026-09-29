@@ -54,7 +54,7 @@ export function OutcomesView({ s, onCount, refresh = 0 }: { s: SprintDetail; onC
       setExps(e)
       setRecap(r)
       setError('')
-      countRef.current?.(e.filter((x) => x.status !== 'proposed').length)
+      countRef.current?.(e.length)
       const [g, m, c] = await record
       if (my !== seq.current) return
       setThemes((g?.themes ?? []).filter((t) => !t.parked))

@@ -158,6 +158,8 @@ try {
   await P.page.reload()
   await P.page.locator('.sbar-state', { hasText: 'Collection closed' }).waitFor()
   check('Participant after a refresh: closed state, read-only thoughts, the planned retro date', /read-only/.test(await P.page.locator('main').innerText()) && /Planned/.test(await P.page.locator('.sbar-progress').innerText()) && (await P.page.locator('textarea[name="thought"]').count()) === 0)
+  await P.page.locator('.team-list .retro-thought').first().waitFor({ timeout: 10000 })
+  check('Closed: everyone’s thoughts are on the page to read before the retro, without names', (await P.page.locator('.team-list .retro-thought').count()) >= 2 && /Everyone’s thoughts/.test(await P.page.locator('main').innerText()))
 
   // ── Reopen (before the retro), then a participant submitting as it closes again.
   await F.page.getByRole('button', { name: 'More' }).click()
