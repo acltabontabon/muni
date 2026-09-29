@@ -156,6 +156,12 @@ export function useStage(sprintId: string) {
       if (!reconnected && f && f.ok !== false && Date.now() - f.at < FRESH_MS) return
       reads.current?.hint(PARTS)
     },
+    // The room says where it is as the socket opens. A change that landed between the first read
+    // and the socket joining sent its hint to nobody: a room ahead of the screen is read again.
+    onHello: (version) => {
+      const on = shown.current
+      if (on && version > on.version) reads.current?.hint(['stage', 'themes', 'votes', 'checkins'])
+    },
   })
 
   /** A snapshot an action returned (a command, attendance, a note, an addition): shown at once, unless one newer is. */
@@ -194,20 +200,40 @@ export function useStage(sprintId: string) {
   useEffect(() => {
     liveRef.current = live
   }, [live])
-  /** Sends a facilitator command with the version on screen. On a conflict the stage is read again and the command is not retried. */
+  /**
+   * Sends a facilitator command with the version on screen. On a conflict the stage is read again
+   * and the command is not retried. One at a time: a second press while one is on its way (a
+   * double-click on Next, → → in quick succession) is dropped rather than sent with a version the
+   * first is about to change — it would only come back as a conflict.
+   */
+  const commanding = useRef(false)
   const command = useCallback(
     async (c: Command): Promise<{ ok: boolean; message?: string }> => {
       // Live control is never queued: while the room can't be reached, a command is refused now.
       if (liveRef.current === 'reconnecting') return { ok: false, message: 'Reconnecting to the retro. Try again when Muni is back.' }
+      if (commanding.current) return { ok: true }
+      commanding.current = true
       try {
         putStage(await post<StageSnapshot>(`/api/sprints/${sprintId}/meeting/command`, { expected_version: shown.current?.version ?? 0, command: c }))
         return { ok: true }
       } catch (e) {
         await reads.current?.now(['stage'])
         return { ok: false, message: e instanceof ApiError ? e.message : 'Command failed' }
+      } finally {
+        commanding.current = false
       }
     },
     [sprintId, putStage],
+  )
+  /** A vote, from the stage or a phone. Taps can overlap: only the newest answer is shown. */
+  const voteSeq = useRef(0)
+  const castVote = useCallback(
+    async (themeId: string, cast: boolean) => {
+      const my = ++voteSeq.current
+      const v = await post<VotingState>(`/api/sprints/${sprintId}/votes`, { theme_id: themeId, cast })
+      if (my === voteSeq.current) putVotes(v)
+    },
+    [sprintId, putVotes],
   )
 
   // Having the retro open — the stage or a phone — is being there. Said once per session, when the
@@ -241,6 +267,7 @@ export function useStage(sprintId: string) {
     revoked,
     live,
     command,
+    castVote,
     reload,
     refresh,
     putStage,

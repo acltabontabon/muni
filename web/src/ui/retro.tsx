@@ -132,8 +132,12 @@ export function NoteField({ value, onSave, placeholder, label }: { value: string
     if (skip.current) { skip.current = false; return }
     const v = text.trim()
     if (v === value.trim()) return
-    await onSave(v)
-    setSaved(true)
+    try {
+      await onSave(v)
+      setSaved(true)
+    } catch {
+      /* onSave says what went wrong; the words stay in the field to try again */
+    }
   }
   return (
     <div className="retro-note-field">
@@ -146,6 +150,8 @@ export function NoteField({ value, onSave, placeholder, label }: { value: string
         maxLength={400}
         onChange={(e) => setText(e.target.value.replace(/\n/g, ' '))}
         onKeyDown={(e) => {
+          // Enter while an input method is composing (Japanese, Chinese…) is the IME's, not ours.
+          if (e.nativeEvent.isComposing || e.keyCode === 229) return
           if (e.key === 'Enter') { e.preventDefault(); e.currentTarget.blur() }
           else if (e.key === 'Escape') { skip.current = true; setText(value); e.currentTarget.blur() }
         }}

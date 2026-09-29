@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useCallback, useMemo, useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router'
 import { post } from '@/api/client'
 import type { CheckinView, Experiment, ThemeView, VotingState } from '@/api/types'
@@ -33,7 +33,10 @@ function CompanionRoom({ sprintId }: { sprintId: string }) {
   // Opening the retro is being there: useStage says so to the room once it can be reached.
   const st = useStage(sprintId)
   const { sprint, stage, grouping, votes, experiments, previous, checkins } = st
-  const [seed, setSeed] = useState<{ text: string; n: number } | null>(null)
+  const [seed, setSeed] = useState<string | null>(null)
+  const seedUsed = useCallback(() => setSeed(null), [])
+  // An owner's answer is sent once, however quickly it's tapped.
+  const [answering, setAnswering] = useState<string | null>(null)
   useDocumentTitle(sprint ? `${sprint.name} · retro` : 'Retro')
   const me = stage?.attendance.find((a) => a.is_you)
   const accountId = me?.account_id ?? null
@@ -85,10 +88,14 @@ function CompanionRoom({ sprintId }: { sprintId: string }) {
   const addHere = stage.phase === 'talk' && !!current
   // What these answer with (the sprint's experiments, your votes) is shown as it is, not read again.
   const answer = async (e: Experiment, accept: boolean) => {
+    if (answering) return
+    setAnswering(e.id)
     try {
       st.putExperiments(await post<Experiment[]>(`/api/sprints/${sprintId}/experiments/${e.id}/accept`, { accept }))
     } catch (err) {
       toast(err instanceof ApiError ? err.message : 'Couldn’t save', 'danger')
+    } finally {
+      setAnswering(null)
     }
   }
   const vote = async (t: ThemeView, cast: boolean) => {
@@ -110,14 +117,14 @@ function CompanionRoom({ sprintId }: { sprintId: string }) {
           <p className="retro-invite-line">{e.change_to_try}</p>
           <p className="retro-invite-hint">{e.success_signal ? `We’ll know it helped if: ${e.success_signal.replace(/[.\s]+$/, '')}. ` : ''}The team looks at it again on {shortDate(e.review_on)}. Saying yes means you keep it moving — not that you do it all yourself.</p>
           <div className="flex gap-2">
-            <Button size="sm" variant="primary" disabled={paused} onClick={() => answer(e, true)}>I’ll own this</Button>
-            <Button size="sm" variant="ghost" disabled={paused} onClick={() => answer(e, false)}>Not me</Button>
+            <Button size="sm" variant="primary" disabled={paused || !!answering} busy={answering === e.id} onClick={() => answer(e, true)}>I’ll own this</Button>
+            <Button size="sm" variant="ghost" disabled={paused || !!answering} onClick={() => answer(e, false)}>Not me</Button>
           </div>
         </div>
       ))}
 
       {checkins.filter((c) => c.status === 'shared').map((c) => (
-        <LeftoverLine key={c.id} checkinId={c.id} accountId={accountId} onMove={(text) => setSeed({ text, n: Date.now() })} />
+        <LeftoverLine key={c.id} checkinId={c.id} accountId={accountId} saved={c.mine?.note} onMove={addHere ? setSeed : undefined} />
       ))}
 
       {stage.phase === 'look_back' ? (
@@ -149,7 +156,7 @@ function CompanionRoom({ sprintId }: { sprintId: string }) {
                 <CheckinResult c={c} you />
               </div>
             ))}
-            {addHere ? <AddToDiscussion sprintId={sprintId} accountId={accountId} topic={current.id} titleOf={titleOf} mine={stage.my_context} paused={paused} onSent={st.putStage} seed={seed} /> : null}
+            {addHere ? <AddToDiscussion sprintId={sprintId} accountId={accountId} topic={current.id} titleOf={titleOf} mine={stage.my_context} paused={paused} onSent={st.putStage} seed={seed} onSeedUsed={seedUsed} /> : null}
             {current && (stage.notes.takeaway || stage.notes.could_try) ? (
               <>
                 <h2 className="retro-col-title mt-6">The room’s notes</h2>
@@ -223,7 +230,9 @@ function Choosing({ themes, round, closed, paused, plan, onVote }: { themes: The
           ? 'Only one topic this time — nothing to choose. The talk starts with it.'
           : totals
             ? <>The votes are in. The talk starts at the top — time for about {reach}.</>
-            : <>There’s time to talk about roughly <strong>{reach}</strong> of these {themes.length}, around {per} minutes each. Vote for the ones you most want to talk about; the most-voted go first.</>}
+            : reach >= themes.length
+              ? <>There’s time for all {themes.length} topics, around {per} minutes each. Vote for the ones that matter most to you; the most-voted go first.</>
+              : <>There’s time to talk about roughly <strong>{reach}</strong> of these {themes.length}, around {per} minutes each. Vote for the ones you most want to talk about; the most-voted go first.</>}
       </p>
       {purse && !single ? (
         <div className="vote-purse" data-spent={spent || undefined}>

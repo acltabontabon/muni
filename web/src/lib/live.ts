@@ -20,6 +20,8 @@ export interface LiveHandlers {
   revoked: () => void
   /** A socket opened; `reconnected` when an earlier one had been open (hints may have been missed). */
   open: (reconnected: boolean) => void
+  /** The room's greeting on a socket: the version it's at. */
+  hello?: (version: number) => void
 }
 
 export interface LiveEnv {
@@ -121,6 +123,7 @@ export class LiveConnection {
         return this.on.hint('all')
       }
       if (m.type === 'hint') this.on.hint(m.resource ?? 'all', m.version)
+      else if (m.type === 'hello' && typeof m.version === 'number') this.on.hello?.(m.version)
       else if (m.type === 'revoked') this.revoke()
     }
     ws.onclose = (e) => {
@@ -186,10 +189,10 @@ export class LiveConnection {
  * socket reads; without it, `all` is sent on every reconnect (and on the first open while the page
  * is visible) so nothing missed while offline is lost.
  */
-export function useLive(sprintId: string | undefined, onHint: (resource: string, version?: number) => void, onRevoked?: () => void, opts?: { onOpen?: (reconnected: boolean) => void }): LiveStatus {
+export function useLive(sprintId: string | undefined, onHint: (resource: string, version?: number) => void, onRevoked?: () => void, opts?: { onOpen?: (reconnected: boolean) => void; onHello?: (version: number) => void }): LiveStatus {
   const [status, setStatus] = useState<LiveStatus>('connecting')
-  const cb = useRef({ onHint, onRevoked, onOpen: opts?.onOpen })
-  cb.current = { onHint, onRevoked, onOpen: opts?.onOpen }
+  const cb = useRef({ onHint, onRevoked, onOpen: opts?.onOpen, onHello: opts?.onHello })
+  cb.current = { onHint, onRevoked, onOpen: opts?.onOpen, onHello: opts?.onHello }
   useEffect(() => {
     if (!sprintId) return
     setStatus('connecting')
@@ -200,6 +203,7 @@ export function useLive(sprintId: string | undefined, onHint: (resource: string,
         hint: (r, v) => cb.current.onHint(r, v),
         status: setStatus,
         revoked: () => cb.current.onRevoked?.(),
+        hello: (v) => cb.current.onHello?.(v),
         open: (reconnected) => {
           const { onOpen } = cb.current
           if (onOpen) onOpen(reconnected)

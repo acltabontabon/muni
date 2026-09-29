@@ -197,14 +197,23 @@ export function CheckinAsk({ c, sprintId, accountId, paused, onSaved, heading }:
   )
 }
 
-/** A line written for a check-in whose answers were shared before it was saved: never silently dropped. */
-export function LeftoverLine({ checkinId, accountId, onMove }: { checkinId: string; accountId: string | null; onMove: (text: string) => void }) {
+/**
+ * A line written for a check-in whose answers were shared before it was saved: never silently
+ * dropped. A line that only reopened what was already saved lost nothing, so it says nothing.
+ * Moving it is offered only where "Add to this discussion" is on screen to take it.
+ */
+export function LeftoverLine({ checkinId, accountId, saved, onMove }: { checkinId: string; accountId: string | null; saved?: string | null; onMove?: (text: string) => void }) {
   const [note, setNote] = useRetroDraft(`note:${checkinId}`, accountId)
-  if (!note.trim()) return null
+  const unsaved = !!note.trim() && note.trim() !== (saved ?? '').trim()
+  useEffect(() => {
+    if (note && !unsaved) setNote('')
+  }, [note, unsaved, setNote])
+  if (!unsaved) return null
   return (
     <p className="ci-leftover">
       The answers were shared before your line was saved: “{note.trim()}”{' '}
-      <button className="retro-link" onClick={() => { onMove(note.trim()); setNote('') }}>Add it to the discussion</button> · <button className="retro-link" onClick={() => setNote('')}>Let it go</button>
+      {onMove ? <><button className="retro-link" onClick={() => { onMove(note.trim()); setNote('') }}>Add it to the discussion</button> · </> : null}
+      <button className="retro-link" onClick={() => setNote('')}>Let it go</button>
     </p>
   )
 }
@@ -221,7 +230,7 @@ interface AddDraft {
  * with the topic you started it for — if the room moves on, it says so and lets you choose — and
  * it's kept through reconnects. Sent additions wait until the facilitator shares them, and say so.
  */
-export function AddToDiscussion({ sprintId, accountId, topic, titleOf, mine, paused, onSent, seed }: { sprintId: string; accountId: string | null; topic: string; titleOf: (id: string) => string; mine: MyContext[]; paused: boolean; onSent: (stage: StageSnapshot) => void; seed?: { text: string; n: number } | null }) {
+export function AddToDiscussion({ sprintId, accountId, topic, titleOf, mine, paused, onSent, seed, onSeedUsed }: { sprintId: string; accountId: string | null; topic: string; titleOf: (id: string) => string; mine: MyContext[]; paused: boolean; onSent: (stage: StageSnapshot) => void; seed?: string | null; onSeedUsed?: () => void }) {
   const [raw, setRaw] = useRetroDraft(`add:${sprintId}`, accountId)
   const draft: AddDraft = (() => {
     try {
@@ -240,14 +249,22 @@ export function AddToDiscussion({ sprintId, accountId, topic, titleOf, mine, pau
     const next = { ...draft, ...d }
     setRaw(next.text || next.kind ? JSON.stringify(next) : '')
   }
-  // Words moved here from elsewhere (a line that missed a check-in) open the composer with them.
-  const seeded = useRef(0)
+  // Words moved here from elsewhere (a line that missed a check-in) open the composer with them,
+  // once: after what's already being written, never over it.
   useEffect(() => {
-    if (!seed || seed.n === seeded.current) return
-    seeded.current = seed.n
-    setRaw(JSON.stringify({ themeId: topic, kind: null, text: seed.text, key: newKey() } satisfies AddDraft))
+    if (!seed) return
+    onSeedUsed?.()
+    const current = (() => {
+      try {
+        return raw ? (JSON.parse(raw) as AddDraft) : null
+      } catch {
+        return null
+      }
+    })()
+    const text = current?.text.trim() ? `${current.text.trimEnd()}\n\n${seed}` : seed
+    setRaw(JSON.stringify({ themeId: current?.text.trim() ? current.themeId : topic, kind: current?.kind ?? null, text, key: newKey() } satisfies AddDraft))
     setOpen(true)
-  }, [seed, topic, setRaw])
+  }, [seed, onSeedUsed, raw, topic, setRaw])
   const target = draft.text.trim() ? draft.themeId : topic
   const elsewhere = !!draft.text.trim() && draft.themeId !== topic
   const send = async () => {

@@ -69,7 +69,6 @@ function StageRoom({ sprintId }: { sprintId: string }) {
 
   const fac = !!stage?.is_facilitator
   const presenting = params.get('mode') === 'present' || !fac
-  const controls = fac && !presenting
   const phases = useMemo(() => stage?.phases ?? [], [stage?.phases])
   const phaseIdx = stage ? phases.indexOf(stage.phase) : 0
   const themes = useMemo(() => (grouping?.themes ?? []).filter((t) => !t.parked), [grouping?.themes])
@@ -104,22 +103,31 @@ function StageRoom({ sprintId }: { sprintId: string }) {
     if (stage?.phase === 'talk' && topicAt >= 0 && topicAt < topics.length - 1) run({ type: 'set_topic', theme_id: topics[topicAt + 1] })
     else if (phaseIdx < phases.length - 1) toStep(phases[phaseIdx + 1])
   }, [stage?.phase, topicAt, topics, run, phaseIdx, phases, toStep])
+  // ← mirrors →: within the talk it goes back a topic, and only from the first topic back a step.
+  const back = useCallback(() => {
+    if (stage?.phase === 'talk' && topicAt > 0) run({ type: 'set_topic', theme_id: topics[topicAt - 1] })
+    else if (phaseIdx > 0) toStep(phases[phaseIdx - 1])
+  }, [stage?.phase, topicAt, topics, run, phaseIdx, phases, toStep])
 
   // Keys drive the room only while it's running (a paused or finished retro takes no commands).
   const running = !!stage && !stage.ended_at && !stage.cancelled && sprint?.status === 'live'
+  // Another facilitator is leading: this screen follows, and its controls wait for "Take over".
+  const leading = !!stage?.you_control || !!stage?.controller_stale
+  const controls = fac && !presenting && leading
   useEffect(() => {
     if (!fac || !running) return
     const onKey = (e: KeyboardEvent) => {
       const k = stageKey(e)
       if (!k) return
+      if (k !== 'present' && !leading) return
       e.preventDefault()
       if (k === 'forward') forward()
-      else if (k === 'back') toStep(phases[phaseIdx - 1])
+      else if (k === 'back') back()
       else setPresenting(!presenting)
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
-  }, [fac, running, forward, toStep, phases, phaseIdx, presenting, setPresenting])
+  }, [fac, running, leading, forward, back, presenting, setPresenting])
 
   if (st.revoked) return <Centered><p>Your access to this sprint ended.</p></Centered>
   if (st.error) return <Centered><CouldntLoad message={st.error} onRetry={st.reload} /></Centered>
@@ -152,12 +160,12 @@ function StageRoom({ sprintId }: { sprintId: string }) {
   return (
     <div className="stage retro min-h-dvh text-ink" data-presenting={presenting || undefined}>
       <Rail stage={stage} name={sprint.name} controls={controls} onStep={toStep} onForward={forward} topics={topics} topicAt={topicAt} themes={themes} sprintId={sprintId} onPresent={st.putStage} command={command} />
-      <Arrivals stage={stage} />
+      <Arrivals key={String(fac)} stage={stage} />
       <main className="retro-main">
         <ReconnectingBar status={st.live} />
         {st.stale && st.live !== 'reconnecting' ? <BehindLine onRetry={st.reload} /> : null}
-        {stage.phase === 'look_back' ? <LookBack stage={stage} previous={previous} wins={worthKeeping([...themes.flatMap((t) => t.entries), ...ungrouped])} controls={controls} onVerdict={async (e, status) => { try { st.putPrevious(await patch<Experiment[]>(`/api/sprints/${e.sprint_id}/experiments/${e.id}`, { status })) } catch (err) { toast(err instanceof ApiError ? err.message : 'Couldn’t save', 'danger') } }} /> : null}
-        {stage.phase === 'choose' ? <Choose stage={stage} themes={themes} ungrouped={ungrouped} votes={votes} controls={controls} sprintId={sprintId} budget={sprint.vote_budget} onRead={setReader} onVotes={st.putVotes} /> : null}
+        {stage.phase === 'look_back' ? <LookBack stage={stage} previous={previous} wins={worthKeeping([...themes.flatMap((t) => t.entries), ...ungrouped])} controls={controls} onVerdict={async (e, status) => { try { st.putPrevious(await patch<Experiment[]>(`/api/sprints/${sprintId}/experiments/previous/${e.id}`, { status })) } catch (err) { toast(err instanceof ApiError ? err.message : 'Couldn’t save', 'danger') } }} /> : null}
+        {stage.phase === 'choose' ? <Choose stage={stage} themes={themes} ungrouped={ungrouped} votes={votes} controls={controls} sprintId={sprintId} budget={sprint.vote_budget} onRead={setReader} onVotes={st.putVotes} castVote={st.castVote} offline={st.live === 'reconnecting'} /> : null}
         {stage.phase === 'talk' ? <Talk stage={stage} themes={themes} ungrouped={ungrouped} topics={topics} controls={controls} command={run} onNote={saveNote} sprintId={sprintId} checkins={{ list: st.checkins, put: st.putCheckin }} /> : null}
         {stage.phase === 'agree' ? <Agree themes={themes} experiments={experiments} controls={controls} sprintId={sprintId} participants={sprint.participants} onChange={() => void st.refresh('experiments')} checkins={{ list: st.checkins, put: st.putCheckin }} onEnd={async () => { try { await post(`/api/sprints/${sprintId}/transition`, { to: 'completed' }); nav(`/sprints/${sprintId}`) } catch (e) { toast(e instanceof ApiError ? e.message : 'Couldn’t end the retro', 'danger') } }} /> : null}
       </main>
@@ -255,84 +263,55 @@ type Attendee = StageSnapshot['attendance'][number]
 /** Where someone is, in words: connected now, here without a device, or not here yet. */
 const whereabouts = (a: Attendee) => (a.connected ? 'connected now' : a.present ? 'here · not connected' : 'not here yet')
 
-/** A small, steady number from a string: the same person always gets the same line. */
-const hashOf = (s: string) => [...s].reduce((h, c) => (h * 31 + c.charCodeAt(0)) >>> 0, 7)
-
-const ARRIVED = [
-  (n: string) => `${n} pulled up a chair.`,
-  (n: string) => `${n} is here, fashionably on time.`,
-  (n: string) => `${n} slipped in quietly. Very on brand.`,
-  (n: string) => `${n} arrived. The room is 4% wiser.`,
-  (n: string) => `${n} joined — snacks unconfirmed.`,
-  (n: string) => `${n} is in. No pressure to speak first.`,
-  (n: string) => `${n} found the room. Nobody had to send the link twice.`,
-  (n: string) => `${n} made it. The retro can now begin to begin.`,
-  (n: string) => `${n} is here, and has thoughts. Probably.`,
-]
-const LEFT = [
-  (n: string) => `${n} stepped out. The chair stays warm.`,
-  (n: string) => `${n} dropped off — the door’s still open.`,
-  (n: string) => `${n} wandered off. Their thoughts stayed.`,
-]
 const firstName = (name: string) => name.trim().split(/\s+/)[0] || name
 
 /**
- * Arrivals and departures on the stage, as the room fills: a line each, for a few seconds. Only
- * changes after the first look count — opening the stage doesn't announce everyone already there —
- * and moving between pages isn't leaving: a departure is said only if they're still gone after a
- * few seconds, and coming back within them says nothing at all.
+ * Arrivals on the stage while the room gathers (the first step): a plain line each, for a few
+ * seconds, said once per person. Only arrivals after the first look count — opening the stage
+ * doesn't announce everyone already there. Later in the retro, and whenever someone leaves or
+ * reconnects, the faces in the rail say it quietly: a shared screen never calls someone out.
  */
-const LEAVE_GRACE_MS = 8000
-function useArrivals(attendance: Attendee[], session: string) {
-  const seen = useRef<Map<string, boolean> | null>(null)
-  const leaving = useRef(new Map<string, number>())
-  const [lines, setLines] = useState<{ key: string; text: string; face: Attendee; kind: 'in' | 'out' }[]>([])
-  const say = useCallback((line: { key: string; text: string; face: Attendee; kind: 'in' | 'out' }) => {
-    setLines((l) => [...l, line].slice(-3))
-    // Each line leaves on its own clock, even if someone else arrives meanwhile.
-    window.setTimeout(() => setLines((l) => l.filter((x) => x !== line)), 5200)
-  }, [])
+function useArrivals(attendance: Attendee[], gathering: boolean) {
+  const seen = useRef<Set<string> | null>(null)
+  const timers = useRef(new Set<number>())
+  const [lines, setLines] = useState<{ key: string; text: string; face: Attendee }[]>([])
   useEffect(() => {
-    const now = new Map(attendance.map((a) => [a.account_id, a.connected]))
-    const before = seen.current
-    seen.current = now
-    if (!before) return
-    for (const a of attendance) {
-      if (a.is_you) continue
-      const was = before.get(a.account_id) ?? false
-      const pending = leaving.current.get(a.account_id)
-      if (a.connected && !was) {
-        if (pending !== undefined) {
-          // Back within the grace: they only changed pages.
-          window.clearTimeout(pending)
-          leaving.current.delete(a.account_id)
-        } else say({ key: `${a.account_id}:in:${Date.now()}`, text: ARRIVED[hashOf(a.account_id + session) % ARRIVED.length](firstName(a.display_name)), face: a, kind: 'in' })
-      } else if (!a.connected && was && pending === undefined) {
-        leaving.current.set(
-          a.account_id,
-          window.setTimeout(() => {
-            leaving.current.delete(a.account_id)
-            say({ key: `${a.account_id}:out:${Date.now()}`, text: LEFT[hashOf(a.account_id + session) % LEFT.length](firstName(a.display_name)), face: a, kind: 'out' })
-          }, LEAVE_GRACE_MS),
-        )
-      }
+    const connected = attendance.filter((a) => a.connected && !a.is_you)
+    if (!seen.current) {
+      seen.current = new Set(connected.map((a) => a.account_id))
+      return
     }
-  }, [attendance, session, say])
+    const fresh = connected.filter((a) => !seen.current!.has(a.account_id))
+    fresh.forEach((a) => seen.current!.add(a.account_id))
+    if (!gathering || !fresh.length) return
+    const said = fresh.map((a) => ({ key: `${a.account_id}:${Date.now()}`, text: `${firstName(a.display_name)} is here.`, face: a }))
+    setLines((l) => [...l, ...said].slice(-3))
+    // Each line leaves on its own clock, even if someone else arrives meanwhile.
+    const t = window.setTimeout(() => {
+      timers.current.delete(t)
+      setLines((l) => l.filter((x) => !said.includes(x)))
+    }, 5200)
+    timers.current.add(t)
+  }, [attendance, gathering])
   useEffect(() => {
-    const timers = leaving.current
-    return () => timers.forEach((t) => window.clearTimeout(t))
+    const all = timers.current
+    return () => all.forEach((t) => window.clearTimeout(t))
   }, [])
+  // Moving on from gathering clears what's still being said.
+  useEffect(() => {
+    if (!gathering) setLines([])
+  }, [gathering])
   return lines
 }
 
-/** The lines as people come and go, under the rail. */
+/** The lines as people arrive, under the rail. */
 function Arrivals({ stage }: { stage: StageSnapshot }) {
-  const lines = useArrivals(stage.attendance, stage.session_id)
+  const lines = useArrivals(stage.attendance, stage.phase === 'look_back')
   return (
     <div className="retro-arrivals" aria-live="polite">
       {lines.map((l) => (
-        <p key={l.key} className="retro-arrival" data-kind={l.kind}>
-          <Face a={l.face} state={l.kind === 'in' ? 'on' : 'away'} size="lg" /> <span>{l.text}</span>
+        <p key={l.key} className="retro-arrival" data-kind="in">
+          <Face a={l.face} state="on" size="lg" /> <span>{l.text}</span>
         </p>
       ))}
     </div>
@@ -426,7 +405,7 @@ function LookBack({ stage, previous, wins, controls, onVerdict }: { stage: Stage
 // ---------- 2 · Choose ----------
 const nWord = (n: number) => ['no', 'one', 'two', 'three', 'four', 'five', 'six', 'seven', 'eight', 'nine', 'ten'][n] ?? String(n)
 
-function Choose({ stage, themes, ungrouped, votes, controls, sprintId, budget, onRead, onVotes }: { stage: StageSnapshot; themes: ThemeView[]; ungrouped: SharedEntry[]; votes: ReturnType<typeof useStage>['votes']; controls: boolean; sprintId: string; budget: number; onRead: (id: string) => void; onVotes: (v: VotingState) => void }) {
+function Choose({ stage, themes, ungrouped, votes, controls, sprintId, budget, onRead, onVotes, castVote, offline }: { stage: StageSnapshot; themes: ThemeView[]; ungrouped: SharedEntry[]; votes: ReturnType<typeof useStage>['votes']; controls: boolean; sprintId: string; budget: number; onRead: (id: string) => void; onVotes: (v: VotingState) => void; castVote: (themeId: string, cast: boolean) => Promise<void>; offline: boolean }) {
   const toast = useToast()
   const round = votes?.current ?? null
   const closed = votes?.previous.find((r) => r.status === 'closed') ?? null
@@ -437,12 +416,13 @@ function Choose({ stage, themes, ungrouped, votes, controls, sprintId, budget, o
   // What a person can cast: the budget, but one vote per topic at most.
   const purse = round ? votePurse(round, themes.map((t) => t.id)) : null
   const each = purse?.size ?? Math.min(budget, themes.length)
-  const people = stage.attendance.length
+  // Who could be voting: the people in the room (a device open, or marked here), not everyone invited.
+  const people = Math.max(stage.attendance.filter((a) => a.connected || a.present).length, round?.voters ?? 0, 1)
   const single = themes.length <= 1
   // The answer is the voting as it now stands (your votes, what's left): shown as it is.
   const vote = async (id: string, cast: boolean) => {
     try {
-      onVotes(await post<VotingState>(`/api/sprints/${sprintId}/votes`, { theme_id: id, cast }))
+      await castVote(id, cast)
     } catch (e) {
       toast(e instanceof ApiError ? e.message : 'Couldn’t vote', 'danger')
     }
@@ -451,7 +431,9 @@ function Choose({ stage, themes, ungrouped, votes, controls, sprintId, budget, o
     ? 'There’s only one topic, so there’s nothing to choose between. Move on and talk about it.'
     : totals
       ? <>The votes are in. The talk starts at the top and goes down the list — there’s time for about <strong>{nWord(reach)}</strong>.</>
-      : <>The talk has about {minutes} minutes: time for about <strong>{nWord(reach)} of these {themes.length} topics</strong>, around {per} minutes each. Vote for the ones you most want to talk about — the most-voted go first.</>
+      : reach >= themes.length
+        ? <>The talk has about {minutes} minutes: enough for <strong>all {nWord(themes.length)} topics</strong>, around {per} minutes each. Vote for the ones that matter most to you — the most-voted go first.</>
+        : <>The talk has about {minutes} minutes: time for about <strong>{nWord(reach)} of these {nWord(themes.length)} topics</strong>, around {per} minutes each. Vote for the ones you most want to talk about — the most-voted go first.</>
   return (
     <section>
       <Head n={2} kicker="Choose" title={<>What matters <em>most</em>?</>} sub={sub} />
@@ -479,7 +461,7 @@ function Choose({ stage, themes, ungrouped, votes, controls, sprintId, budget, o
                       <span className="retro-tally-line"><span style={{ width: `${(n / max) * 100}%` }} /></span>
                     </div>
                   ) : round && controls && !single ? (
-                    <button className="retro-vote" aria-pressed={!!mine} disabled={!mine && !purse?.left} onClick={() => vote(t.id, !mine)}>{mine ? 'Your vote ✓' : 'Vote'}</button>
+                    <button className="retro-vote" aria-pressed={!!mine} disabled={offline || (!mine && !purse?.left)} onClick={() => vote(t.id, !mine)}>{mine ? 'Your vote ✓' : 'Vote'}</button>
                   ) : null}
                 </li>
               )
