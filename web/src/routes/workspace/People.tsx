@@ -100,12 +100,18 @@ export function WorkspacePeople() {
   if (!d || requests.loading || links.loading || sprints.loading) return <SectionPending label="Loading people" rows={6} />
 
   const owner = d.workspace.role === 'owner'
-  const canInvite = d.can_invite
+  // What concerns the whole workspace — inviting to it alone, its invite codes, who joins it, the
+  // invitations waiting — is for owners. A facilitator invites people to the sprints they run, and
+  // sees only those sprints' codes and requests.
+  const forWorkspace = owner && d.can_invite
+  const mySprints = new Set(facilitating.map((s) => s.id))
+  const mine = (sprintId: string | null) => (sprintId ? mySprints.has(sprintId) : forWorkspace)
+  const canInvite = forWorkspace || facilitating.length > 0
   const found = query.trim() ? d.members.filter((m) => fold(`${m.display_name} ${m.email ?? ''}`).includes(fold(query.trim()))) : d.members
   const owners = found.filter((m) => m.role === 'owner')
   const members = found.filter((m) => m.role !== 'owner')
-  const waiting = canInvite ? (requests.data ?? []) : []
-  const codes = canInvite ? (links.data ?? []) : []
+  const waiting = (requests.data ?? []).filter((r) => mine(r.sprint_id))
+  const codes = (links.data ?? []).filter((l) => mine(l.sprint_id))
   const sprintName = (id: string) => sprints.data?.find((s) => s.id === id)?.name ?? 'a sprint'
 
   const manage = (m: MemberInfo) =>
@@ -199,7 +205,7 @@ export function WorkspacePeople() {
       <div className="people-lede">
         <p>
           <strong className="font-medium text-ink">{d.members.length} {d.members.length === 1 ? 'person' : 'people'}</strong> in this workspace.{' '}
-          {owner ? 'As an owner you can change roles and remove people.' : canInvite ? 'As a facilitator you can invite people.' : 'Owners and facilitators invite people.'}
+          {owner ? 'As an owner you can invite people, change roles and remove people.' : canInvite ? 'You can invite people to the sprints you facilitate; owners invite people to the workspace.' : 'Owners invite people to the workspace; facilitators, to their sprints.'}
         </p>
         {d.members.length > SEARCH_FROM ? (
           <label className="people-search">
@@ -267,7 +273,7 @@ export function WorkspacePeople() {
         </>
       )}
 
-      {canInvite && d.pending_invitations.length ? (
+      {forWorkspace && d.pending_invitations.length ? (
         <section className="ws-section" aria-labelledby="invited">
           <div className="ws-section-head">
             <h2 id="invited" className="ws-section-title">Invited by email <span className="ws-count">{d.pending_invitations.length}</span></h2>
@@ -313,7 +319,7 @@ export function WorkspacePeople() {
         </section>
       ) : null}
 
-      <InviteDialog open={inviting === 'email'} onClose={() => setInviting(null)} workspaceId={ws.id} sprints={facilitating} onInvited={() => store.invalidate(base)} />
+      <InviteDialog open={inviting === 'email'} onClose={() => setInviting(null)} workspaceId={ws.id} sprints={facilitating} canWorkspace={forWorkspace} onInvited={() => store.invalidate(base)} />
       <InviteQrDialog
         open={inviting === 'qr'}
         onClose={() => {
@@ -322,7 +328,7 @@ export function WorkspacePeople() {
         }}
         workspaceId={ws.id}
         workspaceName={ws.name}
-        canWorkspace={canInvite}
+        canWorkspace={forWorkspace}
         sprints={facilitating}
         onChanged={() => store.invalidate(base)}
       />
@@ -348,9 +354,11 @@ export function WorkspacePeople() {
           {blockedBy.length ? null : (
             <Button
               variant="danger"
+              busy={busy === 'remove'}
               onClick={async () => {
                 const m = removing
-                if (!m) return
+                if (!m || busy === 'remove') return
+                setBusy('remove')
                 try {
                   await del(`${base}/members/${m.account_id}`)
                   setRemoving(null)
@@ -364,6 +372,8 @@ export function WorkspacePeople() {
                     toast(e instanceof ApiError ? (e.status === 0 ? 'You’re offline, so nothing changed.' : sentence(e.message)) : 'Couldn’t make that change', 'danger')
                   }
                   store.invalidate(base)
+                } finally {
+                  setBusy(null)
                 }
               }}
             >

@@ -381,7 +381,7 @@ export function SprintPage() {
       {world ? null : header}
       {body}
       {s ? <About s={s} /> : null}
-      {s ? <InviteDialog open={inviting} onClose={() => setInviting(false)} workspaceId={s.workspace_id} sprints={s.is_facilitator ? [{ id: s.id, name: s.name }] : []} defaultSprint={s.is_facilitator ? s.id : undefined} onInvited={load} /> : null}
+      {s ? <InviteDialog open={inviting} onClose={() => setInviting(false)} workspaceId={s.workspace_id} sprints={s.is_facilitator ? [{ id: s.id, name: s.name }] : []} defaultSprint={s.is_facilitator ? s.id : undefined} canWorkspace={me.workspaces.some((w) => w.id === s.workspace_id && w.role === 'owner')} onInvited={load} /> : null}
     </AppShell>
   )
 }
