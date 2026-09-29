@@ -154,6 +154,8 @@ export function SprintSetup() {
 
   const submit = async (mode: 'draft' | 'open' | 'save', e?: FormEvent) => {
     e?.preventDefault()
+    // One sprint per press: while one is being made, the other button (and Enter) waits.
+    if (busy) return
     setTried(true)
     if (Object.keys(issues).length) {
       const first = Object.keys(issues)[0]
@@ -353,7 +355,7 @@ export function SprintSetup() {
             </Select>
             {keyProblem ? <p className="mt-1.5 text-sm text-danger" role="alert">{keyProblem}</p> : <Help>Opens and closes collection, prepares the discussion and runs the retro. They also write and vote like everyone else.{!facilitatorIsYou ? ' Only they will be able to manage this sprint.' : ''}{f.encrypt ? ' While collecting, only their devices hold the key that reveals thoughts.' : ''}{handingOver ? ' You stay in the sprint as a participant.' : ''}</Help>}
           </div>
-          <fieldset>
+          <fieldset className="min-w-0">
             <div className="mb-1.5 flex items-center justify-between gap-3">
               <legend className="text-sm font-medium">Participants <span className="font-normal text-ink-soft">· {count}</span></legend>
               {ws.members.length > 2 ? (
@@ -432,8 +434,8 @@ export function SprintSetup() {
               <>
                 <Button type="button" variant="ghost" onClick={() => nav(-1)}>Cancel</Button>
                 <span className="hidden text-sm text-ink-soft sm:ml-auto sm:inline">{count} {count === 1 ? 'person' : 'people'}{preview ? ` · retro ${preview.date}` : ''}</span>
-                <Button type="button" busy={busy === 'draft'} onClick={() => submit('draft')}>Save as draft</Button>
-                <Button type="submit" variant="primary" size="lg" busy={busy === 'open'}>Create and open collection</Button>
+                <Button type="button" busy={busy === 'draft'} disabled={!!busy} onClick={() => submit('draft')}>Save as draft</Button>
+                <Button type="submit" variant="primary" size="lg" busy={busy === 'open'} disabled={!!busy}>Create and open collection</Button>
               </>
             )}
           </div>

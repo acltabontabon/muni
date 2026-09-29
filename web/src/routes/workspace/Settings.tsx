@@ -82,11 +82,13 @@ function SettingsForm({ d }: { d: WorkspaceDetail }) {
     setBusy(true)
     try {
       await patch(`/api/workspaces/${d.workspace.id}`, { name: v.name.trim(), retention_days: Number(v.retention), outcome_retention_days: Number(v.outcome) })
+      // Read what was saved before letting go of the draft, so the old values never flash back.
+      store.invalidate(`/api/workspaces/${d.workspace.id}`)
+      store.invalidate('/api/me/capture-target')
+      await Promise.all([refresh(), store.load(`/api/workspaces/${d.workspace.id}`).catch(() => {})])
       setDraft(null)
       setTried(false)
       toast('Settings saved')
-      store.invalidate(`/api/workspaces/${d.workspace.id}`)
-      await refresh()
     } catch (err) {
       setError(err instanceof ApiError ? (err.status === 0 ? 'You’re offline, so nothing was saved. Your changes are still here.' : sentence(err.message)) : 'Couldn’t save.')
     } finally {

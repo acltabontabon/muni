@@ -102,7 +102,9 @@ export function LocalProvider({ accountId, children }: { accountId: string | nul
     }
     setSync('sending')
     try {
-      const r = await flush({ store: storeRef.current, fetch: (i, init) => fetch(i, init), csrf: async () => csrfToken() || null, notify: () => { reload(); channel?.postMessage('changed') }, seal: sealThought }, { force })
+      // A stalled connection can't hold "Add to sprint" for minutes: the thought is already kept here,
+      // and a send that doesn't answer in time is tried again later (its idempotency key keeps it single).
+      const r = await flush({ store: storeRef.current, fetch: (i, init) => fetch(i, { ...init, signal: AbortSignal.timeout(20_000) }), csrf: async () => csrfToken() || null, notify: () => { reload(); channel?.postMessage('changed') }, seal: sealThought }, { force })
       setSync(r.state === 'ok' || r.state === 'locked' ? 'idle' : r.state)
       if (r.submitted.length) setRecent((prev) => [...prev, ...r.submitted.map((s) => s.id)].slice(-20))
       if (r.state === 'offline') registerBackgroundSync()

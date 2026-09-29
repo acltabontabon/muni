@@ -11,7 +11,7 @@
  * Dragging still works. A theme's title and opening question are edited where they're read; its
  * notes, park, flag, merge and remove live in its ⋯ menu. Thoughts stay exactly as written.
  */
-import { useCallback, useEffect, useId, useRef, useState } from 'react'
+import { useCallback, useEffect, useId, useRef, useState, useSyncExternalStore } from 'react'
 import { useNavigate, useParams } from 'react-router'
 import { clsx } from 'clsx'
 import * as Popover from '@radix-ui/react-popover'
@@ -36,6 +36,15 @@ type Apply = (fn: Change, reason?: string) => Promise<void>
 type Structural = (fn: Change) => Promise<boolean>
 
 const problem = (e: unknown) => (e instanceof ApiError ? (e.status === 0 ? 'You’re offline, so nothing changed.' : e.message) : 'Couldn’t save')
+
+const onConnection = (fn: () => void) => {
+  window.addEventListener('online', fn)
+  window.addEventListener('offline', fn)
+  return () => {
+    window.removeEventListener('online', fn)
+    window.removeEventListener('offline', fn)
+  }
+}
 
 export function Prepare() {
   const { sprintId = '' } = useParams()
@@ -112,7 +121,9 @@ export function Prepare() {
     if (r === 'commitments' || r === 'checkins' || (r === 'themes' && ownEcho())) return
     reload()
   })
-  const control = useSprintControl({ id: sprintId, status: s?.status, encryption: s?.encryption }, { online: navigator.onLine, onChanged: (d) => { setS(d); load() } })
+  // Whether changes can be sent follows the connection as it comes and goes.
+  const online = useSyncExternalStore(onConnection, () => navigator.onLine)
+  const control = useSprintControl({ id: sprintId, status: s?.status, encryption: s?.encryption }, { online, onChanged: (d) => { setS(d); load() } })
 
   const apply: Apply = useCallback(
     async (fn, reason) => {
@@ -200,7 +211,7 @@ export function Prepare() {
         <div className="grid place-items-center py-20"><Spinner /></div>
       </AppShell>
     )
-  const bar = <SprintBar s={{ ...s, participant_count: s.participants.length }} plan={sprintPlan({ ...s, participant_count: s.participants.length }, { online: navigator.onLine })} control={control} view="themes" slim />
+  const bar = <SprintBar s={{ ...s, participant_count: s.participants.length }} plan={sprintPlan({ ...s, participant_count: s.participants.length }, { online })} control={control} view="themes" slim />
   if (!g)
     return (
       <AppShell wide>

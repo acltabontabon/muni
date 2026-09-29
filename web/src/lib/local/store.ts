@@ -192,7 +192,16 @@ const result = <T,>(req: IDBRequest<T>) =>
 
 export function deviceStore(): LocalStore {
   let dbp: Promise<IDBDatabase> | null = null
-  const db = () => (dbp ??= open().catch((e) => { dbp = null; throw e }))
+  // A handle another tab closed (clearing local data deletes the database) is opened afresh next time.
+  const db = () =>
+    (dbp ??= open().then(
+      (d) => {
+        d.addEventListener('close', () => { dbp = null })
+        d.addEventListener('versionchange', () => { dbp = null })
+        return d
+      },
+      (e) => { dbp = null; throw e },
+    ))
   async function tx<T>(stores: string[], mode: IDBTransactionMode, fn: (t: IDBTransaction) => Promise<T> | T): Promise<T> {
     const d = await db()
     const t = d.transaction(stores, mode)

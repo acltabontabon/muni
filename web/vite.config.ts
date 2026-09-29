@@ -58,8 +58,9 @@ function serviceWorker(): Plugin {
       publicDir = path.resolve(c.root, c.publicDir)
     },
     async writeBundle(_, bundle) {
-      // Non-Latin font subsets load on demand (unicode-range); precaching them would only cost bandwidth.
-      const skip = /(\.map|\.html|_headers|robots\.txt|sw\.js|-(cyrillic|cyrillic-ext|greek|vietnamese)-wght-[^/]*\.woff2)$/
+      // Font subsets beyond basic Latin load on demand (unicode-range), and the large install icons
+      // are fetched by the browser when installing: precaching them would only cost bandwidth.
+      const skip = /(\.map|\.html|_headers|robots\.txt|sw\.js|-(cyrillic|cyrillic-ext|greek|vietnamese|latin-ext)-wght-[^/]*\.woff2|-512\.png)$/
       const walk = (dir: string, base = ''): string[] =>
         readdirSync(dir).flatMap((f) => (statSync(path.join(dir, f)).isDirectory() ? walk(path.join(dir, f), `${base}${f}/`) : [`${base}${f}`]))
       const all = [...new Set([...Object.keys(bundle), ...walk(publicDir)])]
@@ -68,7 +69,7 @@ function serviceWorker(): Plugin {
       const assets = files.sort().map((f) => `/${f}`)
       // Each world's Latin font files, cached on demand (sw.ts: 'muni:warm').
       const worlds = Object.fromEntries(
-        Object.entries(WORLD_FONTS).map(([w, fams]) => [w, all.filter((f) => f.endsWith('.woff2') && fams.includes(familyOf(f) ?? '') && /-latin(-ext)?-/.test(path.basename(f))).sort().map((f) => `/${f}`)]),
+        Object.entries(WORLD_FONTS).map(([w, fams]) => [w, all.filter((f) => f.endsWith('.woff2') && fams.includes(familyOf(f) ?? '') && /-latin-(?!ext-)/.test(path.basename(f))).sort().map((f) => `/${f}`)]),
       )
       const version = createHash('sha256').update(assets.join('\n')).update(JSON.stringify(worlds)).update(readFileSync(path.join(outDir, 'index.html'))).digest('hex').slice(0, 12)
       const { build } = await import('rolldown')

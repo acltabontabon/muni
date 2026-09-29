@@ -51,7 +51,11 @@ export function initPwa() {
     set({ installable: false, installed: true })
   })
   if (!('serviceWorker' in navigator) || !import.meta.env.PROD) return
-  navigator.serviceWorker
+  // An already-installed worker is registered at once (it serves this page); a first visit waits
+  // until the page has loaded and gone idle, so installing — which downloads the whole app — never
+  // competes with what the first screen is asking for.
+  const register = () =>
+    navigator.serviceWorker
     .register('/sw.js', { scope: '/', updateViaCache: 'none' })
     .then((reg) => {
       registration = reg
@@ -74,6 +78,13 @@ export function initPwa() {
       })
     })
     .catch(() => {})
+  if (navigator.serviceWorker.controller) register()
+  else {
+    // Safari has no requestIdleCallback: a short wait after load does the same job there.
+    const later = () => (typeof window.requestIdleCallback === 'function' ? window.requestIdleCallback(() => register(), { timeout: 5000 }) : setTimeout(register, 2000))
+    if (document.readyState === 'complete') later()
+    else window.addEventListener('load', later, { once: true })
+  }
   // The first worker taking control of a fresh visit is not an update; only a change of an
   // existing controller is.
   let hadController = !!navigator.serviceWorker.controller

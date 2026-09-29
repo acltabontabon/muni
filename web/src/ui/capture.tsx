@@ -163,7 +163,11 @@ export function useComposer({ dest, choices, onChoose, onSaved }: { dest: Destin
       try {
         keeper.discard()
         const { item, result } = await local.enqueue(dest, p)
-        latest.current = emptyPayload()
+        // Anything typed while it was being sent is a new thought: it stays, and only it.
+        const since = latest.current
+        const after = since === p ? '' : since.body.startsWith(p.body) ? since.body.slice(p.body.length).replace(/^\s+/, '') : since.body
+        latest.current = after.trim() ? { ...emptyPayload(), body: after } : emptyPayload()
+        if (after.trim()) keeper.update(latest.current)
         setP(latest.current)
         setMore(false)
         setRestored(false)
@@ -174,6 +178,7 @@ export function useComposer({ dest, choices, onChoose, onSaved }: { dest: Destin
           announceKept()
         } else if (result?.attention.includes(item.id)) setNotice({ tone: 'warn', kind: 'attention', sprintName: dest.sprintName, text: 'This thought wasn’t submitted. It’s kept with your thoughts, with what to do next.' })
         else if (result?.state === 'signed_out') setNotice({ tone: 'local', kind: 'waiting', sprintName: dest.sprintName, text: local.kind === 'device' ? 'Saved on this device. Sign in again to send it.' : 'Kept in this tab. Sign in again to send it.' })
+        else if (result?.state === 'locked') setNotice({ tone: 'local', kind: 'waiting', sprintName: dest.sprintName, text: 'Saved. Muni is sending from another tab — it shows here once it’s in.' })
         else if (result?.state === 'upgrade') setNotice({ tone: 'local', kind: 'waiting', sprintName: dest.sprintName, text: 'Saved. Reload Muni to send it.' })
         else setNotice({ tone: 'local', kind: 'waiting', sprintName: dest.sprintName, text: local.kind === 'device' ? 'Saved on this device. We’ll send it when you reconnect.' : 'Kept in this tab. Keep Muni open until it’s sent — or turn on “Keep drafts on this device” in your account.' })
         if (isFinePointer()) area.current?.focus()

@@ -20,6 +20,7 @@ import { pickDestination } from '@/lib/destination'
 import { useLocal } from '@/lib/local/LocalProvider'
 import type { ContextSprint } from '@/lib/local/store'
 import { readPrefs, writePrefs } from '@/lib/prefs'
+import { useResources } from '@/lib/resource'
 import { shortDate } from '@/lib/schedule'
 import { chooseWorkspace, useCurrentWorkspace } from '@/lib/workspace'
 import { Spinner, useDocumentTitle } from '@/ui'
@@ -39,6 +40,7 @@ export function Home() {
   useDocumentTitle('')
   const { me, offline: authOffline } = useAuth()
   const local = useLocal()
+  const resources = useResources()
   const location = useLocation()
   const [params] = useSearchParams()
   const [data, setData] = useState<Loaded | null>(null)
@@ -54,14 +56,20 @@ export function Home() {
   const load = useCallback(async () => {
     const cached = await localRef.current.cachedContexts().catch(() => [])
     try {
-      const capture = await get<CaptureTarget>('/api/me/capture-target')
+      // Through the shared cache: the sprint page this usually leads to reads the same answer.
+      const capture = await resources.load<CaptureTarget>('/api/me/capture-target')
       setData({ capture, cached, offline: false })
     } catch {
       setData({ capture: null, cached, offline: true })
     }
-  }, [])
+  }, [resources])
   useEffect(() => {
     load()
+  }, [load])
+  // Opened offline: try again as soon as the connection is back.
+  useEffect(() => {
+    window.addEventListener('online', load)
+    return () => window.removeEventListener('online', load)
   }, [load])
 
   const collectingAll: Sprintish[] = useMemo(() => data?.capture?.collecting ?? [], [data])
