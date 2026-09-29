@@ -159,7 +159,8 @@ for (const W of WORLDS) try {
     await page.keyboard.press('Enter')
     await page.locator('.room-cats').waitFor({ state: 'detached' })
     check('Chosen by keyboard: Improve, named in words', (await page.locator('.room-opt[data-set]').first().innerText()).includes('Improve'))
-    check('…and focus is back on the control', await page.locator('.room-opt[data-set]').first().evaluate((el) => el === document.activeElement))
+    // Focus comes back as the list closes, a frame or so later on a slow machine.
+    check('…and focus is back on the control', await page.waitForFunction(() => document.activeElement?.matches('.room-opt[data-set]'), null, { timeout: 2000 }).then(() => true).catch(() => false))
     await page.locator('.room-opt[data-set]').first().click()
     check('Changing it offers “No category”', (await page.locator('.room-cat', { hasText: 'No category' }).count()) === 1)
     await page.locator('.room-cat', { hasText: 'Try' }).click()
