@@ -8,6 +8,7 @@ import { PHASE_LABEL, categoryMeta } from '@/lib/categories'
 import { applyAppearance } from '@/lib/prefs'
 import { useStage } from '@/lib/stage'
 import { talkTime } from '@/lib/talk-time'
+import { votePurse } from '@/lib/votes'
 import { shortDate } from '@/lib/schedule'
 import { Button, Dialog, Spinner, fmtClock, useCountdown, useDocumentTitle, useToast } from '@/ui'
 import { ReconnectingBar } from '@/ui/status'
@@ -433,7 +434,9 @@ function Choose({ stage, themes, ungrouped, votes, controls, sprintId, budget, o
   const max = totals ? Math.max(1, ...Object.values(totals)) : 1
   const list = totals ? [...themes].sort((a, b) => (totals[b.id] ?? 0) - (totals[a.id] ?? 0)) : themes
   const { reach, minutes, per } = talkTime(stage.plan, themes.length)
-  const each = Math.min(round?.budget ?? budget, themes.length)
+  // What a person can cast: the budget, but one vote per topic at most.
+  const purse = round ? votePurse(round, themes.map((t) => t.id)) : null
+  const each = purse?.size ?? Math.min(budget, themes.length)
   const people = stage.attendance.length
   const single = themes.length <= 1
   // The answer is the voting as it now stands (your votes, what's left): shown as it is.
@@ -476,7 +479,7 @@ function Choose({ stage, themes, ungrouped, votes, controls, sprintId, budget, o
                       <span className="retro-tally-line"><span style={{ width: `${(n / max) * 100}%` }} /></span>
                     </div>
                   ) : round && controls && !single ? (
-                    <button className="retro-vote" aria-pressed={!!mine} disabled={!mine && round.my_remaining <= 0} onClick={() => vote(t.id, !mine)}>{mine ? 'Your vote ✓' : 'Vote'}</button>
+                    <button className="retro-vote" aria-pressed={!!mine} disabled={!mine && !purse?.left} onClick={() => vote(t.id, !mine)}>{mine ? 'Your vote ✓' : 'Vote'}</button>
                   ) : null}
                 </li>
               )
@@ -491,7 +494,7 @@ function Choose({ stage, themes, ungrouped, votes, controls, sprintId, budget, o
               <p className="rm-big">{round.voters ?? 0}<span> of {people} {people === 1 ? 'person' : 'people'}</span></p>
               <span className="rm-dots" aria-hidden>{Array.from({ length: people }, (_, i) => <i key={i} data-on={i < (round.voters ?? 0) || undefined} />)}</span>
               <p className="rm-text">Move on when most have voted. <strong>Next: Talk</strong> counts the votes and opens the top topic.</p>
-              <p className="rm-text rm-quiet">Your own: {round.my_remaining} of {round.budget} left{round.my_remaining < round.budget ? '' : ' — vote here or on your phone'}.</p>
+              {purse ? <p className="rm-text rm-quiet">Your own: {purse.left} of {purse.size} left{purse.left < purse.size ? '' : ' — vote here or on your phone'}.</p> : null}
             </div>
           ) : null}
           {!single && !totals ? (

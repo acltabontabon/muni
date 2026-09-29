@@ -6,6 +6,7 @@ import { PHASE_HINT, PHASE_LABEL } from '@/lib/categories'
 import { readRetroDraft } from '@/lib/retro-drafts'
 import { useStage } from '@/lib/stage'
 import { shortDate } from '@/lib/schedule'
+import { votePurse } from '@/lib/votes'
 import { Button, Spinner, fmtClock, useCountdown, useDocumentTitle, useToast } from '@/ui'
 import { ReconnectingBar } from '@/ui/status'
 import { BehindLine, CouldntLoad, PastExperiment, RetroMap, Thought, TopicHorizon, worthKeeping } from '@/ui/retro'
@@ -211,7 +212,9 @@ function Choosing({ themes, round, closed, paused, plan, onVote }: { themes: The
   const single = themes.length <= 1
   const totals = !round ? closed?.totals ?? null : null
   const list = totals ? [...themes].sort((a, b) => (totals[b.id] ?? 0) - (totals[a.id] ?? 0)) : themes
-  const spent = !!round && round.my_remaining <= 0
+  // What you can cast: the budget, but one vote per topic at most (as the server counts it).
+  const purse = round ? votePurse(round, themes.map((t) => t.id)) : null
+  const spent = !!purse && purse.left <= 0
   return (
     <section>
       <h1 className="retro-title retro-title--phone">What matters <em>most</em>?</h1>
@@ -222,10 +225,10 @@ function Choosing({ themes, round, closed, paused, plan, onVote }: { themes: The
             ? <>The votes are in. The talk starts at the top — time for about {reach}.</>
             : <>There’s time to talk about roughly <strong>{reach}</strong> of these {themes.length}, around {per} minutes each. Vote for the ones you most want to talk about; the most-voted go first.</>}
       </p>
-      {round && !single ? (
+      {purse && !single ? (
         <div className="vote-purse" data-spent={spent || undefined}>
-          <span className="vote-purse-coins" aria-hidden>{Array.from({ length: Math.min(round.budget, themes.length) }, (_, i) => <i key={i} data-used={i >= round.my_remaining || undefined} />)}</span>
-          <span><strong>{round.my_remaining}</strong> of {Math.min(round.budget, themes.length)} {round.budget === 1 ? 'vote' : 'votes'} left · one per topic · nobody sees yours</span>
+          <span className="vote-purse-coins" aria-hidden>{Array.from({ length: purse.size }, (_, i) => <i key={i} data-used={i >= purse.left || undefined} />)}</span>
+          <span><strong>{purse.left}</strong> of {purse.size} {purse.size === 1 ? 'vote' : 'votes'} left · one per topic · nobody sees yours</span>
         </div>
       ) : null}
       <ol className="retro-topics retro-topics--phone">
