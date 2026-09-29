@@ -70,6 +70,9 @@ const ESCAPABLE = /[\\`*_[\]()#+\-.!>~|{}]/
 export function parseInline(s: string): Inline[] {
   const out: Inline[] = []
   let text = ''
+  // Each mark that finds nothing to close it searched the rest of the line. Past a couple of hundred
+  // of those (no real line has them), the rest stay as written, so a line can't be made slow to show.
+  let misses = 0
   const flush = () => {
     for (const r of splitLinks(text)) out.push(r.href ? { t: 'link', href: r.href, c: [{ t: 'text', v: r.text }] } : { t: 'text', v: r.text })
     text = ''
@@ -96,7 +99,8 @@ export function parseInline(s: string): Inline[] {
       const after = s[i + mark.length]
       // Opens only before a word (and an underscore only at the start of one: snake_case stays as written).
       if (after && !/\s/.test(after) && (ch === '*' || !WORD.test(s[i - 1] ?? ''))) {
-        const end = closing(s, i + mark.length, mark)
+        const end = misses < 200 ? closing(s, i + mark.length, mark) : -1
+        if (end < 0) misses++
         if (end > 0) {
           flush()
           out.push({ t: mark.length === 2 ? 'strong' : 'em', c: parseInline(s.slice(i + mark.length, end)) })
