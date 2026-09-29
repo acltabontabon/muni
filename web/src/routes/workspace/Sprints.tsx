@@ -12,7 +12,7 @@ import { useAuth } from '@/lib/auth'
 import { OUTCOME_LABEL } from '@/lib/categories'
 import { PHASE_OF, STATUS_PHRASE } from '@/lib/lifecycle'
 import { useResource } from '@/lib/resource'
-import { dateRange, describeRetro, shortDate } from '@/lib/schedule'
+import { dateRange, dayKey, describeRetro, shortDate } from '@/lib/schedule'
 import { useDocumentTitle } from '@/ui'
 import { Postcard } from '@/ui/art'
 import { SectionError, SectionPending, useWorkspaceShell } from './Layout'
@@ -40,7 +40,8 @@ export function WorkspaceSprints() {
   if (!list || experiments.loading) return <SectionPending label="Loading sprints" rows={5} />
 
   const exps = experiments.data ?? []
-  const today = new Date().toISOString().slice(0, 10)
+  // A review date is a day on the calendar: it's due from that day here, not from UTC's.
+  const today = dayKey(Date.now())
   const revisit = exps.filter((e) => e.status === 'accepted' || e.status === 'proposed').sort((a, b) => a.review_on.localeCompare(b.review_on))
   const others = active.filter((s) => s.id !== lead?.id)
   const open = others.filter((s) => OPEN.includes(s.status))

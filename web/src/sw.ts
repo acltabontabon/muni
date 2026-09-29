@@ -6,7 +6,8 @@
  *  - precaches this build's app shell and versioned assets;
  *  - caches a character world's fonts when the page says that world was chosen, and serves them
  *    from the cache after that (so a person's own world works offline, and nobody downloads all eight);
- *  - removes caches older versions made that nothing uses any more (src/lib/retired.ts);
+ *  - removes what older versions cached that nothing uses any more: their app shells, and world
+ *    fonts this build doesn't use (on activate);
  *  - serves navigations network-first, falling back to the cached shell when offline;
  *  - never touches /api (no authenticated response is ever cached);
  *  - waits to take over until the page says it is a safe moment (no forced reloads);

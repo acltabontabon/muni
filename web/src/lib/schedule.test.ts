@@ -87,4 +87,9 @@ describe('dayLabel', () => {
     expect(dayKey(at(27, 0))).toBe(dayKey(at(27, 23)))
     expect(dayKey(at(27, 23))).not.toBe(dayKey(at(28, 0)))
   })
+  it('is the reader’s date, never UTC’s (a review due “today” near midnight)', () => {
+    // Late evening and just after midnight, here: whatever this device's offset from UTC.
+    expect(dayKey(new Date(2026, 8, 27, 23, 45).getTime())).toBe('2026-09-27')
+    expect(dayKey(new Date(2026, 8, 28, 0, 15).getTime())).toBe('2026-09-28')
+  })
 })

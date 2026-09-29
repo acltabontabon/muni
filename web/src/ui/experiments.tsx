@@ -40,10 +40,15 @@ export function ExperimentEditor({ sprintId, participants, themes, defaultThemeI
       onSaved()
     } catch (err) {
       if (err instanceof ApiError && err.code === 'vague') setNudged(change)
-      else if (err instanceof ApiError && err.status === 409 && existingCount >= 3) {
+      // Only "three is plenty" can be overridden. The hard limit of ten, or a sprint whose retro
+      // hasn't started, are 409s too: offering "Add it anyway" for those could never work.
+      else if (softLimit(err)) {
         setOverride(true)
         setError(err.message)
-      } else setError(err instanceof ApiError ? (err.status === 0 ? 'You’re offline, so it wasn’t added. It’s still here.' : err.message) : 'Couldn’t add it — try again.')
+      } else {
+        setOverride(false)
+        setError(err instanceof ApiError ? (err.status === 0 ? 'You’re offline, so it wasn’t added. It’s still here.' : err.message) : 'Couldn’t add it — try again.')
+      }
     } finally {
       setBusy(false)
     }
@@ -110,6 +115,11 @@ export function ExperimentEditor({ sprintId, participants, themes, defaultThemeI
       </div>
     </form>
   )
+}
+
+/** The server's "three experiments is plenty — confirm to continue": the one limit the facilitator may go past. */
+export function softLimit(err: unknown): err is ApiError {
+  return err instanceof ApiError && err.status === 409 && (err.code === 'experiment_limit' || /three experiments/i.test(err.message))
 }
 
 export function vague(change: string): string | null {

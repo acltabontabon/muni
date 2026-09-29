@@ -164,7 +164,7 @@ export function ReconnectingBar({ status }: { status: 'connecting' | 'live' | 'r
   return (
     <div role="status" className="mb-4 flex items-start gap-2.5 rounded-xl border border-warn/40 bg-[color-mix(in_oklab,var(--warn)_10%,var(--card))] px-3.5 py-2.5 text-sm">
       <span className="dot dot--attention mt-1.5" aria-hidden />
-      <span><strong className="font-medium">Reconnecting to the retro…</strong> What you see may be out of date. Votes, passing and other live actions wait until Muni is back — nothing is sent later on its own.</span>
+      <span><strong className="font-medium">Reconnecting to the retro…</strong> What you see may be out of date. Votes and other live actions wait until Muni is back — nothing is sent later on its own.</span>
     </div>
   )
 }

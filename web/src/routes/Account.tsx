@@ -60,7 +60,7 @@ export function Account() {
     <AppShell>
       <PageTitle title="Account">Signed in as <span className="text-ink [overflow-wrap:anywhere]">{me.display_name}</span> with a passkey.</PageTitle>
       <div className="max-w-4xl">
-        <Block id="name" title="Your name" lead="Shown in your workspaces, when you’re invited to speak, and on experiments you own. Never with your thoughts or votes.">
+        <Block id="name" title="Your name" lead="Shown in your workspaces, among who’s at a retro, and on experiments you own. Never with your thoughts or votes.">
           <form
             className="flex max-w-md flex-col gap-2 sm:flex-row sm:items-end"
             onSubmit={async (e) => {
