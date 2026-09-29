@@ -54,16 +54,23 @@ export function passkeyWrap(v: unknown): string {
   return v
 }
 
+/** Exactly what a thought's envelope carries (format 2). Anything more is refused, whatever it's called. */
+const ENTRY_FIELDS = ['c', 'k', 'n', 'r', 's', 't', 'v', 'wa', 'ws']
+
 /**
- * The binding a thought's envelope declares (sprint, record, author). The server can't check the
- * encryption, but it can refuse an envelope that names someone else as its author — one sealed by
- * a tab still holding another account's key — before it's stored under this account.
+ * The sprint and record a thought's envelope declares, or null when it isn't a thought envelope the
+ * server may store. The envelope reaches every participant after reveal, so it must not say who
+ * wrote it: one with any field beyond the format's own (an author id, say) is refused.
  */
-export function entryBinding(v: string): { s: string; r: string; a: string } | null {
+export function entryBinding(v: string): { s: string; r: string } | null {
   try {
     const b64 = v.slice(3).replace(/-/g, '+').replace(/_/g, '/')
     const json = JSON.parse(new TextDecoder().decode(Uint8Array.from(atob(b64 + '==='.slice((b64.length + 3) % 4)), (ch) => ch.charCodeAt(0))))
-    if (json && json.t === 'e' && typeof json.s === 'string' && typeof json.r === 'string' && typeof json.a === 'string') return { s: json.s, r: json.r, a: json.a }
+    if (!json || typeof json !== 'object' || Array.isArray(json)) return null
+    if (json.v !== 2 || json.t !== 'e' || typeof json.s !== 'string' || typeof json.r !== 'string') return null
+    if (Object.keys(json).sort().join() !== ENTRY_FIELDS.join()) return null
+    for (const box of [json.ws, json.wa]) if (!box || typeof box !== 'object' || Object.keys(box).sort().join() !== 'c,e,n') return null
+    return { s: json.s, r: json.r }
   } catch {
     /* not parseable: refused by the caller */
   }

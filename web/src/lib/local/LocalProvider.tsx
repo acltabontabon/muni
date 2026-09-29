@@ -12,6 +12,7 @@ import { keyring } from '@/lib/e2ee/keyring'
 import { deviceStore, destroyDeviceStore, emptyPayload, hasText, memoryStore, RECORD_VERSION, StorageError, type ContextSprint, type Draft, type LocalStore, type OutboxItem, type Payload } from './store'
 
 export type SyncState = 'idle' | 'sending' | 'offline' | 'signed_out' | 'upgrade'
+/** `encrypted` is left out when it isn't known (a sprint shown from the copy kept on this device). */
 export type Destination = { workspaceId: string; sprintId: string; sprintName: string; encrypted?: boolean }
 
 type LocalApi = {
@@ -183,7 +184,7 @@ export function LocalProvider({ accountId, children }: { accountId: string | nul
       const now = Date.now()
       const item: OutboxItem = {
         id: crypto.randomUUID(), accountId: need(), workspaceId: dest.workspaceId, sprintId: dest.sprintId, sprintName: dest.sprintName,
-        payload, revision: 1, status: 'queued', attempts: 0, nextAttemptAt: 0, sendingSince: null, reason: null, message: null, createdAt: now, updatedAt: now, v: RECORD_VERSION, encrypted: dest.encrypted || undefined,
+        payload, revision: 1, status: 'queued', attempts: 0, nextAttemptAt: 0, sendingSince: null, reason: null, message: null, createdAt: now, updatedAt: now, v: RECORD_VERSION, encrypted: dest.encrypted,
       }
       // Persisted (atomically, with the draft removed) before anyone is told it was saved.
       await guard(() => store.enqueue(item))
@@ -284,19 +285,15 @@ export function LocalProvider({ accountId, children }: { accountId: string | nul
   return <Ctx.Provider value={api}>{children}</Ctx.Provider>
 }
 
-/** Seals a queued thought for an encrypted sprint. Null for a sprint set up without encryption (sent as it is). */
+/**
+ * Seals a queued thought for an encrypted sprint. Null only for a sprint known to be set up without
+ * encryption (sent as it is). When that can't be checked, this throws and the thought waits: text is
+ * never sent in plaintext on a guess.
+ */
 async function sealThought(item: OutboxItem, plain: Record<string, unknown>): Promise<Record<string, unknown> | null> {
-  let encrypted = item.encrypted
-  if (!encrypted) {
-    try {
-      encrypted = await keyring.isEncrypted(item.sprintId)
-    } catch (e) {
-      // Can't tell (offline, signed out, no access): don't guess. Unreachable or no key yet: it waits.
-      // Anything else: the send itself reports what's wrong (and the server refuses plaintext anyway).
-      if ((e as { status?: number }).status === 0 || (e as { code?: string }).code === 'no-key') throw e
-      return null
-    }
-  }
+  // A sprint's encryption is chosen when it's set up and never changes.
+  if (item.encrypted === false) return null
+  const encrypted = item.encrypted || (await keyring.isEncrypted(item.sprintId))
   if (!encrypted) return null
   const body = await keyring.sealThought(item.sprintId, item.id, { body: item.payload.body, impact: item.payload.impact || null, might_help: item.payload.might_help || null }, item.accountId)
   return { id: item.id, body, category: plain.category, period: plain.period, idempotency_key: item.id, author_account_id: item.accountId }

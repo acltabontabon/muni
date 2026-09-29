@@ -74,6 +74,11 @@ export function problems({ tag } = {}) {
   const want = changelogLinks(repo, versions)
   for (const [k, url] of Object.entries(want)) if (log.links[k.toLowerCase()] !== url) out.push(`CHANGELOG.md: the link reference for [${k}] should be ${url}`)
   for (const k of Object.keys(log.links)) if (!(k in want) && !Object.keys(want).some((w) => w.toLowerCase() === k)) out.push(`CHANGELOG.md: [${k}] links to a version that isn’t in the file`)
+  // The released web client must be one the released Worker accepts, or every page asks to reload.
+  const sent = /export const CLIENT_REVISION = (\d+)/.exec(readFileSync(path('web/src/lib/local/outbox.ts'), 'utf8'))?.[1]
+  const accepted = /const MIN_CLIENT_REVISION = (\d+)/.exec(readFileSync(path('worker/src/index.ts'), 'utf8'))?.[1]
+  if (!sent || !accepted) out.push('can’t find CLIENT_REVISION (web/src/lib/local/outbox.ts) or MIN_CLIENT_REVISION (worker/src/index.ts)')
+  else if (Number(sent) !== Number(accepted)) out.push(`the web client sends revision ${sent}; the Worker accepts ${accepted} and up — raise them together`)
   // The demo every release attaches: checked on every push, so main can always be tagged.
   for (const f of Object.values(DEMO)) {
     if (!existsSync(path(f))) out.push(`${f} is missing (docs/demo/README.md)`)

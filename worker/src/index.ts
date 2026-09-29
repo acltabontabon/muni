@@ -32,8 +32,8 @@ export { MeetingRoom } from './room'
  * backward compatible. (Not exported: every named export of a Worker's main module must be a
  * handler or Durable Object class, or the runtime refuses to start.)
  */
-// The web client in 1.0.0-rc.1 sends revision 5.
-const MIN_CLIENT_REVISION = 5
+// The web client in 1.0.0-rc.1 sends revision 6.
+const MIN_CLIENT_REVISION = 6
 
 const app = new Hono<HonoEnv>()
 

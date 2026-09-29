@@ -41,7 +41,11 @@ export type OutboxItem = {
   createdAt: number
   updatedAt: number
   v: number
-  /** For an encrypted sprint: sealed only when sent, by a page that holds the keys. */
+  /**
+   * true: an encrypted sprint — sealed only when sent, by a page that holds the keys. false: known to
+   * be set up without encryption. Absent: not known when it was written, so only a page that can
+   * check sends it; never the service worker.
+   */
   encrypted?: boolean
 }
 

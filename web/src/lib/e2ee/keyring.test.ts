@@ -546,7 +546,7 @@ describe('reading', () => {
   it('opens thoughts and fields in responses, and fills in a thought’s context', async () => {
     const srv = await signedIn()
     const sp = sprintFor(srv, srv.pk)
-    const body = sealEntry({ sprintId: sp.id, recordId: 'r1', version: 1, sprintPk: sp.keys.pk, authorId: 'someone', authorPk: newKeyPair().pk }, { body: 'Synthetic thought', impact: 'Synthetic impact', might_help: null })
+    const body = sealEntry({ sprintId: sp.id, recordId: 'r1', version: 1, sprintPk: sp.keys.pk, authorPk: newKeyPair().pk }, { body: 'Synthetic thought', impact: 'Synthetic impact', might_help: null })
     const title = sealField(sp.keys, sp.id, 'title', 'Synthetic theme')
     const out = await keyring.decryptDeep({ themes: [{ id: 't1', title, entries: [{ id: 'r1', body, impact: null, might_help: null, category: 'keep' }] }] }, sp.id)
     expect(out.themes[0].title).toBe('Synthetic theme')
@@ -571,7 +571,7 @@ describe('reading', () => {
     expect((await keyring.decryptDeep({ summary: title }, a.id)).summary).toBe(LOCKED)
     expect((await keyring.decryptDeep({ title }, b.id)).title).toBe(LOCKED)
     expect((await keyring.decryptDeep({ sprint_id: b.id, title }, null)).title).toBe(LOCKED)
-    const body = sealEntry({ sprintId: a.id, recordId: 'r1', version: 1, sprintPk: a.keys.pk, authorId: 'x', authorPk: newKeyPair().pk }, { body: 'Synthetic', impact: null, might_help: null })
+    const body = sealEntry({ sprintId: a.id, recordId: 'r1', version: 1, sprintPk: a.keys.pk, authorPk: newKeyPair().pk }, { body: 'Synthetic', impact: null, might_help: null })
     expect((await keyring.decryptDeep({ id: 'r2', body }, a.id)).body).toBe(LOCKED)
   })
 })

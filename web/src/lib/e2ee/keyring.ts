@@ -600,7 +600,8 @@ export const keyring = {
 
   /**
    * A thought, sealed to the sprint's newest key and to its author. `authorId` is the account that
-   * wrote it: a tab holding another account's key never seals it (it waits instead).
+   * wrote it: a tab holding another account's key never seals it (it waits instead). The envelope
+   * doesn't name the author, so this check is the only one — the server can't make it.
    */
   async sealThought(sprintId: string, recordId: string, content: EntryContent, authorId?: string): Promise<string> {
     staleCheck?.()
@@ -610,7 +611,7 @@ export const keyring = {
     const latest = s?.view.versions?.at(-1)
     const mine = keyring.publicKey()
     if (!latest || !mine) throw new CryptoError('no-key', 'Set up encryption on this device to send thoughts to this sprint.')
-    return sealEntry({ sprintId, recordId, version: latest.version, sprintPk: fromB64u(latest.public_key, 32), authorId: accountId, authorPk: mine }, content)
+    return sealEntry({ sprintId, recordId, version: latest.version, sprintPk: fromB64u(latest.public_key, 32), authorPk: mine }, content)
   },
 
   /**

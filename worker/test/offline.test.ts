@@ -83,13 +83,10 @@ describe('offline submissions', () => {
     const r = await req('GET', '/api/auth/me', u, undefined, { 'x-muni-client': '0.5' })
     expect(r.status).toBe(426)
     expect((r.body as { code: string }).code).toBe('upgrade_required')
-    expect((await req('GET', '/api/auth/me', u, undefined, { 'x-muni-client': '1' })).status).toBe(426)
-    expect((await req('GET', '/api/auth/me', u, undefined, { 'x-muni-client': '2' })).status).toBe(426)
-    // 3 still kept the account key in plaintext on the device and deleted it on sign-out.
-    expect((await req('GET', '/api/auth/me', u, undefined, { 'x-muni-client': '3' })).status).toBe(426)
-    // 4 still offered AI theme drafts and voice transcription, both gone.
-    expect((await req('GET', '/api/auth/me', u, undefined, { 'x-muni-client': '4' })).status).toBe(426)
-    expect((await req('GET', '/api/auth/me', u, undefined, { 'x-muni-client': '5' })).status).toBe(200)
+    // (That the web client sends this revision is checked by `node scripts/release.mjs check`.)
+    const min = ((await req('GET', '/api/version')).body as { min_client_revision: number }).min_client_revision
+    for (let rev = 1; rev < min; rev++) expect((await req('GET', '/api/auth/me', u, undefined, { 'x-muni-client': String(rev) })).status).toBe(426)
+    expect((await req('GET', '/api/auth/me', u, undefined, { 'x-muni-client': String(min) })).status).toBe(200)
     expect((await req('GET', '/api/auth/me', u)).status).toBe(200) // no header: browsers, curl, tests
   })
 })

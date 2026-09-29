@@ -44,7 +44,7 @@ let clock = 1_000_000
 const item = (over: Partial<OutboxItem> = {}): OutboxItem => ({
   id: crypto.randomUUID(), accountId: 'acct-a', workspaceId: 'ws-1', sprintId: 'sp-1', sprintName: 'Sprint 42',
   payload: { ...emptyPayload(), body: 'Reviews waited three days' }, revision: 1, status: 'queued', attempts: 0, nextAttemptAt: 0,
-  sendingSince: null, reason: null, message: null, createdAt: clock, updatedAt: clock, v: 1, ...over,
+  sendingSince: null, reason: null, message: null, createdAt: clock, updatedAt: clock, v: 1, encrypted: false, ...over,
 })
 const deps = (store: LocalStore, fetchImpl: typeof fetch, lock?: SyncDeps['lock']): SyncDeps => ({ store, fetch: fetchImpl, csrf: async () => 'csrf', now: () => clock, lock: lock ?? ((fn) => fn()) })
 
@@ -206,6 +206,39 @@ describe('outbox', () => {
     expect(s.posts).toBe(0)
     await flush(deps(store, fetchImpl))
     expect([...s.entries.values()][0].body).toBe('edited')
+  })
+
+  it('without a sealer (the service worker), sends only thoughts known to be unencrypted', async () => {
+    const store = memoryStore()
+    const { s, fetchImpl } = fakeServer()
+    await store.enqueue(item({ encrypted: true }))
+    await store.enqueue(item({ encrypted: undefined }))
+    const plain = item()
+    await store.enqueue(plain)
+    const r = await flush(deps(store, fetchImpl))
+    expect(r.submitted.map((x) => x.id)).toEqual([plain.id])
+    expect(s.posts).toBe(1)
+    expect(await store.listOutbox('acct-a')).toHaveLength(2)
+  })
+
+  it('sends nothing for a thought it can’t seal or can’t tell is unencrypted', async () => {
+    const store = memoryStore()
+    const { s, fetchImpl } = fakeServer()
+    const fail = (e: object): SyncDeps['seal'] => async () => { throw e }
+    await store.enqueue(item())
+    // No key on this device: it waits, and says so.
+    expect((await flush({ ...deps(store, fetchImpl), seal: fail({ code: 'no-key' }) }, { force: true })).state).toBe('ok')
+    expect((await store.listOutbox('acct-a'))[0]).toMatchObject({ status: 'queued', message: 'waiting_key' })
+    // The check failed (a server error): it backs off, like an offline send.
+    expect((await flush({ ...deps(store, fetchImpl), seal: fail({ status: 500 }) }, { force: true })).state).toBe('offline')
+    expect((await store.listOutbox('acct-a'))[0].status).toBe('queued')
+    // Signed out meanwhile: it stays queued for the next sign-in.
+    expect((await flush({ ...deps(store, fetchImpl), seal: fail({ status: 401 }) }, { force: true })).state).toBe('signed_out')
+    // No access any more: it needs the person.
+    const r = await flush({ ...deps(store, fetchImpl), seal: fail({ status: 403 }) }, { force: true })
+    expect(r.attention).toHaveLength(1)
+    expect((await store.listOutbox('acct-a'))[0]).toMatchObject({ status: 'attention', reason: 'no_access' })
+    expect(s.posts).toBe(0)
   })
 
   it('upgrades records written before versioning instead of dropping them', () => {

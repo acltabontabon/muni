@@ -200,7 +200,7 @@ export function SprintPage() {
   const writing = participant && (collecting || kept)
   const name = s?.name ?? cached!.sprint.name
   const workspaceId = s?.workspace_id ?? cached!.sprint.workspace_id
-  const dest: Destination | null = collecting ? { workspaceId, sprintId, sprintName: name, encrypted: s ? s.encryption === 'e1' : false } : null
+  const dest: Destination | null = collecting ? { workspaceId, sprintId, sprintName: name, ...(s ? { encrypted: s.encryption === 'e1' } : {}) } : null
   const bar: BarSprint | null = s
     ? { ...s, participant_count: s.participants.length }
     : null

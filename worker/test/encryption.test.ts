@@ -43,10 +43,19 @@ async function encryptedSprint(fac: Person, members: Person[], ws: string) {
 
 async function writeThought(p: Person, sprintId: string, pk: Uint8Array, version: number, text: string) {
   const id = crypto.randomUUID()
-  const body = sealEntry({ sprintId, recordId: id, version, sprintPk: pk, authorId: p.user.account_id, authorPk: p.keys.pk }, { body: text, impact: 'Synthetic-7f3a impact', might_help: null })
+  const body = sealEntry({ sprintId, recordId: id, version, sprintPk: pk, authorPk: p.keys.pk }, { body: text, impact: 'Synthetic-7f3a impact', might_help: null })
   const r = await post(`/api/sprints/${sprintId}/entries`, p.user, { id, idempotency_key: id, body, category: 'improve' })
   expect(r.status, JSON.stringify(r.body)).toBe(200)
   return id
+}
+
+/** What an envelope says in the clear (its JSON, before anything is opened). */
+const clear = (envelope: string) => new TextDecoder().decode(fromB64u(envelope.slice(3)))
+/** An envelope rewritten the way an outdated or careless client might produce it. */
+const rewritten = (envelope: string, edit: (o: Record<string, unknown>) => void) => {
+  const o = JSON.parse(clear(envelope))
+  edit(o)
+  return 'e1.' + b64u(new TextEncoder().encode(JSON.stringify(o)))
 }
 
 /** Every text value in every table, plus the room object's storage. */
@@ -101,6 +110,11 @@ describe('encrypted sprints', () => {
     const shared = (await get(`/api/sprints/${s.id}/entries`, priya.user)).body as { id: string; body: string; impact: string | null }[]
     expect(shared.map((e) => openEntry(parseEnvelope(e.body) as EntryEnvelope, { sprintId: s.id, recordId: e.id }, { sprint: got }).body).sort()).toEqual([SYNTHETIC[0], SYNTHETIC[1]].sort())
     expect(shared.every((e) => e.impact === null)).toBe(true)
+    // Revealed thoughts reach everyone, and nothing in them — the response or the envelopes' clear
+    // parts — names who wrote them.
+    const everyone = [fac, maya, priya].map((p) => p.user.account_id)
+    const visible = JSON.stringify(shared) + shared.map((e) => clear(e.body)).join()
+    for (const id of everyone) expect(visible).not.toContain(id)
 
     // Derived content: plaintext refused; envelopes stored.
     expect((await post(`/api/sprints/${s.id}/themes`, fac.user, { title: SYNTHETIC[2] })).status).toBe(400)
@@ -142,26 +156,36 @@ describe('encrypted sprints', () => {
     expect(() => unwrapWithRecovery(blob, newRecoveryKey(), maya.user.account_id)).toThrow()
   })
 
-  it('refuse a thought sealed as someone else, or for another record (a tab still holding another account’s key)', async () => {
+  it('refuse a thought envelope that names its author, or another record — the server never stores one', async () => {
     const t = await team(2)
     const fac = await withKeys(t.owner)
     const [maya, priya] = await Promise.all(t.members.map(withKeys))
     const s = await encryptedSprint(fac, [maya, priya], t.ws)
     expect((await go(fac.user, s.id, 'collecting')).status).toBe(200)
     const id = crypto.randomUUID()
-    // Sealed with Priya as the author, sent by Maya's session.
-    const asPriya = sealEntry({ sprintId: s.id, recordId: id, version: 1, sprintPk: s.keys.pk, authorId: priya.user.account_id, authorPk: priya.keys.pk }, { body: 'Synthetic-7f3a wrong author', impact: null, might_help: null })
-    const r = await post(`/api/sprints/${s.id}/entries`, maya.user, { id, idempotency_key: id, body: asPriya, category: 'improve' })
-    expect(r.status).toBe(409)
-    expect(r.body.code).toBe('account_mismatch')
+    const sealed = sealEntry({ sprintId: s.id, recordId: id, version: 1, sprintPk: s.keys.pk, authorPk: maya.keys.pk }, { body: 'Synthetic-7f3a named', impact: null, might_help: null })
+    // An author id in the envelope, by any name, or an envelope in another format: refused.
+    for (const named of [rewritten(sealed, (o) => { o.a = maya.user.account_id }), rewritten(sealed, (o) => { o.author = maya.user.account_id }), rewritten(sealed, (o) => { (o.wa as Record<string, unknown>).to = maya.user.account_id }), rewritten(sealed, (o) => { o.v = 1 })]) {
+      const r = await post(`/api/sprints/${s.id}/entries`, maya.user, { id, idempotency_key: id, body: named, category: 'improve' })
+      expect(r.status).toBe(400)
+      expect(r.body.code).toBe('encryption_required')
+    }
     // Bound to another record id.
     const other = crypto.randomUUID()
-    const elsewhere = sealEntry({ sprintId: s.id, recordId: other, version: 1, sprintPk: s.keys.pk, authorId: maya.user.account_id, authorPk: maya.keys.pk }, { body: 'Synthetic-7f3a wrong record', impact: null, might_help: null })
+    const elsewhere = sealEntry({ sprintId: s.id, recordId: other, version: 1, sprintPk: s.keys.pk, authorPk: maya.keys.pk }, { body: 'Synthetic-7f3a wrong record', impact: null, might_help: null })
     expect((await post(`/api/sprints/${s.id}/entries`, maya.user, { id, idempotency_key: id, body: elsewhere, category: 'improve' })).body.code).toBe('encryption_required')
-    // Editing is held to the same rule.
+    // Written while signed in as someone else (the device says who): refused, as for any sprint.
+    const asPriya = await post(`/api/sprints/${s.id}/entries`, maya.user, { id, idempotency_key: id, body: sealed, category: 'improve', author_account_id: priya.user.account_id })
+    expect(asPriya.body.code).toBe('account_mismatch')
+    // Editing is held to the same rules.
     const mine = await writeThought(maya, s.id, s.keys.pk, 1, 'Synthetic-7f3a mine')
-    const swap = sealEntry({ sprintId: s.id, recordId: mine, version: 1, sprintPk: s.keys.pk, authorId: priya.user.account_id, authorPk: priya.keys.pk }, { body: 'Synthetic-7f3a swapped', impact: null, might_help: null })
-    expect((await patch(`/api/sprints/${s.id}/entries/${mine}`, maya.user, { body: swap })).body.code).toBe('account_mismatch')
+    const edit = sealEntry({ sprintId: s.id, recordId: mine, version: 1, sprintPk: s.keys.pk, authorPk: maya.keys.pk }, { body: 'Synthetic-7f3a edited', impact: null, might_help: null })
+    expect((await patch(`/api/sprints/${s.id}/entries/${mine}`, maya.user, { body: rewritten(edit, (o) => { o.a = maya.user.account_id }) })).body.code).toBe('encryption_required')
+    expect((await patch(`/api/sprints/${s.id}/entries/${mine}`, maya.user, { body: elsewhere })).body.code).toBe('encryption_required')
+    expect((await patch(`/api/sprints/${s.id}/entries/${mine}`, maya.user, { body: edit })).status).toBe(200)
+    // And the database itself refuses the format that named its author, whatever writes it.
+    const old = rewritten(edit, (o) => { o.v = 1 })
+    await expect(env.DB.prepare('UPDATE entries SET body = ? WHERE id = ?').bind(old, mine).run()).rejects.toThrow(/may not name its author/)
   })
 
   it('detect tampering and substitution by the server', async () => {

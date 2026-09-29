@@ -10,7 +10,7 @@
 import type { LocalStore, OutboxItem, AttentionReason } from './store'
 
 /** Sent as `x-muni-client`. Raise together with the server's MIN_CLIENT_REVISION. */
-export const CLIENT_REVISION = 5
+export const CLIENT_REVISION = 6
 /** A queued thought for an encrypted sprint that this device can't seal yet (no key here). */
 export const WAITING_KEY = 'waiting_key'
 /** A send that has been "in flight" this long was interrupted (tab closed, device slept). */
@@ -32,9 +32,10 @@ export interface SyncDeps {
   /** Told after every change so other tabs can re-read. */
   notify?: () => void
   /**
-   * Seals a thought for an encrypted sprint (returns the request body), or null for a sprint set up without encryption.
-   * Throws { code: 'no-key' } when this device can't. Absent in the service worker, which holds no
-   * keys: it leaves encrypted thoughts for the app to send.
+   * Seals a thought for an encrypted sprint (returns the request body), or null for a sprint known
+   * to be set up without encryption. Throws when it can't tell or can't seal — { code: 'no-key' }
+   * when this device has no key, { status } when the check itself was refused — and then nothing is
+   * sent. Absent in the service worker, which holds no keys: it leaves encrypted thoughts for the app.
    */
   seal?: (item: OutboxItem, plain: Record<string, unknown>) => Promise<Record<string, unknown> | null>
 }
@@ -95,7 +96,8 @@ async function flushLocked(deps: SyncDeps, opts: { force?: boolean }): Promise<F
     const interrupted = item.status === 'sending' && (item.sendingSince ?? 0) < t - STALE_SENDING_MS
     const due = item.status === 'queued' && (opts.force || item.nextAttemptAt <= t)
     if (!due && !interrupted) continue
-    if (item.encrypted && !deps.seal) continue
+    // Without a sealer (the service worker), only thoughts known to be for an unencrypted sprint go.
+    if (item.encrypted !== false && !deps.seal) continue
     // Claim it: only this exact revision, still queued (or abandoned mid-send), becomes 'sending'.
     const claimed = await deps.store.updateOutbox(item.id, (cur) =>
       cur.revision === item.revision && (cur.status === 'queued' || (cur.status === 'sending' && interrupted)) ? { ...cur, status: 'sending', sendingSince: t, updatedAt: t } : null,
@@ -120,9 +122,19 @@ async function flushLocked(deps: SyncDeps, opts: { force?: boolean }): Promise<F
       try {
         sealed = await deps.seal(claimed, payload)
       } catch (e) {
-        const waiting = (e as { code?: string }).code === 'no-key'
+        const { code, status } = e as { code?: string; status?: number }
+        // Removed from the workspace, or the sprint is gone: it needs the person, as a refused send would.
+        if (status === 403 || status === 404) {
+          await deps.store.updateOutbox(claimed.id, (cur) => ({ ...cur, status: 'attention', reason: 'no_access', message: null, sendingSince: null, updatedAt: now() }))
+          await deps.store.forgetWorkspace(claimed.accountId, claimed.workspaceId)
+          res.attention.push(claimed.id)
+          deps.notify?.()
+          continue
+        }
+        const waiting = code === 'no-key'
         await deps.store.updateOutbox(claimed.id, (cur) => ({ ...cur, status: 'queued', sendingSince: null, message: waiting ? WAITING_KEY : cur.message, nextAttemptAt: now() + (waiting ? 60_000 : backoff(cur.attempts + 1)), attempts: waiting ? cur.attempts : cur.attempts + 1, updatedAt: now() }))
         deps.notify?.()
+        if (status === 401) return { ...res, state: 'signed_out' }
         if (!waiting) return { ...res, state: 'offline' }
         continue
       }

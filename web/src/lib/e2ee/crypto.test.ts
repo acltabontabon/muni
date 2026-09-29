@@ -93,13 +93,28 @@ describe('sprint secret wraps', () => {
 describe('thoughts', () => {
   const sprint = sprintKeys(newSprintSecret(), 1)
   const author = newKeyPair()
-  const c = { sprintId: 's1', recordId: 'r1', version: 1, sprintPk: sprint.pk, authorId: 'maya', authorPk: author.pk }
+  const c = { sprintId: 's1', recordId: 'r1', version: 1, sprintPk: sprint.pk, authorPk: author.pk }
   const env = sealEntry(c, { body: SYNTHETIC, impact: 'half a day', might_help: null })
 
   it('contain no plaintext', () => {
     expect(env.startsWith(ENVELOPE)).toBe(true)
     expect(env).not.toContain('staging')
     expect(atob(env.slice(3).replace(/-/g, '+').replace(/_/g, '/'))).not.toContain('staging')
+  })
+  it('say nothing about who wrote them: every participant receives them after reveal', () => {
+    const o = JSON.parse(new TextDecoder().decode(fromB64u(env.slice(3))))
+    expect(Object.keys(o).sort()).toEqual(['c', 'k', 'n', 'r', 's', 't', 'v', 'wa', 'ws'])
+    expect(o.v).toBe(2)
+    // The author's copy of the key is a sealed box like the sprint's: it doesn't name its recipient.
+    expect(Object.keys(o.wa).sort()).toEqual(['c', 'e', 'n'])
+    expect(env).not.toContain(b64u(author.pk))
+    // Two thoughts by the same person share nothing that links them.
+    const again = JSON.parse(new TextDecoder().decode(fromB64u(sealEntry({ ...c, recordId: 'r2' }, { body: SYNTHETIC, impact: null, might_help: null }).slice(3))))
+    expect(again.wa.e).not.toBe(o.wa.e)
+  })
+  it('refuse an envelope in any other format', () => {
+    expect(code(() => parseEnvelope(tamper(env, (o) => { o.v = 1 })))).toBe('version')
+    expect(code(() => parseEnvelope(tamper(env, (o) => { o.v = 3 })))).toBe('version')
   })
   it('open with the sprint key (after reveal) or the author’s key (always)', () => {
     const e = parseEnvelope(env) as EntryEnvelope
@@ -119,8 +134,8 @@ describe('thoughts', () => {
     // Rewriting the claimed ids inside the envelope breaks authentication instead.
     const moved = parseEnvelope(tamper(env, (o) => { o.r = 'r2' })) as EntryEnvelope
     expect(code(() => openEntry(moved, { sprintId: 's1', recordId: 'r2' }, { sprint }))).toBe('auth')
-    const reauthored = parseEnvelope(tamper(env, (o) => { o.a = 'priya' })) as EntryEnvelope
-    expect(code(() => openEntry(reauthored, { sprintId: 's1', recordId: 'r1' }, { sprint }))).toBe('auth')
+    const rekeyed = parseEnvelope(tamper(env, (o) => { o.k = 2 })) as EntryEnvelope
+    expect(code(() => openEntry(rekeyed, { sprintId: 's1', recordId: 'r1' }, { accountSk: author.sk }))).toBe('auth')
   })
   it('detect a modified ciphertext', () => {
     const bad = parseEnvelope(tamper(env, (o) => { o.c = flip(o.c as string) })) as EntryEnvelope

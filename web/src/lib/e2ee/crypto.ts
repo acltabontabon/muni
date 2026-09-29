@@ -233,20 +233,24 @@ function parseJson(s: string, prefix: string): Record<string, unknown> {
 }
 
 export type FieldEnvelope = { v: 1; t: 'f'; s: string; k: number; f: string; n: string; c: string }
-export type EntryEnvelope = { v: 1; t: 'e'; s: string; k: number; r: string; a: string; n: string; c: string; ws: Sealed; wa: Sealed }
+/** A thought. It names its sprint and record, never its author: after reveal, every participant receives it. */
+export type EntryEnvelope = { v: 2; t: 'e'; s: string; k: number; r: string; n: string; c: string; ws: Sealed; wa: Sealed }
 export type Envelope = FieldEnvelope | EntryEnvelope
+/** The format each kind of envelope is written and read in (`v`). Any other is refused. */
+const FORMAT = { f: 1, e: 2 } as const
 
 export const isEnvelope = (x: unknown): x is string => typeof x === 'string' && x.startsWith(ENVELOPE)
 
 export function parseEnvelope(s: string): Envelope {
   const e = parseJson(s, ENVELOPE)
-  if (e.v !== 1) throw new CryptoError('version', 'unsupported format')
+  if (e.t !== 'f' && e.t !== 'e') throw new CryptoError('malformed', 'unknown envelope')
+  if (e.v !== FORMAT[e.t]) throw new CryptoError('version', 'unsupported format')
   const str = (k: string) => typeof e[k] === 'string' && (e[k] as string).length > 0
   const sealed = (x: unknown) => !!x && typeof x === 'object' && ['e', 'n', 'c'].every((k) => typeof (x as Record<string, unknown>)[k] === 'string')
   if (!str('s') || !Number.isInteger(e.k) || (e.k as number) < 1 || !str('n') || !str('c')) throw new CryptoError('malformed', 'incomplete envelope')
   if (e.t === 'f' && str('f')) return e as unknown as FieldEnvelope
-  if (e.t === 'e' && str('r') && str('a') && sealed(e.ws) && sealed(e.wa)) return e as unknown as EntryEnvelope
-  throw new CryptoError('malformed', 'unknown envelope')
+  if (e.t === 'e' && str('r') && sealed(e.ws) && sealed(e.wa)) return e as unknown as EntryEnvelope
+  throw new CryptoError('malformed', 'incomplete envelope')
 }
 
 const fieldAad = (sprintId: string, version: number, field: string) => `muni:field:v1|${sprintId}|${version}|${field}`
@@ -264,28 +268,26 @@ export function openField(env: FieldEnvelope, keys: SprintKeys, expect: { sprint
 }
 
 export type EntryContent = { body: string; impact: string | null; might_help: string | null }
-const entryAad = (sprintId: string, recordId: string, version: number, authorId: string) => `muni:entry:v1|${sprintId}|${recordId}|${version}|${authorId}`
+const entryAad = (sprintId: string, recordId: string, version: number) => `muni:entry:v2|${sprintId}|${recordId}|${version}`
 
 /**
  * A thought: one fresh content key, sealed twice — to the sprint (readable by whoever holds the
- * sprint secret, which during collection is only the facilitator) and to its author.
+ * sprint secret, which during collection is only the facilitator) and to its author, so they can
+ * always reread it. Neither copy says whose key it was sealed to, and nothing else in the envelope
+ * names the author: after reveal every participant receives it, and it stays anonymous.
  */
-export function sealEntry(c: { sprintId: string; recordId: string; version: number; sprintPk: Uint8Array; authorId: string; authorPk: Uint8Array }, content: EntryContent): string {
+export function sealEntry(c: { sprintId: string; recordId: string; version: number; sprintPk: Uint8Array; authorPk: Uint8Array }, content: EntryContent): string {
   const cek = randomBytes(32)
-  const aad = entryAad(c.sprintId, c.recordId, c.version, c.authorId)
+  const aad = entryAad(c.sprintId, c.recordId, c.version)
   const body = aeadSeal(cek, utf8(JSON.stringify({ body: content.body, impact: content.impact || null, might_help: content.might_help || null })), aad)
-  const env: EntryEnvelope = { v: 1, t: 'e', s: c.sprintId, k: c.version, r: c.recordId, a: c.authorId, ...body, ws: sealTo(c.sprintPk, cek, `muni:cek:sprint|${aad}`), wa: sealTo(c.authorPk, cek, `muni:cek:author|${aad}`) }
+  const env: EntryEnvelope = { v: 2, t: 'e', s: c.sprintId, k: c.version, r: c.recordId, ...body, ws: sealTo(c.sprintPk, cek, `muni:cek:sprint|${aad}`), wa: sealTo(c.authorPk, cek, `muni:cek:author|${aad}`) }
   return ENVELOPE + b64u(utf8(JSON.stringify(env)))
 }
-/**
- * Opens a thought with whichever key this device has: the sprint's, or the author's own. The
- * author id in the envelope is only ever used to bind the AAD; it's never shown (the server
- * already knows who wrote what — encryption doesn't hide that, and shared views never ask).
- */
+/** Opens a thought with whichever key this device has: the sprint's, or the author's own. */
 export function openEntry(env: EntryEnvelope, expect: { sprintId: string; recordId: string }, keys: { sprint?: SprintKeys | null; accountSk?: Uint8Array | null }): EntryContent {
   if (env.s !== expect.sprintId) throw new CryptoError('mismatch', 'thought from another sprint')
   if (env.r !== expect.recordId) throw new CryptoError('mismatch', 'thought in the wrong place')
-  const aad = entryAad(env.s, env.r, env.k, env.a)
+  const aad = entryAad(env.s, env.r, env.k)
   let cek: Uint8Array | null = null
   if (keys.sprint && keys.sprint.version === env.k) cek = openSealed(keys.sprint.sk, env.ws, `muni:cek:sprint|${aad}`)
   else if (keys.accountSk) cek = openSealed(keys.accountSk, env.wa, `muni:cek:author|${aad}`)

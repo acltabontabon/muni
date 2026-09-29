@@ -28,7 +28,8 @@ upload and decrypted only in authorized browsers.
 
 **Out of scope.** Email addresses and account metadata.
 Authorship: the server still records which account submitted each record — encryption hides what
-was written, not who wrote it.
+was written from the server, not who wrote it. Other participants never learn who wrote a thought:
+revealed thoughts carry no author, neither in the response nor in the envelope.
 
 ## 2. Content inventory
 
@@ -136,8 +137,10 @@ version. **Rescheduling** has no key effect.
   sign-out** forgets the envelope too (the session can't be ended yet). **Session expiry** drops
   the key from memory (drafts stay); signing in again reopens it.
 - **Account isolation.** Tabs name the account they act for (`x-muni-account`); the server refuses
-  a request for another account (409 `account_changed`), and a thought's envelope must name the
-  signed-in account as its author. Envelopes, shares and wraps are all bound to the account.
+  a request for another account (409 `account_changed`). A thought is sealed only by a tab whose
+  key belongs to the account that wrote it: its envelope names no author, so the device checks
+  this before sealing, and the server checks the sending account. Shares and wraps are bound to
+  the account.
 - **Another device.** Sign in with a passkey that unlocks: done. Otherwise use the recovery key
   (the unwrapped key must match the published public key), or a device that's still unlocked
   (which can let your passkey unlock). A trusted-device transfer (ephemeral X25519, a code compared
@@ -180,9 +183,12 @@ AES-256-GCM, non-extractable keys) for unlocking the account key in `web/src/lib
   XChaCha20-Poly1305, context string as AAD. Low-order keys refused.
 - **Sprint secret S** (32 bytes) per version → HKDF → sprint X25519 key pair and discussion key.
   Wrapped per person as `w1.` bound to (sprint, version, recipient).
-- **Envelopes** `e1.` + base64url(JSON), `v: 1`. Field: `{t:'f', s, k, f, n, c}` with AAD
-  (sprint, version, field). Entry: `{t:'e', s, k, r, a, n, c, ws, wa}` with AAD (sprint, record,
-  version, author); `ws`/`wa` seal the content key to sprint and author.
+- **Envelopes** `e1.` + base64url(JSON). Field (`v: 1`): `{t:'f', s, k, f, n, c}` with AAD
+  (sprint, version, field). Thought (`v: 2`): `{t:'e', s, k, r, n, c, ws, wa}` with AAD (sprint,
+  record, version); `ws`/`wa` seal the content key to the sprint and to the author. A sealed box
+  doesn't reveal its recipient, so nothing in a thought's envelope says who wrote it — it reaches
+  every participant after reveal. The server stores a thought envelope only with exactly these
+  fields, and the database refuses the prefix of an envelope that carried an author.
 - **Nonces:** 192-bit random (XChaCha), fresh per encryption; fresh content key per thought/edit.
 - **Binding and tampering:** AEAD failure, wrong sprint, wrong field, wrong record id → the value
   is shown as "Can't be shown on this device" — never ciphertext, never plaintext fallback. Record
@@ -198,10 +204,10 @@ AES-256-GCM, non-extractable keys) for unlocking the account key in `web/src/lib
 
 ## 6. Tests
 
-- `web/src/lib/e2ee/crypto.test.ts` (15): round trips, wrong recipient/context, tamper, cross
+- `web/src/lib/e2ee/crypto.test.ts`: round trips, wrong recipient/context, tamper, cross
   sprint/record/field substitution, relabelling, low-order keys, nonce uniqueness, recovery typos
-  and wrong account, malformed envelopes.
-- `web/src/lib/e2ee/keyring.test.ts` (32): decrypt at the API boundary, explicit locked marker,
+  and wrong account, malformed envelopes, thought envelopes that name no author and can't be linked.
+- `web/src/lib/e2ee/keyring.test.ts`: decrypt at the API boundary, explicit locked marker,
   refusal to send plaintext without keys, TOFU key-change detection, sealed-version sharing; and
   the lifecycle — sign out → sign in unlocks with no recovery key (earlier content reads, new
   content seals), reload, no plaintext key in storage, non-passkey sessions refused,
@@ -209,20 +215,21 @@ AES-256-GCM, non-extractable keys) for unlocking the account key in `web/src/lib
   unlocked device, offline, never a second key, keep-before-publish, sign-out during restoration,
   account switching, stale tabs, waiting instead of "can't be shown", and no secret in any request
   body.
-- `web/src/lib/e2ee/wrap.test.ts` (5) and `web/src/lib/passkeys.test.ts` (2): wrap binding and
+- `web/src/lib/e2ee/wrap.test.ts` and `web/src/lib/passkeys.test.ts`: wrap binding and
   tampering, non-extractable keys, IV uniqueness, both device halves required; PRF output removed
   from every request body (including as a `Uint8Array`).
-- `worker/test/unlock.test.ts` (12): wraps only for own passkeys and current key, removed with the
+- `worker/test/unlock.test.ts`: wraps only for own passkeys and current key, removed with the
   passkey and on key replacement, the share release rule (later passkey, deleted
   passkeys, other accounts), keep-before-publish, pruning, nothing secret in D1, PRF results
   refused, `x-muni-account` isolation.
-- `worker/test/encryption.test.ts` (7): envelopes only, plaintext refused, sealing policy through
-  reveal, reopen versioning, late participants, recovery vs a passkey that only signs in, key replacement, a sprint
+- `worker/test/encryption.test.ts`: envelopes only, plaintext refused, sealing policy through
+  reveal, revealed thoughts naming nobody (an envelope that would is refused, by the Worker and by
+  the database), reopen versioning, late participants, recovery vs a passkey that only signs in, key replacement, a sprint
   set up without encryption taking plain text and saying so, export/recap refused, **every D1 table and the room's storage scanned for the
   synthetic text, private keys and sprint secrets**.
-- `web/e2e/encryption.mjs` (16): the real UI end to end, including request bodies captured in the
+- `web/e2e/encryption.mjs`: the real UI end to end, including request bodies captured in the
   browser, reveal, preparation, and a new device unlocked with the recovery key.
-- `web/e2e/unlock.mjs` (27): with and without the virtual authenticator's PRF — see PASSKEYS.md §8.
+- `web/e2e/unlock.mjs`: with and without the virtual authenticator's PRF — see PASSKEYS.md §8.
 
 **What testing doesn't establish:** the correctness of the construction against a cryptographer's
 review; side channels; behaviour under a malicious frontend; browser storage security; resistance
@@ -238,10 +245,13 @@ cryptographic and application-security review is required before claiming more t
 > can set a sprint up without encryption, and it says so. Muni still knows who wrote each thought
 > and when, and your wording can still give you away.
 
-**App:** Privacy & data → “Encryption, and its limits”; composer line “Encrypted before it leaves
-this device.”; sprint pages “Encrypted: thoughts, themes, notes and outcomes are sealed on
-participants' devices; Muni's servers store them unreadable.”, or, for a sprint set up without
-encryption, a line saying Muni's servers can read its content.
+**App:** Privacy & data (`/privacy`) — “Sprints are encrypted on your team’s devices by default,
+and Muni’s servers don’t hold the keys to read them. Names, dates and who wrote what aren’t
+encrypted.”, and “What’s encrypted”, which lists every encrypted field and what stays readable.
+Sprint setup — the “Encrypt this sprint” switch (on by default) says what's sealed and what stays
+readable; an existing sprint says “This sprint is encrypted: its content is sealed on participants’
+devices.” A sprint set up without encryption says so wherever it appears: “Set up without
+encryption, so Muni’s servers can read this sprint’s content.”
 
 Avoid: “zero knowledge”, “fully anonymous”, “the operator can never access anything”, “audited”.
 
