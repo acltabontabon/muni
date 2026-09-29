@@ -130,6 +130,8 @@ try {
     const order = h > w ? scene.y + scene.height <= b.y + 1 : scene.x + scene.width <= b.x + 1
     check(`${w}×${h}: headline, evening and passkey button all on the first screen`, line.y >= 0 && scene.height >= 120 && scene.y + scene.height <= h + 1 && order && b.y + b.height <= h, `scene ${Math.round(scene.height)} px, button ends at ${Math.round(b.y + b.height)}`)
     check(`${w}×${h}: no sideways scroll`, (await page.evaluate(() => document.documentElement.scrollWidth)) <= w)
+    // Upright, the evening runs edge to edge: never a strip of bare paper beside it.
+    if (h > w) check(`${w}×${h}: the evening spans the screen`, Math.round((await page.locator('.entrance-brand').boundingBox()).width) >= w - 1)
     await ctx.close()
   }
 

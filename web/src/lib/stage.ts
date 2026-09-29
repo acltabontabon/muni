@@ -44,6 +44,7 @@ export function useStage(sprintId: string) {
   const shown = useRef<StageSnapshot | null>(null)
   const showStage = useCallback((s: StageSnapshot | null) => {
     if (s && !isNewer(s, shown.current)) return
+    s = s && onThisClock(s)
     shown.current = s
     setStage(s)
   }, [])
@@ -277,4 +278,17 @@ export function useStage(sprintId: string) {
     putExperiments,
     putPrevious,
   }
+}
+
+/**
+ * The snapshot with its clock's deadline moved onto this device's clock, by the skew measured the
+ * moment it arrives. A countdown mounted later (the cue after presenting, a phone waking up) then
+ * reads the same time as one already running, however old the snapshot is by then; countdowns
+ * are given no server time of their own.
+ */
+function onThisClock(s: StageSnapshot): StageSnapshot {
+  if (!s.timer.ends_at || !s.server_time) return s
+  const skew = Date.parse(s.server_time) - Date.now()
+  if (!Number.isFinite(skew)) return s
+  return { ...s, timer: { ...s.timer, ends_at: new Date(Date.parse(s.timer.ends_at) - skew).toISOString() } }
 }

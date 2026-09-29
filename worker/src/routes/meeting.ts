@@ -131,7 +131,7 @@ meeting.get('/api/sprints/:sprintId/ws', async (c) => {
   return room(c.env, ctx.sprint.id).fetch('https://room/ws', { headers: roomSocketHeaders(c.req.raw.headers, ctx.auth.account.id, ctx.isFacilitator, readAt) })
 })
 
-type CommandBody = { type?: string; theme_id?: string | null; discussed?: boolean; phase?: string; items?: unknown; agenda?: unknown; topic?: string | null; secs?: unknown; delta_secs?: unknown; plan?: unknown }
+type CommandBody = { type?: string; theme_id?: string | null; discussed?: boolean; phase?: string; items?: unknown; agenda?: unknown; topic?: string | null; reorder?: boolean; secs?: unknown; delta_secs?: unknown; plan?: unknown }
 const seconds = (v: unknown) => typeof v === 'number' && Number.isFinite(v)
 
 /**
@@ -164,7 +164,7 @@ async function discussed(db: D1Database, sprintId: string, themeId: string): Pro
  * leaving it closes the vote, which orders the themes; talking follows that order, from the top.
  * Only the first arrival at the talk sets its agenda and opens its first topic: coming back with a
  * topic in hand (`currentTopic`, as the room holds it) keeps the agenda, its reasons and what's been
- * discussed as they are. Returns what changed, to announce once the stage has moved.
+ * discussed as they are — unless a new vote was counted on the way, which orders the talk anew. Returns what changed, to announce once the stage has moved.
  */
 async function stepChanges(db: D1Database, ctx: SprintCtx, cmd: CommandBody, currentTopic: string | null): Promise<Resource[]> {
   const sid = ctx.sprint.id
@@ -177,11 +177,14 @@ async function stepChanges(db: D1Database, ctx: SprintCtx, cmd: CommandBody, cur
       changed.push('votes')
     }
   }
-  if ((cmd.phase === 'talk' || cmd.phase === 'agree') && (await closeRound(db, sid, 'closed'))) {
+  const counted = (cmd.phase === 'talk' || cmd.phase === 'agree') && (await closeRound(db, sid, 'closed'))
+  if (counted) {
     await audit(db, ctx.sprint.workspace_id, sid, ctx.auth.account.id, 'votes.round_closed', { status: 'closed' })
     changed.push('votes', 'themes')
   }
-  if (cmd.phase === 'talk' && !currentTopic) {
+  // A vote held again after the talk began (Choose → Vote again) orders the talk anew, from its top.
+  if (cmd.phase === 'talk' && (!currentTopic || counted)) {
+    if (currentTopic) cmd.reorder = true
     const [order, loose] = await db.batch([
       db.prepare('SELECT id FROM themes WHERE sprint_id = ? AND parked = 0 ORDER BY position, created_at').bind(sid),
       db.prepare('SELECT EXISTS (SELECT 1 FROM entries e LEFT JOIN theme_entries te ON te.entry_id = e.id WHERE e.sprint_id = ? AND te.theme_id IS NULL) AS n').bind(sid),
@@ -229,6 +232,7 @@ meeting.post('/api/sprints/:sprintId/meeting/command', async (c) => {
   if (topic && !(await count(db, 'SELECT count(*) AS n FROM themes WHERE id = ? AND sprint_id = ?', topic, sid))) throw notFound('theme not found')
   delete cmd.agenda
   delete cmd.topic
+  delete cmd.reorder
   if (cmd.type === 'set_agenda') {
     const valid = new Set((await all<{ id: string }>(db, 'SELECT id FROM themes WHERE sprint_id = ?', sid)).map((t) => t.id))
     cmd.items = (cmd.items as AgendaItem[]).filter((i) => valid.has(i.theme_id))

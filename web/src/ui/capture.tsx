@@ -157,7 +157,8 @@ export function useComposer({ dest, choices, onChoose, onSaved }: { dest: Destin
     async (e?: FormEvent) => {
       e?.preventDefault()
       if (!p.body.trim() || busy) return
-      if (!dest) return setError('Choose where this thought should go.')
+      // No destination: with others to choose from, say so; with collection closed, the words just stay.
+      if (!dest) return choices.length > 1 ? setError('Choose where this thought should go.') : undefined
       setBusy(true)
       setError(null)
       try {
@@ -392,12 +393,12 @@ export const CollectionLook = createContext<{ byDay: boolean }>({ byDay: false }
 
 /** "14:05" today, "Yesterday", "Mon", then "12 Sep". Personal views only. */
 function when(t: string | number, timeOnly = false) {
-  if (timeOnly) return new Date(t).toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' })
+  if (timeOnly) return new Date(t).toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' })
   const d = new Date(t)
   const now = new Date()
   const day = (x: Date) => new Date(x.getFullYear(), x.getMonth(), x.getDate()).getTime()
   const days = Math.round((day(now) - day(d)) / 86_400_000)
-  if (days <= 0) return d.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' })
+  if (days <= 0) return d.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' })
   if (days === 1) return 'Yesterday'
   if (days < 7) return d.toLocaleDateString(undefined, { weekday: 'short' })
   return d.toLocaleDateString(undefined, { day: 'numeric', month: 'short' })
@@ -481,7 +482,7 @@ function Mark({ category, period, at, submitted, n }: { category: string | null;
         aria-hidden
         data-day={d.getDate()}
         data-mon={d.toLocaleDateString(undefined, { month: 'short' })}
-        data-hm={d.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' })}
+        data-hm={d.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' })}
         data-n={n}
         data-rn={n ? roman(n) : undefined}
       />
@@ -734,7 +735,8 @@ export function LocalThought({ item, moveChoices, showDestination, onRemove }: {
               <div className="mt-2 flex flex-wrap items-center gap-2">
                 <CornerDownRight className="size-4 text-ink-faint" aria-hidden />
                 {others.map((o) => (
-                  <Button key={o.sprintId} size="sm" busy={movingTo === o.sprintId} disabled={!!movingTo} onClick={() => void move(o)}>Send to {o.sprintName} instead</Button>
+                  // A long sprint name wraps inside the button rather than running off a phone's screen.
+                  <Button key={o.sprintId} size="sm" className="h-auto! min-h-9 max-w-full whitespace-normal! rounded-2xl! py-2 text-left" busy={movingTo === o.sprintId} disabled={!!movingTo} onClick={() => void move(o)}>Send to {o.sprintName} instead</Button>
                 ))}
               </div>
             ) : null}
@@ -883,9 +885,13 @@ export function MyThoughts({ sprintId, editable, moveChoices, online, className,
   }, [keysEpoch, load])
   // Something was accepted: show the confirmed list. Keyed on the newest submission, not on how
   // many there were — the list of recent ones stops growing at 20.
+  // The mount's own read covers what was submitted before it: only a newer one reads again.
   const lastSubmitted = local.recentlySubmitted.at(-1)
+  const submittedAt = useRef(lastSubmitted)
   useEffect(() => {
-    if (lastSubmitted) load()
+    if (!lastSubmitted || lastSubmitted === submittedAt.current) return
+    submittedAt.current = lastSubmitted
+    load()
   }, [lastSubmitted, load])
 
   const entryRemoval = useUndoableRemove(
@@ -905,7 +911,9 @@ export function MyThoughts({ sprintId, editable, moveChoices, online, className,
   const count = all.length + mine.length
   const cats = [...new Set(all.map((e) => e.category ?? 'unsorted'))]
   const filtering = count > 8 && cats.length > 1
-  const visible = all.filter((e) => !filter || (e.category ?? 'unsorted') === filter)
+  // A category chosen earlier counts only while the chips to change it are on screen.
+  const active = filtering && filter && cats.includes(filter) ? filter : null
+  const visible = all.filter((e) => !active || (e.category ?? 'unsorted') === active)
   // Each thought's place in the sprint, oldest first: stable whatever is filtered or paged.
   const place = useMemo(() => new Map((entries ?? []).map((e, i, l) => [e.id, l.length - i])), [entries])
   // Tell the page how full the collection is (it shapes the scene); null until it's known.
@@ -938,7 +946,7 @@ export function MyThoughts({ sprintId, editable, moveChoices, online, className,
       {filtering ? (
         <div className="mt-4 mark-indent">
           <Choices
-            value={filter}
+            value={active}
             onChange={(v) => { setFilter(v); setShown(PAGE) }}
             allowNone
             label="Show one category"
@@ -973,6 +981,7 @@ export function MyThoughts({ sprintId, editable, moveChoices, online, className,
           ))}
         </ul>
       ) : null}
+      {active && entries && !visible.length ? <p className="mt-3 text-sm text-ink-soft mark-indent">None of your submitted thoughts are in this category.</p> : null}
       {visible.length > shown ? (
         <div className="mt-2 mark-indent">
           <Button size="sm" variant="ghost" onClick={() => setShown((n) => n + PAGE)}>Show {Math.min(PAGE, visible.length - shown)} more</Button>

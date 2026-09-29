@@ -149,6 +149,10 @@ export function SprintSetup() {
   }, [sprintId, keysEpoch, loadSprint])
 
   const set = <K extends keyof Form>(k: K, v: Form[K]) => setF((p) => ({ ...p, [k]: v }))
+  // This device's zone, or the sprint's, may be spelled in a way the list doesn't carry (UTC,
+  // Asia/Calcutta): it's added, so the select never shows a different zone than the one kept.
+  const zones = useMemo(() => tzOptions(), [])
+  const zoneList = useMemo(() => (zones.includes(f.timezone) ? zones : [...zones, f.timezone].sort()), [zones, f.timezone])
   const issues = problems(f)
   const shown = (k: keyof Form) => (tried ? issues[k] : undefined)
   const invalid = (k: keyof Form) => (shown(k) ? { 'aria-invalid': true, 'aria-describedby': `p-${k}` } : {})
@@ -272,6 +276,9 @@ export function SprintSetup() {
   const everyone = ws.members.every((m) => f.participant_ids.includes(m.account_id) || stays(m.account_id))
   const count = new Set([...f.participant_ids, f.facilitator_id, ...(current ? [current] : [])]).size
   const questionLocked = isLocked(f.opening_question)
+  // Cancel goes back within Muni; opened straight from a link, it goes to the workspace instead.
+  const cancelNew = () => ((window.history.state as { idx?: number } | null)?.idx ?? 0) > 0 ? nav(-1) : nav(`/workspaces/${ws.workspace.id}`, { replace: true })
+  const openNote = 'Opening collection lets everyone in the sprint start writing. Thoughts stay hidden — from you too — until you close it.'
 
   return (
     <AppShell>
@@ -333,7 +340,7 @@ export function SprintSetup() {
             <div className="mt-4">
               <Label htmlFor="f-timezone">Timezone</Label>
               <Select id="f-timezone" value={f.timezone} onChange={(e) => set('timezone', e.target.value)}>
-                {tzOptions().map((t) => (
+                {zoneList.map((t) => (
                   <option key={t} value={t}>{zoneName(t)} ({t})</option>
                 ))}
               </Select>
@@ -423,26 +430,29 @@ export function SprintSetup() {
             </div>
           ) : null}
         </section>
+        {/* On a phone the note sits here, at the end of the form, so the actions below stay small. */}
+        {!existing ? <p className="text-sm text-ink-soft sm:hidden">{openNote}</p> : null}
 
-        <div className="sticky bottom-0 z-10 -mx-4 border-t border-line/70 bg-paper/90 px-4 pb-[max(1rem,env(safe-area-inset-bottom))] pt-4 backdrop-blur sm:static sm:mx-0 sm:border-0 sm:bg-transparent sm:p-0 sm:backdrop-blur-none">
+        <div className="sticky bottom-0 z-10 -mx-4 border-t border-line/70 bg-paper/90 px-4 pb-[max(0.75rem,env(safe-area-inset-bottom))] pt-3 backdrop-blur sm:static sm:mx-0 sm:border-0 sm:bg-transparent sm:p-0 sm:backdrop-blur-none">
           <ErrorText>{error}</ErrorText>
           {tried && Object.keys(issues).length ? <p className="mb-3 text-sm text-danger" role="alert">{Object.keys(issues).length === 1 ? 'One thing needs fixing' : `${Object.keys(issues).length} things need fixing`} — see the highlighted fields.</p> : null}
-          <div className="flex flex-col-reverse gap-2 sm:flex-row sm:items-center">
+          {/* A phone: the main action across the width, then Cancel and "Save as draft" on one row. */}
+          <div className="flex flex-wrap items-center gap-2 sm:flex-nowrap">
             {existing ? (
               <>
                 <Button type="button" variant="ghost" onClick={() => nav(`/sprints/${existing.id}`)}>Cancel</Button>
-                <Button type="submit" variant="primary" size="lg" busy={busy === 'save'} className="sm:ml-auto">Save changes</Button>
+                <Button type="submit" variant="primary" size="lg" busy={busy === 'save'} className="ml-auto max-sm:h-11!">Save changes</Button>
               </>
             ) : (
               <>
-                <Button type="button" variant="ghost" onClick={() => nav(-1)}>Cancel</Button>
+                <Button type="button" variant="ghost" className="order-2 max-sm:h-9! max-sm:px-2! sm:order-none" onClick={cancelNew}>Cancel</Button>
                 <span className="hidden text-sm text-ink-soft sm:ml-auto sm:inline">{count} {count === 1 ? 'person' : 'people'}{preview ? ` · retro ${preview.date}` : ''}</span>
-                <Button type="button" busy={busy === 'draft'} disabled={!!busy} onClick={() => submit('draft')}>Save as draft</Button>
-                <Button type="submit" variant="primary" size="lg" busy={busy === 'open'} disabled={!!busy} data-guide="create-open">Create and open collection</Button>
+                <Button type="button" className="order-3 ml-auto max-sm:h-9! sm:order-none sm:ml-0" busy={busy === 'draft'} disabled={!!busy} onClick={() => submit('draft')}>Save as draft</Button>
+                <Button type="submit" variant="primary" size="lg" className="order-1 w-full max-sm:h-11! sm:order-none sm:w-auto" busy={busy === 'open'} disabled={!!busy} data-guide="create-open">Create and open collection</Button>
               </>
             )}
           </div>
-          {!existing ? <p className="mt-2 text-xs text-ink-soft sm:text-right">Opening collection lets everyone in the sprint start writing. Thoughts stay hidden — from you too — until you close it.</p> : null}
+          {!existing ? <p className="mt-2 hidden text-xs text-ink-soft sm:block sm:text-right">{openNote}</p> : null}
         </div>
       </form>
     </AppShell>

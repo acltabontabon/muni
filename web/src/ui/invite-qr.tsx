@@ -97,6 +97,12 @@ export function InviteQrDialog({ open, onClose, workspaceId, workspaceName, canW
   const [existing, setExisting] = useState<JoinLinkInfo | null>(null)
   const [current, setCurrent] = useState<{ url: string; link: JoinLinkInfo } | null>(null)
   const sprintId = scope === '' ? (scopes[0]?.id ?? null) : scope === 'ws' ? null : scope
+  // Each opening starts from the team QR for a week, whatever was chosen last time.
+  useEffect(() => {
+    if (!open) return
+    setMode('approval')
+    setHours(168)
+  }, [open])
   useEffect(() => {
     if (!open) return
     setError('')
@@ -338,6 +344,7 @@ export function JoinRequests({ workspaceId, sprintId, live = false, onDecided }:
 export function ActiveCodes({ workspaceId, version, onChanged }: { workspaceId: string; version: number; onChanged: () => void }) {
   const [links, setLinks] = useState<JoinLinkInfo[]>([])
   const [error, setError] = useState('')
+  const [busy, setBusy] = useState<string | null>(null)
   useEffect(() => {
     get<JoinLinkInfo[]>(`/api/workspaces/${workspaceId}/join-links`).then(setLinks).catch(() => setLinks([]))
   }, [workspaceId, version])
@@ -356,12 +363,19 @@ export function ActiveCodes({ workspaceId, version, onChanged }: { workspaceId: 
             <Button
               size="sm"
               variant="ghost"
+              busy={busy === l.id}
+              disabled={!!busy && busy !== l.id}
               onClick={async () => {
+                if (busy) return
+                setBusy(l.id)
+                setError('')
                 try {
                   await del(`/api/workspaces/${workspaceId}/join-links/${l.id}`)
                   onChanged()
                 } catch (e) {
                   setError(problem(e, 'turn it off'))
+                } finally {
+                  setBusy(null)
                 }
               }}
             >

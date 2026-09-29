@@ -73,6 +73,8 @@ export function GuideProvider({ children }: { children: ReactNode }) {
   const [later, setLater] = useState<Step[]>(() => readLater(account))
   const [skyOpen, setSkyOpen] = useState(false)
   const [replaying, setReplaying] = useState(false)
+  // Where the sky was opened from: the sky and the prologue replayed from it both hand focus back there.
+  const opener = useRef<HTMLElement | null>(null)
 
   useEffect(() => {
     setLater(readLater(account))
@@ -121,7 +123,18 @@ export function GuideProvider({ children }: { children: ReactNode }) {
   )
 
   const value = useMemo<GuideCtx>(
-    () => ({ stage, setStage, publish, later, snooze, openSky: () => setSkyOpen(true), replay: () => setReplaying(true) }),
+    () => ({
+      stage,
+      setStage,
+      publish,
+      later,
+      snooze,
+      openSky: () => {
+        opener.current = document.activeElement instanceof HTMLElement ? document.activeElement : null
+        setSkyOpen(true)
+      },
+      replay: () => setReplaying(true),
+    }),
     [stage, setStage, publish, later, snooze],
   )
   const demo = !!me?.workspaces.find((w) => page?.page && 'workspaceId' in page.page && w.id === page.page.workspaceId)?.is_demo
@@ -134,7 +147,7 @@ export function GuideProvider({ children }: { children: ReactNode }) {
       {skyOpen || replaying ? (
         <Suspense fallback={null}>
           {skyOpen ? <Sky open onClose={() => setSkyOpen(false)} /> : null}
-          {replaying ? <Replay onDone={() => setReplaying(false)} /> : null}
+          {replaying ? <Replay onDone={() => setReplaying(false)} returnTo={opener.current} /> : null}
         </Suspense>
       ) : null}
     </Ctx.Provider>
@@ -163,6 +176,28 @@ const NARROW = '(max-width: 639px)'
 const reduced = () => typeof window !== 'undefined' && window.matchMedia('(prefers-reduced-motion: reduce)').matches
 
 type Placed = { el: HTMLElement; spot: Spot }
+/** Half the firefly's button: its centre sits this far, and a little more, from anything it mustn't cover. */
+const LIGHT = 22
+
+/**
+ * The light's centre: beyond the control's top-right corner, else beside its top, above or below
+ * its right end, or by its left: the first place where the whole button fits on screen without
+ * touching the control. A control too big for any of them keeps the light on its corner.
+ */
+function outside(r: DOMRect, vw: number, vh: number) {
+  const gap = LIGHT + 4
+  const clampX = (x: number) => Math.min(Math.max(x, LIGHT + 4), vw - LIGHT - 4)
+  const places = [
+    { x: r.right + gap, y: r.top - gap },
+    { x: r.right + gap, y: r.top + LIGHT },
+    { x: clampX(r.right - LIGHT), y: r.top - gap },
+    { x: clampX(r.right - LIGHT), y: r.bottom + gap },
+    { x: r.left - gap, y: r.top + LIGHT },
+  ]
+  const fits = (p: { x: number; y: number }) => p.x - LIGHT >= 0 && p.x + LIGHT <= vw && p.y - LIGHT >= 0 && p.y + LIGHT <= vh
+  const clear = (p: { x: number; y: number }) => p.x + LIGHT <= r.left || p.x - LIGHT >= r.right || p.y + LIGHT <= r.top || p.y - LIGHT >= r.bottom
+  return places.find((p) => fits(p) && clear(p)) ?? { x: r.right - 2, y: r.top + 2 }
+}
 type Geometry = { light: { x: number; y: number }; note: { x: number; y: number; above: boolean } | null; away: boolean; docked: boolean }
 
 function findSpot(spots: Spot[]): Placed | null {
@@ -261,15 +296,16 @@ function FireflyLayer({ firefly }: { firefly: Firefly | null }) {
     }
   }, [placed, shown, noteId])
 
-  // Where the light and the note go. The light sits on the control's corner (inside a text field's);
-  // the note beside the control, below it when there's room, docked at the bottom on a phone.
+  // Where the light and the note go. The light rests just outside the control, by its top-right
+  // corner, so it never covers what it points at or takes its taps; the note beside the control,
+  // below it when there's room, docked at the bottom on a phone.
   const measure = useCallback(() => {
     if (!placed) return setGeo(null)
     const r = placed.el.getBoundingClientRect()
     const vw = window.innerWidth
     const vh = window.innerHeight
     const field = placed.spot === 'writer'
-    const light = field ? { x: r.right - 16, y: r.top + 16 } : { x: r.right - 2, y: r.top + 2 }
+    const light = outside(r, vw, vh)
     const away = r.bottom < 56 || r.top > vh - 24
     // On a phone the note docks at the bottom, unless the control is down there itself.
     const low = r.bottom > vh * 0.62
@@ -280,8 +316,9 @@ function FireflyLayer({ firefly }: { firefly: Firefly | null }) {
       const w = n.offsetWidth
       const h = n.offsetHeight
       const x = Math.min(Math.max(12, field ? r.right - w : r.left + r.width / 2 - w / 2), vw - w - 12)
-      const below = r.bottom + 18
-      const above = r.top - 18 - h
+      // Clear of the light too, where it sits above or below the control.
+      const below = Math.max(r.bottom, light.y + LIGHT) + 18
+      const above = Math.min(r.top, light.y - LIGHT) - 18 - h
       note = below + h <= vh - 12 || above < 64 ? { x, y: below, above: false } : { x, y: above, above: true }
     }
     const next = { light, note, away, docked }

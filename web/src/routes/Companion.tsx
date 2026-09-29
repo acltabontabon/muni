@@ -1,7 +1,7 @@
 import { useCallback, useMemo, useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router'
 import { post } from '@/api/client'
-import type { CheckinView, Experiment, ThemeView, VotingState } from '@/api/types'
+import type { CheckinView, Experiment, ThemeView } from '@/api/types'
 import { PHASE_HINT, PHASE_LABEL } from '@/lib/categories'
 import { readRetroDraft } from '@/lib/retro-drafts'
 import { useStage } from '@/lib/stage'
@@ -100,7 +100,7 @@ function CompanionRoom({ sprintId }: { sprintId: string }) {
   }
   const vote = async (t: ThemeView, cast: boolean) => {
     try {
-      st.putVotes(await post<VotingState>(`/api/sprints/${sprintId}/votes`, { theme_id: t.id, cast }))
+      await st.castVote(t.id, cast)
     } catch (e) {
       toast(e instanceof ApiError ? e.message : 'Couldn’t vote', 'danger')
     }
@@ -145,7 +145,7 @@ function CompanionRoom({ sprintId }: { sprintId: string }) {
         current || topicId === 'ungrouped' ? (
           <section key={topicId}>
             <TopicHorizon topics={talkOrder} current={topicId} discussed={stage.discussed_theme_ids} titleOf={titleOf} compact />
-            <TopicClock stage={stage} />
+            <TopicClock stage={stage} order={talkOrder} />
             <h1 className="retro-title retro-title--phone">{current ? current.title : 'Not in a theme'}</h1>
             {current?.question ? <p className="retro-talk-q retro-talk-q--phone">{current.question}</p> : null}
             {asks.map((c) => <CheckinAsk key={c.id} c={c} sprintId={sprintId} accountId={accountId} paused={paused} onSaved={onSaved} heading={c.theme_id !== topicId ? `Still open, for “${titleOf(c.theme_id)}”` : undefined} />)}
@@ -256,9 +256,14 @@ function Choosing({ themes, round, closed, paused, plan, onVote }: { themes: The
                   <ul className="retro-thoughts">{t.entries.map((e) => <Thought key={e.id} e={e} compact />)}</ul>
                 </details>
                 {round && !single ? (
-                  <button className="retro-vote retro-vote--wide" aria-pressed={!!cast} disabled={paused || (!cast && spent)} onClick={() => onVote(t, !cast)}>
-                    {cast ? 'Voted ✓ · tap to take it back' : spent ? (purse?.size === 1 ? 'Your vote is on another topic — take it back to move it' : 'No votes left — take one back to move it') : 'Vote for this'}
-                  </button>
+                  !cast && spent ? (
+                    // Nothing left to cast: a quiet line, not a row of greyed-out buttons.
+                    <p className="retro-vote-spent">{purse?.size === 1 ? 'Your vote is on another topic.' : 'Your votes are on other topics.'}</p>
+                  ) : (
+                    <button className="retro-vote retro-vote--wide" aria-pressed={!!cast} disabled={paused} onClick={() => onVote(t, !cast)}>
+                      {cast ? 'Voted ✓ · tap to take it back' : 'Vote for this'}
+                    </button>
+                  )
                 ) : null}
               </div>
               {typeof n === 'number' ? <span className="retro-tally-n">{n}</span> : null}
@@ -266,14 +271,15 @@ function Choosing({ themes, round, closed, paused, plan, onVote }: { themes: The
           )
         })}
       </ol>
-      {round && !single ? <p className="retro-aside-line">You can move your {purse?.size === 1 ? 'vote' : 'votes'} until the facilitator moves on. Then the votes are counted, and the talk begins.</p> : null}
+      {round && !single ? <p className="retro-aside-line">To move {purse?.size === 1 ? 'your vote' : 'a vote'}, take {purse?.size === 1 ? 'it' : 'one'} back first. You can until the facilitator moves on; then the votes are counted, and the talk begins.</p> : null}
     </section>
   )
 }
 
-function TopicClock({ stage }: { stage: NonNullable<ReturnType<typeof useStage>['stage']> }) {
-  const remaining = useCountdown(stage.timer.ends_at ?? null, stage.timer.remaining_secs, stage.server_time)
-  const pos = stage.current_theme_id ? stage.agenda.findIndex((a) => a.theme_id === stage.current_theme_id) : -1
+/** The topic's number in the talk's order (the same as the stage's and the horizon's), and its clock. */
+function TopicClock({ stage, order }: { stage: NonNullable<ReturnType<typeof useStage>['stage']>; order: string[] }) {
+  const remaining = useCountdown(stage.timer.ends_at ?? null, stage.timer.remaining_secs)
+  const pos = stage.current_theme_id ? order.indexOf(stage.current_theme_id) : -1
   return (
     <p className="retro-kicker retro-kicker--phone">
       {pos >= 0 ? <span>Topic {pos + 1}</span> : null}

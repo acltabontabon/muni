@@ -2,7 +2,7 @@ import { clsx } from 'clsx'
 import * as DialogPrimitive from '@radix-ui/react-dialog'
 import * as SwitchPrimitive from '@radix-ui/react-switch'
 import * as RadioGroup from '@radix-ui/react-radio-group'
-import { X } from 'lucide-react'
+import { ChevronDown, X } from 'lucide-react'
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ButtonHTMLAttributes, type InputHTMLAttributes, type ReactNode, type Ref, type TextareaHTMLAttributes } from 'react'
 
 // ---------- Button ----------
@@ -49,10 +49,14 @@ export function Textarea({ className, ref, ...rest }: TextareaHTMLAttributes<HTM
   return <textarea ref={ref} className={clsx(inputClass, 'resize-y min-h-24', className)} {...rest} />
 }
 export function Select({ className, children, ...rest }: React.SelectHTMLAttributes<HTMLSelectElement>) {
+  // The chevron is drawn in the text's own colour, so it follows the theme.
   return (
-    <select className={clsx(inputClass, 'appearance-none pr-9 bg-[url("data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 width=%2716%27 height=%2716%27 viewBox=%270 0 24 24%27 fill=%27none%27 stroke=%27%23615b54%27 stroke-width=%272%27%3E%3Cpath d=%27m6 9 6 6 6-6%27/%3E%3C/svg%3E")] bg-no-repeat bg-[right_12px_center]', className)} {...rest}>
-      {children}
-    </select>
+    <span className="relative block">
+      <select className={clsx(inputClass, 'appearance-none pr-9', className)} {...rest}>
+        {children}
+      </select>
+      <ChevronDown className="pointer-events-none absolute right-3 top-1/2 size-4 -translate-y-1/2 text-ink-soft" strokeWidth={2} aria-hidden />
+    </span>
   )
 }
 
@@ -134,8 +138,8 @@ export function Dialog({ open, onOpenChange, title, description, children, wide,
         <DialogPrimitive.Overlay className="fixed inset-0 z-40 bg-ink/40 anim-fade backdrop-blur-[2px]" />
         <DialogPrimitive.Content onOpenAutoFocus={onOpenAutoFocus} onCloseAutoFocus={onCloseAutoFocus} className={clsx('fixed left-1/2 top-1/2 z-50 w-[calc(100vw-32px)] -translate-x-1/2 -translate-y-1/2 rounded-2xl bg-card p-6 shadow-[var(--shadow-float)] border border-line anim-settle max-h-[calc(100dvh-32px)] overflow-y-auto', size === 'xl' ? 'max-w-5xl max-sm:p-4' : wide ? 'max-w-2xl' : 'max-w-md')}>
           <div className="flex items-start justify-between gap-4">
-            <DialogPrimitive.Title className="font-display text-xl leading-tight">{title}</DialogPrimitive.Title>
-            <DialogPrimitive.Close className="rounded-full p-1.5 text-ink-soft hover:bg-ink/6" aria-label="Close">
+            <DialogPrimitive.Title className="min-w-0 font-display text-xl leading-tight [overflow-wrap:anywhere]">{title}</DialogPrimitive.Title>
+            <DialogPrimitive.Close className="shrink-0 rounded-full p-1.5 text-ink-soft hover:bg-ink/6" aria-label="Close">
               <X className="size-5" />
             </DialogPrimitive.Close>
           </div>
@@ -156,14 +160,16 @@ export function ToastProvider({ children }: { children: ReactNode }) {
   const push = useCallback((text: string, tone: Toast['tone'] = 'ok') => {
     const id = ++idRef.current
     setToasts((t) => [...t, { id, text, tone }])
-    window.setTimeout(() => setToasts((t) => t.filter((x) => x.id !== id)), tone === 'danger' ? 7000 : 3200)
+    // Long enough to read: a longer line stays longer.
+    window.setTimeout(() => setToasts((t) => t.filter((x) => x.id !== id)), Math.max(tone === 'danger' ? 7000 : 3200, text.length * 60))
   }, [])
   return (
     <ToastCtx.Provider value={push}>
       {children}
-      <div className="pointer-events-none fixed inset-x-0 bottom-4 z-[60] flex flex-col items-center gap-2 px-4" aria-live="polite">
+      {/* Above the home indicator, and above an update notice when one is showing (it sets --update-notice). */}
+      <div className="pointer-events-none fixed inset-x-0 bottom-[calc(max(16px,env(safe-area-inset-bottom))+var(--update-notice,0px))] z-[60] flex flex-col items-center gap-2 px-4" aria-live="polite">
         {toasts.map((t) => (
-          <div key={t.id} className={clsx('pointer-events-auto anim-rise rounded-full px-4 py-2 text-sm shadow-[var(--shadow-float)] border', t.tone === 'danger' ? 'bg-card border-danger/40 text-danger' : 'bg-ink text-paper border-transparent')}>
+          <div key={t.id} className={clsx('pointer-events-auto anim-rise max-w-md rounded-2xl px-4 py-2 text-sm shadow-[var(--shadow-float)] border', t.tone === 'danger' ? 'bg-card border-danger/40 text-danger' : 'bg-ink text-paper border-transparent')}>
             {t.text}
           </div>
         ))}
@@ -204,7 +210,7 @@ export function useDocumentTitle(title: string) {
   }, [title])
 }
 
-export function useCountdown(endsAt: string | null | undefined, remainingSecs: number, serverTime: string | undefined) {
+export function useCountdown(endsAt: string | null | undefined, remainingSecs: number, serverTime?: string) {
   // Derive the clock from the server's instant, corrected by the skew observed at snapshot time.
   const skew = useMemo(() => (serverTime ? Date.parse(serverTime) - Date.now() : 0), [serverTime])
   const [now, setNow] = useState(Date.now())
@@ -233,7 +239,7 @@ export function useCountdown(endsAt: string | null | undefined, remainingSecs: n
  * timer for the whole time left, not one a second. Zero means what useCountdown shows as 0:00 (under
  * half a second left), so both change together.
  */
-export function useTimeUp(endsAt: string | null | undefined, remainingSecs: number, serverTime: string | undefined) {
+export function useTimeUp(endsAt: string | null | undefined, remainingSecs: number, serverTime?: string) {
   const skew = useMemo(() => (serverTime ? Date.parse(serverTime) - Date.now() : 0), [serverTime])
   const left = () => (endsAt ? Date.parse(endsAt) - (Date.now() + skew) : remainingSecs * 1000)
   const [up, setUp] = useState(() => left() < 500)

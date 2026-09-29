@@ -53,7 +53,7 @@ export interface RoomState {
 }
 
 export type Command =
-  | { type: 'set_phase'; phase: string; agenda?: AgendaItem[]; topic?: string | null }
+  | { type: 'set_phase'; phase: string; agenda?: AgendaItem[]; topic?: string | null; reorder?: boolean }
   | { type: 'set_topic'; theme_id: string | null }
   | { type: 'set_agenda'; items: AgendaItem[] }
   | { type: 'set_plan'; plan: Record<string, number> }
@@ -426,8 +426,9 @@ export class MeetingRoom implements DurableObject {
         const was = m.phase
         m.phase = cmd.phase as Phase
         // Only the talk keeps a clock. The first arrival there sets the agenda and opens its first
-        // topic (when one is given); coming back to a topic in hand brings back its clock, paused.
-        if (m.phase === 'talk' && !m.current_theme_id) {
+        // topic (when one is given), as does a new vote (`reorder`); coming back to a topic in hand
+        // brings back its clock, paused.
+        if (m.phase === 'talk' && (!m.current_theme_id || cmd.reorder)) {
           if (Array.isArray(cmd.agenda)) m.agenda = cmd.agenda.slice(0, 40).map((i) => ({ theme_id: String(i.theme_id), reason: null }))
           if (cmd.topic !== undefined) openTopic(cmd.topic)
         } else if (m.phase === 'talk' && was !== 'talk') {

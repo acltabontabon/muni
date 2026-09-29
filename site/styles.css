@@ -565,8 +565,36 @@ em { font-family: var(--font-serif); font-style: italic; font-weight: 400; font-
 .stage-phases { display: flex; gap: 2px; margin: 0 auto; padding: 0; list-style: none; }
 .stage-phases li { padding: 4px 10px; border-radius: 999px; font-size: 12px; color: var(--faint); }
 .stage-phases li.on { background: var(--accent-soft); color: var(--accent-ink); font-weight: 500; }
-.stage-timer { font-family: var(--font-mono); font-size: 13px; color: var(--faint); font-variant-numeric: tabular-nums; }
-.stage-body { padding: clamp(24px, 4vw, 48px) clamp(20px, 4vw, 56px) 28px; }
+.stage-here { display: inline-flex; align-items: center; gap: 8px; white-space: nowrap; }
+.stage-here i { width: 7px; height: 7px; border-radius: 50%; background: var(--c-keep); box-shadow: 0 0 0 3px color-mix(in srgb, var(--c-keep) 22%, transparent); }
+.stage-body { display: grid; grid-template-columns: minmax(0, 1fr) 17.5rem; gap: clamp(28px, 3.6vw, 52px); padding: clamp(24px, 4vw, 48px) clamp(20px, 4vw, 56px) 28px; }
+
+/* The facilitator's margin: the clock, the notes, one line to ask the room; and, docked in the
+   corner, the cue — on their own screen only. */
+.stage-margin { display: flex; flex-direction: column; gap: 20px; padding-left: clamp(20px, 2.4vw, 30px); border-left: 1px solid var(--line); }
+.sm-clock { display: flex; align-items: baseline; gap: 10px; }
+.sm-clock b { font-family: var(--font-mono); font-size: 1.9rem; font-weight: 500; letter-spacing: -0.03em; font-variant-numeric: tabular-nums; }
+.sm-clock span { font-family: var(--font-serif); font-style: italic; color: var(--faint); }
+.sm-block { display: grid; gap: 7px; padding-top: 14px; border-top: 1px solid var(--line); }
+.sm-label { font-family: var(--font-mono); font-size: 10.5px; letter-spacing: 0.14em; text-transform: uppercase; color: var(--faint); }
+.sm-label:not(:first-child) { margin-top: 8px; }
+.sm-field { padding: 8px 10px; border-radius: 9px; border: 1px dashed var(--line-strong); font-size: 13px; line-height: 1.4; color: var(--faint); }
+.sm-ask { display: grid; font-size: 13.5px; color: var(--soft); }
+.sm-ask > * { grid-area: 1 / 1; }
+.sm-ask u { color: var(--ink); text-decoration-color: var(--accent); text-underline-offset: 3px; }
+.stage-cue { display: grid; gap: 6px; margin-top: auto; padding: 12px 14px 14px 16px; border-radius: 14px; background: color-mix(in srgb, var(--surface-2) 80%, var(--bg-2)); box-shadow: 0 0 0 1px var(--line-strong), inset 3px 0 0 var(--accent), 0 22px 44px -24px rgb(0 0 0 / 0.7); }
+.cue-k { font-size: 10.5px; font-weight: 650; letter-spacing: 0.14em; text-transform: uppercase; color: var(--accent-ink); }
+.cue-k span { display: block; font-family: var(--font-serif); font-size: 12.5px; font-style: italic; font-weight: 400; letter-spacing: 0; text-transform: none; color: var(--faint); }
+.cue-bodies { display: grid; }
+.cue-bodies > * { grid-area: 1 / 1; display: grid; gap: 6px; align-content: start; }
+.cue-say { font-family: var(--font-serif); font-style: italic; font-size: 1.06rem; line-height: 1.38; color: var(--ink); text-wrap: pretty; }
+.cue-hint { font-size: 12.5px; line-height: 1.5; color: var(--soft); text-wrap: pretty; }
+.cue-act { justify-self: start; margin-top: 4px; padding: 7px 14px; border-radius: 999px; background: var(--ink); color: var(--bg); font-size: 13px; font-weight: 600; }
+@media (max-width: 900px) {
+  .stage-body { grid-template-columns: minmax(0, 1fr); }
+  .stage-margin { padding: 20px 0 0; border-left: 0; border-top: 1px solid var(--line); }
+  .stage-cue { margin-top: 0; }
+}
 .stage-kicker { font-family: var(--font-mono); font-size: 11px; letter-spacing: 0.14em; text-transform: uppercase; color: var(--accent); }
 .stage-title { font-size: clamp(1.7rem, 3.2vw, 2.6rem); font-weight: 600; letter-spacing: -0.035em; margin-top: 8px; }
 .stage-question { color: var(--soft); margin-top: 6px; font-size: clamp(0.98rem, 1.3vw, 1.12rem); max-width: 60ch; }
@@ -589,7 +617,7 @@ kbd { font-family: var(--font-mono); font-size: 11px; padding: 1px 6px; border-r
 @media (max-width: 760px) {
   .stage { transform: none !important; border-radius: 14px; }
   .stage-phases { display: none; }
-  .stage-timer { margin-left: auto; }
+  .stage-here { margin-left: auto; }
 }
 
 /* ── Decide ───────────────────────────────────────────────────────── */
@@ -838,13 +866,18 @@ kbd { font-family: var(--font-mono); font-size: 11px; padding: 1px 6px; border-r
 
 /* The stage: a check-in, asked and then shared, and the thoughts as they were written. */
 .stage-phases li i { margin-right: 3px; font-family: var(--font-serif); font-style: italic; color: var(--accent); }
-.moment { display: grid; margin-top: 22px; min-height: 176px; }
-.moment > * { grid-area: 1 / 1; align-self: start; transition: opacity 500ms var(--ease), transform 600ms var(--ease); }
-.moment[data-moment='asked'] .moment-shared, .moment[data-moment='shared'] .moment-asked { opacity: 0; transform: translateY(6px); }
-.moment-asked { font-size: 15px; color: var(--soft); }
+/* The talk, as the app lays it out: the thoughts first, then what the room said. A check-in is
+   asked (a line above the thoughts), then shared (below them); both keep their place, so the page
+   never jumps while it turns. The margin and the cue turn with it. */
+.moment-asked, .moment-shared, .when-asked, .when-shared { transition: opacity 500ms var(--ease), transform 600ms var(--ease), visibility 0s linear 0s; }
+.stage[data-moment='asked'] :is(.moment-shared, .when-shared),
+.stage[data-moment='shared'] :is(.moment-asked, .when-asked) { opacity: 0; visibility: hidden; transform: translateY(6px); transition-delay: 0s, 0s, 500ms; }
+.moment-asked { margin-top: 18px; min-height: 28px; font-size: 15px; color: var(--soft); }
 .moment-asked em { font-family: var(--font-serif); font-size: 1.15em; color: var(--ink); }
 .moment-pill { display: inline-block; margin-right: 10px; padding: 3px 10px; border-radius: 999px; background: var(--accent-soft); color: var(--accent-ink); font-size: 12px; font-weight: 600; }
-.moment-shared { padding-top: 14px; border-top: 1px solid var(--accent); }
+.moment-shared { margin-top: 26px; padding-top: 12px; border-top: 1px solid var(--accent); }
+.said-title { margin-bottom: 10px; font-size: 14px; font-weight: 600; letter-spacing: -0.01em; }
+.said-title span { margin-left: 6px; font-family: var(--font-serif); font-style: italic; font-weight: 400; color: var(--faint); }
 .moment-label { font-family: var(--font-mono); font-size: 11px; letter-spacing: 0.14em; text-transform: uppercase; color: var(--accent); }
 .moment-tally { margin-top: 6px; font-size: clamp(1.1rem, 2vw, 1.55rem); font-weight: 600; letter-spacing: -0.02em; }
 .moment-tally i { margin: 0 8px; font-style: normal; font-weight: 400; color: var(--faint); }
@@ -853,12 +886,11 @@ kbd { font-family: var(--font-mono); font-size: 11px; padding: 1px 6px; border-r
 .moment-lines li { display: grid; grid-template-columns: 8.5rem minmax(0, 1fr); gap: 14px; padding: 8px 0; border-top: 1px solid var(--line); font-size: 15px; line-height: 1.45; }
 .moment-lines li:first-child { border-top: 0; }
 .moment-lines span { font-family: var(--font-serif); font-style: italic; font-size: 14px; text-align: right; color: var(--faint); }
-.obs-list { list-style: none; padding: 0; margin: 22px 0 0; columns: 2 280px; column-gap: 36px; }
+.obs-list { list-style: none; padding: 0; margin: 14px 0 0; columns: 2 260px; column-gap: 32px; }
 .obs-list li { display: grid; grid-template-columns: 4.6rem minmax(0, 1fr); gap: 12px; padding: 10px 0; border-top: 1px solid var(--line); break-inside: avoid; font-size: 15px; line-height: 1.5; }
 .obs-list .cat { display: block; margin: 0; padding-top: 1px; font-family: var(--font-serif); font-style: italic; font-size: 14px; text-align: right; color: var(--c); }
 .obs-list .cat::before { display: none; }
 @media (max-width: 760px) {
-  .moment { min-height: 230px; }
   .moment-lines li, .obs-list li { grid-template-columns: minmax(0, 1fr); gap: 2px; }
   .moment-lines span, .obs-list .cat { text-align: left; }
 }
@@ -934,7 +966,7 @@ kbd { font-family: var(--font-mono); font-size: 11px; padding: 1px 6px; border-r
 .ds-bar li i { margin-right: 4px; }
 .ds-bar li.on { color: var(--s-ink); background: #2b2622; }
 .ds-faces { display: inline-flex; align-items: center; }
-.ds-faces b { margin-left: 6px; color: var(--s-ink); font-weight: 600; }
+.ds-faces b { margin-left: 6px; color: var(--s-ink); font-weight: 600; white-space: nowrap; }
 .f { display: inline-grid; place-items: center; width: 20px; height: 20px; margin-left: -4px; border-radius: 50%; font-family: var(--font-serif); font-size: 8.5px; font-style: italic; color: var(--s-faint, #8b8073); background: var(--s-bg, #fff); box-shadow: 0 0 0 1.5px var(--s-bg, #fff), inset 0 0 0 1px var(--s-line, #ddd); }
 .f.on { color: #1d1b18; background: var(--h); box-shadow: 0 0 0 1.5px var(--s-bg, #fff), 0 0 10px -2px var(--h); }
 .ds-arrive { position: absolute; top: 52px; right: calc(2.5rem + 16px); display: inline-flex; align-items: center; gap: 8px; padding: 5px 12px 5px 5px; border-radius: 999px; font-family: var(--font-serif); font-style: italic; background: #1d1e24; box-shadow: 0 0 0 1px var(--s-line), 0 14px 30px -14px #000; }
@@ -942,14 +974,14 @@ kbd { font-family: var(--font-mono); font-size: 11px; padding: 1px 6px; border-r
 .ds-kicker { font-family: var(--font-mono); font-size: 10px; letter-spacing: 0.14em; text-transform: uppercase; color: var(--s-faint); }
 .ds-title { margin-top: 8px; font-size: clamp(1.4rem, 2.4vw, 1.9rem); font-weight: 600; line-height: 1.08; letter-spacing: -0.035em; }
 .ds-title em, .dp-title em { font-family: var(--font-serif); font-style: italic; font-weight: 400; color: var(--s-acc); }
-.ds-sub { margin-top: 8px; max-width: 34ch; color: var(--s-soft); line-height: 1.5; }
+.ds-sub { margin-top: 8px; max-width: 52ch; color: var(--s-soft); line-height: 1.5; }
 .ds-exp { margin-top: 18px; padding-top: 14px; border-top: 1px solid var(--s-ink); font-size: 1.05rem; font-weight: 600; letter-spacing: -0.02em; }
 .ds-verdicts { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 12px; }
 .ds-verdicts span { padding: 5px 11px; border: 1px solid #3a3a42; border-radius: 999px; font-size: 11.5px; color: var(--s-soft); }
 .ds-verdicts span.on { border-color: var(--s-acc); color: var(--s-ink); background: rgb(227 164 124 / 0.18); }
 .ds-two { display: grid; grid-template-columns: minmax(0, 1fr) 8.5rem; gap: 22px; margin-top: 16px; }
 .ds-topics { margin: 0; padding: 0; list-style: none; }
-.ds-topics li { padding: 8px 0; border-top: 1px solid #34343c; font-weight: 600; letter-spacing: -0.01em; }
+.ds-topics li { padding: 6px 0; border-top: 1px solid #34343c; font-weight: 600; letter-spacing: -0.01em; }
 .ds-topics li:first-child { border-top-color: var(--s-ink); }
 .ds-topics i { margin-right: 10px; font-weight: 400; }
 .ds-count { display: grid; gap: 4px; padding-top: 8px; border-top: 1px solid var(--s-acc); }
@@ -959,13 +991,32 @@ kbd { font-family: var(--font-mono); font-size: 11px; padding: 1px 6px; border-r
 .ds-dots { display: flex; gap: 4px; }
 .ds-dots i { width: 7px; height: 7px; border-radius: 50%; box-shadow: inset 0 0 0 1px #4a4a52; }
 .ds-dots i.on { background: var(--s-acc); box-shadow: none; }
-.ds-horizon { position: relative; display: grid; grid-template-columns: repeat(3, 1fr); margin: 0 0 18px; padding-top: 16px; font-size: 11px; color: var(--s-faint); text-align: center; }
-.ds-horizon::before { content: ''; position: absolute; top: 5px; left: 16.6%; right: 16.6%; border-top: 1px solid #3a3a42; }
+.ds-horizon { position: relative; display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 6px; margin: 0 0 16px; padding-top: 16px; font-size: 11px; line-height: 1.3; color: var(--s-faint); text-align: center; }
+.ds-horizon::before { content: ''; position: absolute; top: 5px; left: 12.5%; right: 12.5%; border-top: 1px solid #3a3a42; }
 .ds-horizon span { position: relative; }
+.ds-horizon b { font-weight: inherit; }
 .ds-horizon span::before { content: ''; position: absolute; top: -14px; left: 50%; width: 7px; height: 7px; margin-left: -3.5px; border-radius: 50%; background: var(--s-bg); box-shadow: inset 0 0 0 1.5px #4a4a52; }
 .ds-horizon span.now { color: var(--s-ink); font-weight: 600; }
 .ds-horizon span.now::before { top: -18px; width: 15px; height: 15px; margin-left: -7.5px; background: radial-gradient(circle at 50% 42%, #f6d6bd, var(--s-acc) 72%); box-shadow: 0 0 0 5px rgb(227 164 124 / 0.16), 0 0 22px 6px rgb(227 164 124 / 0.4); }
-.ds-label { margin-top: 16px; padding-top: 12px; border-top: 1px solid var(--s-acc); font-size: 9.5px; font-weight: 600; letter-spacing: 0.14em; text-transform: uppercase; color: var(--s-acc); }
+.ds-label { margin-top: 14px; padding-top: 10px; border-top: 1px solid var(--s-acc); font-size: 9.5px; font-weight: 600; letter-spacing: 0.14em; text-transform: uppercase; color: var(--s-acc); }
+.ds-label small { margin-left: 6px; font-family: var(--font-serif); font-size: 11.5px; font-style: italic; font-weight: 400; letter-spacing: 0; text-transform: none; color: var(--s-faint); }
+/* The topic's thoughts come first, as written; what the room said follows. */
+.ds-thoughts { margin: 12px 0 0; padding: 0; list-style: none; }
+.ds-thoughts li { display: grid; grid-template-columns: 3.8rem minmax(0, 1fr); gap: 10px; padding: 6px 0; border-top: 1px solid var(--s-line); line-height: 1.45; }
+.ds-thoughts span { font-family: var(--font-serif); font-style: italic; text-align: right; color: #86b6ff; }
+.ds-thoughts li + li span { color: #c7a6ff; }
+/* The facilitator's cue, docked in the stage's corner: only on their own screen. */
+.ds { display: flex; flex-direction: column; }
+.ds > * { flex: none; }
+.ds :has(+ .ds-cue) { margin-bottom: 14px; }
+.ds-cue { align-self: flex-end; display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: end; gap: 3px 16px; width: min(30rem, 100%); margin-top: auto; padding: 9px 12px 10px 14px; border-radius: 12px; background: #1c1d23; box-shadow: 0 0 0 1px #33333b, inset 3px 0 0 var(--s-acc), 0 18px 34px -18px #000; }
+.ds-cue-k { grid-column: 1 / -1; font-size: 9px; font-weight: 650; letter-spacing: 0.14em; text-transform: uppercase; color: var(--s-acc); }
+.ds-cue-k span { margin-left: 6px; font-family: var(--font-serif); font-size: 11px; font-style: italic; font-weight: 400; letter-spacing: 0; text-transform: none; color: var(--s-faint); }
+.ds-cue-say { font-family: var(--font-serif); font-size: 13.5px; font-style: italic; line-height: 1.35; color: var(--s-ink); }
+.ds-cue-do { grid-area: 2 / 2; }
+.ds-cue-do span { display: inline-block; white-space: nowrap; padding: 4px 11px; border-radius: 999px; font-size: 11px; font-weight: 600; }
+.ds-cue-do .act { color: var(--s-bg); background: var(--s-ink); }
+.ds-cue-do .alt { font-weight: 500; color: var(--s-ink); box-shadow: inset 0 0 0 1px #4a4a52; }
 .ds-tally { margin-top: 6px; font-size: 1.15rem; font-weight: 600; letter-spacing: -0.02em; }
 .ds-tally i { margin: 0 6px; font-style: normal; color: var(--s-faint); }
 .ds-line { display: grid; grid-template-columns: 5.5rem 1fr; gap: 10px; margin-top: 10px; color: var(--s-ink); }
@@ -1024,6 +1075,9 @@ kbd { font-family: var(--font-mono); font-size: 11px; padding: 1px 6px; border-r
   .dp { width: min(15rem, 100%); margin: 0 auto 8px; }
   .ds-bar ol, .ds-arrive { display: none; }
   .ds-two { grid-template-columns: minmax(0, 1fr); }
+  .ds-horizon b { display: none; }
+  .ds-cue { grid-template-columns: minmax(0, 1fr); width: 100%; }
+  .ds-cue-do { grid-area: auto; margin-top: 4px; }
 }
 @media (prefers-reduced-motion: reduce) {
   .duo-panel:not([hidden]) .duo-screens > * { animation: none; }
@@ -1052,3 +1106,64 @@ kbd { font-family: var(--font-mono); font-size: 11px; padding: 1px 6px; border-r
 .dp-faces .f { width: 24px; height: 24px; box-shadow: 0 0 0 1.5px var(--p-bg); }
 .dp-letter { padding: 10px 12px; border-radius: 12px; background: #fbf8f2; box-shadow: 0 0 0 1px var(--p-line); color: var(--p-soft); }
 .dp-letter b { display: block; margin-bottom: 2px; color: var(--p-ink); font-weight: 600; }
+
+/* ── The first evening: a newcomer's guide, as the app draws it ─────────────────
+   Stars light as the first sprint goes by, a firefly settles on the one real control to use next
+   with a note beside it, and the seven stars close as Muni's mark. It plays once, in view. */
+.evening { position: relative; padding: clamp(90px, 13vh, 160px) 0; }
+.evening .display { max-width: 15ch; font-size: clamp(2.5rem, 5.2vw, 4.6rem); }
+.evening .lede { margin-top: 24px; }
+.evening .quiet-points i { font-family: var(--font-serif); color: var(--ink); }
+.evening-art { position: relative; justify-self: center; display: grid; gap: 14px; width: min(440px, 100%); }
+
+.ev-sky { padding: 14px 16px 12px; border-radius: 18px; color: #d8d3f2; background: radial-gradient(90% 70% at 50% 110%, rgb(232 192 122 / 0.16), transparent 70%), linear-gradient(180deg, #0c0b19, #19152f); box-shadow: 0 0 0 1px var(--line-strong), var(--shadow); }
+.ev-sky svg { width: 100%; height: auto; overflow: visible; }
+.ev-trail { fill: none; stroke: rgb(232 192 122 / 0.28); stroke-width: 0.8; stroke-dasharray: 2 4; }
+.ev-star circle { fill: #0f0e20; stroke: #5f5b80; stroke-width: 1; transition: fill 600ms var(--ease), stroke 600ms var(--ease), filter 600ms var(--ease); transition-delay: calc(400ms + var(--i) * 380ms); }
+.evening-art.in .ev-star.lit circle { fill: #e8c07a; stroke: rgb(232 192 122 / 0.5); filter: drop-shadow(0 0 4px rgb(232 192 122 / 0.85)); }
+.evening-art.in .ev-star.next circle { stroke: var(--accent); stroke-width: 1.4; }
+.ev-count { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 10px; margin-top: 8px; font-family: var(--font-mono); font-size: 11px; letter-spacing: 0.12em; text-transform: uppercase; color: #9e98c4; }
+.ev-count b { font-weight: 500; color: #e8c07a; }
+.ev-count span { font-family: var(--font-serif); font-size: 13px; font-style: italic; letter-spacing: 0; text-transform: none; color: #c9c3e6; }
+
+/* The sprint's page, on the app's paper. */
+.ev-page { --e-ink: #1d1b18; --e-soft: #6a6156; --e-line: #ddd3c5; --e-acc: #a4452a; --e-light: #c0572f;
+  padding: 18px 18px 16px; border-radius: 18px; color: var(--e-ink); background: #f4efe6; box-shadow: 0 0 0 1px rgb(29 27 24 / 0.08), 0 40px 80px -40px rgb(0 0 0 / 0.6); font-size: 13px; }
+.ev-crumb { font-size: 11.5px; color: var(--e-soft); }
+.ev-crumb span { margin: 0 4px; }
+.ev-title { margin-top: 4px; font-size: 1.45rem; font-weight: 600; letter-spacing: -0.03em; }
+.ev-meta { margin-top: 2px; color: var(--e-soft); }
+.ev-row { display: flex; align-items: center; gap: 16px; margin-top: 16px; }
+.ev-btn { position: relative; padding: 9px 16px; border-radius: 999px; font-weight: 600; color: #f4efe6; background: var(--e-ink); }
+.ev-quiet { color: var(--e-soft); text-decoration: underline; text-decoration-color: var(--e-line); text-underline-offset: 3px; }
+/* The firefly: across (ease-out) and down (ease-in) on separate elements, so it arcs as it settles. */
+.ev-fly { position: absolute; right: -15px; top: -15px; width: 30px; height: 30px; opacity: 0; transform: translateX(-190px); transition: transform 1.7s cubic-bezier(0.2, 0.7, 0.3, 1) 1.6s, opacity 500ms var(--ease) 1.6s; }
+.ev-fly i { position: absolute; inset: 0; border-radius: 50%; background: radial-gradient(circle, rgb(192 87 47 / 0.45), rgb(192 87 47 / 0.14) 45%, transparent 70%); transform: translateY(-120px); transition: transform 1.7s cubic-bezier(0.55, 0, 0.7, 0.4) 1.6s; }
+.ev-fly i::after { content: ''; position: absolute; left: 50%; top: 50%; width: 9px; height: 9px; margin: -4.5px 0 0 -4.5px; border-radius: 50%; background: var(--e-light); box-shadow: 0 0 0 2px rgb(244 239 230 / 0.9), 0 0 10px 2px rgb(192 87 47 / 0.6); }
+.evening-art.in .ev-fly { opacity: 1; transform: none; }
+.evening-art.in .ev-fly i { transform: none; animation: ev-breathe 2.4s ease-in-out 3.6s 1; }
+@keyframes ev-breathe { 50% { scale: 1.35; } }
+.ev-note { position: relative; margin-top: 16px; padding: 12px 14px 8px 16px; border-radius: 14px; background: #fbf8f2; box-shadow: 0 0 0 1px var(--e-line), 0 18px 30px -18px rgb(40 24 10 / 0.35); opacity: 0; transform: translateY(8px); transition: opacity 600ms var(--ease) 3.2s, transform 700ms var(--ease) 3.2s; }
+.ev-note::before { content: ''; position: absolute; left: 44px; top: -6px; width: 11px; height: 11px; background: #fbf8f2; box-shadow: -1px -1px 0 0 var(--e-line); transform: rotate(45deg); }
+.evening-art.in .ev-note { opacity: 1; transform: none; }
+.ev-note-k { display: flex; align-items: center; gap: 7px; font-size: 10px; font-weight: 650; letter-spacing: 0.12em; text-transform: uppercase; color: var(--e-acc); }
+.ev-note-k::before { content: ''; width: 5px; height: 5px; border-radius: 50%; background: var(--e-light); box-shadow: 0 0 6px var(--e-light); }
+.ev-note-line { margin-top: 5px; font-family: var(--font-serif); font-size: 1.18rem; font-style: italic; line-height: 1.25; letter-spacing: -0.01em; }
+.ev-note-text { margin-top: 4px; line-height: 1.5; color: var(--e-soft); }
+.ev-note-acts { display: flex; flex-wrap: wrap; gap: 2px 14px; margin-top: 8px; font-size: 12px; color: var(--e-soft); }
+.ev-note-acts span { text-decoration: underline; text-decoration-color: var(--e-line); text-underline-offset: 3px; }
+.ev-note-acts .hide { margin-left: auto; color: #8b8073; }
+
+/* The evening closes: seven stars gather onto the mark. */
+.ev-close { display: flex; align-items: center; gap: 16px; padding: 4px 4px 0; }
+.ev-close svg { flex: none; width: 84px; height: auto; overflow: visible; }
+.ev-close circle { fill: #e8c07a; opacity: 0.45; transform: translate(var(--x), var(--y)); transition: transform 1.5s var(--ease), opacity 1.5s var(--ease); transition-delay: calc(4.4s + var(--i) * 90ms); }
+.ev-close circle.dot { fill: var(--accent); }
+.evening-art.in .ev-close circle { opacity: 1; transform: none; }
+.ev-mark path { fill: none; stroke: #e8c07a; stroke-width: 1.4; stroke-linecap: round; stroke-dasharray: 52; stroke-dashoffset: 52; opacity: 0.55; transition: stroke-dashoffset 1.6s var(--ease) 5.6s; }
+.evening-art.in .ev-mark path { stroke-dashoffset: 0; }
+.ev-close p { font-family: var(--font-serif); font-size: 1rem; font-style: italic; line-height: 1.45; color: var(--soft); text-wrap: pretty; }
+@media (max-width: 420px) {
+  .ev-page { padding: 16px 14px 14px; }
+  .ev-note-acts .hide { margin-left: 0; }
+}

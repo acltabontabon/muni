@@ -128,7 +128,7 @@ function RecapHead({ s, meeting, topics, experiments }: { s: SprintDetail; meeti
   return (
     <header className="recap-head">
       <p className="recap-kicker">The retro{meeting ? <> · {longDate(meeting.started_at)}{meeting.ended_at ? <> · {((m) => `${m} ${m === 1 ? 'minute' : 'minutes'}`)(minutesBetween(meeting.started_at, meeting.ended_at))}</> : null}</> : null}</p>
-      <h2 className="recap-title">{meeting ? <>{here.length} {here.length === 1 ? 'person' : 'people'} came. <em>Here’s what came of it.</em></> : <>Here’s what came of <em>the sprint</em>.</>}</h2>
+      <h2 className="recap-title">{meeting && here.length ? <>{here.length} {here.length === 1 ? 'person' : 'people'} came. <em>Here’s what came of it.</em></> : meeting ? <>Here’s what came of <em>the retro</em>.</> : <>Here’s what came of <em>the sprint</em>.</>}</h2>
       <ul className="recap-people" aria-label="Who was there">
         {people.map((a) => (
           <li key={a.account_id} data-here={a.present || undefined}>

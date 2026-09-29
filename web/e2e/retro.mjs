@@ -139,7 +139,7 @@ try {
   // Marking someone here, when it doesn't get through, says so rather than failing silently.
   await F.page.route('**/meeting/attendance/*', (r) => r.fulfill({ status: 503, contentType: 'application/json', body: JSON.stringify({ error: 'Muni is busy — try again in a moment.', code: 'unavailable' }) }))
   await F.page.locator('button.retro-room').click()
-  await F.page.locator('.retro-pop-list input[type=checkbox]').first().click()
+  await F.page.locator('.retro-pop-list input[type=checkbox]:not(:disabled)').first().click()
   await F.page.locator('text=Muni is busy — try again in a moment.').waitFor({ timeout: 5000 }).catch(() => {})
   check('Marking someone here that doesn’t get through says so', (await F.page.locator('text=Muni is busy — try again in a moment.').count()) >= 1)
   await F.page.unroute('**/meeting/attendance/*')
@@ -174,7 +174,10 @@ try {
   // Three topics and the default of three votes: one vote each. Three votes over three topics would
   // let everyone vote for everything, and the order would say nothing.
   check('Choose: three topics give one vote each — the one that matters most — and the most-voted go first', /Everyone has one vote/.test(flat(await F.page.locator('.retro-sub').innerText())) && /most-voted go first/.test(await F.page.locator('.retro-sub').innerText()) && /time for all three/.test(await F.page.locator('.retro-sub').innerText()), flat(await F.page.locator('.retro-sub').innerText()))
-  check('…how voting works in a line, not an essay', /One vote each/.test(await F.page.locator('.retro-margin').innerText()) && /Private/.test(await F.page.locator('.retro-margin').innerText()) && !/How voting works/i.test(await F.page.locator('.retro-margin').innerText()))
+  // The line is for the room (a presenting screen); on the facilitator's own screen the cue says it.
+  const voting = (await F.page.locator('.retro-margin').textContent()) ?? ''
+  check('…how voting works in a line, not an essay', /One vote each/.test(voting) && /Private/.test(voting) && !/How voting works/i.test(voting))
+  check('…and on the facilitator’s own screen it steps aside for the cue', !(await F.page.locator('.rm-block--voting').isVisible()) && (await F.page.locator('.cue').isVisible()))
   check('Phones say the same, and show the one vote as a purse', /1 vote for 3 topics/.test(flat(await B.page.locator('.retro-sub').innerText())) && (await B.page.locator('.vote-purse-coins i').count()) === 1, flat(await B.page.locator('.retro-sub').innerText()))
   check('The cue says how many votes, and that nobody sees whose', /1 vote each/.test(await F.page.locator('.cue-say').innerText()) && /Nobody sees/.test(await F.page.locator('.cue-say').innerText()))
   const vote = (who, title) => who.req('POST', `/api/sprints/${sprint.id}/votes`, { theme_id: T[title], cast: true }, { ok: false })

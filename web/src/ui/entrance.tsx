@@ -160,9 +160,7 @@ function PasskeyStart({ intro, onSignedIn, onCreate }: { intro?: Intro; onSigned
           <KeyRound className="size-[1.05em]" strokeWidth={1.75} aria-hidden /> Continue with a passkey
         </Button>
       ) : (
-        <p role="status" className="entrance-unsupported mt-7">
-          This browser can’t use passkeys. Open Muni in a current version of Safari, Chrome, Edge or Firefox — or on your phone.
-        </p>
+        <Unsupported className="mt-7" />
       )}
       <Note note={note} />
       <p className="entrance-new">
@@ -170,6 +168,15 @@ function PasskeyStart({ intro, onSignedIn, onCreate }: { intro?: Intro; onSigned
       </p>
       <SignInHelp />
     </Step>
+  )
+}
+
+/** Said where the passkey button would be, rather than a button that can't work. */
+function Unsupported({ className }: { className: string }) {
+  return (
+    <p role="status" className={`entrance-unsupported ${className}`}>
+      This browser can’t use passkeys. Open Muni in a current version of Safari, Chrome, Edge or Firefox — or on your phone.
+    </p>
   )
 }
 
@@ -207,7 +214,7 @@ function CreateAccount({ onCreated, onBack }: { onCreated: (me: Me) => void; onB
   const supported = supportsPasskeys()
   const submit = async (e: FormEvent) => {
     e.preventDefault()
-    if (busy) return
+    if (busy || !supported) return
     if (!name.trim()) {
       setNote({ text: 'Enter the name your teammates know you by.', error: true })
       ref.current?.focus()
@@ -231,9 +238,13 @@ function CreateAccount({ onCreated, onBack }: { onCreated: (me: Me) => void; onB
         <input ref={ref} id={`${id}-name`} className="field mt-1.5" name="name" autoComplete="name" maxLength={80} value={name} onChange={(e) => setName(e.target.value)} aria-describedby={`${id}-seen`} aria-invalid={note?.error || undefined} required />
         <p id={`${id}-seen`} className="quiet mt-2">Teammates see this name — never with your thoughts or votes.</p>
         <Note note={note} />
-        <Button type="submit" variant="primary" size="lg" className="mt-5 w-full" busy={busy} disabled={!supported}>
-          <KeyRound className="size-4" aria-hidden /> Create with a passkey
-        </Button>
+        {supported ? (
+          <Button type="submit" variant="primary" size="lg" className="mt-5 w-full" busy={busy}>
+            <KeyRound className="size-4" aria-hidden /> Create with a passkey
+          </Button>
+        ) : (
+          <Unsupported className="mt-5" />
+        )}
         <p className="entrance-new">
           Have an account? <button type="button" className="entrance-link" onClick={onBack}>Sign in</button>
         </p>
@@ -248,7 +259,19 @@ function ProtectStep({ account, onDone }: { account: Me; onDone: () => void | Pr
   const [busy, setBusy] = useState(false)
   const [note, setNote] = useState<{ text: string; error: boolean } | null>(null)
   const [added, setAdded] = useState<string | null>(null)
+  // Going on can take a moment (the account loads): one press is enough.
+  const [leaving, setLeaving] = useState(false)
+  const leave = async () => {
+    if (leaving) return
+    setLeaving(true)
+    try {
+      await onDone()
+    } finally {
+      setLeaving(false)
+    }
+  }
   const second = async () => {
+    if (busy || leaving) return
     setBusy(true)
     setNote(null)
     try {
@@ -264,16 +287,16 @@ function ProtectStep({ account, onDone }: { account: Me; onDone: () => void | Pr
   if (added)
     return (
       <Step describedBy={`${id}-lead`} title="You’re set." lead={added}>
-        <Button variant="primary" size="lg" className="mt-7 w-full" onClick={() => onDone()} autoFocus>Continue</Button>
+        <Button variant="primary" size="lg" className="mt-7 w-full" busy={leaving} onClick={() => void leave()} autoFocus>Continue</Button>
       </Step>
     )
   return (
     <Step describedBy={`${id}-lead`} title={`Welcome, ${account.display_name}.`} lead="Your passkey is the only way into this account. A second one — on another device, or a security key — keeps you from being locked out.">
       <div className="mt-7 grid gap-2">
-        <Button variant="primary" size="lg" className="w-full" busy={busy} onClick={second} autoFocus>
+        <Button variant="primary" size="lg" className="w-full" busy={busy} disabled={leaving} onClick={second} autoFocus>
           <KeyRound className="size-4" aria-hidden /> Add a second passkey
         </Button>
-        <Button variant="ghost" size="lg" className="w-full" onClick={() => onDone()}>Not now</Button>
+        <Button variant="ghost" size="lg" className="w-full" busy={leaving} disabled={busy} onClick={() => void leave()}>Not now</Button>
       </div>
       <Note note={note} />
     </Step>

@@ -94,7 +94,8 @@ stage also says so, once), and the facilitator can mark someone present who join
    (at most one per theme, and never more votes than half the topics — so three topics give one vote
    each, six give three; the sprint’s setting, three by default, is the most). Nobody sees how
    the votes fall until the step ends; the facilitator sees only how many people have voted, never
-   who voted for what.
+   who voted for what. Coming back to Choose later shows the result; **Vote again** (it asks first)
+   clears it for a new round, and the talk then starts again from the top of the new order.
    With fewer than two topics, there's nothing to choose between, and the retro goes straight to
    the talk (the steps are numbered to match).
 3. **Talk** — one topic at a time, flagged topics first, then in the vote's order. Moving here

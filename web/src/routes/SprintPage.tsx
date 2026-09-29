@@ -73,6 +73,8 @@ function SprintView({ sprintId }: { sprintId: string }) {
   // Collection closed while there were words in the writer: the writer stays, with the words.
   const [kept, setKept] = useState(false)
   const [refresh, setRefresh] = useState(0)
+  // The team's thoughts don't change once collection closes: only the sprint itself, or catching up, reads them again.
+  const [entriesRefresh, setEntriesRefresh] = useState(0)
   const [inviting, setInviting] = useState(false)
   const [collected, setCollected] = useState<number | null>(null)
   const [agreed, setAgreed] = useState<number | undefined>(undefined)
@@ -141,6 +143,7 @@ function SprintView({ sprintId }: { sprintId: string }) {
       // The socket's first "all" on opening follows the page's own first read: once is enough.
       if (r === 'sprint' || (r === 'all' && Date.now() - loadedAt.current > 2000)) load()
       if (r === 'commitments' || r === 'all' || r === 'sprint') setRefresh((n) => n + 1)
+      if (r === 'all' || r === 'sprint') setEntriesRefresh((n) => n + 1)
     },
     () => nav('/'),
   )
@@ -165,6 +168,8 @@ function SprintView({ sprintId }: { sprintId: string }) {
       onChanged: (d) => {
         // What the change answered with is newer than any read still on its way.
         seq.current++
+        // Closing collection from the bar mid-sentence keeps the facilitator's own words, as anyone else's.
+        if (status.current === 'collecting' && d.status !== 'collecting' && isComposerDirty()) setKept(true)
         status.current = d.status
         setS(d)
         resources.invalidate('/api/me/capture-target')
@@ -353,14 +358,8 @@ function SprintView({ sprintId }: { sprintId: string }) {
         </Suspense>
         {participant ? (
           <>
-            <details className="sprint-fold">
-              <summary>Everyone’s thoughts</summary>
-              <div className="mt-4"><TeamThoughts sprintId={sprintId} refresh={refresh} /></div>
-            </details>
-            <details className="sprint-fold">
-              <summary>Your thoughts in this sprint</summary>
-              <div className="mt-4">{thoughts()}</div>
-            </details>
+            <Fold summary="Everyone’s thoughts"><TeamThoughts sprintId={sprintId} refresh={entriesRefresh} /></Fold>
+            <Fold summary="Your thoughts in this sprint">{thoughts()}</Fold>
           </>
         ) : null}
       </div>
@@ -411,14 +410,11 @@ function SprintView({ sprintId }: { sprintId: string }) {
     )
     // Closed: the reveal is the page — everyone's thoughts, with your own folded below them.
     const reveal = participant && phase === 'closed'
-    const list = reveal ? <TeamThoughts sprintId={sprintId} refresh={refresh} /> : participant && phase !== 'draft' && phase !== 'collecting' ? thoughts(world ? <RoomEmpty /> : undefined) : null
+    const list = reveal ? <TeamThoughts sprintId={sprintId} refresh={entriesRefresh} /> : participant && phase !== 'draft' && phase !== 'collecting' ? thoughts(world ? <RoomEmpty /> : undefined) : null
     // Something of yours that didn't reach the sprint (it needs a decision) keeps the fold open.
     const more = reveal ? (
       <>
-        <details className="sprint-fold" open={pending || undefined}>
-          <summary>Your thoughts in this sprint</summary>
-          <div className="mt-4">{thoughts()}</div>
-        </details>
+        <Fold summary="Your thoughts in this sprint" open={pending}>{thoughts()}</Fold>
         {extras}
       </>
     ) : extras
@@ -457,6 +453,20 @@ function SprintView({ sprintId }: { sprintId: string }) {
       {s ? <About s={s} /> : null}
       {s ? <InviteDialog open={inviting} onClose={() => setInviting(false)} workspaceId={s.workspace_id} sprints={s.is_facilitator ? [{ id: s.id, name: s.name }] : []} defaultSprint={s.is_facilitator ? s.id : undefined} canWorkspace={me.workspaces.some((w) => w.id === s.workspace_id && w.role === 'owner')} onInvited={load} /> : null}
     </AppShell>
+  )
+}
+
+/**
+ * A folded section whose contents are read (fetched, decrypted) only once someone opens it, and
+ * then kept, so closing and opening again doesn't read everything a second time.
+ */
+function Fold({ summary, open = false, children }: { summary: ReactNode; open?: boolean; children: ReactNode }) {
+  const [seen, setSeen] = useState(open)
+  return (
+    <details className="sprint-fold" open={open || undefined} onToggle={(e) => e.currentTarget.open && setSeen(true)}>
+      <summary>{summary}</summary>
+      {seen || open ? <div className="mt-4">{children}</div> : null}
+    </details>
   )
 }
 

@@ -365,7 +365,7 @@ function People({ stage, sprintId, onPresent, command }: { stage: StageSnapshot;
             {people.map((a) => (
               <li key={a.account_id}>
                 <label>
-                  <input type="checkbox" checked={a.present} disabled={saving === a.account_id} aria-label={`${a.display_name} is here`} onChange={() => void mark(a)} />
+                  <input type="checkbox" checked={isHere(a)} disabled={a.connected || saving === a.account_id} aria-label={`${a.display_name} is here`} onChange={() => void mark(a)} />
                   <Face a={a} state={a.connected ? 'on' : a.present ? 'here' : 'away'} />
                   <span className="retro-pop-name">{a.display_name}{a.is_you ? ' (you)' : ''}<small data-state={a.connected ? 'on' : undefined}>{whereabouts(a)}{a.is_facilitator ? ' · facilitating' : ''}</small></span>
                 </label>
@@ -433,8 +433,25 @@ function Choose({ n: step, stage, themes, ungrouped, votes, controls, sprintId, 
   // Who could be voting: the people here (lib/attendance), the same count as the rail's.
   const people = Math.max(stage.attendance.filter(isHere).length, round?.voters ?? 0, 1)
   const single = themes.length <= 1
+  // Back at Choose after the talk began: moving on returns to the topic in hand.
+  const resumes = stage.current_theme_id ? (stage.current_theme_id === 'ungrouped' ? 'Not in a theme' : themes.find((t) => t.id === stage.current_theme_id)?.title ?? null) : null
+  const [revoting, setRevoting] = useState(false)
+  const [reopening, setReopening] = useState(false)
+  const voteAgain = async () => {
+    setReopening(true)
+    try {
+      onVotes(await post<VotingState>(`/api/sprints/${sprintId}/votes/rounds`, {}))
+      setRevoting(false)
+    } catch (e) {
+      toast(e instanceof ApiError ? e.message : 'Couldn’t open voting', 'danger')
+    } finally {
+      setReopening(false)
+    }
+  }
   const time = reach >= themes.length ? <>There’s time for all {nWord(themes.length)}, about {per} minutes each.</> : <>There’s time for about <strong>{nWord(reach)}</strong> of these {nWord(themes.length)}.</>
-  const sub = single
+  const sub = !themes.length
+    ? 'Nothing was written this sprint, so there’s nothing to choose between.'
+    : single
     ? 'There’s only one topic, so there’s nothing to choose between. Move on and talk about it.'
     : totals
       ? <>The votes are in. The talk starts at the top and goes down the list — there’s time for about <strong>{nWord(reach)}</strong>.</>
@@ -481,7 +498,7 @@ function Choose({ n: step, stage, themes, ungrouped, votes, controls, sprintId, 
             </div>
           ) : null}
           {!single && !totals ? (
-            <div className="rm-block">
+            <div className="rm-block rm-block--voting">
               <p className="retro-note-label">Voting</p>
               <p className="rm-text"><strong>{votesWord[0].toUpperCase() + votesWord.slice(1)} each</strong>{each > 1 ? ', one per topic' : ''}, {controls ? 'on phones' : 'on your phone'}. Private: nobody sees whose are whose, not even the facilitator. The counts appear when the room moves on.</p>
               {!controls ? <p className="rm-text rm-quiet">No phone? Use Vote and add privately.</p> : null}
@@ -490,12 +507,22 @@ function Choose({ n: step, stage, themes, ungrouped, votes, controls, sprintId, 
           {totals ? (
             <div className="rm-block">
               <p className="retro-note-label">What happens next</p>
-              <p className="rm-text">The talk opens <strong>{list[0]?.title}</strong> first, with about {per} minutes on the clock — guidance, not a cut-off.</p>
-              {controls ? <p className="rm-text rm-quiet"><button className="retro-link" onClick={async () => { try { onVotes(await post<VotingState>(`/api/sprints/${sprintId}/votes/rounds`, {})) } catch (e) { toast(e instanceof ApiError ? e.message : 'Couldn’t open voting', 'danger') } }}>Vote again</button> — clears these votes and opens a new round.</p> : null}
+              {resumes ? (
+                <p className="rm-text">The talk picks up where it left off, at <strong>{resumes}</strong>.</p>
+              ) : (
+                <p className="rm-text">The talk opens <strong>{list[0]?.title}</strong> first, with about {per} minutes on the clock — guidance, not a cut-off.</p>
+              )}
+              {controls ? <p className="rm-text rm-quiet"><button className="retro-link" onClick={() => setRevoting(true)}>Vote again</button> — clears these votes and opens a new round{resumes ? ', and the talk starts again from its top' : ''}.</p> : null}
             </div>
           ) : null}
         </aside>
       </div>
+      <Dialog open={revoting} onOpenChange={(o) => !reopening && setRevoting(o)} title="Vote again?" description="Everyone’s votes are cleared and a new round opens on phones. Moving on counts the new votes, and the talk follows their order from the top.">
+        <div className="mt-5 flex justify-end gap-2">
+          <Button variant="ghost" disabled={reopening} onClick={() => setRevoting(false)}>Keep these votes</Button>
+          <Button variant="primary" busy={reopening} onClick={voteAgain}>Vote again</Button>
+        </div>
+      </Dialog>
     </section>
   )
 }
@@ -674,7 +701,7 @@ function AskControl({ c, idle, onOpen, onShare }: { c: CheckinView | null; idle:
 
 /** A topic's timebox: guidance, never a cut-off. */
 function Clock({ stage, controls, command }: { stage: StageSnapshot; controls: boolean; command: (c: Parameters<Command>[0]) => void }) {
-  const remaining = useCountdown(stage.timer.ends_at ?? null, stage.timer.remaining_secs, stage.server_time)
+  const remaining = useCountdown(stage.timer.ends_at ?? null, stage.timer.remaining_secs)
   if (!stage.timer.total_secs) return null
   const over = remaining === 0 && stage.timer.running
   return (
@@ -721,7 +748,7 @@ function CueDock({ stage, themes, topics, topicAt, previous, votes, budget, expe
   const [say, setSay] = useState(readSay)
   const asking = useAsking(sprintId, checkins)
   // Only the moment time is up matters here: the clock beside it does the ticking.
-  const timeUp = useTimeUp(stage.timer.ends_at ?? null, stage.timer.remaining_secs, stage.server_time)
+  const timeUp = useTimeUp(stage.timer.ends_at ?? null, stage.timer.remaining_secs)
   const idx = stage.phases.indexOf(stage.phase)
   const nextStep = stage.phases[idx + 1] ? PHASE_LABEL[stage.phases[idx + 1]] : null
   const theme = stage.phase === 'talk' && stage.current_theme_id && stage.current_theme_id !== 'ungrouped' ? themes.find((t) => t.id === stage.current_theme_id) ?? null : null

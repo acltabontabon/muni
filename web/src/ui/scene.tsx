@@ -209,10 +209,11 @@ export function DuyanScene({ progress, className, frame, upright: force }: { pro
   useEffect(() => {
     if (seen.current === progress) return
     seen.current = progress
+    // Back to the start, and nothing more: a finished animation runs again by itself, and one the
+    // stylesheet holds (paused while nobody's looking) stays held. play() would override that pause.
     for (const a of svg.current?.getAnimations?.({ subtree: true }) ?? []) {
       if ((a as CSSAnimation).animationName === 'keep') continue
       a.currentTime = 0
-      a.play()
     }
   }, [progress])
   const mirror = `translate(0 ${HORIZON * 2}) scale(1 -1)`

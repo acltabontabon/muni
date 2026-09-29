@@ -18,88 +18,70 @@ those as highlights. The app's About → What's new and each GitHub release are 
 
 ### Added
 
-- **The first evening: a guide for new people.** A new account starts with a short prologue — the
-  sign-in's evening going on, five lines on what a sprint in Muni is — then a firefly settles on the
-  one real control to use next, from creating the team to starting the first retro, with a line on
-  what it's for. It keeps quiet when there's nothing to do, never hurries anyone to close
-  collection, and stays off the stage, where the facilitator's cue guides. Its stars light as the
-  team's first sprint goes by (account menu → **The first evening**), and when the first retro is
-  done they come together as Muni's mark and the guide retires. *Later* and *Hide the guide* are
-  always there. Accounts from before this update don't see it.
-- **Owners can take over a stranded sprint.** If a sprint’s facilitator can’t carry on — they’ve
-  lost their passkey, say — a workspace owner can choose **More → Take over facilitating…** on the
-  sprint’s page and run it from there. It says first what that means: the owner joins the sprint if
-  needed, and in an encrypted sprint that’s still collecting, a new key starts for what’s written
-  next, while thoughts already written stay sealed to the old facilitator’s key. Removing someone
-  who facilitates now points to this, and a workspace with a single owner suggests adding another.
-- **A cue for the facilitator.** The stage now shows the facilitator — only on their own screen,
-  never when presenting — a line to say and the one thing to do next: ask about last time’s
-  experiments, when most have voted, when to ask the room or share its answers, what to note, when
-  to move on, and when to end. A first retro can be run from it alone; *Hide lines to say* keeps just
-  the next step once it’s second nature.
+- **The first evening: a guide for new people.** A new account starts with a short prologue on what
+  a sprint in Muni is, then a firefly settles beside the one control to use next — from creating the
+  team to starting the first retro — with a line on what it’s for. Its stars light as the team’s
+  first sprint goes by (account menu → **The first evening**), and when the first retro is done they
+  come together as Muni’s mark. *Later* and *Hide the guide* are always there; accounts from before
+  this update don’t see it.
+- **A cue for the facilitator.** The stage shows the facilitator — only on their own screen, never
+  when presenting — a line to say and the one thing to do next, from last time’s experiments to
+  ending the retro. A first retro can be run from it alone; *Hide lines to say* keeps just the next
+  step.
+- **Owners can take over a stranded sprint.** If a facilitator can’t carry on, a workspace owner can
+  choose **More → Take over facilitating…** on the sprint’s page. It says first what that means,
+  including for an encrypted sprint that’s still collecting.
 
 ### Changed
 
-- A facilitator who is alone in a collecting sprint now sees **Invite people** on the sprint's page
-  itself, not under More. A team with no sprint yet sees the evening's sky beside *Set up your first
-  sprint*.
-- **Votes that make you choose.** A retro never gives more votes than half its topics (at least
-  one), so voting always means leaving something out: three topics give one vote each — the one
-  that matters most — and six give three. The sprint’s setting is the most it gives. Before, three
-  votes over three topics let everyone vote for everything, and the order said nothing.
-- **The talk puts the thoughts first.** On the stage, a topic’s thoughts come before what the room
-  said about them — shared answers and what was added from phones — and the screen brings those
-  into view when they arrive. The facilitator’s margin is shorter: the clock, the notes, and a
-  one-line way to ask the room.
-- **A quieter stage.** The steps’ map shows only on a team’s first retro, and voting is explained in
-  a line instead of a list.
-- **One count of who’s here.** The stage’s rail, the vote’s “of how many” and the list of who’s
-  here now count the same people: anyone with the retro open, or marked here without a device.
-- **The recap shows who came, and only them.** It no longer lists who didn’t, or says they
-  “couldn’t make it”.
-- **A lighter Agree.** Adding an experiment on the stage asks one thing first — the change — then
-  how you’ll know it helped and who owns it; a review date and the theme wait behind a link.
-
-- **A retro without themes is a full retro.** Starting the retro gathers any thoughts not in a theme
-  into one topic of their own — *Everything else*, or *Everything we wrote* when there are no themes
-  — so they get what every topic gets: notes the room keeps, questions on phones, additions without
-  names, and ideas that carry into Agree. The start dialog says what will happen.
-- **Choosing only when there’s a choice.** With fewer than two topics, the retro goes straight from
-  looking back to talking, and the steps are numbered to match.
-- **Votes stay private on the shared screen.** The stage no longer shows voting buttons, even to the
-  facilitator; everyone, facilitator included, votes and answers from their own device. The stage
-  links to that page for the facilitator, and the sprint’s page offers it while the retro runs.
-- **Flagging a theme means something.** A flagged theme is talked about first, whatever the vote.
-  The sorting table no longer asks for a summary or draft experiment the retro never showed.
-- **The opening question is shown.** A sprint’s opening question now appears on the retro’s first
-  step while people arrive.
-- Clearer words where the retro starts and ends: the stage opens for the facilitator, everyone else
-  sees *Join the retro* on the sprint’s page, and ending it shows every screen that it’s done.
+- **Votes that make you choose.** A retro never gives more votes than half its topics (at least one):
+  three topics give one vote each, six give three. **Vote again** now asks first, and the talk then
+  starts over from the top of the new order.
+- **A calmer stage.** A topic’s thoughts come before what the room said about them; the facilitator’s
+  margin is the clock, the notes and one line to ask the room; the steps’ map shows only on a team’s
+  first retro. Votes and answers happen only on people’s own devices — never on the shared screen.
+- **A retro without themes is a full retro.** Thoughts left out of a theme become a topic of their
+  own, with notes, questions and ideas like any other. With fewer than two topics the retro skips
+  Choose, and a flagged theme is always talked about first.
+- **Everyone counted the same way.** The rail, the vote’s “of how many” and the recap count the same
+  people, and the recap shows only who came.
+- A lighter Agree: adding an experiment asks for the change first, then how you’ll know it helped and
+  who owns it.
+- The opening question shows while people arrive, *Invite people* sits on the sprint’s page when a
+  facilitator is alone, and the retro’s start and end are worded plainly on every screen.
+- Setting up a sprint on a phone keeps its buttons compact, instead of covering a quarter of the
+  screen.
 
 ### Fixed
 
-- Thoughts still sending, or waiting to send, sat against their edge in some rooms (Himig, Kape,
-  Guhit, Bola, Pahina, Porma, Biyahe); they’re inset and tinted the same way everywhere now.
-- Offline, a thought waiting to send no longer retries every second; it waits longer each time, and
-  sends as soon as the connection is back.
-- *Send to another sprint instead* no longer clears the draft you were writing in that sprint, and
-  can’t send a thought twice when pressed twice.
-- Turning *Keep drafts on this device* on or off no longer loses a draft written beside a waiting
-  thought.
-- A page that fails to draw now says so and offers a reload, instead of going blank; a malformed
-  link to an About or Privacy section no longer breaks the page.
-- On a phone, the retro’s stage keeps its way to vote and add privately.
-- Server errors are no longer reported as “usage limit”, and every unexpected error is logged.
-- A slow email provider can no longer cause an invitation or reminder to be sent twice.
-- Moving many thoughts into a theme at once no longer risks hitting the database’s per-request limit.
-- Limits on thoughts, experiments, sign-in attempts and emails now hold even when several requests
-  arrive at once.
+- The retro fits a phone or tablet: the top bar no longer runs off the side, the cue steps aside while
+  you type, and long names and pasted links wrap everywhere instead of pushing the screen sideways.
+- The cue’s “out of time” now arrives with the clock, even after presenting and coming back.
+- A phone’s topic number matches the stage’s, and quick taps while voting can no longer show a stale
+  vote.
+- A facilitator who closes collection mid-sentence keeps their words, like everyone else.
+- *My thoughts* can’t get stuck on a category filter, and a finished sprint’s page no longer loads
+  every thought hidden in its folds until you open them.
+- Double taps no longer act twice: on the themes page, saving your name, removing a passkey or turning
+  off a link.
+- In Kape’s room on a phone, the sprint’s three stops no longer squeeze out of view.
+- The sprint’s time zone always shows the one it’s in, and *Cancel* on a new sprint stays in Muni.
+- Saving a recovery key as a file works in Safari.
+- The guide’s firefly no longer covers the control it points at, and a join request that can’t be
+  found offers a way back.
+- The update notice can be put off for later, and messages no longer sit on top of it or under an
+  iPhone’s home bar.
+- Offline, thoughts waiting to send retry more gently and send as soon as the connection is back;
+  drafts survive *Send to another sprint instead* and turning *Keep drafts on this device* on or off.
+- Thoughts still sending sit inset in every room, and a page that fails to draw offers a reload
+  instead of going blank.
+- Server errors are no longer reported as “usage limit”; invitations and reminders can’t be sent
+  twice; limits hold when many requests arrive at once.
 
 ### Security
 
 - Sign-in, sign-up, joining and invitation requests from one address are rate-limited at
-  Cloudflare’s edge, before they reach the database, so a flood can’t use up the database’s daily
-  allowance.
+  Cloudflare’s edge, before they reach the database.
 - The log of administrative actions (which holds no text) is now deleted after 400 days.
 
 ## [1.0.0-rc.1] - 2026-09-29

@@ -132,7 +132,7 @@ export function WhatsNew() {
   useDocumentTitle('What’s new in Muni')
   const { hash } = useLocation()
   useEffect(() => {
-    if (hash) document.getElementById(decodeURIComponent(hash.slice(1)))?.scrollIntoView()
+    if (hash) document.getElementById(fragment(hash))?.scrollIntoView()
   }, [hash])
   return (
     <InfoShell>

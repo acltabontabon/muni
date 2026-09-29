@@ -46,8 +46,8 @@ const THEMES = [
   { title: 'What helped us ship', question: 'What should we make sure we keep doing?', entries: ['Pairing on the release checklist', 'Pairing with Sam', 'Writing the release notes'] },
   { title: 'Planning runs long', question: 'What does a ticket need before it’s ready to plan?', entries: ['Planning ran forty minutes', 'We estimated the search work'] },
 ]
-// Indexes into THEMES, three votes each at most.
-const VOTES = { maya: [0, 1, 3], jonas: [0, 1, 2], priya: [0, 1, 2], tomas: [1, 0], aiko: [1, 0, 3], sam: [0, 2] }
+// Indexes into THEMES: two votes each, since a retro never gives more than half its topics.
+const VOTES = { maya: [0, 1], jonas: [0, 1], priya: [0, 2], tomas: [1, 0], aiko: [1, 3], sam: [0, 2] }
 /** Faces in the retro: each person's character (Sam has none, and shows as a monogram). */
 const FACES = { maya: 'kape', jonas: 'guhit', priya: 'himig', tomas: 'biyahe', aiko: 'sibol' }
 const TAKEAWAY = 'Staging needs a named owner every sprint, the way on-call has one.'
@@ -532,7 +532,8 @@ try {
   log('chosen')
 
   // 09 · Talk: the facilitator asks how the first topic showed up. Four answer off camera, in their
-  // own browsers (so the lines are sealed); Tomás answers on his phone, on camera; then she shares.
+  // own browsers (so the lines are sealed); Tomás answers on his phone, on camera; then her cue
+  // offers to share, and she does.
   await maya.click('.retro-asks button:has-text("Ask how it showed up")')
   const ANSWERS = { jonas: ['I felt this', 'Nobody knew the runbook still pointed at the old cluster.'], priya: ['I felt this', null], aiko: ['I felt this', 'I restarted it twice without knowing whose it was.'], sam: ['I’d need context', null] }
   for (const [k, [choice, line]] of Object.entries(ANSWERS)) {
@@ -553,7 +554,8 @@ try {
   await sleep(1200)
   const tc2 = cursorOf(maya)
   await tc2.show(760, 600)
-  const share = maya.locator('.retro-asks .retro-ask--share')
+  // Sharing is the cue's next step once most have answered: the facilitator follows it.
+  const share = maya.locator('.cue-act', { hasText: 'Share the answers' })
   await film(maya, '09-talk', async () => {
     const t0 = Date.now()
     await sleep(500)
@@ -642,6 +644,8 @@ try {
   await maya.fill('#ex-change', e2.change)
   await maya.fill('#ex-signal', e2.signal)
   await maya.selectOption('#ex-owner', members.find((m) => m.display_name === PEOPLE[e2.owner]).account_id)
+  // The theme waits behind a link on the stage's form.
+  if (!(await maya.locator('#ex-theme').count())) await maya.click('.exp-form-more')
   await maya.selectOption('#ex-theme', { label: THEMES[e2.theme].title })
   await maya.click('.exp-form button[type=submit]')
   await maya.locator('.retro-exp', { hasText: e2.change }).waitFor()

@@ -44,7 +44,7 @@
     ['planning', 'Planning and sprint goal clarity', 'I only understood the sprint goal at the demo.'],
     ['staging', 'Staging environment ownership', 'Staging was down most of Wednesday. Nobody knew who owned it.'],
     ['pipeline', 'Merging on a red pipeline', 'It happened twice and both times we had to revert.'],
-    [null, 'Ungrouped', ''],
+    [null, 'Everything else', ''],
   ]
   const CAT = (c) => `var(--c-${c || 'none'})`
 
@@ -132,7 +132,8 @@
     const el = document.createElement('div')
     el.className = key ? 'tile' : 'tile ungrouped'
     const count = `${members.length} ${members.length === 1 ? 'thought' : 'thoughts'}`
-    el.innerHTML = `<b>${key ? title : `${members.length} ungrouped`}</b><span>${key ? count : 'still readable on stage'}${key ? cats.map((c) => `<i style="--c:${CAT(c)}"></i>`).join('') : ''}</span>${excerpt ? `<q>${excerpt}</q>` : ''}`
+    // Whatever isn't in a theme becomes one more topic of its own when the retro starts.
+    el.innerHTML = `<b>${title}</b><span>${key ? count : `${count} · a topic too`}${key ? cats.map((c) => `<i style="--c:${CAT(c)}"></i>`).join('') : ''}</span>${excerpt ? `<q>${excerpt}</q>` : ''}`
     tilesEl.appendChild(el)
     return { key, el, members }
   })
@@ -273,7 +274,7 @@
       s === 0 ? `Day ${today + 1} of 10 · ${shown} ${shown === 1 ? 'thought' : 'thoughts'} set down` :
       s === 1 ? '25 thoughts · sealed until collection closes' :
       s === 2 ? '25 thoughts · one batch, random order' :
-      '25 thoughts · 5 themes · 10 ungrouped'
+      '25 thoughts · 5 themes + everything else'
     lock.style.opacity = s === 1 ? '1' : '0.35'
 
     // The sky follows the sprint into the evening.
@@ -288,21 +289,22 @@
     stage.style.setProperty('--sc', (0.94 + t * 0.06).toFixed(4))
   }
 
-  // A check-in: asked on everyone's phone, then shared — counts and lines, never names.
-  const moment = document.querySelector('.moment')
+  // A check-in: asked on everyone's phone, then shared — counts and lines, never names. The
+  // margin and the facilitator's cue turn with it. It turns a few times while on screen, then rests.
   let stageVisible = false
   new IntersectionObserver(([e]) => (stageVisible = e.isIntersecting), { threshold: 0.3 }).observe(stage)
-  if (!reduced && moment) {
+  if (!reduced && stage.dataset.moment) {
+    let turns = 6
     const turn = () => {
-      const asked = moment.dataset.moment === 'asked'
-      if (stageVisible && !document.hidden) moment.dataset.moment = asked ? 'shared' : 'asked'
-      setTimeout(turn, moment.dataset.moment === 'asked' ? 2600 : 5600)
+      const asked = stage.dataset.moment === 'asked'
+      if (stageVisible && !document.hidden) { stage.dataset.moment = asked ? 'shared' : 'asked'; turns-- }
+      if (turns > 0 || stage.dataset.moment === 'asked') setTimeout(turn, stage.dataset.moment === 'asked' ? 3200 : 6400)
     }
-    setTimeout(turn, 5600)
+    setTimeout(turn, 6400)
   }
 
-  /* ── The problem, and the phone: each little scene plays once, as it comes into view. ─ */
-  const scenes = [...document.querySelectorAll('.woe, .phone')]
+  /* ── The problem, the phone and the first evening: each little scene plays once, as it comes into view. ─ */
+  const scenes = [...document.querySelectorAll('.woe, .phone, .evening-art')]
   if (reduced) scenes.forEach((el) => el.classList.add('in', 'still'))
   else {
     const seen = new IntersectionObserver(

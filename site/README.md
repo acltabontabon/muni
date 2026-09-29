@@ -32,17 +32,23 @@ thoughts fading by retro day, two voices and seven muted tiles, a candid note so
 name is on it, the same action item agreed three sprints running), each with what Muni does
 about it; **two screens, one conversation** (`#demo` — the same retro from the facilitator's
 stage and a participant's phone, step by step through look back, choose, talk and agree to the
-recap, each tab naming the problem it answers); the pinned **how it works** scene; **the retro** (a mock of the stage in its four
-steps, with a check-in that's asked, then shared as counts and lines); **quiet ways in** (the
-phone: a one-tap check-in and *Add to this discussion*, drawn in the app's own paper and ink);
-agreeing experiments; the next sprint's look back; privacy; open source; the name; and the
-closing call to open Muni. The mocks
+recap, each tab naming the problem it answers; each stage step carries the facilitator's cue in
+its corner); the pinned **how it works** scene; **the retro** (a mock of the facilitator's own
+stage during the talk: the thoughts first, then what the room said; a check-in that's asked, then
+shared as counts and lines; the margin — clock, notes, *Ask the room* — and the cue, which turns
+with the check-in); **quiet ways in** (the phone: a one-tap check-in and *Add to this discussion*,
+drawn in the app's own paper and ink); agreeing experiments; the next sprint's look back; privacy;
+open source; the name; **the first evening** (`#evening` — the newcomer's guide: the sky's stars,
+the firefly on a sprint page's real control with its note, and the stars closing as Muni's mark);
+and the closing call to open Muni. The mocks
 mirror the app as it is — change them when the stage, the phone or the words change. Each
 little scene plays once when it comes into view; with reduced motion, each shows its final state.
 
 The pinned "how it works" scene uses the demo team's 25 thoughts as the app stores them
-(category, rough timing, theme), so its counts — 5 themes of 6 · 1 · 5 · 2 · 1 and 10
-ungrouped — are true to the product. The privacy section links to the app's Privacy & data page
+(category, rough timing, theme), so its counts — 5 themes of 6 · 1 · 5 · 2 · 1, and 10 thoughts
+in no theme that become one more topic, *Everything else* — are true to the product. The privacy section links to the app's Privacy & data page
 (act.munimuni.app/privacy), which holds the full explanation; keep the two consistent
 (`docs/privacy-claims.md`).
-Everything that moves respects `prefers-reduced-motion`.
+Everything that moves respects `prefers-reduced-motion`. `#demo` is also filmed for
+`docs/demo/muni-journey.mp4` by `web/e2e/journey-film.mjs` at 1280×720: keep its tab ids
+(`duo-t1`…`duo-t5`) and keep each step's screens inside that frame.

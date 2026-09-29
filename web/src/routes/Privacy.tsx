@@ -125,7 +125,7 @@ function Page({ signedIn }: { signedIn: boolean }) {
         <Item title="Account and workspace records">Your sign-ins (a one-way hash of the token, how you signed in, a rough label such as “Safari on iPhone”, and when), each device that can unlock your writing (a rough label, and when it was added and last used), a history of changes to how you sign in (shown only to you), memberships and roles, requests to join a team (the people who approve see your name, any email address and how new your account is), pending invitations, and a log of administrative actions such as closing collection — who did it and to which item, never any text.</Item>
         <Item title="Abuse protection">Scrambled (hashed) forms of network addresses, for 24 hours, to limit repeated sign-in and sign-up attempts. Muni doesn’t store your IP address with your account, or anything about your device beyond those rough labels.</Item>
 
-        <h3 id="retention" className="scroll-mt-20 pt-3 font-medium text-ink">How long it’s kept</h3>
+        <h3 id="retention" className="scroll-mt-[calc(5rem+env(safe-area-inset-top))] pt-3 font-medium text-ink">How long it’s kept</h3>
         <Item title="Finished sprints">About 90 days after a sprint is finished — the default; workspace owners can choose from 7 to 3,650 days — its thoughts, themes, votes, check-ins, notes, what was added during the retro and any unpublished recap are deleted. Agreed experiments and published recaps are kept longer, 730 days by default, so later retros can look back at them. The sprint’s name and dates remain.</Item>
         <Item title="Unfinished sprints">A sprint that is never finished isn’t deleted automatically yet.</Item>
         <Item title="A thought you delete">Is removed from Muni’s live database straight away; backups keep it for up to 30 days.</Item>
@@ -134,10 +134,10 @@ function Page({ signedIn }: { signedIn: boolean }) {
         <Item title="Housekeeping">Passkey challenges are deleted about a day after they expire. A sign-in lasts 30 days and its record is deleted a week after it ends. Security history is kept for a year; decided requests to join a team, 180 days. An email’s address and message leave Muni’s send queue once it’s sent. An invitation, with the address it was sent to, is deleted 30 days after it’s used, withdrawn or expires. The log of administrative actions (no text) is kept for 400 days.</Item>
         <Item title="Backups, logs and copies">Deleted data can remain in Cloudflare’s database backups for up to 30 days, and in request logs for up to 7. Downloaded files, screenshots and copies on someone’s device can’t be recalled.</Item>
 
-        <h3 id="operator" className="scroll-mt-20 pt-3 font-medium text-ink">Who runs Muni</h3>
+        <h3 id="operator" className="scroll-mt-[calc(5rem+env(safe-area-inset-top))] pt-3 font-medium text-ink">Who runs Muni</h3>
         <P>Muni is run by one developer, {OPERATOR}. The rule is to access data only when it’s needed to keep Muni running and secure, to investigate abuse, or to act on a request from you — never to read thoughts out of curiosity or to find out who wrote something. That’s a commitment, not a technical barrier, and Muni keeps no separate record of when the operator looks at data. In an encrypted sprint, the operator can’t read what was written; in a sprint set up without encryption, they technically can.</P>
 
-        <h3 id="providers" className="scroll-mt-20 pt-3 font-medium text-ink">Service providers</h3>
+        <h3 id="providers" className="scroll-mt-[calc(5rem+env(safe-area-inset-top))] pt-3 font-medium text-ink">Service providers</h3>
         <Item title="Cloudflare">Hosts the app, its database and the live retro connection, so it processes everything you send to Muni. Its request logs keep, for up to 7 days, when each request happened, the address requested (only ids, never text or email addresses) and technical details such as your IP address and browser. Muni’s own logs record failures only: the page and a short error, never what you wrote or your email address.</Item>
         <Item title="Resend">Delivers Muni’s emails: your address and an invitation (the workspace’s name, the inviter’s name and a link) or a reminder (the sprint’s name and a link). Never a thought. Resend keeps delivery records under its own terms.</Item>
         <Item title="GitHub and Google (munimuni.app only)">The website at munimuni.app — not the app — is hosted on GitHub Pages, reached through Cloudflare, and loads its fonts from Google Fonts, so those companies receive a visitor’s IP address and browser details. The app serves its own fonts.</Item>
@@ -150,7 +150,7 @@ function Page({ signedIn }: { signedIn: boolean }) {
         <Item title="Your encryption key">Kept here only locked, as above: it opens after you sign in, and signing out closes it in every tab. What you write is readable on the device while it’s a draft or waiting to be sent, and encrypted when it’s sent.</Item>
         <Item title="Either way">The browser keeps a few preferences, such as your theme and the last sprint you opened, and a copy of the app so it opens quickly and offline. Your sign-in is a secure cookie the page itself can’t read. Muni never stores other people’s thoughts on your device.</Item>
         <P>Signing out, or “Clear local data”, removes what this device keeps for your account and warns you first if something hasn’t been sent; neither deletes anything from Muni’s servers. “Forget this device”, in Account, also removes what lets this browser reopen your key. Muni can’t erase a device remotely.</P>
-        <div id="controls" className="scroll-mt-20">
+        <div id="controls" className="scroll-mt-[calc(5rem+env(safe-area-inset-top))]">
           {signedIn ? (
             <div className="rounded-[var(--radius-card)] border border-line bg-card p-5">
               <h3 className="font-medium text-ink">On this device</h3>
@@ -179,7 +179,7 @@ function Page({ signedIn }: { signedIn: boolean }) {
 function Section({ id, children }: { id: (typeof SECTIONS)[number][0]; children: ReactNode }) {
   const title = SECTIONS.find(([s]) => s === id)![1]
   return (
-    <section id={id} aria-labelledby={`${id}-title`} className="mt-10 scroll-mt-20">
+    <section id={id} aria-labelledby={`${id}-title`} className="mt-10 scroll-mt-[calc(5rem+env(safe-area-inset-top))]">
       <h2 id={`${id}-title`} className="font-display text-xl">{title}</h2>
       <div className="mt-3 space-y-3">{children}</div>
     </section>

@@ -123,6 +123,21 @@ describe('meeting', () => {
     expect((await command(owner, s, { type: 'set_phase', phase: 'talk' })).body.current_theme_id).toBe(themes[0])
   })
 
+  it('a vote held again after the talk began orders the talk anew, from its top', async () => {
+    const { owner, members, ws } = await team(2)
+    const { s, themes } = await live(owner, members, ws)
+    await command(owner, s, { type: 'set_phase', phase: 'choose' })
+    for (const u of members) await post(`/api/sprints/${s}/votes`, u, { theme_id: themes[1], cast: true })
+    expect((await command(owner, s, { type: 'set_phase', phase: 'talk' })).body.current_theme_id).toBe(themes[1])
+    await command(owner, s, { type: 'set_phase', phase: 'choose' })
+    expect((await post(`/api/sprints/${s}/votes/rounds`, owner, {})).status).toBe(200)
+    for (const u of members) await post(`/api/sprints/${s}/votes`, u, { theme_id: themes[0], cast: true })
+    const again = await command(owner, s, { type: 'set_phase', phase: 'talk' })
+    expect(again.body.agenda.map((a: { theme_id: string }) => a.theme_id)).toEqual([themes[0], themes[1]])
+    expect(again.body.current_theme_id).toBe(themes[0])
+    expect(again.body.timer.running).toBe(true)
+  })
+
   it('with one theme, skips choosing: there is nothing to choose between', async () => {
     const { owner, members, ws } = await team(1)
     const { s, themes } = await live(owner, members, ws, 1)

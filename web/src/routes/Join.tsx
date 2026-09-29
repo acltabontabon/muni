@@ -152,8 +152,12 @@ export function Waiting({ requestId, onAgain }: { requestId: string; onAgain?: (
   const nav = useNavigate()
   const [req, setReq] = useState<MyJoinRequest | null>(null)
   const [error, setError] = useState('')
+  // Only a check someone asked for shows as busy: the quiet ones in between change nothing on screen.
   const [checking, setChecking] = useState(false)
   const [paused, setPaused] = useState(false)
+  /** The request can't be seen (gone, or not this account's): asking again won't change that. */
+  const [stopped, setStopped] = useState(false)
+  const stoppedRef = useRef(false)
   const [withdrawing, setWithdrawing] = useState(false)
   const tries = useRef(0)
   const started = useRef(Date.now())
@@ -164,17 +168,23 @@ export function Waiting({ requestId, onAgain }: { requestId: string; onAgain?: (
 
   const check = useCallback(async () => {
     window.clearTimeout(timer.current)
-    setChecking(true)
     try {
       const r = await get<MyJoinRequest>(`/api/join-requests/${requestId}`)
       setReq(r)
       setError('')
+      stoppedRef.current = false
+      setStopped(false)
       if (r.status === 'approved') await refresh()
       if (r.status !== 'pending') return
     } catch (e) {
-      setError(e instanceof ApiError && e.status === 0 ? 'You’re offline — Muni will check again when you’re back.' : 'Couldn’t check just now.')
-    } finally {
-      setChecking(false)
+      const status = e instanceof ApiError ? e.status : -1
+      if (status >= 400 && status < 500) {
+        stoppedRef.current = true
+        setStopped(true)
+        setError(status === 404 ? 'Muni can’t find this request. It may have been removed, or made from another account.' : 'This request can’t be checked from here.')
+        return
+      }
+      setError(status === 0 ? 'You’re offline — Muni will check again when you’re back.' : 'Couldn’t check just now.')
     }
     if (gone.current) return
     // Bounded: slower over time, and stops after a while (the page still checks on focus).
@@ -187,12 +197,24 @@ export function Waiting({ requestId, onAgain }: { requestId: string; onAgain?: (
   useEffect(() => {
     again.current = () => void check()
   }, [check])
+  /** Asked for by a person: the button shows it's on its way, and the slow-down starts over. */
+  const checkNow = async () => {
+    started.current = Date.now()
+    tries.current = 0
+    setPaused(false)
+    setChecking(true)
+    try {
+      await check()
+    } finally {
+      setChecking(false)
+    }
+  }
 
   useEffect(() => {
     gone.current = false
     void check()
     const wake = () => {
-      if (document.hidden) return
+      if (document.hidden || stoppedRef.current) return
       started.current = Date.now()
       tries.current = 0
       setPaused(false)
@@ -210,8 +232,16 @@ export function Waiting({ requestId, onAgain }: { requestId: string; onAgain?: (
 
   if (!req)
     return (
-      <div className="entrance-step grid place-items-center py-10 text-ink-soft" role="status" aria-label="Checking your request">
-        {error ? <ErrorText>{error}</ErrorText> : <Spinner />}
+      <div className="entrance-step grid place-items-center py-10 text-ink-soft" role={error ? undefined : 'status'} aria-label={error ? undefined : 'Checking your request'}>
+        {error ? (
+          <div className="grid w-full justify-items-center">
+            <ErrorText>{error}</ErrorText>
+            <Button size="lg" className="mt-5 w-full" busy={checking} onClick={() => void checkNow()}>Try again</Button>
+            <p className="quiet mt-4"><Link to="/" className="entrance-link">Go to Muni</Link></p>
+          </div>
+        ) : (
+          <Spinner />
+        )}
       </div>
     )
   if (req.status === 'approved')
@@ -245,10 +275,10 @@ export function Waiting({ requestId, onAgain }: { requestId: string; onAgain?: (
     >
       <div className="entrance-wait" role="status" aria-live="polite">
         <i aria-hidden />
-        <span>{paused ? 'Paused checking. Come back to this page, or check now.' : checking ? 'Checking…' : 'Waiting for someone on the team.'}</span>
+        <span>{paused || stopped ? 'Paused checking. Come back to this page, or check now.' : 'Waiting for someone on the team.'}</span>
       </div>
       <ErrorText>{error}</ErrorText>
-      <Button size="lg" className="mt-5 w-full" busy={checking} onClick={() => { started.current = Date.now(); tries.current = 0; setPaused(false); void check() }}>Check now</Button>
+      <Button size="lg" className="mt-5 w-full" busy={checking} onClick={() => void checkNow()}>Check now</Button>
       <p className="quiet mt-4">
         <button
           type="button"

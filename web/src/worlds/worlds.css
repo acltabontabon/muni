@@ -1234,6 +1234,11 @@ button.room-tab[data-state='open'] { background: color-mix(in oklab, var(--ink) 
   .sbar-stop { font-family: 'Young Serif', Georgia, serif; font-weight: 400; font-size: 1.1rem; letter-spacing: -0.005em; }
   .sbar-progress [data-state='next'] .sbar-stop { font-weight: 400; }
   .sbar-detail { font-size: 13px; }
+  /* On a phone the menu reads down, one item under another, as a café's card does. */
+  @container sbar (max-width: 26rem) {
+    .sbar-progress { grid-template-columns: minmax(0, 1fr); gap: 0.6rem; }
+    .sbar-progress li { padding: 0; border-left: 0; }
+  }
 }
 
 @scope ([data-world='guhit']) to ([data-world]:not([data-world='guhit'])) {

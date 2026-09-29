@@ -70,7 +70,7 @@ async function firefly(page, step, ms = 6000) {
   }
 }
 const lights = (page) => page.locator('.firefly').count()
-/** Distance from the light to the control it's on, and from the note to it. */
+/** Distance from the light to the control it's by (it never covers it: `over`), and from the note to it. */
 const near = (page, spot) =>
   page.evaluate((spot) => {
     const a = document.querySelector(`[data-guide="${spot}"][data-guide-on]`)?.getBoundingClientRect()
@@ -81,7 +81,8 @@ const near = (page, spot) =>
     const ly = l.top + l.height / 2
     const light = Math.hypot(Math.max(a.left - lx, 0, lx - a.right), Math.max(a.top - ly, 0, ly - a.bottom))
     const note = n ? Math.max(0, n.top - a.bottom, a.top - n.bottom) : null
-    return { light, note, noteBottom: n?.bottom ?? null, vh: innerHeight }
+    const over = l.left < a.right && l.right > a.left && l.top < a.bottom && l.bottom > a.top
+    return { light, over, note, noteBottom: n?.bottom ?? null, vh: innerHeight }
   }, spot)
 const endless = (page) => page.evaluate(() => document.getAnimations().filter((a) => a.effect?.getComputedTiming?.().iterations === Infinity).length)
 
@@ -122,7 +123,7 @@ try {
   check('No sprints yet: the firefly is on “Set up a sprint”', (await firefly(A.page, 'sprint')) === 'sprint')
   await sleep(1300)
   let at = await near(A.page, 'setup-sprint')
-  check('One light, on the control, the note beside it', (await lights(A.page)) === 1 && at && at.light < 12 && at.note !== null && at.note < 40, JSON.stringify(at))
+  check('One light, by the control and never over it, the note beside it', (await lights(A.page)) === 1 && at && at.light < 40 && !at.over && at.note !== null && at.note < 40, JSON.stringify(at))
   await shot(A.page, '02-firefly-sprint')
   await A.page.locator('[data-guide="setup-sprint"]').first().click()
   await A.page.waitForURL('**/sprints/new')
@@ -144,15 +145,17 @@ try {
   check('With the team in: the firefly is on “Open collection”', (await firefly(A.page, 'open')) === 'open')
   await sleep(1300)
   at = await near(A.page, 'sprint-primary')
-  check('…sitting on the button', at && at.light < 12, JSON.stringify(at))
+  check('…resting by the button, clear of it', at && at.light < 40 && !at.over, JSON.stringify(at))
   await shot(A.page, '05-firefly-open')
   await sleep(3000)
   check('The firefly comes to rest: nothing of the guide is still moving', (await A.page.evaluate(() => document.getAnimations().filter((a) => a.playState === 'running' && a.effect?.target?.closest?.('.guide-layer')).length)) === 0)
   await A.page.getByRole('button', { name: 'Open collection', exact: true }).click()
   await A.page.locator('.firefly').waitFor()
   await sleep(1400)
+  // It flies from the button to the field: measured once it has landed.
+  await A.page.waitForFunction(() => !document.querySelector('.guide-layer[data-glide]'))
   at = await near(A.page, 'writer')
-  check('Collecting: the firefly waits in the writing field, as a light (the page already asks)', at && at.light < 2 && (await A.page.locator('[data-guide-note]').count()) === 0, JSON.stringify(at))
+  check('Collecting: the firefly waits by the writing field, as a light (the page already asks)', at && at.light < 40 && !at.over && (await A.page.locator('[data-guide-note]').count()) === 0, JSON.stringify(at))
   await A.page.locator('.firefly').click()
   check('…its note opens from the light', (await firefly(A.page, 'write')) === 'write')
   await shot(A.page, '06-firefly-write')
@@ -276,8 +279,9 @@ try {
     await E.page.getByRole('button', { name: 'Open collection', exact: true }).click()
     await E.page.locator('.firefly').waitFor()
     await sleep(1400)
+    await E.page.waitForFunction(() => !document.querySelector('.guide-layer[data-glide]'))
     at = await near(E.page, 'writer')
-    check(`${avatar}: collecting, the light sits in the room’s own writer`, at && at.light < 4, JSON.stringify(at))
+    check(`${avatar}: collecting, the light rests by the room’s own writer`, at && at.light < 40 && !at.over, JSON.stringify(at))
     await E.page.locator('.firefly').click()
     await firefly(E.page, 'write')
     await shot(E.page, `16-room-${avatar}-write`)

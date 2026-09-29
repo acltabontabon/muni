@@ -34,10 +34,14 @@ function RecoveryKeyView({ value }: { value: string }) {
           onClick={() => {
             const text = `Muni recovery key for ${me?.display_name || 'your account'}\n\n${value}\n\nKeep this private. With it, any device you sign in on can read your encrypted writing and your team’s encrypted retrospectives.\nMuni can’t recover it for you.\n`
             const a = document.createElement('a')
-            a.href = URL.createObjectURL(new Blob([text], { type: 'text/plain' }))
+            const href = URL.createObjectURL(new Blob([text], { type: 'text/plain' }))
+            a.href = href
             a.download = 'muni-recovery-key.txt'
+            // In the page, and the address kept a while: Safari drops a download whose link is gone at once.
+            document.body.append(a)
             a.click()
-            URL.revokeObjectURL(a.href)
+            a.remove()
+            window.setTimeout(() => URL.revokeObjectURL(href), 30_000)
           }}
         >
           <Download className="size-4" /> Save as a file
@@ -321,6 +325,7 @@ export function EncryptionSettings({ onForget }: { onForget?: () => void }) {
   const [dialog, setDialog] = useState<null | 'unlock' | 'recovery'>(null)
   const [devices, setDevices] = useState<DeviceInfo[] | null>(null)
   const [error, setError] = useState('')
+  const [removing, setRemoving] = useState<string | null>(null)
   const passkey = usePasskeyUnlock()
   const loadDevices = useCallback(async () => {
     try {
@@ -368,7 +373,11 @@ export function EncryptionSettings({ onForget }: { onForget?: () => void }) {
                     <Button
                       size="sm"
                       variant="ghost"
+                      busy={removing === d.id}
+                      disabled={!!removing && removing !== d.id}
                       onClick={async () => {
+                        if (removing) return
+                        setRemoving(d.id)
                         setError('')
                         try {
                           await del(`/api/me/devices/${d.id}`)
@@ -376,6 +385,8 @@ export function EncryptionSettings({ onForget }: { onForget?: () => void }) {
                           await loadDevices()
                         } catch (e) {
                           setError(e instanceof ApiError && e.status === 0 ? 'You’re offline, so nothing changed.' : 'Couldn’t remove it. Try again.')
+                        } finally {
+                          setRemoving(null)
                         }
                       }}
                     >

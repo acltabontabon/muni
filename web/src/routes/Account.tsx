@@ -9,6 +9,7 @@ import { DeviceControls, LeaveDialog } from '@/ui/menus'
 import { AppShell, PageTitle } from '@/ui/shell'
 import { EncryptionSettings } from '@/ui/keys'
 import { DeleteAccountDialog } from '@/ui/departure'
+import { sentence } from '@/ui/invite-email'
 import { MailAddress, SecurityActivity, Sessions, SignInMethods } from '@/ui/security'
 import { CharacterSettings } from '@/worlds/Character'
 import { APP_VERSION } from '@/lib/release'
@@ -49,6 +50,7 @@ export function Account() {
   const toast = useToast()
   const [name, setName] = useState(me?.display_name ?? '')
   const [nameError, setNameError] = useState('')
+  const [savingName, setSavingName] = useState(false)
   const [sprints, setSprints] = useState<SprintSummary[] | null>(null)
   const [theme, setTheme] = useState(readPrefs().theme ?? 'system')
   useEffect(() => {
@@ -65,13 +67,20 @@ export function Account() {
             className="flex max-w-md flex-col gap-2 sm:flex-row sm:items-end"
             onSubmit={async (e) => {
               e.preventDefault()
+              if (savingName) return
+              const next = name.trim()
+              if (!next) return setNameError('Your name can’t be empty.')
+              setSavingName(true)
               setNameError('')
               try {
-                await patch('/api/auth/me', { display_name: name })
+                await patch('/api/auth/me', { display_name: next })
+                setName(next)
                 await refresh()
                 toast('Name updated')
               } catch (err) {
-                setNameError(err instanceof ApiError ? err.message : 'Couldn’t save your name')
+                setNameError(err instanceof ApiError ? (err.status === 0 ? 'You’re offline, so your name wasn’t saved.' : sentence(err.message)) : 'Couldn’t save your name.')
+              } finally {
+                setSavingName(false)
               }
             }}
           >
@@ -79,7 +88,7 @@ export function Account() {
               <Label htmlFor="dn">Display name</Label>
               <Input id="dn" value={name} onChange={(e) => setName(e.target.value)} maxLength={80} required />
             </div>
-            <Button type="submit" variant="primary">Save</Button>
+            <Button type="submit" variant="primary" busy={savingName}>Save</Button>
           </form>
           <ErrorText>{nameError}</ErrorText>
         </Block>

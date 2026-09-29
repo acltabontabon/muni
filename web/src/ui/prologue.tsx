@@ -8,7 +8,8 @@
  * Tap, swipe, → or Space goes on; ← goes back; Skip (or Esc) is always there. Nothing moves under
  * reduced motion, and the scene rests while the tab is hidden.
  */
-import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react'
+import { useCallback, useEffect, useLayoutEffect, useRef, useState, type ReactNode } from 'react'
+import { createPortal } from 'react-dom'
 import { useLocation, useNavigate } from 'react-router'
 import { Mark } from '@/brand/Mark'
 import { useGuide, setIntent } from '@/guide/GuideProvider'
@@ -247,12 +248,29 @@ export function PrologueGate() {
   )
 }
 
-/** Watching it again, from the evening's sky: nothing changes, the page underneath stays. */
-export function PrologueReplay({ onDone }: { onDone: () => void }) {
+/**
+ * Watching it again, from the evening's sky: nothing changes, the page underneath stays. While it's
+ * open the page underneath can't be reached (inert); closed, focus goes back to where it came from.
+ */
+export function PrologueReplay({ onDone, returnTo }: { onDone: () => void; returnTo?: HTMLElement | null }) {
   const { me } = useAuth()
   const track: Track = me?.workspaces.some((w) => !w.is_demo && w.role === 'owner') ? 'starter' : me?.workspaces.some((w) => !w.is_demo) ? 'member' : 'starter'
-  return (
-    <div className="prologue-over" role="dialog" aria-modal="true" aria-label="The first evening">
+  const box = useRef<HTMLDivElement>(null)
+  useLayoutEffect(() => {
+    const here = box.current
+    const was = document.activeElement instanceof HTMLElement ? document.activeElement : null
+    const others = [...document.body.children].filter((el) => el !== here && !el.hasAttribute('inert'))
+    for (const el of others) el.setAttribute('inert', '')
+    if (here && !here.contains(document.activeElement)) here.focus({ preventScroll: true })
+    return () => {
+      for (const el of others) el.removeAttribute('inert')
+      const back = [returnTo, was].find((el) => el && el.isConnected && el !== document.body)
+      back?.focus({ preventScroll: true })
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- where it came from is read once, as it opens
+  }, [])
+  return createPortal(
+    <div ref={box} tabIndex={-1} className="prologue-over outline-none" role="dialog" aria-modal="true" aria-label="The first evening">
       <Prologue
         track={track}
         finishing={false}
@@ -265,6 +283,7 @@ export function PrologueReplay({ onDone }: { onDone: () => void }) {
           </div>
         }
       />
-    </div>
+    </div>,
+    document.body,
   )
 }

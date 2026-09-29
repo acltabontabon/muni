@@ -58,6 +58,9 @@ export function Prepare() {
   const [picked, setPicked] = useState<Set<string>>(new Set())
   const [pendingReset, setPendingReset] = useState<{ run: (reason: string) => Promise<boolean>; cancel: () => void } | null>(null)
   const [resetReason, setResetReason] = useState('')
+  /** A move is on its way: its buttons wait, so a second tap never sends it twice. */
+  const [moving, setMoving] = useState(false)
+  const movingNow = useRef(false)
   useDocumentTitle(s ? `${s.name} · themes` : 'Themes')
 
   // Answers can arrive out of order (a reload and a change's own answer): a table older than the
@@ -173,11 +176,18 @@ export function Prepare() {
   /** Once a change with them is made, the thoughts it moved are no longer picked up (anything picked meanwhile stays). */
   const letGo = (ids: string[]) => setPicked((p) => new Set([...p].filter((id) => !ids.includes(id))))
   const putInto = async (themeId: string | null, ids: string[]) => {
-    if (!ids.length) return
-    const done = themeId
-      ? await structural((reason) => patch<GroupingView>(`/api/sprints/${sprintId}/themes/${themeId}`, { entry_ids: ids, reset_voting_reason: reason }))
-      : await structural((reason) => post<GroupingView>(`/api/sprints/${sprintId}/themes/ungroup`, { entry_ids: ids, reset_voting_reason: reason }))
-    if (done) letGo(ids)
+    if (!ids.length || movingNow.current) return
+    movingNow.current = true
+    setMoving(true)
+    try {
+      const done = themeId
+        ? await structural((reason) => patch<GroupingView>(`/api/sprints/${sprintId}/themes/${themeId}`, { entry_ids: ids, reset_voting_reason: reason }))
+        : await structural((reason) => post<GroupingView>(`/api/sprints/${sprintId}/themes/ungroup`, { entry_ids: ids, reset_voting_reason: reason }))
+      if (done) letGo(ids)
+    } finally {
+      movingNow.current = false
+      setMoving(false)
+    }
   }
   const newTheme = async (title: string, ids: string[]) => {
     const done = await structural((reason) => post<GroupingView>(`/api/sprints/${sprintId}/themes`, { title, entry_ids: ids, reset_voting_reason: reason }))
@@ -273,7 +283,7 @@ export function Prepare() {
           <ol className="sort-piles">
             {themes.map((t, i) => {
               const addable = pickedIds.filter((id) => homeOf(id) !== t.id)
-              return <Pile key={t.id} t={t} n={i + 1} all={themes} sprintId={sprintId} canEdit={canEdit} picked={picked} onToggle={toggle} addable={addable.length} onAdd={() => putInto(t.id, addable)} onTakeOut={(id) => putInto(null, [id])} onDropEntry={(id) => putInto(t.id, [id])} structural={structural} apply={apply} />
+              return <Pile key={t.id} t={t} n={i + 1} all={themes} sprintId={sprintId} canEdit={canEdit} picked={picked} onToggle={toggle} addable={addable.length} moving={moving} onAdd={() => putInto(t.id, addable)} onTakeOut={(id) => putInto(null, [id])} onDropEntry={(id) => putInto(t.id, [id])} structural={structural} apply={apply} />
             })}
             {canEdit ? <GhostPile n={themes.length + 1} first={!themes.length} selected={picked.size} onCreate={(title) => newTheme(title, pickedIds)} /> : null}
           </ol>
@@ -281,7 +291,7 @@ export function Prepare() {
       </div>
 
       {canEdit && picked.size ? (
-        <Tray count={picked.size} themes={themes} homes={homes} onPut={(tid) => putInto(tid, pickedIds)} onNew={(title) => newTheme(title, pickedIds)} onLoose={homes.size === 1 && homes.has(null) ? null : () => putInto(null, pickedIds)} onClear={() => setPicked(new Set())} />
+        <Tray count={picked.size} themes={themes} homes={homes} moving={moving} onPut={(tid) => putInto(tid, pickedIds)} onNew={(title) => newTheme(title, pickedIds)} onLoose={homes.size === 1 && homes.has(null) ? null : () => putInto(null, pickedIds)} onClear={() => setPicked(new Set())} />
       ) : null}
 
       <Dialog open={!!pendingReset} onOpenChange={(o) => { if (!o) { pendingReset?.cancel(); setPendingReset(null) } }} title="A vote is open" description="Changing the themes now cancels the round; people keep their unused votes for the next one. Say why in a few words — participants see it.">
@@ -314,7 +324,7 @@ function Tally({ total, grouped, themes }: { total: number; grouped: number; the
  * word. Tapping (or Enter, Space) selects it; selected, the check fills. Inside a theme it has its
  * own "Take out".
  */
-function Slip({ e, canEdit, picked, onToggle, onTakeOut }: { e: SharedEntry; canEdit: boolean; picked: boolean; onToggle: () => void; onTakeOut?: () => void }) {
+function Slip({ e, canEdit, picked, onToggle, onTakeOut, moving }: { e: SharedEntry; canEdit: boolean; picked: boolean; onToggle: () => void; onTakeOut?: () => void; moving?: boolean }) {
   const meta = categoryMeta(e.category)
   const locked = isLocked(e.body)
   const inTheme = !!onTakeOut
@@ -344,7 +354,7 @@ function Slip({ e, canEdit, picked, onToggle, onTakeOut }: { e: SharedEntry; can
         <span className="sr-only">{picked ? ' (selected)' : ''}</span>
       </button>
       {onTakeOut ? (
-        <button type="button" className="sort-takeout" onClick={onTakeOut} aria-label="Take out of this theme" title="Take out of this theme">
+        <button type="button" className="sort-takeout" onClick={onTakeOut} disabled={moving} aria-label="Take out of this theme" title="Take out of this theme">
           <Undo2 className="size-3.5" aria-hidden /> <span>Take out</span>
         </button>
       ) : null}
@@ -353,7 +363,7 @@ function Slip({ e, canEdit, picked, onToggle, onTakeOut }: { e: SharedEntry; can
 }
 
 /** A theme as a pile: its number and name, its opening question, its slips. While thoughts are selected, it offers to take them. */
-function Pile({ t, n, all, sprintId, canEdit, picked, onToggle, addable, onAdd, onTakeOut, onDropEntry, structural, apply }: { t: ThemeView; n: number; all: ThemeView[]; sprintId: string; canEdit: boolean; picked: Set<string>; onToggle: (id: string) => void; addable: number; onAdd: () => void; onTakeOut: (id: string) => void; onDropEntry: (id: string) => void; structural: Structural; apply: Apply }) {
+function Pile({ t, n, all, sprintId, canEdit, picked, onToggle, addable, moving, onAdd, onTakeOut, onDropEntry, structural, apply }: { t: ThemeView; n: number; all: ThemeView[]; sprintId: string; canEdit: boolean; picked: Set<string>; onToggle: (id: string) => void; addable: number; moving: boolean; onAdd: () => void; onTakeOut: (id: string) => void; onDropEntry: (id: string) => void; structural: Structural; apply: Apply }) {
   const toast = useToast()
   const [over, setOver] = useState(false)
   const [merging, setMerging] = useState(false)
@@ -419,7 +429,7 @@ function Pile({ t, n, all, sprintId, canEdit, picked, onToggle, addable, onAdd, 
       </div>
 
       {canEdit && addable > 0 ? (
-        <button type="button" className="sort-pile-add" onClick={onAdd}>
+        <button type="button" className="sort-pile-add" onClick={onAdd} disabled={moving}>
           <Plus className="size-4" aria-hidden /> Add {addable === 1 ? 'the selected thought' : `${addable} selected thoughts`} here
         </button>
       ) : null}
@@ -431,7 +441,7 @@ function Pile({ t, n, all, sprintId, canEdit, picked, onToggle, addable, onAdd, 
 
       {t.entries.length ? (
         <ul className="sort-slips sort-slips--in">
-          {t.entries.map((e) => <Slip key={e.id} e={e} canEdit={canEdit} picked={picked.has(e.id)} onToggle={() => onToggle(e.id)} onTakeOut={canEdit ? () => onTakeOut(e.id) : undefined} />)}
+          {t.entries.map((e) => <Slip key={e.id} e={e} canEdit={canEdit} picked={picked.has(e.id)} onToggle={() => onToggle(e.id)} onTakeOut={canEdit ? () => onTakeOut(e.id) : undefined} moving={moving} />)}
         </ul>
       ) : (
         <p className="sort-drop">Empty. Tap thoughts, then “Add here”.</p>
@@ -567,7 +577,7 @@ function ThemeMenu({ items }: { items: { label: string; run: () => void; danger?
  * What's selected, and where it can go: one bar at the foot of the screen, with the new theme's
  * name field already open, every theme named, and "Take out" when something selected is in a theme.
  */
-function Tray({ count, themes, homes, onPut, onNew, onLoose, onClear }: { count: number; themes: ThemeView[]; homes: Set<string | null>; onPut: (themeId: string) => void; onNew: (title: string) => Promise<boolean>; onLoose: (() => void) | null; onClear: () => void }) {
+function Tray({ count, themes, homes, moving, onPut, onNew, onLoose, onClear }: { count: number; themes: ThemeView[]; homes: Set<string | null>; moving: boolean; onPut: (themeId: string) => void; onNew: (title: string) => Promise<boolean>; onLoose: (() => void) | null; onClear: () => void }) {
   const { title, setTitle, busy, submit } = useNewTheme(onNew)
   const targets = themes.filter((t) => !(homes.size === 1 && homes.has(t.id)))
   return (
@@ -581,9 +591,9 @@ function Tray({ count, themes, homes, onPut, onNew, onLoose, onClear }: { count:
         <div className="sort-tray-targets">
           {targets.length ? <span className="sort-tray-or">or add to</span> : null}
           {targets.map((t) => (
-            <button key={t.id} type="button" className="sort-tray-to" onClick={() => onPut(t.id)}>{t.title}</button>
+            <button key={t.id} type="button" className="sort-tray-to" disabled={moving} onClick={() => onPut(t.id)}>{t.title}</button>
           ))}
-          {onLoose ? <button type="button" className="sort-tray-to sort-tray-to--quiet" onClick={onLoose}>Take out of {homes.size > 1 || homes.has(null) ? 'their themes' : 'the theme'}</button> : null}
+          {onLoose ? <button type="button" className="sort-tray-to sort-tray-to--quiet" disabled={moving} onClick={onLoose}>Take out of {homes.size > 1 || homes.has(null) ? 'their themes' : 'the theme'}</button> : null}
         </div>
       ) : null}
       <button type="button" className="icon-btn" aria-label="Clear the selection" title="Clear (Esc)" onClick={onClear}><X className="size-4" aria-hidden /></button>

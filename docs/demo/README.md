@@ -1,7 +1,7 @@
 # The release demo
 
 `muni-demo.mp4` (1920×1200 at 60 fps) and `muni-demo.gif` (620 wide, for the release page) are a
-75-second reel of the real app. Every app frame in it is this build of Muni running locally, driven through
+73-second reel of the real app. Every app frame in it is this build of Muni running locally, driven through
 its own UI by [`web/e2e/demo.mjs`](../../web/e2e/demo.mjs), and never retouched. The reel around the
 footage is added by [`web/e2e/demo-reel.mjs`](../../web/e2e/demo-reel.mjs): Muni's paper, a
 chapter title per scene in Muni's type, the app in a window (a phone beside it where one was
@@ -31,8 +31,8 @@ also encodes it: `python3 -m http.server 4321 --directory site`, then `cd web &&
 | 03 | *Close collection whenever you’re ready.* Maya closes collection from the sprint bar: what it will do, then the closed state and *Start the retro…* | the camera moves to the control, then the confirmation | `/sprints/:id` (facilitator) |
 | 04 | *Gather them into themes.* Maya ticks four slips about staging, then names the theme in the empty pile waiting on the right, and it appears there with them inside | the camera follows the ticking, then crosses to the pile | `/sprints/:id/prepare` |
 | 05 | *Everyone arrives, on any screen.* The retro opens on Look back: the four steps at a glance; as Jonas, Tomás, Priya, Aiko and Sam open it, their faces light up in the rail and each arrival is said once | the camera moves up to the rail, where the faces and arrival lines are | `/sprints/:id/stage` (Look back) |
-| 06 | *Choose what matters most.* Why the team votes, in a line; beside the stage, Tomás spends his votes on his phone while the facilitator's count reaches 6 of 6; Maya moves on, which counts the vote and opens the top topic | the stage set aside, Tomás's phone beside it, in step | `/sprints/:id/stage` (Choose → Talk) and `/room` |
-| 07 | *Everyone answers. Nobody has to speak first.* “Who owns staging?”, the sun on the talk's horizon: Tomás answers the check-in on his phone and adds a line; the count reaches five; sharing turns the answers into counts and lines | stage and phone, in step | `/sprints/:id/stage` (Talk) and `/room` |
+| 06 | *Choose what matters most.* Why the team votes, in a line; beside the stage, Tomás spends his two votes on his phone while the facilitator's count reaches 6 of 6; her cue says most have voted, and Maya moves on, which counts the vote and opens the top topic | the stage set aside, Tomás's phone beside it, in step | `/sprints/:id/stage` (Choose → Talk) and `/room` |
+| 07 | *Everyone answers. Nobody has to speak first.* “Who owns staging?”, the sun on the talk's horizon: Tomás answers the check-in on his phone and adds a line; the count reaches five; the facilitator's cue offers to share them, and sharing turns the answers into counts and lines | stage and phone, in step | `/sprints/:id/stage` (Talk) and `/room` |
 | 08 | *Agree what to try next.* Maya turns the idea from the talk into an experiment and names Tomás; his phone asks, he says yes, and the stage says he owns it | stage and phone, in step | `/sprints/:id/stage` (Agree) and `/room` |
 | — | The mark, *Keep the thought. Bring it to the conversation.*, act.munimuni.app | drawn by the reel | |
 

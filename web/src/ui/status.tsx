@@ -5,7 +5,7 @@
 import { clsx } from 'clsx'
 import { CloudOff, RefreshCw } from 'lucide-react'
 import { useLocation, useNavigate } from 'react-router'
-import { useEffect, useState } from 'react'
+import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { onUpgradeRequired } from '@/api/client'
 import { useAuth } from '@/lib/auth'
 import { useLocal } from '@/lib/local/LocalProvider'
@@ -98,20 +98,38 @@ export function UpdateNotice() {
   const loc = useLocation()
   const [mustReload, setMustReload] = useState(false)
   const [blocked, setBlocked] = useState<string | null>(null)
+  // "Later" puts it away for this page's life, until what it says changes (an update that must be had).
+  const [later, setLater] = useState<string | null>(null)
+  const box = useRef<HTMLDivElement>(null)
   useEffect(() => {
     const off = onUpgradeRequired(() => setMustReload(true))
     return () => { off() }
   }, [])
-  if (!pwa.updateReady && !pwa.updatedElsewhere && !mustReload) return null
+  const text = mustReload ? 'Muni has been updated. Reload to continue.' : pwa.updatedElsewhere ? 'Muni was updated in another tab.' : 'A new version of Muni is ready.'
+  const showing = (pwa.updateReady || pwa.updatedElsewhere || mustReload) && later !== text
+  // Toasts stack above it rather than cover it: its height, for them to stand on.
+  useLayoutEffect(() => {
+    const el = box.current
+    const root = document.documentElement
+    if (!showing || !el) return
+    const set = () => root.style.setProperty('--update-notice', `${el.offsetHeight + 8}px`)
+    set()
+    const ro = typeof ResizeObserver !== 'undefined' ? new ResizeObserver(set) : null
+    ro?.observe(el)
+    return () => {
+      ro?.disconnect()
+      root.style.removeProperty('--update-notice')
+    }
+  }, [showing])
+  if (!showing) return null
   const reason = (): string | null => {
     if (/\/(stage|room)$/.test(loc.pathname)) return 'Muni will update after the retro — reload then.'
     if (local.items.some((i) => i.status === 'sending')) return 'A thought is being sent. Update in a moment.'
     if (local.kind === 'memory' && (isComposerDirty() || local.unsentCount > 0)) return 'You have unsent writing that is only kept in this tab. Send it first, or turn on “Keep drafts on this device”.'
     return null
   }
-  const text = mustReload ? 'Muni has been updated. Reload to continue.' : pwa.updatedElsewhere ? 'Muni was updated in another tab.' : 'A new version of Muni is ready.'
   return (
-    <div className="fixed bottom-[max(16px,env(safe-area-inset-bottom))] left-4 right-4 z-50 mx-auto flex max-w-md flex-wrap items-center gap-x-3 gap-y-1 rounded-2xl border border-line bg-card px-4 py-3 text-sm shadow-[var(--shadow-float)] anim-rise sm:left-6 sm:right-auto" role="status">
+    <div ref={box} className="fixed bottom-[max(16px,env(safe-area-inset-bottom))] left-4 right-4 z-50 mx-auto flex max-w-md flex-wrap items-center gap-x-3 gap-y-1 rounded-2xl border border-line bg-card px-4 py-3 text-sm shadow-[var(--shadow-float)] anim-rise sm:left-6 sm:right-auto" role="status">
       <span className="flex-1">{blocked ?? text}</span>
       <Button
         size="sm"
@@ -125,6 +143,7 @@ export function UpdateNotice() {
       >
         {blocked ? 'Update anyway' : pwa.updatedElsewhere || mustReload ? 'Reload' : 'Update'}
       </Button>
+      <Button size="sm" variant="ghost" onClick={() => { setLater(text); setBlocked(null) }}>Later</Button>
     </div>
   )
 }
