@@ -7,7 +7,9 @@
  *   · only a few answer, and the meeting moves on · nobody answers · a good conversation starts, so
  *   the check-in is skipped · a simple topic ends without a poll or an action · an idea draws a
  *   concern · someone joins late, reconnects, comes back to a backgrounded phone, opens a second tab ·
- *   someone is typing when the topic changes · a topic is revisited · three topics in a row.
+ *   someone is typing when the topic changes · a topic is revisited · three topics in a row · a
+ *   refresh fails mid-topic · the clock is paused and resumed · keys pressed with a modifier or a
+ *   dialog open · more votes than topics · the retro paused and started again.
  * It also counts what each thing costs: taps, typing, waits, facilitator operations. That measures
  * effort, not engagement: whether people *want* to answer needs real teams.
  *
@@ -34,7 +36,7 @@ async function account(name) {
   const jar = new Map()
   const req = async (method, path, body, { ok = true } = {}) => {
     const csrf = jar.get('muni_csrf')
-    const r = await fetch(BASE + path, { method, headers: { 'content-type': 'application/json', origin: BASE, 'x-muni-client': '5', cookie: [...jar].map(([k, v]) => `${k}=${v}`).join('; '), ...(csrf ? { 'x-csrf-token': csrf } : {}) }, body: body ? JSON.stringify(body) : undefined })
+    const r = await fetch(BASE + path, { method, headers: { 'content-type': 'application/json', origin: BASE, cookie: [...jar].map(([k, v]) => `${k}=${v}`).join('; '), ...(csrf ? { 'x-csrf-token': csrf } : {}) }, body: body ? JSON.stringify(body) : undefined })
     for (const c of r.headers.getSetCookie?.() ?? []) {
       const [kv] = c.split(';')
       const i = kv.indexOf('=')
@@ -133,10 +135,33 @@ try {
   await sleep(600)
   check('The rail shows who’s connected as faces, with a count', (await F.page.locator('.retro-room .retro-face[data-state="on"]').count()) >= 3 && /4\/\d/.test(await F.page.locator('.retro-room-n').innerText()))
   await shot(F.page, '01-arrivals')
+  // Marking someone here, when it doesn't get through, says so rather than failing silently.
+  await F.page.route('**/meeting/attendance/*', (r) => r.fulfill({ status: 503, contentType: 'application/json', body: JSON.stringify({ error: 'Muni is busy — try again in a moment.', code: 'unavailable' }) }))
+  await F.page.locator('button.retro-room').click()
+  await F.page.locator('.retro-pop-list input[type=checkbox]').first().click()
+  await F.page.locator('text=Muni is busy — try again in a moment.').waitFor({ timeout: 5000 }).catch(() => {})
+  check('Marking someone here that doesn’t get through says so', (await F.page.locator('text=Muni is busy — try again in a moment.').count()) >= 1)
+  await F.page.unroute('**/meeting/attendance/*')
+  await F.page.keyboard.press('Escape')
+  await F.page.locator('.retro-pop').waitFor({ state: 'detached' })
   check('Look back shows the whole retro at a glance: four steps, with their minutes', (await F.page.locator('.retro-map li').count()) === 4 && /min/.test(await F.page.locator('.retro-map').innerText()))
   await F.page.locator('.retro-verdict', { hasText: 'Helped' }).click()
+  // The stage's keys move the room only when meant: ⌘/Alt/Ctrl+→ are the browser's own, and a held key repeats.
+  const stepNow = () => F.page.locator('.retro-steps [aria-current="step"]').innerText()
+  await F.page.evaluate(() => { for (const held of [{ altKey: true }, { metaKey: true }, { ctrlKey: true }, { repeat: true }]) window.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowRight', ...held })) })
+  await sleep(800)
+  check('Stage keys: ⌘/Alt/Ctrl+→ and a held arrow don’t move the room', /Look back/.test(await stepNow()))
   await F.page.locator('.retro-rail-end button', { hasText: 'Next: Choose' }).click()
   await B.page.locator('.retro-vote').first().waitFor()
+  // Reading a topic's thoughts: the arrows stay with the reader, and the room stays where it is.
+  await F.page.locator('.retro-topic .retro-link').first().click()
+  await F.page.getByRole('dialog').waitFor()
+  await F.page.keyboard.press('ArrowRight')
+  await F.page.keyboard.press('ArrowLeft')
+  await sleep(800)
+  check('…nor while the thoughts are open over the stage', /Choose/.test(await stepNow()) && (await F.page.getByRole('dialog').count()) === 1)
+  await F.page.keyboard.press('Escape')
+  await F.page.getByRole('dialog').waitFor({ state: 'detached' })
   check('Choose says why we vote: time for about three topics, the most-voted first', /time for about three of these 3 topics/.test(flat(await F.page.locator('.retro-sub').innerText())) && /most-voted go first/.test(await F.page.locator('.retro-sub').innerText()))
   check('…and how voting works, in the margin', /How voting works/i.test(await F.page.locator('.retro-margin').innerText()) && /Private/.test(await F.page.locator('.retro-margin').innerText()))
   check('Phones say the same, and show the votes as a purse', /roughly 3 of these 3/.test(flat(await B.page.locator('.retro-sub').innerText())) && (await B.page.locator('.vote-purse-coins i').count()) === 3)
@@ -153,6 +178,32 @@ try {
   await F.page.locator('.retro-talk-title', { hasText: 'Reviews that wait' }).waitFor()
   await Pr.page.goto(`${STAGE}?mode=present`)
   await Pr.page.locator('.retro-talk-title').waitFor()
+  await B.page.locator('h1', { hasText: 'Reviews that wait' }).waitFor()
+
+  // The topic's clock, paused for a few seconds: meanwhile Ben's phone can't read the stage (the
+  // network hiccups). His phone keeps the retro and says it may be behind; resuming, the clock picks
+  // up where it stood (the pause never added on), and his phone catches up by itself.
+  const clockSecs = (s) => s.split(':').reduce((m, x) => m * 60 + Number(x), 0)
+  await B.page.route('**/api/sprints/*/meeting', (r) => r.abort())
+  await F.page.getByRole('button', { name: 'Pause', exact: true }).click()
+  await F.page.locator('.retro-clock[data-paused]').waitFor()
+  const stood = clockSecs(await F.page.locator('.retro-clock-n').innerText())
+  await B.page.locator('text=Couldn’t refresh just now').waitFor({ timeout: 8000 }).catch(() => {})
+  check('A refresh that fails keeps the retro on the phone, and says it may be behind', (await B.page.locator('text=Couldn’t refresh just now').count()) === 1 && (await B.page.locator('h1', { hasText: 'Reviews that wait' }).count()) === 1 && (await B.page.locator('text=Couldn’t reach Muni').count()) === 0)
+  await B.page.unroute('**/api/sprints/*/meeting')
+  await sleep(3500)
+  await F.page.evaluate(() => {
+    const n = document.querySelector('.retro-clock-n')
+    window.__clock = []
+    new MutationObserver(() => window.__clock.push(n.textContent)).observe(n, { childList: true, characterData: true, subtree: true })
+  })
+  await F.page.getByRole('button', { name: 'Resume', exact: true }).click()
+  await F.page.locator('.retro-clock:not([data-paused])').waitFor()
+  await sleep(1500)
+  const resumed = (await F.page.evaluate(() => window.__clock)).map(clockSecs)
+  check('Resumed, the clock picks up where it stood — the pause isn’t added on', resumed.length > 0 && resumed.every((s) => s <= stood + 1), JSON.stringify({ stood, resumed }))
+  await B.page.locator('text=Couldn’t refresh just now').waitFor({ state: 'detached', timeout: 8000 }).catch(() => {})
+  check('…and the phone catches up on the room’s next change', (await B.page.locator('text=Couldn’t refresh just now').count()) === 0)
 
   // ── Topic 1 · Reviews that wait.
   await B.page.locator('h1', { hasText: 'Reviews that wait' }).waitFor()
@@ -187,12 +238,17 @@ try {
   await I.page.locator('button', { hasText: 'Save line' }).click()
   await I.page.locator('.ci-your-line', { hasText: 'smaller tickets' }).waitFor()
   spend('Ines', 'answer + a line', 3, 38)
-  // Aiko changes her mind before it's shared.
+  // Aiko changes her mind before it's shared — from the keyboard: the answers are one stop for Tab,
+  // and the arrow keys move between them, choosing, as radio buttons do.
   await A.page.locator('.ci-choice', { hasText: 'I felt this' }).click()
   await A.page.locator('.ci-choice[aria-checked="true"]', { hasText: 'I felt this' }).waitFor()
-  await A.page.locator('.ci-choice', { hasText: 'I’d need context' }).click()
+  check('The answers are one stop for Tab: the one given', (await A.page.locator('.ci-choice[tabindex="0"]').count()) === 1 && /I felt this/.test(await A.page.locator('.ci-choice[tabindex="0"]').innerText()))
+  await A.page.locator('.ci-choice[aria-checked="true"]').focus()
+  await A.page.keyboard.press('ArrowRight')
+  await A.page.locator('.ci-choice[aria-checked="true"]', { hasText: 'Not in my work' }).waitFor()
+  await A.page.keyboard.press('ArrowRight')
   await A.page.locator('.ci-choice[aria-checked="true"]', { hasText: 'I’d need context' }).waitFor()
-  check('Changing an answer before it’s shared: one answer, the new one', (await A.page.locator('.ci-choice[aria-checked="true"]').count()) === 1)
+  check('Changing an answer before it’s shared: one answer, the new one — the arrows choose, and focus follows', (await A.page.locator('.ci-choice[aria-checked="true"]').count()) === 1 && (await A.page.evaluate(() => document.activeElement?.textContent ?? '')).includes('need context'))
   // Tomás answers from his laptop; Sam doesn't answer at all.
   const [c1] = (await checkinsOf(tomas)).filter((c) => c.theme_id === T['Reviews that wait'])
   await answerAs(tomas, c1.id, { choice: 'felt', note: 'Acceptance criteria changed after development started.' })
@@ -311,11 +367,17 @@ try {
   await I.page.locator('.ci-choice[aria-checked="true"]').waitFor()
   await I.page.locator('.ci-ask button', { hasText: 'Add a line' }).click()
   await I.page.fill('textarea[aria-label="Your line (optional)"]', 'The checklist pairing only worked because Sam had time')
-  // Sam joins late, mid-check-in: straight into the current topic and its question.
+  // Sam joins late, mid-check-in: straight into the current topic and its question. His phone's
+  // first connection to the room drops at once (a flaky network) and it reconnects.
   S = await open(sam, { phone: true })
+  let drops = 1
+  await S.page.routeWebSocket(/\/api\/sprints\/[^/]+\/ws$/, (ws) => (drops-- > 0 ? ws.close({ code: 4000, reason: 'flaky' }) : ws.connectToServer()))
   await S.page.goto(ROOM)
   await S.page.locator('.ci-ask').waitFor({ timeout: 8000 })
   check('A late arrival lands on the current topic and its question — no earlier check-ins to do', (await S.page.locator('h1', { hasText: 'What helped us ship' }).count()) === 1 && (await S.page.locator('.ci-ask').count()) === 1)
+  const samHere = async () => (await mara.req('GET', `/api/sprints/${sprint.id}/meeting`)).attendance.find((a) => a.account_id === sam.id)?.present === true
+  for (let i = 0; i < 20 && !(await samHere()); i++) await sleep(500)
+  check('…and counts as here once his phone is back, though it was reconnecting when it opened', await samHere())
   await F.page.locator('.retro-asks .retro-ask--share').click()
   await I.page.locator('.ci-leftover').waitFor({ timeout: 8000 })
   check('Shared while someone was writing: their line isn’t lost, and they’re told plainly', /before your line was saved/.test(await I.page.locator('.ci-leftover').innerText()))
@@ -364,15 +426,17 @@ try {
   await F.page.locator('.retro-steps button', { hasText: 'Agree' }).click()
   await F.page.locator('.retro-title', { hasText: 'What will we' }).waitFor()
   check('The idea shows what the room said — counts and the concern, not a verdict', /3 worth trying · 1 concern/.test(flat(await F.page.locator('.retro-ideas').innerText())) && /focus time/.test(await F.page.locator('.retro-ideas').innerText()))
+  // The signal and the owner first; then an idea from the talk: it fills the change, and keeps them.
+  await F.page.fill('#ex-signal', 'No PR waits more than a day for a first review')
+  await F.page.selectOption('#ex-owner', { label: 'Ines Duarte' }).catch(async () => F.page.selectOption('#ex-owner', ines.id))
   await F.page.locator('.retro-ideas li', { hasText: 'Reviews that wait' }).getByRole('button', { name: 'Use this idea' }).click()
   {
     const filled = await F.page.inputValue('#ex-change')
     const from = await F.page.locator('.exp-form-from').innerText().catch(() => '')
     const focused = await F.page.evaluate(() => document.activeElement?.id)
     check('Using an idea fills the form, names its theme, and puts the cursor there', filled.length > 0 && from.includes('Reviews that wait') && focused === 'ex-change', JSON.stringify({ filled, from, focused }))
+    check('…keeping what was already typed in the form', (await F.page.inputValue('#ex-signal')).startsWith('No PR waits') && (await F.page.inputValue('#ex-owner')) === ines.id)
   }
-  await F.page.fill('#ex-signal', 'No PR waits more than a day for a first review')
-  await F.page.selectOption('#ex-owner', { label: 'Ines Duarte' }).catch(async () => F.page.selectOption('#ex-owner', ines.id))
   await F.page.getByRole('button', { name: 'Add experiment' }).click()
   await I.page.locator('.retro-invite', { hasText: 'Will you own this?' }).waitFor({ timeout: 8000 })
   await I.page.getByRole('button', { name: 'I’ll own this' }).click()
@@ -391,13 +455,19 @@ try {
   await shot(F.page, '17-agree', true)
   await shot(Pr.page, '17b-agree-presenting', true)
   await F.page.getByRole('button', { name: 'End the retro' }).click()
-  await F.page.getByRole('dialog').getByRole('button', { name: 'End the retro' }).click()
+  // A double click in a hurry ends it once.
+  await F.page.getByRole('dialog').getByRole('button', { name: 'End the retro' }).dblclick()
   await F.page.waitForURL(`**/sprints/${sprint.id}`)
   await B.page.locator('text=The retro is').waitFor({ timeout: 10000 })
   check('Ending takes everyone to the outcomes', true)
+  await sleep(800)
+  check('…once, even clicked twice: no “couldn’t end it” afterwards', (await F.page.locator('text=Couldn’t end the retro').count()) === 0)
 
   // ── The recap: who came, what we'll try, what we talked about — the same page for everyone.
   await F.page.locator('.recap-head').waitFor({ timeout: 10000 })
+  // The head can arrive before who came and what was talked about: wait for them, not a moment.
+  await F.page.locator('.recap-people li[data-here]').nth(3).waitFor({ timeout: 10000 }).catch(() => {})
+  await F.page.locator('.recap-topic').nth(2).waitFor({ timeout: 10000 }).catch(() => {})
   const head = flat(await F.page.locator('.recap-head').innerText())
   check('The recap says when the retro was, how long it took, and who came — as faces', /minute/i.test(head) && /came/.test(head) && (await F.page.locator('.recap-people li[data-here]').count()) >= 4)
   check('What we’ll try comes first, each with its owner', (await F.page.locator('.recap-exp').count()) >= 1 && /owns this|Waiting for/.test(await F.page.locator('.recap-exp').first().innerText()))
@@ -413,6 +483,40 @@ try {
   check('A participant sees the same recap, without the tools', (await B.page.locator('textarea[aria-label="Recap (Markdown)"]').count()) === 0 && (await B.page.locator('.recap-exp').count()) >= 1)
   check('Recap on a phone: no sideways scroll', (await overflow(B.page)) <= 0)
   await shot(B.page, '18b-recap-phone', true)
+
+  // ── Another sprint: three votes each but two topics; then the retro paused, and started again.
+  const s15 = await mara.req('POST', `/api/workspaces/${ws.id}/sprints`, { name: `Sprint 15 ${tag}`, starts_on: d(-1), ends_on: d(10), retro_date: d(11), retro_time: '15:00', ...team })
+  await mara.req('POST', `/api/sprints/${s15.id}/transition`, { to: 'collecting' })
+  for (const [who, body] of [[ben, 'Deploys took most of an hour.'], [ines, 'Pairing on the migration went well.'], [aiko, 'On-call was quiet all sprint.']]) await who.req('POST', `/api/sprints/${s15.id}/entries`, { body, category: 'improve', idempotency_key: crypto.randomUUID() })
+  await mara.req('POST', `/api/sprints/${s15.id}/transition`, { to: 'preparing', confirm: true })
+  const loose15 = (await mara.req('GET', `/api/sprints/${s15.id}/themes`)).ungrouped
+  await mara.req('POST', `/api/sprints/${s15.id}/themes`, { title: 'Slow deploys', entry_ids: [loose15[0].id] })
+  await mara.req('POST', `/api/sprints/${s15.id}/themes`, { title: 'What worked', entry_ids: [loose15[1].id, loose15[2].id] })
+  await mara.req('POST', `/api/sprints/${s15.id}/transition`, { to: 'live' })
+  await F.page.goto(`${BASE}/sprints/${s15.id}/stage`)
+  await F.page.locator('.retro-steps').waitFor()
+  await B.page.goto(`${BASE}/sprints/${s15.id}/room`)
+  await B.page.locator('.retro-map').waitFor()
+  await F.page.locator('.retro-rail-end button', { hasText: 'Next: Choose' }).click()
+  await B.page.locator('.vote-purse').waitFor({ timeout: 8000 })
+  check('Three votes each and two topics: the phone holds two, one per topic', /^2 of 2 votes left/.test(flat(await B.page.locator('.vote-purse').innerText())) && (await B.page.locator('.vote-purse-coins i').count()) === 2, flat(await B.page.locator('.vote-purse').innerText()))
+  await B.page.locator('.retro-vote', { hasText: 'Vote for this' }).first().click()
+  await B.page.locator('.vote-purse', { hasText: /1 of 2/ }).waitFor({ timeout: 8000 }).catch(() => {})
+  check('…and a vote spends one of them', /^1 of 2 votes left/.test(flat(await B.page.locator('.vote-purse').innerText())) && (await B.page.locator('.vote-purse-coins i[data-used]').count()) === 1)
+  check('The stage counts the facilitator’s own the same way', /Your own: 2 of 2 left/.test(await F.page.locator('.retro-margin').innerText()))
+  await shot(B.page, '19-two-topics-phone')
+  // Paused from the sprint's page: the stage and the phones say so, calmly, and offer nothing to send.
+  await mara.req('POST', `/api/sprints/${s15.id}/transition`, { to: 'ready' })
+  await F.page.locator('h1', { hasText: 'paused' }).waitFor({ timeout: 8000 })
+  await B.page.locator('h1', { hasText: 'paused' }).waitFor({ timeout: 8000 })
+  check('Paused: the stage and the phone say so, with nothing to vote on or send', (await B.page.locator('.retro-vote, .vote-purse, .ad-open, .ci-choice').count()) === 0 && (await F.page.locator('.retro-rail, .retro-vote').count()) === 0)
+  await shot(F.page, '20-paused-stage')
+  await shot(B.page, '20b-paused-phone')
+  await F.page.getByRole('button', { name: 'Start the retro again…' }).click()
+  await F.page.getByRole('dialog').getByRole('button', { name: 'Start the retro', exact: true }).click()
+  await F.page.locator('.retro-steps').waitFor({ timeout: 8000 })
+  await B.page.locator('.retro-map').waitFor({ timeout: 8000 })
+  check('The facilitator starts it again from the stage, and every screen follows, from the first step', /Look back/.test(await stepNow()) && (await B.page.locator('h1', { hasText: 'paused' }).count()) === 0)
 
   for (const [who, P] of [['Facilitator', F], ['Presenting', Pr], ['Ben', B], ['Ines', I], ['Aiko', A], ['Sam', S]]) check(`${who}: no page errors`, P.errors.length === 0, P.errors.slice(0, 2).join(' | '))
 } catch (e) {
