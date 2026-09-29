@@ -44,6 +44,16 @@ function CompanionRoom({ sprintId }: { sprintId: string }) {
   if (st.error) return <Shell><CouldntLoad message={st.error} onRetry={st.reload} /></Shell>
   if (!sprint || !st.ready) return <Shell><Spinner /></Shell>
   const done = ['completed', 'archived'].includes(sprint.status) || (!!stage?.ended_at && !stage.cancelled)
+  const running = !!stage && !stage.ended_at && !stage.cancelled && sprint.status === 'live'
+  // Paused from the sprint's page: nothing here can be sent until it starts again.
+  if (stage && !done && !running)
+    return (
+      <Shell title={sprint.name}>
+        <h1 className="retro-title retro-title--phone">The retro is <em>paused</em>.</h1>
+        <p className="mt-2 text-ink-soft">{stage.is_facilitator ? 'Start it again from the sprint’s page when the team is ready. What the room noted and agreed so far is kept.' : 'It carries on here when the facilitator starts it again. What the room noted so far is kept, and so is anything you were writing.'}</p>
+        <div className="mt-5"><Button variant={stage.is_facilitator ? 'primary' : 'ghost'} onClick={() => nav(`/sprints/${sprintId}`)}>Back to the sprint</Button></div>
+      </Shell>
+    )
   if (!stage || done)
     return (
       <Shell title={sprint.name}>

@@ -3,7 +3,7 @@ import { Link, useNavigate, useParams, useSearchParams } from 'react-router'
 import * as Popover from '@radix-ui/react-popover'
 import { ArrowRight, MonitorPlay, Pause, Play } from 'lucide-react'
 import { ApiError, patch, post, put } from '@/api/client'
-import type { CheckinView, Experiment, SharedEntry, StageSnapshot, ThemeView, VotingState } from '@/api/types'
+import type { CheckinView, Experiment, SharedEntry, SprintDetail, StageSnapshot, ThemeView, VotingState } from '@/api/types'
 import { PHASE_LABEL, categoryMeta } from '@/lib/categories'
 import { applyAppearance } from '@/lib/prefs'
 import { useStage } from '@/lib/stage'
@@ -12,6 +12,7 @@ import { shortDate } from '@/lib/schedule'
 import { Button, Dialog, Spinner, fmtClock, useCountdown, useDocumentTitle, useToast } from '@/ui'
 import { ReconnectingBar } from '@/ui/status'
 import { ExperimentEditor } from '@/ui/experiments'
+import { ConfirmDialog, useSprintControl } from '@/ui/sprint-bar'
 import { BehindLine, CouldntLoad, NoteField, PastExperiment, RetroMap, Thought, TopicHorizon, worthKeeping } from '@/ui/retro'
 import { ASK, CheckinResult, kindWord } from '@/ui/checkin'
 import { Mark } from '@/brand/Mark'
@@ -86,6 +87,8 @@ function StageRoom({ sprintId }: { sprintId: string }) {
     else if (phaseIdx < phases.length - 1) toStep(phases[phaseIdx + 1])
   }, [stage?.phase, topicAt, topics, run, phaseIdx, phases, toStep])
 
+  // Running: started, and neither paused nor finished.
+  const running = !!stage && !stage.ended_at && !stage.cancelled && sprint?.status === 'live'
   useEffect(() => {
     if (!fac) return
     const onKey = (e: KeyboardEvent) => {
@@ -104,6 +107,7 @@ function StageRoom({ sprintId }: { sprintId: string }) {
   if (st.error) return <Centered><CouldntLoad message={st.error} onRetry={st.reload} /></Centered>
   if (!sprint || !st.ready) return <Centered><Spinner /></Centered>
   const done = ['completed', 'archived'].includes(sprint.status) || (!!stage?.ended_at && !stage.cancelled)
+  if (stage && !done && !running) return <Paused sprint={sprint} fac={fac} onRestarted={st.putSprint} />
   if (!stage || done)
     return (
       <Centered>
@@ -160,6 +164,29 @@ function StageRoom({ sprintId }: { sprintId: string }) {
 
 function Centered({ children }: { children: React.ReactNode }) {
   return <div className="stage grid min-h-dvh place-items-center px-6 text-center text-ink"><div className="flex flex-col items-center">{children}</div></div>
+}
+
+/**
+ * The facilitator paused the retro (from the sprint's page). Nothing here should pass for live, and
+ * nothing can be sent: the facilitator's way back is starting it again, which opens the first step
+ * for everyone, with what the room noted and agreed so far kept.
+ */
+function Paused({ sprint, fac, onRestarted }: { sprint: SprintDetail; fac: boolean; onRestarted: (d: SprintDetail) => void }) {
+  const nav = useNavigate()
+  const control = useSprintControl({ id: sprint.id, status: sprint.status, encryption: sprint.encryption }, { online: true, onChanged: onRestarted })
+  const canStart = fac && sprint.allowed_transitions.includes('live')
+  return (
+    <Centered>
+      <Mark size={40} className="text-ink" />
+      <h1 className="font-display mt-4 text-2xl">The retro is <em className="retro-em">paused</em>.</h1>
+      <p className="mt-2 max-w-md text-ink-soft">{canStart ? 'What the room noted and agreed so far is kept. Start it again when the team is ready: everyone’s screen follows, from the first step.' : 'It carries on here when the facilitator starts it again. What the room noted so far is kept.'}</p>
+      <div className="mt-6 flex flex-wrap justify-center gap-2">
+        {canStart ? <Button variant="primary" busy={control.busy === 'live'} onClick={() => control.run({ kind: 'transition', to: 'live', label: 'Start the retro again', confirm: 'start' })}>Start the retro again…</Button> : null}
+        <Button variant={canStart ? 'ghost' : 'primary'} onClick={() => nav(`/sprints/${sprint.id}`)}>Back to the sprint</Button>
+      </div>
+      {control.confirming ? <ConfirmDialog kind="start" s={sprint} busy={!!control.busy} onCancel={control.cancel} onConfirm={() => control.transition(control.confirming!)} /> : null}
+    </Centered>
+  )
 }
 
 // ---------- the rail: where the retro is, and the one next step ----------
