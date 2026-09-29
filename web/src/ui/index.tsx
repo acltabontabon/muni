@@ -208,6 +208,13 @@ export function useCountdown(endsAt: string | null | undefined, remainingSecs: n
   // Derive the clock from the server's instant, corrected by the skew observed at snapshot time.
   const skew = useMemo(() => (serverTime ? Date.parse(serverTime) - Date.now() : 0), [serverTime])
   const [now, setNow] = useState(Date.now())
+  // A new deadline (resumed, two more minutes, a new topic) counts from this moment. `now` stood
+  // still while the clock was paused or at zero, and would add that pause to the first second shown.
+  const [deadline, setDeadline] = useState(endsAt)
+  if (deadline !== endsAt) {
+    setDeadline(endsAt)
+    setNow(Date.now())
+  }
   const secs = endsAt ? Math.max(0, Math.round((Date.parse(endsAt) - (now + skew)) / 1000)) : remainingSecs
   // Wake only when the shown second changes (not on a fixed interval): one render a second, and
   // none once it reaches zero.
