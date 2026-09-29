@@ -32,6 +32,10 @@ export interface MeetingState {
   started_at: number
   ended_at: number | null
   cancelled: boolean
+  /** The retro this is in D1 (sprints.session_started_at). Once ended or cancelled, it stays so. */
+  session?: number | null
+  /** A command holding the stage while the Worker makes its changes in D1 (see `claim`). */
+  claim?: { token: string; until: number } | null
 }
 export interface Attendance {
   present: boolean
@@ -57,8 +61,12 @@ export type Command =
 
 interface Attachment {
   a: string // account id
-  f: boolean // facilitator
+  f: boolean // facilitator (rewritten in place when facilitation is handed over)
 }
+type Audience = { facilitators?: boolean; accounts?: string[] }
+
+/** How long a claimed command may hold the stage while its D1 changes are made. */
+const CLAIM_MS = 15_000
 
 /** Minutes per step for a retro of `totalMin`. Only the talk is timed (per topic); the rest is a guide. */
 export function defaultPlan(totalMin: number): Record<string, number> {
@@ -67,7 +75,12 @@ export function defaultPlan(totalMin: number): Record<string, number> {
   return { look_back: m(5), choose: m(5), talk: m(28), agree: m(7) }
 }
 
+const refused = (status: number, code: string, error: string) => Response.json({ error, code }, { status })
+
 export class MeetingRoom implements DurableObject {
+  /** The latest handover heard of, for a socket whose request read who facilitates before it. */
+  private handover: { account: string; at: number } | null = null
+
   constructor(
     private ctx: DurableObjectState,
     private env: unknown,
@@ -98,7 +111,7 @@ export class MeetingRoom implements DurableObject {
   }
 
   /** To everyone connected, or only to the facilitator's sockets and/or some accounts' own. */
-  private broadcast(msg: Record<string, unknown>, to?: { facilitators?: boolean; accounts?: string[] } | null) {
+  private broadcast(msg: Record<string, unknown>, to?: Audience | null) {
     const data = JSON.stringify(msg)
     for (const ws of this.ctx.getWebSockets()) {
       if (to) {
@@ -133,13 +146,20 @@ export class MeetingRoom implements DurableObject {
         return this.finish(false)
       case '/cancel':
         return this.finish(true)
+      case '/claim':
+        return this.claim(body)
+      case '/release':
+        return this.release(body)
       case '/command':
         return this.command(body)
       case '/attendance':
         return this.setAttendance(body)
+      case '/facilitator':
+        return this.setFacilitator(body)
       case '/hint': {
         const m = await this.meeting()
-        this.broadcast({ type: 'hint', resource: String(body.resource ?? 'all'), version: m?.version ?? 0 }, body.to as { facilitators?: boolean; accounts?: string[] } | undefined)
+        const resources = Array.isArray(body.resources) ? body.resources.map(String) : [String(body.resource ?? 'all')]
+        for (const resource of resources) this.broadcast({ type: 'hint', resource, version: m?.version ?? 0 }, body.to as Audience | undefined)
         return Response.json({ ok: true })
       }
       case '/revoke': {
@@ -165,7 +185,10 @@ export class MeetingRoom implements DurableObject {
   private async openSocket(req: Request): Promise<Response> {
     if (req.headers.get('upgrade')?.toLowerCase() !== 'websocket') return new Response('expected websocket', { status: 426 })
     const account = req.headers.get('x-muni-account') ?? ''
-    const fac = req.headers.get('x-muni-fac') === '1'
+    let fac = req.headers.get('x-muni-fac') === '1'
+    // The Worker read who facilitates before a handover this object has since been told of.
+    const readAt = Number(req.headers.get('x-muni-at')) || 0
+    if (this.handover && readAt < this.handover.at) fac = account === this.handover.account
     if (!account) return new Response('unauthorized', { status: 401 })
     const pair = new WebSocketPair()
     const [client, server] = [pair[0], pair[1]]
@@ -177,6 +200,20 @@ export class MeetingRoom implements DurableObject {
     // The facilitator sees who's connected right now; only a first connection changes that.
     if (arriving && m) this.broadcast({ type: 'hint', resource: 'meeting', version: m.version }, { facilitators: true })
     return new Response(null, { status: 101, webSocket: client })
+  }
+
+  /**
+   * Facilitation was handed over (and saved in D1 at `at`): the new facilitator's open sockets get
+   * what only the facilitator hears, and the previous one's stop getting it, without reconnecting.
+   */
+  private setFacilitator(body: Record<string, unknown>): Response {
+    const account = String(body.account_id ?? '')
+    this.handover = { account, at: Number(body.at) || Date.now() }
+    for (const ws of this.ctx.getWebSockets()) {
+      const att = ws.deserializeAttachment() as Attachment | null
+      if (att?.a) ws.serializeAttachment({ a: att.a, f: att.a === account } satisfies Attachment)
+    }
+    return Response.json({ ok: true })
   }
 
   async webSocketMessage(ws: WebSocket, message: string | ArrayBuffer) {
@@ -220,9 +257,19 @@ export class MeetingRoom implements DurableObject {
   }
 
   // ---------- lifecycle ----------
+  /**
+   * Holds a session for the sprint's retro. `session` names the retro in D1: a read that finds the
+   * room without one starts it again, but never one that was ended or cancelled (a read racing the
+   * cancellation mustn't bring it back). `replace` starts afresh whatever is there (going live).
+   */
   private async start(body: Record<string, unknown>): Promise<Response> {
     const existing = await this.meeting()
-    if (existing && !existing.ended_at && !existing.cancelled) return Response.json({ ok: true, version: existing.version, existed: true })
+    const session = typeof body.session === 'number' ? body.session : null
+    if (existing && body.replace !== true) {
+      const same = session === null || existing.session == null || existing.session === session
+      if (!existing.ended_at && !existing.cancelled && same) return Response.json({ ok: true, version: existing.version, existed: true })
+      if ((existing.ended_at || existing.cancelled) && session !== null && existing.session === session) return refused(409, 'conflict', 'this retro has ended')
+    }
     const m: MeetingState = {
       sprint_id: String(body.sprint_id),
       version: 1,
@@ -238,6 +285,8 @@ export class MeetingRoom implements DurableObject {
       started_at: Date.now(),
       ended_at: null,
       cancelled: false,
+      session,
+      claim: null,
     }
     await this.ctx.storage.put({ meeting: m, attendance: {} })
     this.broadcast({ type: 'hint', resource: 'meeting', version: m.version })
@@ -258,22 +307,47 @@ export class MeetingRoom implements DurableObject {
   }
 
   // ---------- commands ----------
+  /** Why `account` can't command the stage at `expected` now — or null when it can. */
+  private refusal(m: MeetingState | null, account: string, expected: number, type: unknown, claim: unknown): Response | null {
+    if (!m || m.ended_at) return refused(409, 'conflict', 'the retro isn’t live')
+    if (m.claim && m.claim.until > Date.now() && m.claim.token !== claim) return refused(409, 'conflict', 'the stage is changing right now — try again in a moment')
+    if (m.version !== expected) return refused(409, 'conflict', 'the stage changed since you last saw it — it’s been refreshed, try again')
+    const controllerPresent = m.controller_account_id ? this.connectedAccounts().includes(m.controller_account_id) : false
+    if (m.controller_account_id && m.controller_account_id !== account && controllerPresent && type !== 'take_control')
+      return refused(409, 'conflict', 'another facilitator is controlling the stage — take control explicitly to continue')
+    return null
+  }
+
+  /**
+   * A command that also changes D1 (a step's vote, a topic marked discussed) asks here first. If it
+   * may go ahead, the stage is held for it — every other command is refused — until it's applied
+   * (`/command` with the claim) or released, so D1 changes only for a command the stage takes.
+   */
+  private async claim(body: Record<string, unknown>): Promise<Response> {
+    const m = await this.meeting()
+    const no = this.refusal(m, String(body.account ?? ''), Number(body.expected_version), body.type, null)
+    if (no) return no
+    const claim = { token: crypto.randomUUID(), until: Date.now() + CLAIM_MS }
+    await this.ctx.storage.put({ meeting: { ...m!, claim } })
+    return Response.json({ ok: true, claim: claim.token })
+  }
+
+  private async release(body: Record<string, unknown>): Promise<Response> {
+    const m = await this.meeting()
+    if (m?.claim && m.claim.token === body.claim) await this.ctx.storage.put({ meeting: { ...m, claim: null } })
+    return Response.json({ ok: true })
+  }
+
   private async command(body: Record<string, unknown>): Promise<Response> {
     const account = String(body.account ?? '')
-    const expected = Number(body.expected_version)
     const cmd = (body.command && typeof body.command === 'object' ? body.command : {}) as Command
     const m = await this.meeting()
-    if (!m || m.ended_at) return Response.json({ error: 'the retro isn’t live', code: 'conflict' }, { status: 409 })
-    if (m.version !== expected) return Response.json({ error: 'the stage changed since you last saw it — it’s been refreshed, try again', code: 'conflict' }, { status: 409 })
-    const connected = this.connectedAccounts()
-    const controllerPresent = m.controller_account_id ? connected.includes(m.controller_account_id) : false
-    if (m.controller_account_id && m.controller_account_id !== account && controllerPresent && cmd.type !== 'take_control') {
-      return Response.json({ error: 'another facilitator is controlling the stage — take control explicitly to continue', code: 'conflict' }, { status: 409 })
-    }
+    const no = this.refusal(m, account, Number(body.expected_version), cmd.type, body.claim)
+    if (no || !m) return no!
     // The Worker validates commands; this keeps a malformed one from ever reaching the stored state.
     const finite = (v: unknown) => typeof v === 'number' && Number.isFinite(v)
     if ((cmd.type === 'set_agenda' && !Array.isArray(cmd.items)) || (cmd.type === 'timer_start' && !finite(cmd.secs)) || (cmd.type === 'timer_adjust' && !finite(cmd.delta_secs)))
-      return Response.json({ error: 'that command is malformed', code: 'bad_request' }, { status: 400 })
+      return refused(400, 'bad_request', 'that command is malformed')
     const now = Date.now()
     let action = 'meeting.command'
     /** A topic's timebox: the talk's minutes shared across the first three topics, running from the moment it opens. Guidance, not a cut-off. */
@@ -289,7 +363,7 @@ export class MeetingRoom implements DurableObject {
         action = 'meeting.control_taken'
         break
       case 'set_phase': {
-        if (!(PHASES as readonly string[]).includes(cmd.phase)) return Response.json({ error: 'unknown phase', code: 'bad_request' }, { status: 400 })
+        if (!(PHASES as readonly string[]).includes(cmd.phase)) return refused(400, 'bad_request', 'unknown phase')
         m.phase = cmd.phase as Phase
         if (Array.isArray(cmd.agenda)) m.agenda = cmd.agenda.slice(0, 40).map((i) => ({ theme_id: String(i.theme_id), reason: null }))
         // Only the talk keeps a clock: arriving there opens its first topic (when one is given), anywhere else the clock stops.
@@ -352,29 +426,33 @@ export class MeetingRoom implements DurableObject {
         m.timer_total_secs = null
         break
       default:
-        return Response.json({ error: 'unknown command', code: 'bad_request' }, { status: 400 })
+        return refused(400, 'bad_request', 'unknown command')
     }
     m.version += 1
     m.controller_account_id = account
     m.controller_seen_at = now
+    m.claim = null
     await this.ctx.storage.put({ meeting: m })
     this.broadcast({ type: 'hint', resource: 'meeting', version: m.version })
-    return Response.json({ ok: true, version: m.version, action })
+    // What the command changed in D1 (made before it was sent here), announced once the stage has moved.
+    for (const resource of Array.isArray(body.hints) ? body.hints.map(String) : []) this.broadcast({ type: 'hint', resource, version: m.version })
+    return Response.json({ ok: true, version: m.version, action, state: await this.state() })
   }
 
   private async setAttendance(body: Record<string, unknown>): Promise<Response> {
     const target = String(body.target ?? '')
     const m = await this.meeting()
-    if (!m) return Response.json({ error: 'the retro hasn’t started yet', code: 'not_found' }, { status: 404 })
+    if (!m) return refused(404, 'not_found', 'the retro hasn’t started yet')
     const att = await this.attendance()
     const cur = att[target] ?? { present: false, updated_at: 0 }
     if (typeof body.present === 'boolean') cur.present = body.present
     cur.updated_at = Date.now()
     att[target] = { present: cur.present, updated_at: cur.updated_at }
-    // Presence isn't a command: someone arriving mustn't make the facilitator's next click a conflict.
-    // Everyone still hears about it; the version that guards commands stays as it was.
+    // Presence isn't a command: someone arriving mustn't make the facilitator's next click a conflict,
+    // so the version that guards commands stays as it was. Only the facilitator's screen lists who's
+    // here live, and the person's own other tabs follow; everyone else sees it on their next read.
     await this.ctx.storage.put({ attendance: att })
-    this.broadcast({ type: 'hint', resource: 'meeting', version: m.version })
-    return Response.json({ ok: true })
+    this.broadcast({ type: 'hint', resource: 'meeting', version: m.version }, { facilitators: true, accounts: [target] })
+    return Response.json({ ok: true, state: await this.state() })
   }
 }

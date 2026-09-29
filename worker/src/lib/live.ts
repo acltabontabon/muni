@@ -26,12 +26,24 @@ async function call<T = unknown>(stub: DurableObjectStub, path: string, body?: u
   return { status: res.status, body: parsed as T }
 }
 
-/** Fire-and-forget hint; failures are swallowed (clients also resync on reconnect and visibility). */
-export async function hint(env: { ROOMS: DurableObjectNamespace }, sprintId: string, resource: Resource, to?: Audience): Promise<void> {
+/**
+ * Fire-and-forget hint — one or several resources in one call to the room; failures are swallowed
+ * (clients also resync on reconnect and visibility). Sent only after the writes it announces.
+ */
+export async function hint(env: { ROOMS: DurableObjectNamespace }, sprintId: string, resource: Resource | Resource[], to?: Audience): Promise<void> {
   try {
-    await call(room(env, sprintId), '/hint', { resource, to })
+    await call(room(env, sprintId), '/hint', { resources: Array.isArray(resource) ? resource : [resource], to })
   } catch {
     /* best effort */
+  }
+}
+
+/** Tells the room who facilitates now (saved in D1 at `at`), so open sockets follow without reconnecting. */
+export async function handOver(env: { ROOMS: DurableObjectNamespace }, sprintId: string, accountId: string, at: number): Promise<void> {
+  try {
+    await call(room(env, sprintId), '/facilitator', { account_id: accountId, at })
+  } catch {
+    /* best effort: a reconnect carries the facilitator from D1 */
   }
 }
 
@@ -50,10 +62,10 @@ const SOCKET_HEADERS = ['upgrade', 'connection', 'sec-websocket-key', 'sec-webso
 
 /**
  * Headers for the room's `/ws` request: the WebSocket handshake plus who is connecting, as
- * established by the Worker. The session cookie stays behind, so it never appears in the room's
- * request (or in a log of it).
+ * established by the Worker, and when it read that (so a handover the room hears of later wins).
+ * The session cookie stays behind, so it never appears in the room's request (or in a log of it).
  */
-export function roomSocketHeaders(client: Headers, accountId: string, isFacilitator: boolean): Headers {
+export function roomSocketHeaders(client: Headers, accountId: string, isFacilitator: boolean, readAt = Date.now()): Headers {
   const out = new Headers()
   for (const name of SOCKET_HEADERS) {
     const v = client.get(name)
@@ -61,5 +73,6 @@ export function roomSocketHeaders(client: Headers, accountId: string, isFacilita
   }
   out.set('x-muni-account', accountId)
   out.set('x-muni-fac', isFacilitator ? '1' : '0')
+  out.set('x-muni-at', String(readAt))
   return out
 }

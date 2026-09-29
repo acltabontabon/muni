@@ -158,7 +158,6 @@ voting.post('/api/sprints/:sprintId/votes/rounds/close', async (c) => {
   const reason = body.reason ? (isEncrypted(ctx.sprint) ? content(true, body.reason, 200, 'The reason', false) : String(body.reason).slice(0, 200)) : null
   if (!(await closeRound(db, ctx.sprint.id, status, reason ?? null))) throw conflict('no voting round is open')
   await audit(db, ctx.sprint.workspace_id, ctx.sprint.id, ctx.auth.account.id, 'votes.round_closed', { status })
-  await hint(c.env, ctx.sprint.id, 'votes')
-  await hint(c.env, ctx.sprint.id, 'themes')
+  await hint(c.env, ctx.sprint.id, ['votes', 'themes'])
   return c.json(await votingState(db, ctx))
 })

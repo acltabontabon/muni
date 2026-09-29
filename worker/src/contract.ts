@@ -332,7 +332,7 @@ export interface AttendeeView {
   /** Their character, shown as their face in the retro (with their name, never with anything anonymous). */
   avatar_id: string | null
   present: boolean
-  /** Has the retro open right now (the stage or their phone), live. */
+  /** Has the retro open right now (the stage or their phone), live. The facilitator's to know: false in everyone else's snapshot. */
   connected: boolean
   is_facilitator: boolean
   is_you: boolean

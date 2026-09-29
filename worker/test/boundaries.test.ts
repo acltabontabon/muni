@@ -226,8 +226,8 @@ describe('participant-triggered room recovery', () => {
   it('doesn’t make a participant the stage controller', async () => {
     const { owner, members, ws } = await team(1)
     const s = await sprint(owner, members, ws, 'live')
-    const { roomCancel, roomState } = await import('./harness')
-    await roomCancel(s)
+    const { roomWipe, roomState } = await import('./harness')
+    await roomWipe(s)
     const snap = await get(`/api/sprints/${s}/meeting`, members[0])
     expect(snap.status).toBe(200)
     expect(snap.body.you_control).toBe(false)

@@ -5,7 +5,7 @@ import { loadSprintCtx, requireAuth, requireFacilitator, requireMember, requireP
 import { uuid } from '../lib/crypto'
 import { all, audit, batch, bool, count, one, run } from '../lib/db'
 import { bad, conflict, forbidden, notFound } from '../lib/errors'
-import { hint, revokeLive, room, roomCall } from '../lib/live'
+import { handOver, hint, revokeLive, room, roomCall } from '../lib/live'
 import { addDays, daysBetween, idList, isDate, jsonBody, localDate, localLabel, nonempty, optional, resolveLocal } from '../lib/util'
 import { cancelReminders, scheduleReminders } from '../jobs'
 import { defaultPlan } from '../room'
@@ -304,6 +304,8 @@ sprints.patch('/api/sprints/:sprintId', async (c) => {
       await batch(db, await wrapStatements(db, sid, ctx.auth.account.id, wraps, { sealedVersion: sealedV }))
       if (sealedV !== null) await run(db, 'DELETE FROM sprint_key_wraps WHERE sprint_id = ? AND version = ? AND account_id <> ?', sid, sealedV, fid)
     } else await run(db, 'UPDATE sprint_participants SET is_facilitator = (account_id = ?) WHERE sprint_id = ?', fid, sid)
+    // Open sockets follow the handover: what only the facilitator hears goes to the new one now.
+    if (before?.account_id !== fid) await handOver(c.env, sid, fid, Date.now())
   }
   await audit(db, ctx.sprint.workspace_id, sid, ctx.auth.account.id, 'sprint.updated')
   await hint(c.env, sid, 'sprint')
@@ -341,8 +343,12 @@ sprints.patch('/api/sprints/:sprintId/me', async (c) => {
   return c.json({ ok: true })
 })
 
-/** Ensures the room object holds a session for a live sprint (idempotent; also used for recovery on read). */
-export async function ensureRoom(env: HonoEnv['Bindings'], ctx: SprintCtx) {
+/**
+ * Ensures the room object holds a session for a live sprint (idempotent; also used for recovery on
+ * read). `session` is the retro's sprints.session_started_at: the room won't bring back one it has
+ * seen end or be cancelled. `replace` starts afresh whatever the room holds (going live).
+ */
+export async function ensureRoom(env: HonoEnv['Bindings'], ctx: SprintCtx, opts: { session: number | null; replace?: boolean }) {
   const themes = await all<{ id: string; order_reason: string | null }>(env.DB, 'SELECT id, order_reason FROM themes WHERE sprint_id = ? AND parked = 0 ORDER BY position, created_at', ctx.sprint.id)
   await roomCall(room(env, ctx.sprint.id), '/start', {
     sprint_id: ctx.sprint.id,
@@ -350,6 +356,8 @@ export async function ensureRoom(env: HonoEnv['Bindings'], ctx: SprintCtx) {
     agenda: themes.map((t) => ({ theme_id: t.id, reason: t.order_reason })),
     // Only a facilitator becomes the controller; a participant's read that re-initialises the room leaves it open.
     controller: ctx.isFacilitator ? ctx.auth.account.id : null,
+    session: opts.session,
+    replace: opts.replace === true,
   })
 }
 
@@ -442,8 +450,7 @@ sprints.post('/api/sprints/:sprintId/transition', async (c) => {
     case 'preparing>live': {
       await guard("UPDATE sprints SET status='live', session_started_at=?, session_ended_at=NULL, session_cancelled=0, updated_at=? WHERE id=? AND status=?", now, now, sid, from)
       // A fresh room session; a stale one from an earlier cancelled run is replaced.
-      await roomCall(room(c.env, sid), '/cancel')
-      await ensureRoom(c.env, ctx)
+      await ensureRoom(c.env, ctx, { session: now, replace: true })
       break
     }
     case 'live>ready': {
@@ -471,8 +478,7 @@ sprints.post('/api/sprints/:sprintId/transition', async (c) => {
       throw conflict(`can’t move from ${from} to ${to}`)
   }
   await audit(db, row.workspace_id, sid, ctx.auth.account.id, 'sprint.transition', { from, to })
-  await hint(c.env, sid, 'sprint')
-  await hint(c.env, sid, 'meeting')
+  await hint(c.env, sid, ['sprint', 'meeting'])
   return c.json(await detail(c.env, await loadSprintCtx(db, ctx.auth, sid)))
 })
 

@@ -3,7 +3,7 @@
  * bindings from the test pool. Every test mints its own accounts (signed in with passkeys) and
  * workspace with unique addresses, so tests never depend on each other.
  */
-import { env, SELF } from 'cloudflare:test'
+import { env, runInDurableObject, SELF } from 'cloudflare:test'
 import { SoftAuthenticator } from './authenticator'
 
 export interface User {
@@ -170,6 +170,15 @@ export async function roomState(sprintId: string): Promise<any> {
 export async function roomCancel(sprintId: string): Promise<void> {
   const stub = env.ROOMS.get(env.ROOMS.idFromName(sprintId))
   await stub.fetch('https://room/cancel', { method: 'POST' })
+}
+/** The room loses everything it stored (as if its session never started). */
+export async function roomWipe(sprintId: string): Promise<void> {
+  await runInDurableObject(env.ROOMS.get(env.ROOMS.idFromName(sprintId)), (_room, state) => state.storage.deleteAll())
+}
+/** Calls the room directly, as the Worker does. */
+export async function roomPost(sprintId: string, path: string, body: unknown = {}): Promise<{ status: number; body: any }> {
+  const r = await env.ROOMS.get(env.ROOMS.idFromName(sprintId)).fetch(`https://room${path}`, { method: 'POST', body: JSON.stringify(body) })
+  return { status: r.status, body: await r.json().catch(() => null) }
 }
 
 /** Opens the live-hint socket as `user`; messages are collected as strings. */

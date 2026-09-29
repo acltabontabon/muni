@@ -1,7 +1,8 @@
 /** The live stage: versioned commands, the steps and their housekeeping, timer, attendance, context, notes, recovery. */
-import { describe, expect, it } from 'vitest'
-import { env } from 'cloudflare:test'
-import { closeCollection, command, entry, get, go, ids, openSocket, patch, post, put, roomCancel, sleep, sprint, team, type User } from './harness'
+import { describe, expect, it, vi } from 'vitest'
+import { env, runInDurableObject } from 'cloudflare:test'
+import { MeetingRoom } from '../src/room'
+import { closeCollection, command, entry, get, go, ids, openSocket, patch, post, put, roomCancel, roomPost, roomState, roomWipe, sleep, sprint, team, type User } from './harness'
 
 /** A live sprint with `n` themes (one entry each) and everyone's attendance untouched. */
 async function live(owner: User, members: User[], ws: string, n = 2, extra: Record<string, unknown> = {}) {
@@ -266,7 +267,7 @@ describe('meeting', () => {
     }
     expect(a.body.version).toBe(3)
     // The room forgets its session (e.g. a failed start): the next read rebuilds a fresh one from D1.
-    await roomCancel(s)
+    await roomWipe(s)
     const fresh = await snap(members[0], s)
     expect(fresh.status).toBe(200)
     expect(fresh.body.version).toBe(1)
@@ -277,6 +278,11 @@ describe('meeting', () => {
     expect(fresh.body.agenda).toEqual(a.body.agenda)
     expect((await snap(owner, s)).body.version).toBe(1)
     expect((await get(`/api/sprints/${s}`, owner)).body.status).toBe('live')
+    // A read racing the retro's cancellation — the room has cancelled it, D1 still says live —
+    // doesn't bring it back.
+    await roomCancel(s)
+    expect((await snap(members[0], s)).body.cancelled).toBe(true)
+    expect((await roomState(s)).meeting.cancelled).toBe(true)
     // Cancelling the session from the lifecycle (live → ready) ends it; going live again starts a fresh one.
     await command(owner, s, { type: 'set_phase', phase: 'talk' })
     expect((await go(owner, s, 'ready')).status).toBe(200)
@@ -297,6 +303,91 @@ describe('meeting', () => {
     expect(ended.body.ended_at).not.toBeNull()
     expect(ended.body.phase).toBe('agree')
     expect((await command(owner, s, { type: 'set_phase', phase: 'look_back' })).status).toBe(409)
+  })
+
+  it('leaves D1 alone when the stage refuses a command', async () => {
+    const { owner, members, ws } = await team(2)
+    const { s, themes } = await live(owner, members, ws)
+    const count = async (sql: string) => Number((await env.DB.prepare(sql).bind(s).first<{ n: number }>())!.n)
+    const rounds = () => count("SELECT count(*) AS n FROM vote_rounds WHERE sprint_id = ? AND status = 'open'")
+    const discussed = () => count('SELECT count(*) AS n FROM discussion_notes WHERE sprint_id = ? AND discussed = 1')
+    // A stale "choose" opens no vote.
+    const v1 = (await snap(owner, s)).body.version
+    expect((await raw(owner, s, v1 - 1, { type: 'set_phase', phase: 'choose' })).status).toBe(409)
+    expect(await count('SELECT count(*) AS n FROM vote_rounds WHERE sprint_id = ?')).toBe(0)
+    expect((await command(owner, s, { type: 'set_phase', phase: 'choose' })).status).toBe(200)
+    expect(await rounds()).toBe(1)
+    await post(`/api/sprints/${s}/votes`, members[0], { theme_id: themes[1], cast: true })
+    // A stale "talk" neither closes the vote (nor reorders the themes) nor marks a topic discussed;
+    // nor does a stale topic.
+    const v = (await snap(owner, s)).body.version
+    const order = (await get(`/api/sprints/${s}/themes`, owner)).body.themes.map((t: { id: string }) => t.id)
+    const stale = await raw(owner, s, v - 1, { type: 'set_phase', phase: 'talk' })
+    expect(stale.status).toBe(409)
+    expect(stale.body.error).toContain('changed since you last saw it')
+    expect((await raw(owner, s, v - 1, { type: 'set_topic', theme_id: themes[0] })).status).toBe(409)
+    expect(await rounds()).toBe(1)
+    expect(await discussed()).toBe(0)
+    expect((await get(`/api/sprints/${s}/themes`, owner)).body.themes.map((t: { id: string }) => t.id)).toEqual(order)
+    // While another command holds the stage (its D1 changes under way), everything else waits.
+    expect((await roomPost(s, '/claim', { account: owner.account_id, expected_version: v, type: 'set_phase' })).status).toBe(200)
+    const held = await raw(owner, s, v, { type: 'set_phase', phase: 'talk' })
+    expect(held.status).toBe(409)
+    expect(held.body.error).toContain('changing')
+    expect(await rounds()).toBe(1)
+    // A hold whose request never finished lapses on its own.
+    await runInDurableObject(env.ROOMS.get(env.ROOMS.idFromName(s)), async (_room, state) => {
+      const m = (await state.storage.get<{ claim: { until: number } }>('meeting'))!
+      await state.storage.put('meeting', { ...m, claim: { ...m.claim, until: Date.now() - 1 } })
+    })
+    const talk = await raw(owner, s, v, { type: 'set_phase', phase: 'talk' })
+    expect(talk.status).toBe(200)
+    expect(talk.body.agenda.map((a: { theme_id: string }) => a.theme_id)).toEqual([themes[1], themes[0]])
+    expect(await rounds()).toBe(0)
+    expect(await discussed()).toBe(1)
+  })
+
+  it('leaves D1 alone when another facilitator holds the stage, and lets one of two commands through', async () => {
+    const { owner, members, ws } = await team(2)
+    const { s, themes } = await live(owner, members, ws)
+    const { socket } = await openSocket(owner, s)
+    await sleep(100)
+    expect((await patch(`/api/sprints/${s}`, owner, { facilitator_id: members[0].account_id })).status).toBe(200)
+    // The new facilitator hasn't taken control from the old one, who is still connected.
+    const blocked = await command(members[0], s, { type: 'set_phase', phase: 'choose' })
+    expect(blocked.status).toBe(409)
+    expect(blocked.body.error).toContain('take control')
+    expect(Number((await env.DB.prepare('SELECT count(*) AS n FROM vote_rounds WHERE sprint_id = ?').bind(s).first<{ n: number }>())!.n)).toBe(0)
+    expect((await command(members[0], s, { type: 'take_control' })).status).toBe(200)
+    expect((await command(members[0], s, { type: 'set_phase', phase: 'choose' })).status).toBe(200)
+    await post(`/api/sprints/${s}/votes`, members[1], { theme_id: themes[0], cast: true })
+    // Two commands at once: one goes ahead, and the vote is closed once.
+    const v = (await snap(members[0], s)).body.version
+    const both = await Promise.all([raw(members[0], s, v, { type: 'set_phase', phase: 'talk' }), raw(members[0], s, v, { type: 'set_phase', phase: 'agree' })])
+    expect(both.map((r) => r.status).sort()).toEqual([200, 409])
+    expect(Number((await env.DB.prepare("SELECT count(*) AS n FROM audit_events WHERE sprint_id = ? AND action = 'votes.round_closed'").bind(s).first<{ n: number }>())!.n)).toBe(1)
+    expect((await snap(members[0], s)).body.version).toBe(v + 1)
+    socket.close()
+  })
+
+  it('asks the room twice for a step — hold, then apply and announce — and reads nothing back', async () => {
+    const { owner, members, ws } = await team(1)
+    const { s } = await live(owner, members, ws)
+    const v = (await snap(owner, s)).body.version
+    const paths: string[] = []
+    const real = MeetingRoom.prototype.fetch
+    const spy = vi.spyOn(MeetingRoom.prototype, 'fetch').mockImplementation(function (this: MeetingRoom, r: Request) {
+      paths.push(new URL(r.url).pathname)
+      return real.call(this, r)
+    })
+    try {
+      const talk = await raw(owner, s, v, { type: 'set_phase', phase: 'talk' })
+      expect(talk.status).toBe(200)
+      expect(talk.body.phase).toBe('talk')
+    } finally {
+      spy.mockRestore()
+    }
+    expect(paths).toEqual(['/claim', '/command'])
   })
 
   it('validates agenda items against the sprint’s themes', async () => {

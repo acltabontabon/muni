@@ -1,8 +1,9 @@
 /** The live socket: the room is told who connects, and never receives the client's credentials. */
 import { describe, expect, it, vi } from 'vitest'
+import { env } from 'cloudflare:test'
 import { MeetingRoom } from '../src/room'
 import { roomSocketHeaders } from '../src/lib/live'
-import { closeCollection, entry, get, go, openSocket, post, sleep, sprint, team } from './harness'
+import { closeCollection, entry, get, go, openSocket, patch, post, sleep, sprint, team } from './harness'
 
 const CREDENTIALS = ['cookie', 'authorization', 'x-csrf-token']
 /** RFC 6455's sample handshake nonce: base64 of "the sample nonce". */
@@ -22,13 +23,15 @@ describe('room socket headers', () => {
       // A client can't choose who the room thinks it is.
       'x-muni-account': 'someone-else',
       'x-muni-fac': '1',
+      'x-muni-at': '9999999999999',
     })
-    const h = roomSocketHeaders(client, 'acct-1', false)
+    const h = roomSocketHeaders(client, 'acct-1', false, 1234)
     expect(h.get('upgrade')).toBe('websocket')
     expect(h.get('sec-websocket-key')).toBe(NONCE)
     expect(h.get('sec-websocket-version')).toBe('13')
     expect(h.get('x-muni-account')).toBe('acct-1')
     expect(h.get('x-muni-fac')).toBe('0')
+    expect(h.get('x-muni-at')).toBe('1234')
     for (const name of [...CREDENTIALS, 'origin']) expect(h.has(name), name).toBe(false)
   })
 
@@ -96,6 +99,40 @@ describe('who is connected', () => {
     fac.socket.close()
   })
 
+  it('adding to a topic tells only the facilitator and the author — and only the facilitator sees who’s connected', async () => {
+    const { owner, members, ws } = await team(2)
+    const [author, other] = members
+    const s = await sprint(owner, members, ws, 'collecting')
+    await entry(author, s, 'improve', 'a thought')
+    const shared = await closeCollection(owner, s)
+    const theme = (await post(`/api/sprints/${s}/themes`, owner, { title: 'T', entry_ids: shared.map((e) => e.id) })).body.themes[0].id as string
+    expect((await go(owner, s, 'live')).status).toBe(200)
+    const [fac, mine, theirs] = await Promise.all([openSocket(owner, s), openSocket(author, s), openSocket(other, s)])
+    await Promise.all([fac, mine, theirs].map((x) => x.waitFor((m) => m.includes('"hello"'))))
+    await sleep(200) // arrivals settle
+    const marks = [fac, mine, theirs].map((x) => x.messages.length)
+    expect((await post(`/api/sprints/${s}/meeting/context`, author, { theme_id: theme, body: 'more context' })).status).toBe(200)
+    const heard = (i: number) => [fac, mine, theirs][i].messages.slice(marks[i]).some((m) => m.includes('"resource":"meeting"'))
+    for (let i = 0; i < 80 && !(heard(0) && heard(1)); i++) await sleep(25)
+    await sleep(200)
+    expect([heard(0), heard(1), heard(2)]).toEqual([true, true, false])
+    // Who has the retro open: the facilitator sees it; a participant sees no one as connected.
+    const byFac = (await get(`/api/sprints/${s}/meeting`, owner)).body.attendance as { account_id: string; connected: boolean }[]
+    expect(byFac.filter((a) => a.connected).map((a) => a.account_id).sort()).toEqual([owner, author, other].map((u) => u.account_id).sort())
+    const byOther = (await get(`/api/sprints/${s}/meeting`, other)).body.attendance as { connected: boolean; is_you: boolean; present: boolean }[]
+    expect(byOther.map((a) => a.connected)).toEqual([false, false, false])
+    // Their own entry is still there, as the phone needs it.
+    expect(byOther.filter((a) => a.is_you)).toHaveLength(1)
+    // Saying you're here tells the facilitator and your own screens; nobody else refetches.
+    const again = [fac, mine, theirs].map((x) => x.messages.length)
+    expect((await post(`/api/sprints/${s}/meeting/attendance`, other, { present: true })).body.attendance.find((a: { is_you: boolean }) => a.is_you).present).toBe(true)
+    const since = (i: number) => [fac, mine, theirs][i].messages.slice(again[i]).some((m) => m.includes('"resource":"meeting"'))
+    for (let i = 0; i < 80 && !(since(0) && since(2)); i++) await sleep(25)
+    await sleep(200)
+    expect([since(0), since(1), since(2)]).toEqual([true, false, true])
+    for (const x of [fac, mine, theirs]) x.socket.close()
+  })
+
   it('tells the facilitator how many have voted, never who — and nobody else', async () => {
     const { owner, members, ws } = await team(2)
     const s = await sprint(owner, members, ws, 'collecting')
@@ -119,5 +156,54 @@ describe('who is connected', () => {
     fac.socket.close()
     other.socket.close()
     expect((await get(`/api/sprints/${s}/votes`, members[1])).body.current.voters).toBeNull()
+  })
+})
+
+describe('handing over facilitation', () => {
+  /** A ready sprint with an open vote round, and sockets for the facilitator and the next one. */
+  async function voting() {
+    const { owner, members, ws } = await team(3)
+    const [next, voter] = members
+    const s = await sprint(owner, members, ws, 'collecting')
+    await entry(voter, s, 'improve', 'a thought')
+    const shared = await closeCollection(owner, s)
+    const theme = (await post(`/api/sprints/${s}/themes`, owner, { title: 'T', entry_ids: shared.map((e) => e.id) })).body.themes[0].id as string
+    expect((await go(owner, s, 'ready')).status).toBe(200)
+    expect((await post(`/api/sprints/${s}/votes/rounds`, owner)).status).toBe(200)
+    return { owner, next, voter, s, theme }
+  }
+  const votesHint = (m: string) => m.includes('"resource":"votes"')
+
+  it('moves what only the facilitator hears to the new facilitator’s open sockets, at once', async () => {
+    const { owner, next, voter, s, theme } = await voting()
+    const was = await openSocket(owner, s)
+    const now = await openSocket(next, s)
+    await Promise.all([was, now].map((x) => x.waitFor((m) => m.includes('"hello"'))))
+    expect((await patch(`/api/sprints/${s}`, owner, { facilitator_id: next.account_id })).status).toBe(200)
+    const [w0, n0] = [was.messages.length, now.messages.length]
+    await post(`/api/sprints/${s}/votes`, voter, { theme_id: theme, cast: true })
+    for (let i = 0; i < 80 && !now.messages.slice(n0).some(votesHint); i++) await sleep(25)
+    expect(now.messages.slice(n0).some(votesHint)).toBe(true)
+    await sleep(200)
+    expect(was.messages.slice(w0).some(votesHint)).toBe(false)
+    expect((await get(`/api/sprints/${s}/votes`, next)).body.current.voters).toBe(1)
+    was.socket.close()
+    now.socket.close()
+  })
+
+  it('doesn’t treat a socket as the facilitator’s when its request read that before the handover', async () => {
+    const { owner, next, voter, s, theme } = await voting()
+    const before = Date.now()
+    expect((await patch(`/api/sprints/${s}`, owner, { facilitator_id: next.account_id })).status).toBe(200)
+    // The old facilitator's reconnect, checked against D1 just before the handover was saved.
+    const res = await env.ROOMS.get(env.ROOMS.idFromName(s)).fetch('https://room/ws', { headers: { upgrade: 'websocket', 'x-muni-account': owner.account_id, 'x-muni-fac': '1', 'x-muni-at': String(before - 1) } })
+    const stale = res.webSocket!
+    stale.accept()
+    const messages: string[] = []
+    stale.addEventListener('message', (e) => messages.push(String(e.data)))
+    await post(`/api/sprints/${s}/votes`, voter, { theme_id: theme, cast: true })
+    await sleep(300)
+    expect(messages.some(votesHint)).toBe(false)
+    stale.close()
   })
 })
