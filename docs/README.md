@@ -9,7 +9,6 @@
 - [privacy-claims.md](privacy-claims.md): every privacy claim Muni makes, with its evidence.
 - [encryption.md](encryption.md): what is encrypted, who holds the keys, formats and remaining risks.
 - [passkeys.md](passkeys.md): sign-in, accounts, invitations and recovery.
-- [security-review-2026-09.md](security-review-2026-09.md): the September 2026 security and privacy review.
 
 To report a vulnerability, see [SECURITY.md](../SECURITY.md).
 

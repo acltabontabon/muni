@@ -2,8 +2,7 @@
 
 How Muni is built, and where its privacy boundary sits. Read this before changing anything that
 stores, reads or broadcasts what people write. [`privacy-claims.md`](privacy-claims.md) maps each
-product claim to its evidence; [`security-review-2026-09.md`](security-review-2026-09.md) records
-what was reviewed and what is still open.
+product claim to its evidence.
 
 ## System shape
 

@@ -27,7 +27,6 @@ Please do not:
 
 - [docs/architecture.md](docs/architecture.md): the privacy boundary and authorization model.
 - [docs/encryption.md](docs/encryption.md): how sprint content is encrypted on participants' devices, and what is not protected.
-- [docs/security-review-2026-09.md](docs/security-review-2026-09.md): what was verified, fixed and left open.
 
 Sprints are encrypted on participants' devices by default. The service operator can still link entries to accounts and read sprints set up without encryption. By changing the frontend, the operator could also defeat the encryption.
 

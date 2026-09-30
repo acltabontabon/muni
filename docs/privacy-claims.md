@@ -40,7 +40,7 @@ Test names below are in quotes; most are in `worker/test/` (server) or `web/src/
 | Pending invitations and their addresses are shown only to workspace owners; nobody else can learn whether an address belongs to a member | Test | `grants.test.ts` "is for owners…", "tells nobody but owners whether an address is a member's" |
 | Your character is your face beside your name in the retro and on nothing anonymous (thoughts, votes, answers, additions, exports); whether your own pages wear its world is yours alone | Test | `avatars.test.ts` "shows as a face next to its person's name in the retro, and nowhere else"; only `buildMe` and the meeting's attendance select `avatar_id` |
 | Reopening keeps what people already saw visible | Code | `routes/sprints.ts` `preparing>collecting` (confirmation message) |
-| Authorship can still be inferred (wording, small teams, lone votes, a lone check-in answer, the moment something is added, reopening) | none | Stated limitation. The Privacy page names these; see [security-review-2026-09.md](security-review-2026-09.md) section 4 |
+| Authorship can still be inferred (wording, small teams, lone votes, a lone check-in answer, the moment something is added, reopening) | none | Stated limitation. The Privacy page names these |
 
 ## Operator, providers, logs
 

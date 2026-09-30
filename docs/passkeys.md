@@ -149,7 +149,7 @@ team QR asks to join, and a screenshot of the code is worth a request, not a mem
 - Names never appear with thoughts or votes. Approvers see names, and an address only if the
   account has one, never content.
 - Session lifetime, cookies, CSRF and authorization are covered in
-  [security-review-2026-09.md](security-review-2026-09.md) and [architecture.md](architecture.md).
+  [architecture.md](architecture.md#authentication-and-authorization).
 
 ## Losing access
 
