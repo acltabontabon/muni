@@ -1,5 +1,5 @@
 -- Passkeys, session details, security events and approval-based team invitations
--- (docs/PASSKEYS.md). Additive only: existing accounts, sessions, memberships, invitations and
+-- (docs/passkeys.md). Additive only: existing accounts, sessions, memberships, invitations and
 -- encryption keys are untouched and keep working. Email codes remain a sign-in method for everyone.
 
 -- An opaque, random WebAuthn user handle per account (base64url of 32 random bytes), minted the

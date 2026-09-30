@@ -7,7 +7,7 @@
  *   XChaCha20-Poly1305  authenticated encryption; 192-bit random nonces, so nonce reuse
  *                       under one key is not a practical concern
  *
- * Constructions (see docs/ENCRYPTION.md for the protocol and threat model):
+ * Constructions (see docs/encryption.md for the protocol and threat model):
  *
  * - sealed box — encrypt to a public key: a fresh ephemeral X25519 key, HKDF over the shared
  *   secret salted with both public keys, then XChaCha20-Poly1305 with a context string as AAD.

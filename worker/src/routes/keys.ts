@@ -5,7 +5,7 @@
  * protects content from the server: the server never has an unwrapped key.
  *
  * The account's own private key reaches a device in one of three ways, none of which the server
- * can open (docs/ENCRYPTION.md §4): a passkey wrap (the browser derives its key from the passkey's
+ * can open (docs/encryption.md, "Keys"): a passkey wrap (the browser derives its key from the passkey's
  * PRF output, which never leaves the browser), a device envelope (kept only on that device; half
  * of its key is the `share` below, released only to the account's own sessions), or the recovery key.
  */

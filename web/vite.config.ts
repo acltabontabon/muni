@@ -12,7 +12,7 @@ const src = fileURLToPath(new URL('./src', import.meta.url))
 
 /**
  * The release this build is: the version from the root package.json (the one source, see
- * docs/RELEASING.md) and the released notes from CHANGELOG.md, parsed once here so the app ships
+ * docs/releasing.md) and the released notes from CHANGELOG.md, parsed once here so the app ships
  * data, never markdown. Unreleased notes and maintainer comments are dropped by the parser.
  */
 const rootDir = fileURLToPath(new URL('..', import.meta.url))

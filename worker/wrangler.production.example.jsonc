@@ -2,7 +2,7 @@
   "$schema": "node_modules/wrangler/config-schema.json",
   // Template for a production deployment on your own Cloudflare account. Don't edit values here:
   // `pnpm run deploy` renders wrangler.production.jsonc (gitignored) from environment variables —
-  // see scripts/production-config.mjs and docs/DEPLOYMENT.md. ${NAME} marks a value it fills in.
+  // see scripts/production-config.mjs and docs/deployment.md. ${NAME} marks a value it fills in.
   "name": "${MUNI_WORKER_NAME}",
   "main": "src/index.ts",
   "compatibility_date": "2026-08-22",

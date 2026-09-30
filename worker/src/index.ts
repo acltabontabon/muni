@@ -23,7 +23,7 @@ import { passkeys } from './routes/passkeys'
 import { join } from './routes/join'
 import { email } from './routes/email'
 import { scheduled } from './jobs'
-// The release version has one source, the root package.json (docs/RELEASING.md).
+// The release version has one source, the root package.json (docs/releasing.md).
 import release from '../../package.json'
 
 export { MeetingRoom } from './room'

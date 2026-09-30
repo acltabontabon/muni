@@ -1,5 +1,5 @@
 /**
- * Shared team invitations: the invite QR (docs/PASSKEYS.md §5).
+ * Shared team invitations: the invite QR (docs/passkeys.md, "Joining a team").
  *
  * A join link is a normal HTTPS URL with an opaque 256-bit token in its fragment
  * (`/join#<token>`), so the token never reaches a server log or a Referer header; it travels to
@@ -10,7 +10,7 @@
  * Joining grants only the explicit role on the link ('member' — the schema allows nothing else)
  * and, for a sprint link, participation in that unfinished sprint. It never grants content keys:
  * encrypted sprints reach new participants only through the existing, reviewed key-sharing flow
- * (docs/ENCRYPTION.md §3, "late participants").
+ * (docs/encryption.md, "Collection and reveal").
  */
 import { Hono, type Context } from 'hono'
 import type { HonoEnv } from '../env'

@@ -4,7 +4,7 @@
  *
  * What this establishes: the server stores only envelopes for encrypted sprints and refuses
  * plaintext; it never receives anything that opens them; key distribution follows the sealing
- * policy; clients detect tampering and substitution. What it can't establish: see docs/ENCRYPTION.md
+ * policy; clients detect tampering and substitution. What it can't establish: see docs/encryption.md
  * ("What still needs independent review").
  */
 import { env } from 'cloudflare:test'

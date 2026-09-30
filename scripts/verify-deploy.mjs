@@ -12,7 +12,7 @@
  *     earlier version, or none yet), `newer` (serving a later version — deploying would roll it
  *     back), or `unknown` (unreachable, or the same version from another commit).
  *
- * Used by .github/workflows/release.yml and by hand (docs/RELEASING.md). No dependencies.
+ * Used by .github/workflows/release.yml and by hand (docs/releasing.md). No dependencies.
  */
 import { SEMVER } from './changelog.mjs'
 

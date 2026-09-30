@@ -1,5 +1,5 @@
 -- Unlocking encrypted content with a passkey, and keeping a device unlockable across sign-out
--- (docs/ENCRYPTION.md §4). Additive only: account_keys, sprint keys and wraps are untouched, and no
+-- (docs/encryption.md, "Keys"). Additive only: account_keys, sprint keys and wraps are untouched, and no
 -- parent table is rebuilt (a D1 parent-table drop would cascade; see 0005).
 --
 -- Neither table lets the server open anything. A passkey wrap is the account's private key

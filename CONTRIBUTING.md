@@ -1,51 +1,72 @@
 # Contributing to Muni
 
-Thanks for your interest. Muni is maintained by one person in their own time, so please read this
-before putting work into a change.
+Thanks for your interest. One person maintains Muni in their own time, so please read this before
+putting work into a change.
 
 ## What to expect
 
-- Responses are best-effort. An issue or pull request may wait a while, and some will be declined —
-  usually because a change doesn't fit the product's direction or would be hard to maintain alone.
-  That's not a judgement of the work.
-- For anything larger than a small fix, open an issue first and describe the problem you want to
-  solve. It saves you from building something that can't be merged.
-- There is no release schedule. Versions are tagged from `main` when they're ready ([`docs/RELEASING.md`](docs/RELEASING.md)).
-- If your change is visible to people using Muni, add a line under `## [Unreleased]` in [`CHANGELOG.md`](CHANGELOG.md), written for them.
+- Responses are best-effort. Some issues and pull requests are declined, usually because a change
+  does not fit the product's direction or is hard to maintain alone. That is not a judgement of
+  the work.
+- For anything larger than a small fix, open an issue first and describe the problem. It saves you
+  from building something that cannot be merged.
+- Versions are tagged from `main` when ready, with no fixed schedule ([`docs/releasing.md`](docs/releasing.md)).
 
 ## Reporting bugs
 
-Open an issue with what you did, what you expected and what happened, plus browser and device if it
-is a UI problem. Please don't include real names, emails or retro content — use synthetic data.
-Security problems go through [`SECURITY.md`](SECURITY.md), never a public issue.
+Open an issue with what you did, what you expected and what happened, plus browser and device for a
+UI problem. Use synthetic data, never real names, emails or retro content. Report security problems
+through [`SECURITY.md`](SECURITY.md), never a public issue.
 
-## Making a change
+## Development setup
 
-1. Set up locally as described in the [README](README.md#for-contributors-and-hosters).
-2. Keep the change focused, and match the surrounding code's style and comment density.
-3. Add or update tests: `worker/test/` runs against the real Workers runtime; `web/` has unit
-   tests and browser end-to-end scripts in `web/e2e/`.
-4. Run the checks before opening a pull request:
+You need Node 22+ and pnpm 10. No Cloudflare account is required.
 
-   ```bash
-   (cd worker && pnpm typecheck && pnpm test)
-   (cd web && npm run typecheck && npm run lint && npm test && npm run build)
-   node --test scripts/*.test.mjs && node scripts/release.mjs check
-   ```
+```bash
+# Build the web app; the Worker serves it
+cd web && npm ci && npm run build
 
-Things that matter here more than usual:
+# Apply migrations to a local database and start the Worker
+cd ../worker && pnpm install && pnpm migrate:local && pnpm dev
+```
 
-- **The privacy boundary.** Never add author, voter, timestamp or network fields to a shared
-  response, and keep sealed collection sealed for everyone, facilitators included. See the rules in
-  [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md#the-privacy-boundary); the privacy tests enforce
-  them.
-- **Honest wording.** User-facing claims about privacy, security or retention must match what the
-  code does. [`docs/privacy-claims.md`](docs/privacy-claims.md) lists each claim with its evidence;
-  update it with the claim.
-- **Accessibility.** Keyboard use, visible focus, text contrast of at least 4.5:1, and
-  `prefers-reduced-motion` respected.
-- **Platform.** Muni runs on Cloudflare Workers, D1 and Durable Objects. Changes that add services
-  or another backend need discussion first.
+Open http://localhost:8787. For live reload, also run `npm run dev` in `web/` and open
+http://localhost:5173; it proxies `/api` to the Worker. [`docs/architecture.md`](docs/architecture.md)
+explains how the pieces fit.
+
+## Checks
+
+Run these before opening a pull request. CI runs the same ones.
+
+```bash
+(cd worker && pnpm typecheck && pnpm test)
+(cd web && npm run typecheck && npm run lint && npm test && npm run build)
+node --test scripts/*.test.mjs && node scripts/release.mjs check
+```
+
+- `worker/test/` runs against the real Workers runtime.
+- `web/` has unit tests. Browser end-to-end suites live in `web/e2e/` and run with
+  `MUNI_URL=http://localhost:8787 node scripts/e2e.mjs [suite…]` against a running Worker that
+  serves a production build; with no suite names, it runs everything CI runs.
+
+## Pull requests
+
+- Keep the change focused and match the surrounding code's style and comment density.
+- Add or update tests.
+- If people using Muni will notice the change, add a line for them under `## [Unreleased]` in
+  [`CHANGELOG.md`](CHANGELOG.md).
+
+Some rules matter more than usual:
+
+- **Privacy boundary.** Never add author, voter, timestamp or network fields to a shared response,
+  and keep collection sealed for everyone, facilitators included. See
+  [`docs/architecture.md`](docs/architecture.md#the-privacy-boundary); the privacy tests enforce it.
+- **Honest wording.** User-facing claims about privacy, security or retention must match the code.
+  Update [`docs/privacy-claims.md`](docs/privacy-claims.md) with the claim.
+- **Accessibility.** Support keyboard use, visible focus, a text contrast of at least 4.5:1 and
+  `prefers-reduced-motion`.
+- **Platform.** Muni runs on Cloudflare Workers, D1 and Durable Objects. Discuss changes that add a
+  service or another backend first.
 
 ## Licensing of contributions
 
@@ -55,5 +76,5 @@ license this way.
 
 ## Conduct
 
-Be kind and assume good faith. Harassment or personal attacks aren't welcome in issues, pull
+Be kind and assume good faith. Harassment and personal attacks are not welcome in issues, pull
 requests or anywhere else in the project, and the maintainer may remove them.

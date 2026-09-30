@@ -7,7 +7,7 @@
  * each screen makes to arrive and for one step, in an encrypted sprint (`ONLY=retro-reads`).
  *
  * Desktop Chromium with phone emulation (375×812, 4× CPU slowdown). This measures the app's own
- * recurring work; it does not measure a phone's heat or battery (see docs/PERFORMANCE.md).
+ * recurring work; it does not measure a phone's heat or battery (see docs/performance.md).
  *
  *   MUNI_URL=http://localhost:8799 node e2e/perf.mjs            # prints a table + JSON
  *   BUDGET=1 … node e2e/perf.mjs                                # exits 1 when a budget is exceeded
@@ -374,7 +374,7 @@ try {
 }
 if (OUT) writeFileSync(OUT, JSON.stringify(rows, null, 1))
 
-// Budgets (docs/PERFORMANCE.md). A page left alone settles: no frames, paints, timers or requests.
+// Budgets (docs/performance.md). A page left alone settles: no frames, paints, timers or requests.
 // Measured with 4× CPU slowdown, so busy time here is roughly four times a desktop's.
 // The retro's reads: what arriving, and one step, cost each screen (in an encrypted sprint each
 // read is a decrypt too). Before these were gathered and read once: 20–27 to arrive, 7 per step.

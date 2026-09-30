@@ -1,4 +1,4 @@
--- Participant-controlled encryption (docs/ENCRYPTION.md).
+-- Participant-controlled encryption (docs/encryption.md).
 --
 -- `sprints.encryption` is NULL for every sprint created before this migration: those stay
 -- plaintext and are labelled as not encrypted. 'e1' marks a sprint whose content fields hold

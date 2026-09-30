@@ -11,7 +11,7 @@ Removed, Fixed or Security (in that order, only the ones you need). Say what peo
 got easier or what was fixed, and anything they must do after updating. Leave out refactors,
 dependencies, file names and commit hashes. A bullet can lead with a **bold phrase**: the app shows
 those as highlights. The app's About → What's new and each GitHub release are built from this file
-(scripts/changelog.mjs checks its format). What counts as a breaking change: docs/RELEASING.md.
+(scripts/changelog.mjs checks its format). What counts as a breaking change: docs/releasing.md.
 -->
 
 ## [Unreleased]

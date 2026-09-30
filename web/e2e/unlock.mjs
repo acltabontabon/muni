@@ -13,7 +13,7 @@
  *
  * Passkeys use Chromium's CDP virtual authenticator (with and without its PRF support). That
  * exercises the browser's WebAuthn and PRF plumbing and the server, but it is NOT evidence of
- * behaviour on physical devices, password managers, iOS Safari or installed apps (docs/PASSKEYS.md §8).
+ * behaviour on physical devices, password managers, iOS Safari or installed apps (docs/passkeys.md, "Tests").
  */
 import { chromium } from 'playwright'
 import { mkdirSync } from 'node:fs'

@@ -38,7 +38,7 @@ jobs:
           if check || { echo "Retrying in 30 s"; sleep 30; check; }; then
             echo "✓ $ORIGIN is healthy: $(printf '%s' "$version" | jq -r '"\(.version) at \(.commit // "no commit")"')" | tee -a "$GITHUB_STEP_SUMMARY"
           else
-            echo "::error title=Production is unhealthy::$ORIGIN/api/health or /api/version didn't answer as expected, twice (docs/RELEASING.md §7)."
+            echo "::error title=Production is unhealthy::$ORIGIN/api/health or /api/version didn't answer as expected, twice (docs/releasing.md, "When something goes wrong")."
             echo "✗ $ORIGIN is unhealthy — see the log." >> "$GITHUB_STEP_SUMMARY"
             exit 1
           fi

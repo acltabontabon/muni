@@ -1,4 +1,4 @@
--- Passkey-first accounts (docs/PASSKEYS.md): an account is its id and its passkeys; an email
+-- Passkey-first accounts (docs/passkeys.md): an account is its id and its passkeys; an email
 -- address is an optional, verified setting.
 --
 -- `accounts` is deliberately NOT rebuilt. Making `accounts.email` nullable would need a table

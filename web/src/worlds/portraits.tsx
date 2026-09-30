@@ -5,7 +5,7 @@
  *
  * Two cuts of each drawing: the bust (chooser, settings, previews) and, under 56px, an icon cut
  * that crops to the head and draws features heavier, so all eight stay recognisable at 24–40px.
- * Original artwork for Muni (see docs/THIRD-PARTY.md, "Project-original assets").
+ * Original artwork for Muni (see docs/third-party.md, "Project-original assets").
  *
  * Decoration by default (aria-hidden): whatever shows a portrait names the character in text.
  */

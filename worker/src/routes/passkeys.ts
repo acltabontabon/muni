@@ -1,5 +1,5 @@
 /**
- * Passkeys: standard WebAuthn through @simplewebauthn/server (docs/PASSKEYS.md).
+ * Passkeys: standard WebAuthn through @simplewebauthn/server (docs/passkeys.md).
  *
  * A passkey is the only way into an account. What it proves is control of the account, and
  * nothing more: it grants no membership. Separately, and only in the browser, a passkey that

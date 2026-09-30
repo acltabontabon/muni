@@ -2,9 +2,9 @@
 
 **Keep the thought. Bring it to the conversation.**
 
-Muni is a sprint-retrospective app. Capture what matters during the sprint while it's fresh, then have a real conversation about what happened and what to change.
+Muni is a sprint-retrospective app for scrum teams. Everyone jots down what mattered while the sprint is happening, in private, so the retro starts from what people actually noticed, not from what they can remember on the day. Then the team talks it through and leaves with one to three experiments to try next sprint.
 
-Try it at [act.munimuni.app](https://act.munimuni.app).
+Try it at [act.munimuni.app](https://act.munimuni.app). You sign in with a passkey, so there are no passwords. Muni is a 1.0 release candidate, built by one person.
 
 <p align="center"><a href="docs/demo/muni-demo.mp4"><img src="docs/demo/muni-demo.gif" alt="Muni in 75 seconds: a sprint from the first thought, written on a laptop and on a phone, to closing collection, gathering thoughts into themes, the retro's four steps with the stage and a phone side by side, and an experiment its owner says yes to." width="720"></a></p>
 
@@ -12,31 +12,24 @@ Try it at [act.munimuni.app](https://act.munimuni.app).
 
 ## How it works
 
-- **Private capture.** Your thoughts stay hidden until collection closes — even from the facilitator.
-- **Blind reveal.** When collection closes, all thoughts appear at once on the sprint's page, unnamed and in random order — for everyone to read before the retro.
-- **Themes and voting.** The facilitator can gather thoughts into themes; when there are themes, everyone votes on what to talk about first.
-- **Live retrospective.** Four steps — look back, choose, talk, agree — on a shared screen with everyone's phone alongside: quick private check-ins and additions let people take part without having to speak first, and one to three experiments come back first next sprint.
-- **Keeps writing offline.** Write without a connection; thoughts are sent when you're back. Drafts stay in the tab unless you choose to keep them on the device.
+1. **During the sprint: capture.** Each person adds thoughts as they happen, from a laptop or a phone, even offline (they're sent when you're back). Nobody else can see them, not even the facilitator.
+2. **Close collection: the reveal.** The facilitator closes collection and every thought appears at once, unnamed and in random order. The team reads them before the retro, so nobody is swayed by who wrote what.
+3. **Sort and vote.** The facilitator can gather thoughts into themes. When there are themes, everyone votes on what to talk about first.
+4. **The retro, in four steps.** Look back, choose, talk, agree. It runs on a shared screen with everyone's phone alongside, so quick private check-ins and additions let quieter people take part without having to speak first.
+5. **Next sprint.** The one to three experiments the team agreed on come back first, so you see whether they were tried.
 
-Sprints are encrypted on your team's devices by default: thoughts, themes, what the room remembers, experiments and the recap are sealed before they reach Muni's servers, which don't hold the keys. Names, dates, categories and who wrote what stay readable to the server — never to teammates. A facilitator can set a sprint up without encryption, and that sprint says so. See [`docs/privacy-claims.md`](docs/privacy-claims.md) for each claim and its evidence.
+## Security and privacy
 
-## What you should know
+- Thoughts, themes, experiments and the recap are encrypted on your team's devices before they reach Muni's servers, which don't hold the keys. A facilitator can set a sprint up without encryption, and that sprint says so.
+- The server can still see names, dates, categories and who wrote what (teammates never do). In a small team the wording itself can give an author away.
+- The encryption hasn't been independently audited.
 
-- **A release candidate.** Built by one person. 1.0.0-rc.1 is the first release; what it stores keeps working through every 1.x release ([`docs/RELEASING.md`](docs/RELEASING.md) §2). The API is the app's own, not a public one.
-- **Passkeys only.** No email, password, or social sign-in — use a passkey to sign in. Losing all your passkeys means losing access to your account.
-- **Cloudflare only.** Runs on Cloudflare Workers; no other deployments are supported.
-- **English only** for now.
-- **Browsers.** Tested by hand on Chrome and Firefox on desktop, Safari on iPhone and Chrome on Android; the automated suites run in Chromium.
-- **Encryption limits.** Muni's encryption hasn't been independently audited. The server still records who wrote what (teammates never see it), and in a small team the wording itself can give an author away.
-- **No self-service purge.** You can leave a workspace and delete your account, but not purge a finished sprint early or download everything you've written.
+Each claim and its evidence: [`docs/privacy-claims.md`](docs/privacy-claims.md). How it works: [`docs/encryption.md`](docs/encryption.md). Report vulnerabilities privately via [`SECURITY.md`](SECURITY.md).
 
-## For contributors and hosters
+## Contributing
 
-- **Contributing:** Read [`CONTRIBUTING.md`](CONTRIBUTING.md) first.
-- **Security:** Report vulnerabilities privately in [`SECURITY.md`](SECURITY.md).
-- **Self-hosting:** See [`docs/DEPLOYMENT.md`](docs/DEPLOYMENT.md).
-- **Development:** Node 22+, pnpm 10. In `web/`: `npm ci && npm run build` (the Worker serves the built app). In `worker/`: `pnpm install && pnpm migrate:local && pnpm dev`, then open http://localhost:8787. For live reloading while you change the app, also run `npm run dev` in `web/` and open http://localhost:5173 (it passes `/api` to the Worker). No Cloudflare account needed for local development.
+Setup, checks and pull requests are in [`CONTRIBUTING.md`](CONTRIBUTING.md); no Cloudflare account is needed to develop. To host Muni yourself (Cloudflare Workers only), see [`docs/deployment.md`](docs/deployment.md). All other docs are indexed in [`docs/`](docs/README.md).
 
 ## License
 
-Apache License 2.0 — see [`LICENSE`](LICENSE). The Muni name and logo are covered in [`TRADEMARKS.md`](TRADEMARKS.md).
+Apache License 2.0 — see [`LICENSE`](LICENSE).

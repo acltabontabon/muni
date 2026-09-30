@@ -3,7 +3,7 @@
   // Local development and tests only (`wrangler dev`, `pnpm test`). It cannot reach a real deployment:
   // the D1 id is a placeholder, workers_dev is off, there are no routes, and the name differs from a
   // production Worker's. Production uses its own config, rendered for your Cloudflare account from
-  // wrangler.production.example.jsonc into the gitignored wrangler.production.jsonc (docs/DEPLOYMENT.md).
+  // wrangler.production.example.jsonc into the gitignored wrangler.production.jsonc (docs/deployment.md).
   "name": "muni-local",
   "main": "src/index.ts",
   "compatibility_date": "2026-08-22",

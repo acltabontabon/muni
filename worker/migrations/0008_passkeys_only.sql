@@ -1,4 +1,4 @@
--- Passkeys are the only way into an account (docs/PASSKEYS.md). Email sign-in, email re-auth,
+-- Passkeys are the only way into an account (docs/passkeys.md). Email sign-in, email re-auth,
 -- recovery emails and their codes are gone.
 --
 -- 1. Accounts that can no longer sign in — no passkey — are deleted, with everything that is theirs,
@@ -8,7 +8,7 @@
 -- 2. Sessions that came from email codes are ended, and the codes table is dropped.
 -- 3. `accounts.email` stops being an email column. It can't be dropped (it's UNIQUE) and the table
 --    can't be rebuilt (in D1, dropping `accounts` cascades into every table that references it —
---    tested, see docs/PASSKEYS.md), so it's renamed to `legacy_key` and holds the account's own id:
+--    tested, see docs/passkeys.md), so it's renamed to `legacy_key` and holds the account's own id:
 --    no address, and nothing reads it. Addresses for invitations and reminders live in
 --    `account_emails`, and are never a way in.
 

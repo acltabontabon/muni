@@ -35,7 +35,7 @@ const defaults = {
 }
 const required = ['MUNI_DOMAIN', 'MUNI_D1_DATABASE_ID', 'MUNI_EMAIL_FROM']
 const fail = (msg) => {
-  console.error(`production config: ${msg}\nSee docs/DEPLOYMENT.md.`)
+  console.error(`production config: ${msg}\nSee docs/deployment.md.`)
   process.exit(1)
 }
 

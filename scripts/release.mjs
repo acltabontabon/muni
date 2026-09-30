@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 /**
  * Release helpers. The version lives in one place — the root package.json — and everything else is
- * checked against it or derived from it. See docs/RELEASING.md.
+ * checked against it or derived from it. See docs/releasing.md.
  *
  *   node scripts/release.mjs check [--tag vX.Y.Z]   versions agree, CHANGELOG has the entry (and the
  *                                                    tag matches, the demo exists, when --tag is given)
@@ -114,7 +114,7 @@ export function releaseNotes(tag) {
     '',
     '<h3 align="center">Keep the thought. Bring it to the conversation.</h3>',
     `<p align="center">${tagline}</p>`,
-    `<p align="center"><a href="${app}"><b>Open Muni</b></a>${sep}<a href="${site}">Website</a>${sep}<a href="${gh}/blob/${tag}/CHANGELOG.md">Changelog</a>${sep}<a href="${gh}/blob/${tag}/README.md#known-limitations">Known limitations</a></p>`,
+    `<p align="center"><a href="${app}"><b>Open Muni</b></a>${sep}<a href="${site}">Website</a>${sep}<a href="${gh}/blob/${tag}/CHANGELOG.md">Changelog</a>${sep}<a href="${gh}/blob/${tag}/docs/using.md#limits">Known limitations</a></p>`,
     '',
     ...(entry.prerelease
       ? ['> [!NOTE]', `> A release candidate for Muni ${stable}. It’s what runs at ${app.replace(/^https:\/\//, '')} now; ${stable} follows once it has passed its final checks.`, '']
@@ -154,7 +154,7 @@ function prepare(v, date) {
   const dated = log.replace(/^## \[Unreleased\][^\n]*\n/m, `## [Unreleased]\n\n## [${v}] - ${date}\n`)
   const body = dated.replace(/^\[[^\]]+\]:\s+\S+\s*$\n?/gm, '').trimEnd()
   writeFileSync(path('CHANGELOG.md'), `${body}\n\n${linkBlock(changelogLinks(project().repo, [v, ...releases.map((r) => r.version)]))}\n`)
-  console.log(`Set ${v} everywhere and dated it ${date}. Review, commit, then tag v${v} (docs/RELEASING.md).`)
+  console.log(`Set ${v} everywhere and dated it ${date}. Review, commit, then tag v${v} (docs/releasing.md).`)
 }
 
 const [cmd, ...args] = process.argv.slice(2)

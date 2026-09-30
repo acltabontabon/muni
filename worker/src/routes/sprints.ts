@@ -191,7 +191,7 @@ sprints.post('/api/workspaces/:workspaceId/sprints', async (c) => {
   const external_ref = optional(body.external_ref, 60, 'External id')
   const goal = optional(body.goal, 300, 'Sprint goal')
   // New sprints can be encrypted: their content is sealed on participants' devices. Name, goal,
-  // dates, people and categories stay readable metadata (docs/ENCRYPTION.md).
+  // dates, people and categories stay readable metadata (docs/encryption.md).
   const encrypted = body.encryption === ENCRYPTION
   if (body.encryption !== undefined && body.encryption !== null && !encrypted) throw bad('unknown encryption format')
   const opening_question = content(encrypted, body.opening_question, 200, 'Opening question', false)

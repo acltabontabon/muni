@@ -3,7 +3,7 @@
  * through the real Worker and D1, with the real client constructions (web/src/lib/e2ee/wrap.ts).
  *
  * What this establishes: the server stores only wraps it can't open and device shares that open
- * nothing alone; it releases a device's share only under the rule in docs/ENCRYPTION.md §4; wraps
+ * nothing alone; it releases a device's share only under the rule in docs/encryption.md, "Keys"; wraps
  * and shares follow passkey removal and key replacement; nothing secret reaches D1; a stale tab
  * can't act for another account; a request carrying PRF output is refused. The PRF output here is
  * simulated (the software authenticator doesn't implement the extension): what the server sees is

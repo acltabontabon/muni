@@ -1,7 +1,6 @@
-# Muni — marketing site
+# Marketing site
 
-Static HTML, CSS and JS. No build step, no dependencies (fonts load from Google Fonts).
-Every path is relative, so the folder also works at a sub-path if it ever needs to.
+The static page at <https://munimuni.app>: `index.html`, `styles.css` and `main.js`, plus `favicon.svg`, `apple-touch-icon.png` and `og.jpg` (built from `design/og-banner.html`). There is no build step and no dependencies. Fonts (Geist, Geist Mono, Fraunces) load from Google Fonts. Paths are relative.
 
 ## Preview
 
@@ -9,46 +8,21 @@ Every path is relative, so the folder also works at a sub-path if it ever needs 
 python3 -m http.server 4321 --directory site
 ```
 
-## Where it lives
+Open <http://localhost:4321>.
 
-Published at **https://munimuni.app** by GitHub Pages from this repository: every push to `main`
-that touches `site/` runs `.github/workflows/pages.yml`, which publishes a copy of this folder with
-every stylesheet and script the page links stamped with a hash of its contents
-(`scripts/site-stamp.mjs`: `styles.css` → `styles.css?v=…`). Browsers may keep those files for a
-while; the stamp means a page never gets a cached older stylesheet after a publish. The custom
-domain is set in the repository's Pages settings (not a `CNAME` file).
+## Publish
 
-The app lives at **https://act.munimuni.app**, set as `data-app-url` on `<html>` in `index.html`
-(the “Open Muni” buttons also carry it as their `href`, so they work without JavaScript; the
-script turns them into “Coming soon” if `data-app-url` is empty). The site registers no service
-worker; the app's PWA is scoped to act.munimuni.app.
+A push to `main` that touches `site/`, `scripts/site-stamp.mjs` or the workflow runs `.github/workflows/pages.yml`. The workflow runs `node scripts/site-stamp.mjs site _site` and deploys `_site` to GitHub Pages.
 
-`.nojekyll` keeps GitHub Pages from running Jekyll over the folder.
+The stamp copies the folder and appends a content hash to each local `.css`, `.js` and `.svg` the page links (`styles.css` becomes `styles.css?v=…`). A visitor never gets a new page with a cached old stylesheet. The custom domain is set in the repository's Pages settings, not a `CNAME` file. `.nojekyll` stops Pages running Jekyll.
 
-## What's on the page
+## The app link
 
-In order: the headline; **the problem** — four small scenes of how a retro usually goes (early
-thoughts fading by retro day, two voices and seven muted tiles, a candid note softened because a
-name is on it, the same action item agreed three sprints running), each with what Muni does
-about it; **two screens, one conversation** (`#demo` — the same retro from the facilitator's
-stage and a participant's phone, step by step through look back, choose, talk and agree to the
-recap, each tab naming the problem it answers; each stage step carries the facilitator's cue in
-its corner); the pinned **how it works** scene; **the retro** (a mock of the facilitator's own
-stage during the talk: the thoughts first, then what the room said; a check-in that's asked, then
-shared as counts and lines; the margin — clock, notes, *Ask the room* — and the cue, which turns
-with the check-in); **quiet ways in** (the phone: a one-tap check-in and *Add to this discussion*,
-drawn in the app's own paper and ink); agreeing experiments; the next sprint's look back; privacy;
-open source; the name; **the first evening** (`#evening` — the newcomer's guide: the sky's stars,
-the firefly on a sprint page's real control with its note, and the stars closing as Muni's mark);
-and the closing call to open Muni. The mocks
-mirror the app as it is — change them when the stage, the phone or the words change. Each
-little scene plays once when it comes into view; with reduced motion, each shows its final state.
+`data-app-url` on `<html>` in `index.html` holds the app's address, <https://act.munimuni.app>. The "Open Muni" buttons also use it as their `href`, so they work without JavaScript. If `data-app-url` is empty, `main.js` turns them into "Coming soon". The site registers no service worker.
 
-The pinned "how it works" scene uses the demo team's 25 thoughts as the app stores them
-(category, rough timing, theme), so its counts — 5 themes of 6 · 1 · 5 · 2 · 1, and 10 thoughts
-in no theme that become one more topic, *Everything else* — are true to the product. The privacy section links to the app's Privacy & data page
-(act.munimuni.app/privacy), which holds the full explanation; keep the two consistent
-(`docs/privacy-claims.md`).
-Everything that moves respects `prefers-reduced-motion`. `#demo` is also filmed for
-`docs/demo/muni-journey.mp4` by `web/e2e/journey-film.mjs` at 1280×720: keep its tab ids
-(`duo-t1`…`duo-t5`) and keep each step's screens inside that frame.
+## Keeping it true
+
+- The mocks of the stage, the phone and the first-evening guide mirror the app. Update them when the app's screens or words change.
+- The privacy section must agree with the app's Privacy page (`/privacy`) and `docs/privacy-claims.md`.
+- Each animated scene plays once when it scrolls into view. Everything that moves respects `prefers-reduced-motion`, and reduced motion shows the final state.
+- `#demo` is filmed for `docs/demo/muni-journey.mp4` by `web/e2e/journey-film.mjs` at 1280×720. Keep its tab ids (`duo-t1` to `duo-t5`) and keep each step's screens inside that frame.
