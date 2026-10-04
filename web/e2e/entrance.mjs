@@ -54,6 +54,33 @@ async function signOut(page) {
 }
 const panelText = (page) => page.locator('.entrance-side').innerText()
 
+// Measure the rendered reflection, including the responsive viewBox and SVG transforms. Small
+// ripples may wander, but each band should stay beneath the sun/moon, not form a diagonal trail.
+async function checkReflection(page, name) {
+  await page.locator('.entrance-scene .scene-glints rect').first().waitFor()
+  const geometry = await page.evaluate(() => {
+    const disc = document.querySelector('.entrance-scene .scene-sun circle:last-child')
+    const bands = [...document.querySelectorAll('.entrance-scene .scene-glints rect')]
+    const discMatrix = disc?.getScreenCTM()
+    if (!discMatrix || !bands.length) return null
+    const discBox = disc.getBBox()
+    const center = new DOMPoint(discBox.x + discBox.width / 2, discBox.y + discBox.height / 2).matrixTransform(discMatrix)
+    const left = new DOMPoint(discBox.x, discBox.y).matrixTransform(discMatrix)
+    const right = new DOMPoint(discBox.x + discBox.width, discBox.y).matrixTransform(discMatrix)
+    const width = Math.abs(right.x - left.x)
+    const offsets = bands.map((band) => {
+      const box = band.getBBox()
+      const matrix = band.getScreenCTM()
+      if (!matrix) return Infinity
+      const middle = new DOMPoint(box.x + box.width / 2, box.y + box.height / 2).matrixTransform(matrix)
+      return Math.abs(middle.x - center.x)
+    })
+    return { width, maxOffset: Math.max(...offsets), count: bands.length }
+  })
+  check(`${name}: every shimmer band stays beneath the sun/moon`, !!geometry && geometry.width > 0 && geometry.maxOffset <= geometry.width * 0.1 + 0.001,
+    geometry ? `${geometry.count} bands, maximum offset ${geometry.maxOffset.toFixed(2)} px / disc ${geometry.width.toFixed(2)} px` : 'missing reflection geometry')
+}
+
 const browser = await chromium.launch()
 try {
   // ── The panel: hierarchy, restraint, width, keyboard, focus (desktop, light).
@@ -112,6 +139,25 @@ try {
       check(`${name}: no sideways scroll`, (await page.evaluate(() => document.documentElement.scrollWidth)) <= 375)
     }
     await shot(page, name)
+    await ctx.close()
+  }
+
+  // ── The reflection follows its light source across both compositions, including resizing
+  // across the breakpoint and a short landscape window. Check light and dark independently.
+  for (const colorScheme of ['light', 'dark']) {
+    const ctx = await browser.newContext({ ...DESKTOP, colorScheme, reducedMotion: 'reduce' })
+    const page = await ctx.newPage()
+    await page.goto(`${BASE}/signin`)
+    await page.getByRole('button', { name: 'Continue with a passkey' }).waitFor()
+    for (const [width, height] of [[1280, 800], [899, 800], [900, 800], [375, 740], [1024, 500], [1280, 800]]) {
+      await page.setViewportSize({ width, height })
+      const upright = width <= 899 || (height <= 560 && width > height)
+      await page.waitForFunction((expected) => document.querySelector('.entrance-scene svg.scene')?.classList.contains('scene--upright') === expected, upright)
+      await checkReflection(page, `${colorScheme}, resized to ${width}×${height}`)
+    }
+    await page.getByRole('button', { name: 'Create an account' }).click()
+    await page.waitForSelector('text=Create your account.')
+    await checkReflection(page, `${colorScheme}, account-creation progress`)
     await ctx.close()
   }
 
@@ -178,8 +224,11 @@ try {
     const page = await ctx.newPage()
     const va = await authenticator(page)
     await page.goto(`${BASE}/signin?next=%2Faccount`)
+    await page.getByRole('button', { name: 'Create an account' }).waitFor()
+    await checkReflection(page, 'Account flow: sign-in progress')
     await page.getByRole('button', { name: 'Create an account' }).click()
     await page.waitForSelector('text=Create your account.')
+    await checkReflection(page, 'Account flow: create progress')
     check('Create account: concise — a name, one action, no email', (await page.locator('input[type=email]').count()) === 0 && (await page.locator('.entrance-step').innerText()).length < 260)
     await shot(page, 'create-account')
     await page.getByRole('button', { name: 'Create with a passkey' }).click()
@@ -187,6 +236,7 @@ try {
     await page.fill('input[autocomplete="name"]', 'Nia Newcomer')
     await page.getByRole('button', { name: 'Create with a passkey' }).click()
     await page.waitForSelector('text=Welcome, Nia Newcomer.')
+    await checkReflection(page, 'Account flow: second-passkey progress')
     check('After creating: a second passkey is offered, “Not now” available', await page.getByRole('button', { name: 'Not now' }).isVisible())
     await shot(page, 'second-passkey')
     await page.getByRole('button', { name: 'Not now' }).click()

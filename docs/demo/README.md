@@ -18,8 +18,9 @@ Every app frame in the reel is this build of Muni running locally, driven throug
 Between captures, randomly drawn lines, clock times and small differences in UI response time
 can change. Rendering the same captured footage keeps its pacing identical.
 
-The committed films were refreshed on 4 October 2026 for the journal/navigation and marketing
-updates. Current unretouched desktop and mobile stills are in [screenshots/](../screenshots/README.md).
+The app reel was refreshed on 4 October 2026 for the journal and navigation updates. The journey
+film preserves the original marketing design. Current unretouched desktop and mobile stills are
+in [screenshots/](../screenshots/README.md).
 
 ## Rebuilding the reel
 
@@ -72,9 +73,8 @@ python3 -m http.server 4321 --directory site
 cd web && node e2e/journey-film.mjs      # SITE_URL and STEP_S change the source and the pace
 ```
 
-The site’s Play/Pause controls are hidden only for the film; the recording itself chooses each
-step. To inspect the framing without exporting, add `PEEK=1 OUT=/tmp/muni-journey-check`, then
-open `/tmp/muni-journey-check/peek.png`. The normal preview remains fully interactive.
+The recording chooses each step. To inspect the framing without exporting, add
+`PEEK=1 OUT=/tmp/muni-journey-check`, then open `/tmp/muni-journey-check/peek.png`.
 
 ## Size limit
 

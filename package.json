@@ -1,7 +1,7 @@
 {
   "name": "muni",
   "private": true,
-  "version": "1.0.0-rc.2",
+  "version": "1.0.0-rc.3",
   "description": "Muni is a calm place to keep what happens during a sprint and bring it to the retrospective.",
   "license": "Apache-2.0",
   "homepage": "https://munimuni.app",

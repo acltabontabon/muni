@@ -16,14 +16,14 @@ those as highlights. The app's About → What's new and each GitHub release are 
 
 ## [Unreleased]
 
+## [1.0.0-rc.3] - 2026-10-04
+
 ### Added
 
 - **Find the thought again.** Search your own collection or the team’s revealed thoughts, including
   their context. Search and category filters work together, with an easy way to clear them.
 - **A sprint plan before you save.** One-, two-, and three-week presets, a readable plan review,
   and unsaved setup recovery while you stay in the same tab.
-- A hands-on marketing preview: write a sample thought, reveal it, and explore the retro at your
-  own pace. Newcomer questions and mobile navigation are easier to find.
 
 ### Changed
 
@@ -43,6 +43,7 @@ those as highlights. The app's About → What's new and each GitHub release are 
   overly long sprints and fractional vote budgets are explained before saving and rejected by the API.
 - Unsaved setup and settings drafts leave with the account on sign-out or account changes.
 - Moving to the next retro step or topic brings its heading into view. Saving a note keeps your place.
+- The sign-in scene’s moonlight stays beneath the moon on desktop and mobile.
 - Retrying a thought that was already submitted after collection closes correctly shows it as read-only.
 
 ## [1.0.0-rc.2] - 2026-09-30
@@ -167,6 +168,7 @@ those as highlights. The app's About → What's new and each GitHub release are 
   Muni says what that is. Deleting your account takes with it what nobody has seen yet; what the team
   saw stays, tied to no one.
 
-[unreleased]: https://github.com/acltabontabon/muni/compare/v1.0.0-rc.2...HEAD
+[unreleased]: https://github.com/acltabontabon/muni/compare/v1.0.0-rc.3...HEAD
+[1.0.0-rc.3]: https://github.com/acltabontabon/muni/compare/v1.0.0-rc.2...v1.0.0-rc.3
 [1.0.0-rc.2]: https://github.com/acltabontabon/muni/compare/v1.0.0-rc.1...v1.0.0-rc.2
 [1.0.0-rc.1]: https://github.com/acltabontabon/muni/releases/tag/v1.0.0-rc.1

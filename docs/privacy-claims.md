@@ -6,7 +6,7 @@ The full explanation has one home, the Privacy page (`web/src/routes/Privacy.tsx
 
 Last checked 2026-10-01, against `main` at 1.0.0-rc.2.
 
-Client search, form-draft and marketing-preview evidence updated 2026-10-04 against the local
+Client search and form-draft evidence updated 2026-10-04 against the local
 experience changes. Provider and live deployment claims retain their earlier verification date.
 
 **Kinds of evidence**
@@ -107,7 +107,6 @@ Design and formats: [encryption.md](encryption.md).
 | Sign out and Clear local data remove this account's records, warn about unsent work, and delete nothing on the server | Code + Test | `LeaveDialog` in `ui/menus.tsx`; `prefs.test.ts` sign-out cleanup |
 | Unsaved sprint-setup and workspace-settings forms remain only in tab memory; sign-out, account changes and clearing local data erase them | Code + Test | `lib/form-drafts.ts`, `lib/form-drafts.test.ts`; `LocalProvider` calls `clearFormDrafts` on local clearing |
 | Collection search runs on the device and sends no search terms to the server; it preserves the existing order and adds no authorship | Code + Test | `ui/thought-search.tsx`, `ui/capture.tsx`, `ui/team-thoughts.tsx`; `e2e/experience.mjs` tests personal/shared context search and the anonymous result |
-| The marketing sample sends no thought or category and writes none to browser storage; the form cannot submit before its script is ready | Code + Test | `site/main.js` sample handlers; `site/index.html` disabled fieldset; `e2e/site.mjs` verifies no submission, no storage, safe literal text, missing-script and no-JavaScript fallbacks |
 | Offline copies cannot be erased remotely | none | Stated limitation |
 
 ## Retention and deletion

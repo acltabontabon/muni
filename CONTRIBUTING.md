@@ -53,8 +53,8 @@ node --test scripts/*.test.mjs && node scripts/release.mjs check
   Set `SHOTS=../docs/screenshots` from `web/` to refresh the real app screenshots; use only a local
   development Worker, because the script creates fictional accounts and content.
 - The static marketing page has its own suite. Serve `site/` on a local port, then run
-  `cd web && SITE_URL=http://localhost:4322 node e2e/site.mjs` for responsive, keyboard, sample
-  composer, playback and no-JavaScript checks. It runs separately from the app suites.
+  `cd web && SITE_URL=http://localhost:4322 node e2e/site.mjs` for responsive layout and the
+  original site's retro walkthrough, keyboard and motion behavior. It runs separately from the app suites.
 
 ## Pull requests
 

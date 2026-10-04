@@ -1,8 +1,10 @@
 # Current screens
 
-Captured from the actual local app on 4 October 2026 with fictional Harbor team content. Screens
-are unretouched Chromium captures in light mode, 1440×1000 on desktop and 390×844 on mobile
-(the marketing phone is 390×900).
+Captured from the actual local app and marketing site on 4 October 2026 with fictional Harbor
+team content. Screens are unretouched Chromium captures. Journal and workspace previews use
+light mode, 1440×1000 on desktop and 390×844 on mobile (the marketing phone is 390×900).
+The dark sign-in previews use 1280×800 desktop and
+375×740 phone viewports, with the phone captured at 2× resolution.
 
 | Screen | Desktop | Mobile |
 | --- | --- | --- |
@@ -11,6 +13,7 @@ are unretouched Chromium captures in light mode, 1440×1000 on desktop and 390×
 | Workspace and current sprint | [workspace-desktop.png](workspace-desktop.png) | [workspace-mobile.png](workspace-mobile.png) |
 | Sprint setup | — | [setup-mobile.png](setup-mobile.png) |
 | Revealed team thoughts | — | [reveal-mobile.png](reveal-mobile.png) |
+| Sign-in and aligned moonlight (dark) | [entrance/signin-desktop-dark.png](entrance/signin-desktop-dark.png) | [entrance/signin-phone-dark.png](entrance/signin-phone-dark.png) |
 | Marketing introduction | [site/site-desktop.png](site/site-desktop.png) | [site/site-phone.png](site/site-phone.png) |
 
 With a local Worker serving the latest production build (see [Contributing](../../CONTRIBUTING.md)),
@@ -28,4 +31,11 @@ The marketing site has a separate responsive interaction suite:
 
 ```sh
 SITE_URL=http://localhost:4322 SHOTS=../docs/screenshots/site node e2e/site.mjs
+```
+
+The entrance suite checks sign-in, account creation and reflection alignment through responsive
+resizing. It can also refresh the sign-in screenshots:
+
+```sh
+MUNI_URL=http://localhost:8870 SHOTS=../docs/screenshots/entrance node e2e/entrance.mjs
 ```

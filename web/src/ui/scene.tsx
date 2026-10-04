@@ -102,7 +102,7 @@ const FIREFLIES: [number, number][] = [
   [70, 222], [168, 196], [300, 214], [396, 232], [52, 252], [250, 250],
 ]
 const GLINTS: [number, number][] = [
-  [284, 44], [292, 30], [301, 52], [310, 24], [319, 38], [328, 18], [338, 30], [349, 14], [361, 22],
+  [-4, 44], [3, 30], [-3, 52], [5, 24], [-4, 38], [1, 18], [4, 30], [-2, 14], [2, 22],
 ]
 
 /** How the evening is framed: where the sun sets, where kept thoughts come to rest, what is in view. */
@@ -111,8 +111,6 @@ type Composition = {
   sun: [number, number]
   kept: [number, number][]
   stars: [number, number, number][]
-  /** Where the sun's path of light starts on the water (the glints are drawn from here). */
-  glints: number
   /** Alitaptap, at night: along the shore, never across the moon. */
   fireflies: [number, number][]
   /** Where the sky's glow begins, and the bottom of the frame (the water ends there, upright). */
@@ -121,7 +119,7 @@ type Composition = {
 }
 
 /** Beside the words on a wide screen: the shore at the left, the sun over open water to the right. */
-const WIDE: Composition = { viewBox: '0 0 640 400', sun: [470, 196], kept: KEPT, stars: STARS, fireflies: FIREFLIES, glints: 170, skyTop: -400, bottom: 400 }
+const WIDE: Composition = { viewBox: '0 0 640 400', sun: [470, 196], kept: KEPT, stars: STARS, fireflies: FIREFLIES, skyTop: -400, bottom: 400 }
 
 /**
  * Held upright (a phone, a tablet in portrait): its own composition, not a crop of the wide one.
@@ -145,7 +143,6 @@ const UPRIGHT: Composition = {
   fireflies: [
     [62, 224], [150, 196], [418, 238], [48, 254], [446, 190], [110, 252],
   ],
-  glints: -22,
   skyTop: -44,
   bottom: 362,
 }
@@ -295,10 +292,12 @@ export function DuyanScene({ progress, className, frame, upright: force }: { pro
         </g>
       </g>
       <rect x="-960" y={HORIZON} width="2560" height={400 - HORIZON + 200} fill={`url(#${id("sea")})`} />
-      <g className="scene-glints" transform={`translate(${c.glints} ${HORIZON})`}>
-        {GLINTS.map(([x, w], i) => (
-          <rect key={i} x={x - w / 2} y={6 + i * 11} width={w * (1 + i * 0.12)} height="1.6" rx="0.8" style={{ animationDelay: `${i * 0.37}s` } as CSSProperties} />
-        ))}
+      <g className="scene-glints" transform={`translate(${sunX} ${HORIZON})`}>
+        {GLINTS.map(([offset, w], i) => {
+          const width = w * (1 + i * 0.12)
+          // Ripples vary around the same vertical path of light, directly beneath the sun.
+          return <rect key={i} x={offset - width / 2} y={6 + i * 11} width={width} height="1.6" rx="0.8" style={{ animationDelay: `${i * 0.37}s` } as CSSProperties} />
+        })}
       </g>
 
       {/* The shore and its reflection. Upright, the shore is drawn in place, not through <use>: a
