@@ -14,6 +14,17 @@ Muni signs you in with a **passkey**. There is no password and no email sign-in.
    a name, the dates and the retro time.
 4. Invite your team (see [Bringing people in](#bringing-people-in)) and open collection.
 
+**Write**, **Sprints**, and **People** stay in the header on both desktop and mobile. Write returns
+to your current sprint; Sprints shows the team’s plan and past outcomes; People is where you find
+your teammates and invitations.
+
+When setting up a sprint, choose a one-, two-, or three-week preset, then adjust the dates if
+needed. **The plan at a glance** shows the dates, retro time, facilitator and participants before
+you create it. **Create and open collection** lets people write immediately; **Save as draft**
+keeps the sprint unopened. Unsaved setup and workspace settings survive navigation in the same
+tab. They disappear on reload, sign-out, switching accounts, or clearing local data; these form
+drafts are separate from the optional device storage for thoughts.
+
 New accounts see a short prologue. Until your team's first retro is done, a small light (a
 firefly) then sits on the next control to use and says what it is for. **Later** puts a step off.
 **Hide the guide** hides it. To bring it back, open the account menu and choose **The first
@@ -24,6 +35,16 @@ evening**.
 Open Muni and your sprint has a place to write. Write first. A category (Proud of, Keep, Improve,
 Stop or Try) is optional, and tapping it again clears it. **Context** adds the impact, what might
 help, and when in the sprint it happened. Press **⌘/Ctrl + Enter** to save.
+
+**Need a starting point?** offers a small question without replacing your words. Try another
+prompt or hide it whenever you like. A character count appears as you approach the 2,000-character
+limit. In an empty collection, **How a thought becomes a better retro** explains the rhythm beside
+the writer.
+
+Once a collection has more than six thoughts, **Find in your thoughts** searches the observation
+and its context. Several words narrow the results to thoughts containing all of them. Category
+filters and search work together; **Clear filters** brings everything back. Search runs on your
+device and sends no search text to the server.
 
 - Your thoughts stay hidden from your teammates, and from the facilitator, until the facilitator
   closes collection. You can edit or delete them until then.
@@ -90,6 +111,8 @@ The bar shows the one next change and what it will do:
 
 When collection closes, the page shows **Everyone's thoughts**: every thought, without names, in
 a random order. Yours are among them. Reading them before the retro leaves the meeting for talking.
+
+The revealed collection has its own search. It keeps the same shuffled order and shows no names.
 
 Anyone still writing when collection closes keeps their text on screen. Nothing is sent.
 
@@ -201,8 +224,9 @@ while something is sending, or during a live retro.
 - Muni is in English only.
 - It is tested on Chrome and Firefox on desktop, Safari on iPhone and Chrome on Android. The
   automated suites run in Chromium.
-- Finished sprints are deleted automatically (after 90 days by default; owners can set 7 to 3,650).
-  There is no way to delete one sooner. Unfinished sprints are not deleted automatically.
+- Raw content from finished sprints is deleted about 90 days after finishing by default; owners
+  can set 7 to 3,650 days. Outcomes remain for 730 days by default (30 to 3,650), and sprint names
+  and dates remain. There is no way to delete a sprint sooner. Unfinished sprints are not purged.
 - There is no download of everything you have written. Ask the contact on the Privacy page.
 - If you lose every passkey, the account cannot be recovered, and nobody can reset it. An optional
   recovery key restores encrypted writing on a device you can still sign in on, not the account.

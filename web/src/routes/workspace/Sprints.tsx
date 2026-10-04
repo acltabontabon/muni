@@ -6,7 +6,7 @@
  */
 import { useMemo, useState } from 'react'
 import { Link } from 'react-router'
-import { ArrowRight } from 'lucide-react'
+import { ArrowRight, Plus, Search } from 'lucide-react'
 import type { Experiment, Participant, SprintDetail, SprintSummary } from '@/api/types'
 import { useAuth } from '@/lib/auth'
 import { OUTCOME_LABEL } from '@/lib/categories'
@@ -15,7 +15,7 @@ import { useResource } from '@/lib/resource'
 import { dateRange, dayKey, describeRetro, shortDate } from '@/lib/schedule'
 import { useDocumentTitle } from '@/ui'
 import { EveningAhead } from '@/guide/Sky'
-import { initials, SectionError, SectionPending, useWorkspaceShell } from './Layout'
+import { initials, SectionActions, SectionError, SectionPending, useWorkspaceShell } from './Layout'
 import { useGuidePage } from '@/guide/GuideProvider'
 
 /** The order an open sprint is chosen as "the" current one. */
@@ -51,10 +51,11 @@ export function WorkspaceSprints() {
 
   if (list.length === 0)
     return (
-      <section className="ws-first" aria-labelledby="first">
+      <section className="ws-first ws-first--journey" aria-labelledby="first">
         <div className="min-w-0">
+          <p className="ws-eyebrow">A good retro starts before the meeting</p>
           <h2 id="first" className="chapter-title">Set up your first <em>sprint</em></h2>
-          <p className="chapter-body mt-3">A sprint gives the team a place to write thoughts as things happen, then a retro to talk them through. Setup takes a minute: a name, the dates, and who’s in.</p>
+          <p className="chapter-body mt-3">Keep the small moments while they’re fresh. By the time you meet, the conversation already has somewhere to begin.</p>
           {!offline ? (
             <Link to={`/workspaces/${ws.id}/sprints/new`} className="ws-btn ws-btn--primary mt-6" data-guide="setup-sprint">Set up a sprint <ArrowRight className="size-4" aria-hidden /></Link>
           ) : (
@@ -62,11 +63,17 @@ export function WorkspaceSprints() {
           )}
         </div>
         <EveningAhead className="ws-first-art" />
+        <ol className="ws-journey">
+          <li><span>01</span><div><h3>Keep a thought</h3><p>A win, a friction, an idea. A few lines during the sprint is enough.</p></div></li>
+          <li><span>02</span><div><h3>Find the conversation</h3><p>Close collection, reveal the thoughts, and choose what to talk through.</p></div></li>
+          <li><span>03</span><div><h3>Try one change</h3><p>Agree on an experiment. Come back to see whether it helped.</p></div></li>
+        </ol>
       </section>
     )
 
   return (
     <>
+      {!offline ? <SectionActions><Link to={`/workspaces/${ws.id}/sprints/new`} className="ws-btn ws-btn--secondary"><Plus className="size-4" aria-hidden /> New sprint</Link></SectionActions> : null}
       <div className="ws-sprints">
         {lead ? (
           <Chapter s={lead} people={detail.data?.id === lead.id ? detail.data.participants : undefined} />
@@ -87,7 +94,7 @@ export function WorkspaceSprints() {
               <ul className="revisit">
                 {revisit.slice(0, 4).map((e) => (
                   <li key={e.id}>
-                    <p className="revisit-change">{e.change_to_try}</p>
+                    <Link className="revisit-link" to={`/sprints/${e.sprint_id}/outcomes`}><span className="revisit-change">{e.change_to_try}</span><ArrowRight className="size-3.5" aria-hidden /></Link>
                     <p className="revisit-meta">
                       {e.status === 'proposed' ? <span className="text-warn">{e.owner_name ? `Waiting for ${e.owner_name}` : 'Needs an owner'} · </span> : e.owner_name ? `${e.owner_name} · ` : ''}
                       {e.review_on <= today ? <strong className="revisit-due">Due {shortDate(e.review_on)}</strong> : <>Revisit {shortDate(e.review_on)}</>}
@@ -109,7 +116,7 @@ export function WorkspaceSprints() {
       {open.length ? <Ledger id="open" title="Also in progress" rows={open} /> : null}
       {upcoming.length ? <Ledger id="upcoming" title="Upcoming" rows={upcoming} /> : null}
       {past.length ? (
-        <Archive past={past} exps={exps} />
+        <Archive key={ws.id} past={past} exps={exps} />
       ) : lead ? (
         <section className="ws-section ws-section--quiet" aria-labelledby="earlier">
           <div className="ws-section-head">
@@ -137,6 +144,7 @@ function Chapter({ s, people }: { s: SprintSummary; people?: Participant[] }) {
         <span>{stateOf(s)}</span>
         {s.is_facilitator ? <span className="chapter-role">You’re facilitating</span> : null}
       </p>
+      <p className="chapter-next">{nextFor(s)}</p>
       <SprintDays s={s} />
       {people?.length ? <Crew people={people} /> : null}
       <div className="chapter-actions">
@@ -185,14 +193,21 @@ function SprintDays({ s }: { s: SprintSummary }) {
   const today = dayIn(s.timezone)
   const retro = s.retro_local_date
   const last = retro > s.ends_on ? retro : s.ends_on
-  const days: string[] = []
-  for (let d = s.starts_on; d <= last && days.length < 60; d = addDay(d, 1)) days.push(d)
+  const span = Math.max(0, Math.round((Date.parse(`${last}T12:00:00Z`) - Date.parse(`${s.starts_on}T12:00:00Z`)) / DAY))
+  const offset = (d: string) => Math.round((Date.parse(`${d}T12:00:00Z`) - Date.parse(`${s.starts_on}T12:00:00Z`)) / DAY)
+  // Long sprints still show their whole horizon, including today and the retro, without hundreds
+  // of unreadable ticks. Short sprints keep one tick per day.
+  const ticks = Math.min(span, 40)
+  const positions = new Set(Array.from({ length: ticks + 1 }, (_, i) => ticks ? Math.round(i * span / ticks) : 0))
+  if (today >= s.starts_on && today <= last) positions.add(offset(today))
+  positions.add(offset(retro))
+  const days = [...positions].sort((a, b) => a - b).map((n) => addDay(s.starts_on, n))
   const length = Math.round((Date.parse(`${s.ends_on}T12:00:00Z`) - Date.parse(`${s.starts_on}T12:00:00Z`)) / DAY) + 1
   const n = Math.round((Date.parse(`${today}T12:00:00Z`) - Date.parse(`${s.starts_on}T12:00:00Z`)) / DAY) + 1
   const where = n < 1 ? `Starts ${shortDate(s.starts_on)}` : n > length ? 'The sprint’s days are over' : `Day ${n} of ${length}`
   return (
     <figure className="days" aria-label={`${where}. ${dateRange(s.starts_on, s.ends_on)}; retro planned ${shortDate(retro)}.`}>
-      <ol className="days-line" aria-hidden style={{ ['--n' as string]: days.length }}>
+      <ol className="days-line days-line--complete" aria-hidden style={{ ['--elapsed' as string]: `${Math.max(0, Math.min(100, span ? offset(today) / span * 100 : today >= s.starts_on ? 100 : 0))}%` }}>
         {days.map((d) => {
           const wd = new Date(`${d}T12:00:00Z`).getUTCDay()
           return (
@@ -203,6 +218,7 @@ function SprintDays({ s }: { s: SprintSummary }) {
               data-rest={wd === 0 || wd === 6 || undefined}
               data-after={d > s.ends_on || undefined}
               data-retro={d === retro || undefined}
+              style={{ left: `${span ? offset(d) / span * 100 : 0}%` }}
             />
           )
         })}
@@ -238,8 +254,16 @@ function Crew({ people }: { people: Participant[] }) {
 }
 
 function stateOf(s: SprintSummary) {
-  if (s.status === 'draft') return Date.parse(`${s.starts_on}T00:00:00`) > Date.now() ? `Starts ${shortDate(s.starts_on)}` : 'Setting up'
+  if (s.status === 'draft') return s.starts_on > dayIn(s.timezone) ? `Starts ${shortDate(s.starts_on)}` : 'Setting up'
   return STATUS_PHRASE[s.status] ?? s.status
+}
+
+function nextFor(s: SprintSummary): string {
+  if (!s.is_participant) return 'You can view the plan. The facilitator chooses who takes part in this sprint.'
+  if (s.status === 'collecting') return 'A good moment to keep a thought. Write a few lines while the work is still fresh.'
+  if (s.status === 'live') return 'The conversation is happening now. Open the sprint to join in.'
+  if (s.status === 'draft') return s.is_facilitator ? 'Check the plan, invite your team, and open collection when you’re ready.' : 'The plan is taking shape. Your facilitator will open collection when it’s ready.'
+  return s.is_facilitator ? 'The thoughts are ready to read. Shape the conversation, then bring the team together.' : 'Collection is closed. Read the thoughts and get ready for the conversation.'
 }
 
 /** Sprints as a ledger: titles, dates and states on shared columns. */
@@ -277,6 +301,8 @@ function SprintRows({ rows, meta }: { rows: SprintSummary[]; meta?: (s: SprintSu
 /** Earlier sprints, newest first, a page at a time; and, folded, what past experiments showed. */
 function Archive({ past, exps }: { past: SprintSummary[]; exps: Experiment[] }) {
   const [shown, setShown] = useState(ARCHIVE_STEP)
+  const [query, setQuery] = useState('')
+  const found = past.filter((s) => `${s.name} ${s.goal ?? ''}`.normalize('NFD').replace(/\p{M}/gu, '').toLowerCase().includes(query.trim().normalize('NFD').replace(/\p{M}/gu, '').toLowerCase()))
   const tried = (id: string) => exps.filter((e) => e.sprint_id === id && e.status !== 'proposed').length
   const reviewed = exps.filter((e) => ['helped', 'did_not_help', 'inconclusive', 'not_tried'].includes(e.status))
   return (
@@ -286,16 +312,18 @@ function Archive({ past, exps }: { past: SprintSummary[]; exps: Experiment[] }) 
         <p className="ws-section-note">{past.length} {past.length === 1 ? 'sprint' : 'sprints'}. Outcomes and recaps.</p>
       </div>
       <div className="min-w-0">
+        {past.length > ARCHIVE_STEP ? <label className="people-search archive-search"><Search className="size-4" aria-hidden /><span className="sr-only">Find an earlier sprint</span><input type="search" placeholder="Find an earlier sprint" value={query} onChange={(e) => { setQuery(e.target.value); setShown(ARCHIVE_STEP) }} /></label> : null}
+        {query.trim() && found.length === 0 ? <p className="ws-empty" role="status">No earlier sprint matches “{query.trim()}”. <button type="button" className="ws-link" onClick={() => setQuery('')}>Clear search</button></p> : null}
         <SprintRows
-          rows={past.slice(0, shown)}
+          rows={found.slice(0, shown)}
                     meta={(s) => {
             const n = tried(s.id)
             return `${s.status === 'archived' ? 'Archived' : 'Complete'}${n ? ` · ${n} ${n === 1 ? 'experiment' : 'experiments'}` : ''}`
           }}
         />
-        {past.length > shown ? (
+        {found.length > shown ? (
           <button type="button" className="ws-link mt-4" onClick={() => setShown((n) => n + ARCHIVE_STEP * 3)}>
-            Show {Math.min(past.length - shown, ARCHIVE_STEP * 3)} more
+            Show {Math.min(found.length - shown, ARCHIVE_STEP * 3)} more
           </button>
         ) : null}
         {reviewed.length ? (

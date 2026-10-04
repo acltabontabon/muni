@@ -130,7 +130,7 @@ voting.post('/api/sprints/:sprintId/votes/rounds', async (c) => {
   if (!['ready', 'live'].includes(ctx.sprint.status)) throw conflict('voting opens once the themes are ready')
   const body = await jsonBody<{ budget?: number }>(c)
   const budget = Number(body.budget ?? ctx.sprint.vote_budget)
-  if (!(budget >= 1 && budget <= 10)) throw bad('votes per person must be between 1 and 10')
+  if (!Number.isInteger(budget) || !(budget >= 1 && budget <= 10)) throw bad('votes per person must be a whole number between 1 and 10')
   if (!(await count(c.env.DB, 'SELECT count(*) AS n FROM themes WHERE sprint_id = ? AND parked = 0', ctx.sprint.id))) throw conflict('there are no themes to vote on yet')
   const opened = await openRound(c.env.DB, ctx.sprint.id, budget)
   if (opened === null) throw conflict('a voting round is already open')

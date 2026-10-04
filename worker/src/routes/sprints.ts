@@ -167,7 +167,7 @@ function validateSchedule(s: ScheduleInput) {
   if (starts_on > ends_on) throw bad('the sprint can’t end before it starts')
   if (daysBetween(starts_on, ends_on) > 120) throw bad('sprints longer than 120 days aren’t supported')
   if (retro_date < starts_on) throw bad('the retro can’t happen before the sprint starts')
-  if (!(dur >= 10 && dur <= 240)) throw bad('retro duration must be between 10 and 240 minutes')
+  if (!Number.isInteger(dur) || !(dur >= 10 && dur <= 240)) throw bad('retro duration must be a whole number between 10 and 240 minutes')
   const retro_at = resolveLocal(timezone, retro_date, retro_time)
   return { timezone, starts_on, ends_on, retro_date, retro_time, retro_duration_min: Math.round(dur), retro_at }
 }
@@ -197,7 +197,7 @@ sprints.post('/api/workspaces/:workspaceId/sprints', async (c) => {
   const opening_question = content(encrypted, body.opening_question, 200, 'Opening question', false)
   const sch = validateSchedule(body)
   const budget = Number(body.vote_budget ?? 3)
-  if (!(budget >= 1 && budget <= 10)) throw bad('votes per person must be between 1 and 10')
+  if (!Number.isInteger(budget) || !(budget >= 1 && budget <= 10)) throw bad('votes per person must be a whole number between 1 and 10')
   const facilitator = String(body.facilitator_id ?? '')
   const ids = new Set<string>([...idList(body.participant_ids, 'participant_ids'), facilitator])
   if (ids.size > MAX_PARTICIPANTS) throw bad(`a sprint can have at most ${MAX_PARTICIPANTS} participants`)
@@ -399,7 +399,7 @@ sprints.patch('/api/sprints/:sprintId', async (c) => {
   if (body.reminders_enabled !== undefined) set('reminders_enabled = ?', body.reminders_enabled ? 1 : 0)
   if (body.vote_budget !== undefined) {
     const b = Number(body.vote_budget)
-    if (!(b >= 1 && b <= 10)) throw bad('votes per person must be between 1 and 10')
+    if (!Number.isInteger(b) || !(b >= 1 && b <= 10)) throw bad('votes per person must be a whole number between 1 and 10')
     if (await count(db, "SELECT count(*) AS n FROM vote_rounds WHERE sprint_id = ? AND status = 'open'", sid)) throw conflict('close the open voting round before changing the budget')
     set('vote_budget = ?', b)
   }

@@ -5,7 +5,7 @@
  * matters, and the evening's horizon along the top with the sun travelling it as the film goes on.
  * It ends on the mark.
  *
- * Deterministic: each output frame is drawn for its moment (30 per second) and screenshotted, so
+ * Deterministic: each output frame is drawn for its moment (60 per second) and screenshotted, so
  * the pacing is the same every time. Writes <DEMO_OUT>/reel/NNNNN.jpg at 2560×1600; export.sh
  * encodes them.
  *

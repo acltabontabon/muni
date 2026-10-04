@@ -49,6 +49,13 @@ node --test scripts/*.test.mjs && node scripts/release.mjs check
   `MUNI_URL=http://localhost:8787 node scripts/e2e.mjs [suite…]` against a running Worker that
   serves a production build; with no suite names, it runs everything CI runs.
 
+- `web/e2e/experience.mjs` covers everyday navigation, search, prompts and draft preservation.
+  Set `SHOTS=../docs/screenshots` from `web/` to refresh the real app screenshots; use only a local
+  development Worker, because the script creates fictional accounts and content.
+- The static marketing page has its own suite. Serve `site/` on a local port, then run
+  `cd web && SITE_URL=http://localhost:4322 node e2e/site.mjs` for responsive, keyboard, sample
+  composer, playback and no-JavaScript checks. It runs separately from the app suites.
+
 ## Pull requests
 
 - Keep the change focused and match the surrounding code's style and comment density.

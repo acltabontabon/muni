@@ -68,6 +68,7 @@ const shot = async (page, name, full = false) => {
   if (SHOTS) await page.screenshot({ path: `${SHOTS}/${name}.png`, fullPage: full })
 }
 const overflow = (page) => page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth)
+const stagePosition = (page) => page.evaluate(() => ({ y: window.scrollY, title: document.querySelector('.retro-talk-title')?.getBoundingClientRect().top, rail: document.querySelector('.retro-rail')?.getBoundingClientRect().bottom }))
 const text = (page, sel = 'main') => page.locator(sel).first().innerText()
 const flat = (s) => s.replace(/,\s/g, ' ').replace(/\s+/g, ' ').trim()
 
@@ -192,8 +193,12 @@ try {
   await shot(F.page, '05-choose')
   await shot(B.page, '05b-choose-phone')
   await F.page.locator('.rm-block--lead').waitFor()
+  await F.page.evaluate(() => window.scrollTo({ top: 180, behavior: 'instant' }))
+  const choosingPosition = await F.page.evaluate(() => window.scrollY)
   await F.page.locator('.cue-act', { hasText: 'Next: Talk' }).click()
   await F.page.locator('.retro-talk-title', { hasText: 'Reviews that wait' }).waitFor()
+  const firstTalk = await stagePosition(F.page)
+  check('Changing phase starts at the top, with Talk’s heading below the sticky rail', choosingPosition > 0 && firstTalk.y === 0 && firstTalk.title >= firstTalk.rail, JSON.stringify({ before: choosingPosition, ...firstTalk }))
   await Pr.page.goto(`${STAGE}?mode=present`)
   await Pr.page.locator('.retro-talk-title').waitFor()
   await B.page.locator('h1', { hasText: 'Reviews that wait' }).waitFor()
@@ -328,7 +333,12 @@ try {
 
   // An idea from the talk, checked: a concern is not outvoted.
   await F.page.fill('textarea[aria-label="We could try"]', 'Keep twenty minutes after standup for first reviews')
+  await F.page.evaluate(() => window.scrollTo({ top: 180, behavior: 'instant' }))
+  const writingPosition = await F.page.evaluate(() => window.scrollY)
   await F.page.keyboard.press('Enter')
+  await F.page.locator('.retro-note-group .retro-saved').waitFor()
+  const savedPosition = await F.page.evaluate(() => window.scrollY)
+  check('Saving a note in the same topic preserves the writer’s scroll position', writingPosition > 0 && savedPosition === writingPosition, `${writingPosition} → ${savedPosition}`)
   await F.page.locator('.retro-note-group button', { hasText: 'Check it with the room' }).click()
   spend('Facilitator', 'write an idea, then check it', 1, 52)
   await B.page.locator('.ci-ask .ci-question', { hasText: 'Would trying this next sprint help?' }).waitFor({ timeout: 8000 })
@@ -379,9 +389,16 @@ try {
   await shot(A.page, '15-topic1-phone', true)
 
   // ── Topic 2 · Who owns staging? A good conversation starts at once: no check-in, no idea — a line to remember.
+  for (const P of [F, Pr]) await P.page.evaluate(() => window.scrollTo({ top: 180, behavior: 'instant' }))
+  const beforeTopics = await Promise.all([F.page, Pr.page].map((page) => page.evaluate(() => window.scrollY)))
   await F.page.locator('.retro-rail-end button', { hasText: 'Next topic' }).click()
   spend('Facilitator', 'next topic', 1)
   await F.page.locator('.retro-talk-title', { hasText: 'Who owns staging?' }).waitFor()
+  await Pr.page.locator('.retro-talk-title', { hasText: 'Who owns staging?' }).waitFor({ timeout: 8000 })
+  for (const [index, P] of [F, Pr].entries()) {
+    const position = await stagePosition(P.page)
+    check(`${index ? 'Presenting screen' : 'Facilitator'}: a new topic opens at the top with its heading visible`, beforeTopics[index] > 0 && position.y === 0 && position.title >= position.rail, JSON.stringify({ before: beforeTopics[index], ...position }))
+  }
   await B.page.locator('h1', { hasText: 'Who owns staging?' }).waitFor({ timeout: 8000 })
   check('The next topic starts clean: no check-in carried over, nothing to catch up on', (await B.page.locator('.ci-ask').count()) === 0 && (await B.page.locator('.ci-moment').count()) === 0)
   await F.page.fill('textarea[aria-label="We’ll remember"]', 'Staging needs a named owner, the way on-call has one')

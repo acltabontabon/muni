@@ -10,6 +10,7 @@ import { ApiError, patch } from '@/api/client'
 import type { AuditEvent, SprintSummary, WorkspaceDetail } from '@/api/types'
 import { describeEvent } from '@/lib/audit'
 import { useAuth } from '@/lib/auth'
+import { accountFormDrafts } from '@/lib/form-drafts'
 import { useResource, useResources } from '@/lib/resource'
 import { Button, ErrorText, Input, useDocumentTitle, useToast } from '@/ui'
 import { sentence } from '@/ui/invite-email'
@@ -17,7 +18,7 @@ import { SectionError, SectionPending, useWorkspaceShell } from './Layout'
 
 type Draft = { name: string; retention: string; outcome: string }
 /** Unsaved edits, per account and workspace, for as long as this page is open. Never stored. */
-const drafts = new Map<string, Draft>()
+const drafts = accountFormDrafts<Draft>()
 
 const LIMITS = { retention: [7, 3650], outcome: [30, 3650] } as const
 function problems(v: Draft) {
@@ -40,8 +41,8 @@ export function WorkspaceSettings() {
   if (!detail.data) return <SectionPending label="Loading settings" rows={4} />
   return (
     <>
-      <SettingsForm d={detail.data} />
-      <Activity workspaceId={ws.id} />
+      <SettingsForm key={ws.id} d={detail.data} />
+      <Activity key={ws.id} workspaceId={ws.id} />
     </>
   )
 }
@@ -76,9 +77,14 @@ function SettingsForm({ d }: { d: WorkspaceDetail }) {
 
   const save = async (e: FormEvent) => {
     e.preventDefault()
+    if (busy || !dirty) return
     setTried(true)
     setError('')
-    if (Object.keys(bad).length) return
+    if (Object.keys(bad).length) {
+      const ids: Record<keyof Draft, string> = { name: 'ws-name', retention: 'ret', outcome: 'oret' }
+      document.getElementById(ids[Object.keys(bad)[0] as keyof Draft])?.focus()
+      return
+    }
     setBusy(true)
     try {
       await patch(`/api/workspaces/${d.workspace.id}`, { name: v.name.trim(), retention_days: Number(v.retention), outcome_retention_days: Number(v.outcome) })
@@ -98,7 +104,8 @@ function SettingsForm({ d }: { d: WorkspaceDetail }) {
   const show = (k: keyof Draft) => (tried || (draft && draft[k] !== saved[k]) ? bad[k] : undefined)
 
   return (
-    <form onSubmit={save} noValidate aria-label="Workspace settings">
+    <form onSubmit={save} noValidate aria-label="Workspace settings" aria-busy={busy}>
+      <fieldset disabled={busy}>
       <section className="ws-section" aria-labelledby="set-name">
         <div className="ws-section-head">
           <h2 id="set-name" className="ws-section-title">Name</h2>
@@ -136,12 +143,13 @@ function SettingsForm({ d }: { d: WorkspaceDetail }) {
         </div>
       </section>
 
+      </fieldset>
       <div className="settings-save">
         <div className="settings-save-inner">
-          <Button type="submit" variant="primary" busy={busy} disabled={!dirty}>Save changes</Button>
+          <Button type="submit" variant="primary" busy={busy} disabled={!dirty || busy}>Save changes</Button>
           {dirty ? (
             <>
-              <button type="button" className="ws-link" onClick={() => { setDraft(null); setTried(false); setError('') }}>Discard</button>
+              <button type="button" className="ws-link" disabled={busy} onClick={() => { setDraft(null); setTried(false); setError('') }}>Discard</button>
               <span className="settings-status" role="status">Unsaved changes</span>
             </>
           ) : (

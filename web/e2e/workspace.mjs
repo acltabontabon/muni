@@ -235,6 +235,34 @@ try {
     await ctx.close()
   }
 
+  // ── A setup is easy to begin, and survives looking elsewhere in the same tab.
+  {
+    const { ctx, page, errors } = await open(owner)
+    await page.goto(W(one.id))
+    await page.getByRole('link', { name: 'New sprint', exact: true }).click()
+    await page.getByLabel('Sprint name', { exact: true }).waitFor()
+    await page.getByRole('button', { name: 'Save as draft' }).click()
+    check('setup explains missing fields and focuses the first problem', await page.getByText('Give the sprint a name people will recognise.').first().isVisible() && await page.locator('#f-name').evaluate((el) => el === document.activeElement))
+    await page.getByLabel('Sprint name', { exact: true }).fill(`An unfinished plan ${tag}`)
+    await page.getByRole('button', { name: '1 week', exact: true }).click()
+    const dates = await page.locator('#f-starts_on, #f-ends_on, #f-retro_date').evaluateAll((els) => els.map((el) => el.value))
+    check('one-week preset follows the retro while it is on the sprint’s last day', Date.parse(dates[1]) - Date.parse(dates[0]) === 6 * 86400000 && dates[1] === dates[2])
+    await page.getByRole('button', { name: 'Back', exact: true }).click()
+    await page.getByRole('link', { name: 'New sprint', exact: true }).click()
+    await page.getByText('Your unsaved setup is still here.').waitFor()
+    check('setup edits and the plan review return after visiting the workspace', await page.locator('#f-name').inputValue() === `An unfinished plan ${tag}` && (await page.locator('.setup-review').innerText()).includes('7 days'))
+    await page.getByRole('button', { name: 'More options' }).click()
+    await page.locator('#f-vote_budget').fill('2.5')
+    await page.getByRole('button', { name: 'More options' }).click()
+    await page.getByRole('button', { name: 'Save as draft' }).click()
+    await page.waitForFunction(() => document.activeElement?.id === 'f-vote_budget')
+    check('an invalid advanced field opens before receiving focus', await page.locator('#f-vote_budget').isVisible() && await page.locator('#f-vote_budget').evaluate((el) => el === document.activeElement))
+    await page.getByRole('button', { name: 'Discard edits', exact: true }).click()
+    check('discarding a resumed setup restores the defaults', await page.locator('#f-name').inputValue() === '')
+    check('setup has no script errors', errors.length === 0, errors.join(' | '))
+    await ctx.close()
+  }
+
   // ── A member: no settings, no management, no addresses.
   {
     const { ctx, page } = await open(member)
@@ -254,9 +282,10 @@ try {
   // ── Phones, and larger text.
   {
     const { ctx, page } = await open(owner, { phone: true })
-    for (const s of ['', '/people', '/settings']) {
+    for (const s of ['', '/people', '/settings', '/sprints/new']) {
       await page.goto(W(one.id, s))
-      await page.locator('.ws-body > *').first().waitFor()
+      if (s === '/sprints/new') await page.getByLabel('Sprint name', { exact: true }).waitFor()
+      else await page.locator('.ws-body > *').first().waitFor()
       await page.waitForTimeout(500)
       const over = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth)
       await page.evaluate(() => (document.documentElement.style.fontSize = '200%'))

@@ -97,7 +97,7 @@ entries.post('/api/sprints/:sprintId/entries', async (c) => {
   if (encrypted) requireEnvelope(v.body, ctx.sprint.id, key!)
   if (key) {
     const existing = await one<MyRow>(db, `SELECT ${MY_COLS} FROM entries WHERE sprint_id = ? AND author_account_id = ? AND idempotency_key = ?`, ctx.sprint.id, me, key)
-    if (existing) return c.json(myEntry(existing, true))
+    if (existing) return c.json(myEntry(existing, ctx.sprint.status === 'collecting'))
   }
   const id = encrypted ? key! : uuid()
   if (encrypted && (await count(db, 'SELECT count(*) AS n FROM entries WHERE id = ?', id))) throw conflict('that record id is taken')
@@ -117,7 +117,7 @@ entries.post('/api/sprints/:sprintId/entries', async (c) => {
   if (!res.meta.changes) {
     if (key) {
       const existing = await one<MyRow>(db, `SELECT ${MY_COLS} FROM entries WHERE sprint_id = ? AND author_account_id = ? AND idempotency_key = ?`, ctx.sprint.id, me, key)
-      if (existing) return c.json(myEntry(existing, true))
+      if (existing) return c.json(myEntry(existing, ctx.sprint.status === 'collecting'))
     }
     // Refused: say why, the cap first (as it was checked before the phase when it was read apart).
     const held = await one<{ mine: number; total: number; status: string | null }>(

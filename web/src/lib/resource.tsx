@@ -14,7 +14,7 @@
  * is not kept, and the path is read again.
  */
 import { createContext, useCallback, useContext, useEffect, useMemo, useSyncExternalStore, type ReactNode } from 'react'
-import { get } from '@/api/client'
+import { ApiError, get } from '@/api/client'
 
 export type Entry<T = unknown> = {
   data?: T
@@ -31,6 +31,8 @@ export class ResourceStore {
   private flights = new Map<string, Promise<unknown>>()
   /** Bumped by `invalidate`: a response that left before it is stale on arrival. */
   private gens = new Map<string, number>()
+  /** A dropped path must not be brought back by a request that was already under way. */
+  private drops = new Map<string, number>()
   private subs = new Map<string, Set<() => void>>()
   constructor(private fetcher: (path: string) => Promise<unknown> = get, private now: () => number = Date.now) {}
 
@@ -62,16 +64,20 @@ export class ResourceStore {
     this.write(key, { fetching: true })
     const p = this.fetcher(key).then(
       (data) => {
-        this.flights.delete(key)
+        if (this.flights.get(key) === p) this.flights.delete(key)
+        if ((this.drops.get(key) ?? 0) > gen) throw new Error('This resource was forgotten.')
         if ((this.gens.get(key) ?? 0) !== gen) return this.load<T>(key)
         this.write(key, { data, error: undefined, at: this.now(), fetching: false })
         return data as T
       },
       (error) => {
-        this.flights.delete(key)
+        if (this.flights.get(key) === p) this.flights.delete(key)
+        if ((this.drops.get(key) ?? 0) > gen) throw new Error('This resource was forgotten.')
         if ((this.gens.get(key) ?? 0) !== gen) return this.load<T>(key)
         // What was shown stays; the error is there for a retry.
-        this.write(key, { error, fetching: false })
+        // Access ending is final: kept content must not conceal an authorization failure.
+        const lostAccess = error instanceof ApiError && [401, 403, 404].includes(error.status)
+        this.write(key, { ...(lostAccess ? { data: undefined, at: 0 } : {}), error, fetching: false })
         throw error
       },
     )
@@ -102,9 +108,12 @@ export class ResourceStore {
   }
   /** Forget paths entirely (lost access to a workspace). */
   drop(prefix: string) {
-    for (const key of [...this.entries.keys()]) {
+    for (const key of new Set([...this.entries.keys(), ...this.flights.keys()])) {
       if (!key.startsWith(prefix)) continue
-      this.gens.set(key, (this.gens.get(key) ?? 0) + 1)
+      const gen = (this.gens.get(key) ?? 0) + 1
+      this.gens.set(key, gen)
+      this.drops.set(key, gen)
+      this.flights.delete(key)
       this.entries.delete(key)
       this.subs.get(key)?.forEach((f) => f())
     }

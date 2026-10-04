@@ -550,6 +550,9 @@ try {
   await maya.locator('.retro-asks .retro-asking-n', { hasText: '4 answers' }).waitFor()
   await tomas.locator('.ci-ask').waitFor()
   await tomas.evaluate(() => window.scrollTo(0, 0))
+  // Opening the question can scroll its margin control into view. Begin this chapter with the
+  // full topic heading visible; sharing the answers will then naturally bring those into view.
+  await maya.evaluate(() => window.scrollTo({ top: 0, behavior: 'instant' }))
   await maya.evaluate(() => document.fonts.ready)
   await sleep(1200)
   const tc2 = cursorOf(maya)

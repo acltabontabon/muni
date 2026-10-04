@@ -1,6 +1,7 @@
 import { Link, useLocation } from 'react-router'
 import { clsx } from 'clsx'
 import type { ReactNode } from 'react'
+import { NotebookPen, Layers3, Users } from 'lucide-react'
 import { Wordmark, Mark } from '@/brand/Mark'
 import type { Me } from '@/api/types'
 import { useAuth } from '@/lib/auth'
@@ -14,16 +15,23 @@ import { CharacterDialog } from '@/worlds/Character'
  * that's collecting) and the workspace's sprints, a quiet sync state when there is one, and you. Administration lives in
  * the workspace's People and Settings pages and the two menus, not on the page you work on.
  */
-export function AppShell({ children, wide, workspace }: { children: ReactNode; wide?: boolean; workspace?: Me['workspaces'][number] | null }) {
+export function AppShell({ children, wide, workspace, section }: { children: ReactNode; wide?: boolean; workspace?: Me['workspaces'][number] | null; section?: 'write' | 'sprints' }) {
   const { me } = useAuth()
   const fallback = useCurrentWorkspace(me)
   const current = workspace === undefined ? fallback : workspace
   const { pathname } = useLocation()
+  const active = pathname.endsWith('/people') ? 'people' : section ?? (pathname === '/' || pathname === '/capture' ? 'write' : pathname.startsWith('/workspaces/') || pathname.startsWith('/sprints/') ? 'sprints' : null)
+  const links = current ? [
+    { id: 'write', to: '/', label: 'Write', Icon: NotebookPen, state: { write: true } },
+    { id: 'sprints', to: `/workspaces/${current.id}`, label: 'Sprints', Icon: Layers3, state: undefined },
+    { id: 'people', to: `/workspaces/${current.id}/people`, label: 'People', Icon: Users, state: undefined },
+  ] : []
   const nav = 'inline-flex h-9 items-center rounded-full px-3 text-sm text-ink-soft hover:bg-ink/5 hover:text-ink aria-[current=page]:bg-card aria-[current=page]:font-medium aria-[current=page]:text-ink aria-[current=page]:shadow-[0_0_0_1px_var(--line)]'
   return (
-    <div className="app-bg flex min-h-dvh flex-col">
+    <div className="app-bg app-shell flex min-h-dvh flex-col" data-mobile-nav={!!current || undefined}>
+      <a className="skip-link" href="#main-content">Skip to content</a>
       <header className="pt-safe sticky top-0 z-30 border-b border-line/60 bg-paper/80 backdrop-blur-md">
-        <div className={clsx('mx-auto flex h-14 items-center gap-1 px-3 sm:gap-2 sm:px-4', wide ? 'max-w-7xl' : 'max-w-5xl')}>
+        <div className={clsx('shell-header-row mx-auto flex h-14 items-center gap-1 px-3 sm:gap-2 sm:px-4', wide ? 'max-w-7xl' : 'max-w-5xl')}>
           <Link to="/" className="shrink-0 rounded-md px-1 text-ink" aria-label="Muni: your current sprint">
             <span className="hidden sm:inline-flex"><Wordmark size={20} /></span>
             <span className="sm:hidden"><Mark size={26} /></span>
@@ -33,10 +41,8 @@ export function AppShell({ children, wide, workspace }: { children: ReactNode; w
               <span aria-hidden className="mx-1 h-5 w-px bg-line" />
               <WorkspaceSwitcher current={current} />
               {current ? (
-                <nav aria-label="Main" className="ml-2 hidden items-center gap-1 md:flex">
-                  {/* A shortcut to the sprint that's collecting, with the field in reach: the same page as opening the sprint. */}
-                  <Link to="/" state={{ write: true }} className={nav}>Write</Link>
-                  <Link to={`/workspaces/${current.id}`} className={nav} aria-current={pathname.startsWith(`/workspaces/${current.id}`) || pathname.startsWith('/sprints/') ? 'page' : undefined}>Sprints</Link>
+                <nav aria-label="Main" className="main-nav mobile-nav ml-2 items-center gap-1">
+                  {links.map(({ id, to, label, Icon, state }) => <Link key={id} to={to} state={state} className={nav} aria-current={active === id ? 'page' : undefined}><Icon size={17} strokeWidth={1.7} aria-hidden /><span>{label}</span></Link>)}
                 </nav>
               ) : null}
               <div className="ml-auto flex items-center gap-2">
@@ -48,7 +54,7 @@ export function AppShell({ children, wide, workspace }: { children: ReactNode; w
         </div>
       </header>
       <SessionBanner />
-      <main className={clsx('pb-safe mx-auto w-full flex-1 px-4 pb-16 pt-6 sm:px-6 sm:pt-8', wide ? 'max-w-7xl' : 'max-w-5xl')}>{children}</main>
+      <main id="main-content" tabIndex={-1} className={clsx('pb-safe mx-auto w-full flex-1 px-4 pb-16 pt-6 sm:px-6 sm:pt-8', wide ? 'max-w-7xl' : 'max-w-5xl')}>{children}</main>
       <UpdateNotice />
       {me ? <CharacterDialog /> : null}
     </div>

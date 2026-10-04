@@ -19,6 +19,7 @@ import { chooseWorkspace } from '@/lib/workspace'
 import { Spinner } from '@/ui'
 import { AppShell } from '@/ui/shell'
 import { HorizonMark } from '@/ui/art'
+import '@/workspace-ux.css'
 
 type Summary = Me['workspaces'][number]
 type Ctx = { ws: Summary; slot: HTMLElement | null }

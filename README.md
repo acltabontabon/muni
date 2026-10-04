@@ -4,9 +4,14 @@
 
 Muni is a sprint-retrospective app for scrum teams. Everyone jots down what mattered while the sprint is happening, in private, so the retro starts from what people actually noticed, not from what they can remember on the day. Then the team talks it through and leaves with one to three experiments to try next sprint.
 
+<p align="center"><img src="docs/screenshots/capture-desktop.png" alt="Muni’s sprint journal: a place to capture a thought while it’s fresh, optional categories and context, and a searchable collection of your own observations." width="900"></p>
+
+Write a sentence between tasks. Find it again when you need it. Muni works on a laptop or a phone,
+with the same **Write**, **Sprints**, and **People** navigation. [See the mobile experience](docs/screenshots/capture-mobile.png).
+
 Try it at [act.munimuni.app](https://act.munimuni.app). You sign in with a passkey, so there are no passwords. Muni is a 1.0 release candidate, built by one person.
 
-<p align="center"><a href="docs/demo/muni-demo.mp4"><img src="docs/demo/muni-demo.gif" alt="Muni in 75 seconds: a sprint from the first thought, written on a laptop and on a phone, to closing collection, gathering thoughts into themes, the retro's four steps with the stage and a phone side by side, and an experiment its owner says yes to." width="720"></a></p>
+<p align="center"><a href="docs/demo/muni-demo.mp4"><img src="docs/demo/muni-demo.gif" alt="A sprint in Muni: from the first thought, written on a laptop and on a phone, to closing collection, gathering thoughts into themes, the retro's four steps with the stage and a phone side by side, and an experiment its owner says yes to." width="720"></a></p>
 
 <p align="center"><sub>The retro from both sides, in 30 seconds: <a href="docs/demo/muni-journey.mp4">muni-journey.mp4</a></sub></p>
 

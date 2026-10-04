@@ -12,7 +12,7 @@ import { createContext, Fragment, useCallback, useContext, useEffect, useId, use
 import { clsx } from 'clsx'
 import * as Popover from '@radix-ui/react-popover'
 import * as RadioGroup from '@radix-ui/react-radio-group'
-import { Copy, CornerDownRight, Lightbulb, MoreHorizontal, Pencil, Plus, Trash2 } from 'lucide-react'
+import { Copy, CornerDownRight, Lightbulb, MoreHorizontal, Pencil, Plus, Trash2, X } from 'lucide-react'
 import { ApiError, del, get, patch } from '@/api/client'
 import type { Category, MyEntry, Period } from '@/api/types'
 import { CATEGORIES, categoryMeta, MEMORY_PROMPTS, PERIODS } from '@/lib/categories'
@@ -32,6 +32,8 @@ import { menuKeys } from '@/ui/menu-keys'
 import { StatusLabel, type ThoughtState } from '@/ui/status'
 import { Hammock } from '@/ui/journal'
 import { MUNI_WORDS } from '@/worlds/characters'
+import { CaptureRhythm, ThoughtLength } from '@/ui/capture-help'
+import { matchesThought, ThoughtSearch } from '@/ui/thought-search'
 
 const isFinePointer = () => window.matchMedia('(pointer: fine)').matches
 const periodOptions = PERIODS.map((p) => ({ id: p.id, label: p.label, color: 'var(--ink-faint)' }))
@@ -273,7 +275,7 @@ function ComposerView({ choices, headingLevel = 1, fieldId, closed, s }: Compose
   const bodyId = fieldId ?? `${uid}-body`
   const H = headingLevel === 1 ? 'h1' : 'h2'
   return (
-    <form onSubmit={submit} aria-label={dest ? `Write a thought for ${dest.sprintName}` : 'Write a thought'} className="scroll-mt-24">
+    <form onSubmit={submit} aria-label={dest ? `Write a thought for ${dest.sprintName}` : 'Write a thought'} className="journal-composer scroll-mt-28">
       {fieldId ? null : (
         <H className="journal-title mb-4 text-[1.6rem] sm:text-[2rem]">
           <label htmlFor={bodyId}>
@@ -303,7 +305,8 @@ function ComposerView({ choices, headingLevel = 1, fieldId, closed, s }: Compose
       {closed ? <div className="mb-3 rounded-xl bg-warn/10 px-3.5 py-2.5 text-sm">{closed}</div> : null}
       {nudge ? (
         <p className="mb-2.5 flex items-start gap-2 text-[15px] text-ink-soft" aria-live="polite">
-          <Lightbulb className="mt-0.5 size-4 shrink-0 text-accent" aria-hidden /> <span className="italic">{nudge}</span>
+          <Lightbulb className="mt-0.5 size-4 shrink-0 text-accent" aria-hidden /> <span className="italic flex-1">{nudge}</span>
+          <button type="button" aria-label="Hide the starting point" className="prompt-dismiss" onClick={() => setPrompt(null)}><X size={16} aria-hidden /></button>
         </p>
       ) : null}
 
@@ -318,12 +321,13 @@ function ComposerView({ choices, headingLevel = 1, fieldId, closed, s }: Compose
         onKeyDown={onKey}
         placeholder="Something that happened, helped, or got in the way…"
         aria-keyshortcuts="Meta+Enter Control+Enter"
+        aria-describedby={`${uid}-draft`}
         maxLength={2000}
         enterKeyHint="enter"
       />
       {/* Under the field: what's happening to these words. */}
       <div className="mt-1.5 flex min-h-6 flex-wrap items-center gap-x-4 gap-y-1">
-        <p className="flex items-center gap-2 text-xs text-ink-faint" aria-live="polite">
+        <p id={`${uid}-draft`} className="flex items-center gap-2 text-xs text-ink-faint" aria-live="polite">
           {typing && dest ? (
             <>
               <span className="dot dot--draft" aria-hidden /> {restored ? 'Draft restored · ' : 'Draft · '}
@@ -331,9 +335,11 @@ function ComposerView({ choices, headingLevel = 1, fieldId, closed, s }: Compose
             </>
           ) : null}
         </p>
+        <ThoughtLength text={p.body} />
       </div>
 
       <div className="mt-1">
+        <p className="composer-category-label">Category <span>optional</span></p>
         <Choices value={p.category} onChange={(c) => set({ category: c as Category | null })} options={CATEGORIES} label="Category (optional)" allowNone />
       </div>
 
@@ -359,7 +365,7 @@ function ComposerView({ choices, headingLevel = 1, fieldId, closed, s }: Compose
           <Plus className={clsx('size-4 transition-transform', more && 'rotate-45')} aria-hidden /> {more ? 'Less context' : 'Context'}
         </button>
         <button type="button" className="journal-tool" onClick={() => setNudge(MEMORY_PROMPTS[(MEMORY_PROMPTS.indexOf(nudge ?? '') + 1) % MEMORY_PROMPTS.length])}>
-          <Lightbulb className="size-4" aria-hidden /> {nudge ? 'Another prompt' : 'Prompt'}
+          <Lightbulb className="size-4" aria-hidden /> {nudge ? 'Another prompt' : 'Need a starting point?'}
         </button>
         <span className="ml-auto flex items-center gap-3">
           <span className="kbd-hint items-center gap-1 text-xs text-ink-faint" aria-hidden>
@@ -845,6 +851,7 @@ export function MyThoughts({ sprintId, editable, moveChoices, online, className,
   const [failed, setFailed] = useState(false)
   const [shown, setShown] = useState(PAGE)
   const [filter, setFilterState] = useState<string | null>(() => filters.get(sprintId) ?? null)
+  const [query, setQuery] = useState('')
   const setFilter = (v: string | null) => {
     filters.set(sprintId, v)
     setFilterState(v)
@@ -853,16 +860,19 @@ export function MyThoughts({ sprintId, editable, moveChoices, online, className,
   const [fresh, setFresh] = useState<Set<string>>(new Set())
   // Unlocking this device changes what can be shown: read the list again (quietly, keeping it on screen).
   const keysEpoch = useKeysEpoch()
+  const sequence = useRef(0)
   const load = useCallback(async () => {
+    const current = ++sequence.current
     try {
       const list = await get<MyEntry[]>(`/api/sprints/${sprintId}/entries/mine`)
+      if (current !== sequence.current) return
       const prev = seen.current
       if (prev) setFresh(new Set(list.filter((e) => !prev.has(e.id)).map((e) => e.id)))
       seen.current = new Set(list.map((e) => e.id))
       setEntries(list.slice().reverse())
       setFailed(false)
     } catch {
-      setFailed(true)
+      if (current === sequence.current) setFailed(true)
     }
   }, [sprintId])
   useEffect(() => {
@@ -871,6 +881,8 @@ export function MyThoughts({ sprintId, editable, moveChoices, online, className,
     if (!handed.current) setEntries(null)
     handed.current = null
     load()
+    const pending = sequence
+    return () => { pending.current++ }
   }, [load])
   const shownList = useRef(entries)
   useEffect(() => {
@@ -913,7 +925,9 @@ export function MyThoughts({ sprintId, editable, moveChoices, online, className,
   const filtering = count > 8 && cats.length > 1
   // A category chosen earlier counts only while the chips to change it are on screen.
   const active = filtering && filter && cats.includes(filter) ? filter : null
-  const visible = all.filter((e) => !active || (e.category ?? 'unsorted') === active)
+  const visible = all.filter((e) => (!active || (e.category ?? 'unsorted') === active) && matchesThought(e, query))
+  const visibleMine = mine.filter((i) => matchesThought(i.payload, query))
+  const searching = !!query.trim()
   // Each thought's place in the sprint, oldest first: stable whatever is filtered or paged.
   const place = useMemo(() => new Map((entries ?? []).map((e, i, l) => [e.id, l.length - i])), [entries])
   // Tell the page how full the collection is (it shapes the scene); null until it's known.
@@ -941,7 +955,11 @@ export function MyThoughts({ sprintId, editable, moveChoices, online, className,
         </div>
         )
       ) : null}
-      {failed && !entries ? <p className="mt-3 text-sm text-ink-soft mark-indent">{mine.length ? 'Your submitted thoughts show here when Muni can reach the server.' : 'Your thoughts show here when Muni can reach the server.'}</p> : null}
+      {entries && count === 0 && editable ? <div className="mark-indent"><CaptureRhythm /></div> : null}
+      {!entries && !failed ? <p className="mt-3 text-sm text-ink-faint mark-indent" role="status">Gathering your thoughts…</p> : null}
+      {failed && !entries ? <div className="mt-3 text-sm text-ink-soft mark-indent" role="status"><p>{mine.length ? 'Your submitted thoughts show here when Muni can reach the server.' : 'Your thoughts show here when Muni can reach the server.'}</p><button type="button" className="journal-tool" onClick={load}>Try again</button></div> : null}
+
+      {count > 6 || query ? <div className="thought-search-wrap mark-indent"><ThoughtSearch value={query} onChange={(value) => { setQuery(value); setShown(PAGE) }} label="Find in your thoughts" /></div> : null}
 
       {filtering ? (
         <div className="mt-4 mark-indent">
@@ -957,7 +975,7 @@ export function MyThoughts({ sprintId, editable, moveChoices, online, className,
 
       {count ? (
         <ul className="passages mt-4">
-          {mine.map((i) =>
+          {visibleMine.map((i) =>
             localRemoval.pending.has(i.id) ? (
               <Removed key={i.id} what="Removed from this device." onUndo={() => localRemoval.undo(i.id)} />
             ) : (
@@ -981,7 +999,8 @@ export function MyThoughts({ sprintId, editable, moveChoices, online, className,
           ))}
         </ul>
       ) : null}
-      {active && entries && !visible.length ? <p className="mt-3 text-sm text-ink-soft mark-indent">None of your submitted thoughts are in this category.</p> : null}
+      {searching ? <p className="thought-results mark-indent" role="status">{visible.length + visibleMine.length} {visible.length + visibleMine.length === 1 ? 'thought matches' : 'thoughts match'} your search.</p> : null}
+      {(active || searching) && entries && !visible.length && !visibleMine.length ? <p className="mt-3 text-sm text-ink-soft mark-indent">Try another word or category. <button type="button" className="underline underline-offset-4" onClick={() => { setQuery(''); setFilter(null); setShown(PAGE) }}>Clear filters</button></p> : null}
       {visible.length > shown ? (
         <div className="mt-2 mark-indent">
           <Button size="sm" variant="ghost" onClick={() => setShown((n) => n + PAGE)}>Show {Math.min(PAGE, visible.length - shown)} more</Button>

@@ -33,6 +33,11 @@ const fold = (s: string) => s.normalize('NFD').replace(/\p{M}/gu, '').toLowerCas
 
 export function WorkspacePeople() {
   const { ws } = useWorkspaceShell()
+  return <PeopleSection key={ws.id} />
+}
+
+function PeopleSection() {
+  const { ws } = useWorkspaceShell()
   const { refresh } = useAuth()
   const store = useResources()
   const toast = useToast()
@@ -65,6 +70,7 @@ export function WorkspacePeople() {
     await refresh()
   }
   const act = async (key: string, fn: () => Promise<unknown>, done?: string) => {
+    if (busy) return
     setBusy(key)
     try {
       await fn()
@@ -78,6 +84,7 @@ export function WorkspacePeople() {
     }
   }
   const decide = async (r: JoinRequestInfo, verdict: 'approve' | 'decline') => {
+    if (busy) return
     setBusy(r.id)
     try {
       await post(`${base}/join-requests/${r.id}/${verdict}`)
@@ -113,7 +120,7 @@ export function WorkspacePeople() {
     m.is_you ? (
       <Popover.Root>
         <Popover.Trigger asChild>
-          <button type="button" className="icon-btn person-menu" aria-label="Your membership">
+          <button type="button" className="icon-btn person-menu" aria-label="Your membership" disabled={!!busy}>
             <MoreHorizontal className="size-4" />
           </button>
         </Popover.Trigger>
@@ -128,7 +135,7 @@ export function WorkspacePeople() {
     ) : owner ? (
       <Popover.Root>
         <Popover.Trigger asChild>
-          <button type="button" className="icon-btn person-menu" aria-label={`Manage ${m.display_name}`} disabled={busy === m.account_id}>
+          <button type="button" className="icon-btn person-menu" aria-label={`Manage ${m.display_name}`} disabled={!!busy}>
             <MoreHorizontal className="size-4" />
           </button>
         </Popover.Trigger>
@@ -211,6 +218,9 @@ export function WorkspacePeople() {
         ) : null}
       </div>
 
+      {d.members.length === 1 && canInvite ? <section className="people-welcome" aria-labelledby="people-welcome-title"><div><p className="ws-eyebrow">There’s room at the table</p><h2 id="people-welcome-title">Reflection is better <em>together.</em></h2><p>Invite a teammate to this workspace, or bring them straight into a sprint. They’ll have their own space to write.</p></div><div className="people-welcome-actions"><button type="button" className="ws-btn ws-btn--secondary" onClick={() => setInviting('email')}><Mail className="size-4" aria-hidden /> Invite by email</button><button type="button" className="ws-link" onClick={() => setInviting('qr')}>Share a link or QR</button></div></section> : null}
+      {sprints.error ? <p className="ws-inline-error" role="alert">Couldn’t check the sprints you facilitate. <button type="button" className="ws-link" onClick={() => void sprints.reload()}>Try again</button></p> : null}
+
       {waiting.length ? (
         <section className="ws-section ws-section--attention" aria-labelledby="asking">
           <div className="ws-section-head">
@@ -232,8 +242,8 @@ export function WorkspacePeople() {
                   ) : null}
                 </span>
                 <span className="person-decide">
-                  <Button size="sm" variant="ghost" busy={busy === r.id} onClick={() => decide(r, 'decline')}>Decline</Button>
-                  <Button size="sm" variant="primary" busy={busy === r.id} onClick={() => decide(r, 'approve')}>Approve</Button>
+                  <Button size="sm" variant="ghost" busy={busy === r.id} disabled={!!busy} onClick={() => decide(r, 'decline')}>Decline</Button>
+                  <Button size="sm" variant="primary" busy={busy === r.id} disabled={!!busy} onClick={() => decide(r, 'approve')}>Approve</Button>
                 </span>
               </li>
             ))}
@@ -244,7 +254,7 @@ export function WorkspacePeople() {
       ) : null}
 
       {query.trim() && found.length === 0 ? (
-        <p className="ws-empty">No one here matches “{query.trim()}”.</p>
+        <p className="ws-empty" role="status">No one here matches “{query.trim()}”. <button type="button" className="ws-link" onClick={() => setQuery('')}>Clear search</button></p>
       ) : (
         <>
           {owners.length ? (
@@ -286,7 +296,7 @@ export function WorkspacePeople() {
                   <span className="person-meta">Expires {shortDate(i.expires_at.slice(0, 10))}{i.sprint_id ? ` · joins ${sprintName(i.sprint_id)}` : ''}</span>
                 </span>
                 <span className="person-act">
-                  <Button size="sm" variant="ghost" busy={busy === i.id} onClick={() => act(i.id, () => del(`${base}/invitations/${i.id}`), 'Invitation withdrawn')}>Withdraw</Button>
+                  <Button size="sm" variant="ghost" busy={busy === i.id} disabled={!!busy} onClick={() => act(i.id, () => del(`${base}/invitations/${i.id}`), 'Invitation withdrawn')}>Withdraw</Button>
                 </span>
               </li>
             ))}
@@ -309,13 +319,15 @@ export function WorkspacePeople() {
                   <span className="person-meta">By {l.created_by_name} · until {when(l.expires_at)}{l.mode === 'direct' ? ' · unused' : ` · ${l.request_count} of ${l.max_requests} requests`}</span>
                 </span>
                 <span className="person-act">
-                  <Button size="sm" variant="ghost" busy={busy === l.id} onClick={() => act(l.id, () => del(`${base}/join-links/${l.id}`), 'Invite code turned off')}>Turn off</Button>
+                  <Button size="sm" variant="ghost" busy={busy === l.id} disabled={!!busy} onClick={() => act(l.id, () => del(`${base}/join-links/${l.id}`), 'Invite code turned off')}>Turn off</Button>
                 </span>
               </li>
             ))}
           </ul>
         </section>
       ) : null}
+
+      {links.error && canInvite ? <p className="ws-inline-error" role="alert">Couldn’t load the invite codes. <button type="button" className="ws-link" onClick={() => void links.reload()}>Try again</button></p> : null}
 
       <InviteDialog open={inviting === 'email'} onClose={() => setInviting(null)} workspaceId={ws.id} sprints={facilitating} canWorkspace={forWorkspace} onInvited={() => store.invalidate(base)} />
       <InviteQrDialog

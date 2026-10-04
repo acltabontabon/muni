@@ -93,6 +93,26 @@ describe('request bodies', () => {
     expect((await patch(`/api/sprints/${s}/experiments/${made.body[0].id}`, owner, { review_on: '2026-10-30' })).body[0].review_on).toBe('2026-10-30')
   })
 
+  it('refuse fractional vote budgets and retro durations without storing any change', async () => {
+    const { owner, members, ws } = await team(1)
+    const base = { name: 'S', timezone: 'UTC', starts_on: '2026-09-01', ends_on: '2026-09-10', retro_date: '2026-09-11', retro_time: '10:00', participant_ids: [], facilitator_id: owner.account_id }
+    for (const fields of [{ vote_budget: 1.5 }, { retro_duration_min: 45.5 }]) {
+      expect((await post(`/api/workspaces/${ws}/sprints`, owner, { ...base, ...fields })).status).toBe(400)
+    }
+    expect((await get(`/api/workspaces/${ws}/sprints`, owner)).body).toHaveLength(0)
+    const { s } = await live(owner, members, ws)
+    const before = (await get(`/api/sprints/${s}`, owner)).body
+    expect((await patch(`/api/sprints/${s}`, owner, { name: 'must not save', vote_budget: 2.5 })).status).toBe(400)
+    expect((await patch(`/api/sprints/${s}`, owner, { name: 'must not save', schedule: { ...base, retro_duration_min: 45.5 } })).status).toBe(400)
+    const after = (await get(`/api/sprints/${s}`, owner)).body
+    expect(after.name).toBe(before.name)
+    expect(after.vote_budget).toBe(before.vote_budget)
+    expect(after.retro_duration_min).toBe(before.retro_duration_min)
+    expect((await post(`/api/sprints/${s}/votes/rounds`, owner, { budget: 1.5 })).status).toBe(400)
+    expect((await get(`/api/sprints/${s}/votes`, owner)).body.current).toBeNull()
+    expect((await post(`/api/sprints/${s}/votes/rounds`, owner, { budget: 3 })).status).toBe(200)
+  })
+
   it('refuse an invitation to an address or sprint that isn’t text', async () => {
     const { owner, ws } = await team(0)
     expect((await post(`/api/workspaces/${ws}/invitations`, owner, { email: 42 })).status).toBe(400)

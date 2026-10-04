@@ -24,7 +24,7 @@ import { appendFileSync, createWriteStream, mkdirSync } from 'node:fs'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 
-const ALL = ['retro', 'firstrun', 'sprint', 'capture', 'rooms', 'themes', 'workspace', 'worlds', 'worlds-offline', 'encryption', 'departure', 'entrance', 'offline']
+const ALL = ['retro', 'firstrun', 'sprint', 'capture', 'experience', 'rooms', 'themes', 'workspace', 'worlds', 'worlds-offline', 'encryption', 'departure', 'entrance', 'offline']
 const web = fileURLToPath(new URL('../web/', import.meta.url))
 const url = process.env.MUNI_URL ?? 'http://localhost:8787'
 const logs = path.resolve(process.env.E2E_LOGS ?? path.join(web, 'e2e-artifacts', 'ci'))

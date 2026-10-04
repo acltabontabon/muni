@@ -88,6 +88,12 @@ Heights come from the smallest viewport (`svh`), so browser toolbars and help or
 
 ## The workspace
 
+The shared header exposes **Write**, **Sprints**, and **People** at every width. On a phone the
+same navigation flows onto a second row, with icons, words and 44px targets. It stays at the top
+and leaves the bottom edge free for the keyboard, notices and sorting controls. A keyboard-only
+**Skip to content** link reaches the main working surface. The selected tab follows the current
+task; unrelated account and information pages select none.
+
 Sprints, People and Settings share one opening that stays in place while the section below it changes: a running head, the workspace name set large, and a fine rule that doubles as the evening's horizon, with the shore, duyan and sun drawn once and still. The sections hang from the rule as links. The current one has a short ink ribbon and a heavier weight, with widths reserved so nothing shifts.
 
 Below the rule nothing is boxed. Each section has a margin column (12.5rem) with its title and a line of purpose, and its rows or controls beside it.
@@ -115,6 +121,20 @@ One page per sprint (`/sprints/:id`) serves every stage and everyone in it. `/ca
 **In a character's room** the bar is part of the room and takes the room's type and composition. Words, order and behaviour never change. On a phone the rooms drop their boxes and keep their character in type, rules and one motif. On a phone while writing, the bar folds to two lines and *Details* unfolds the rest.
 
 **Below the bar** the page shows what this person does now: the writer while collecting, everyone's thoughts (without names) once collection closes, *Join the retro* while it is live, and the outcomes and recap when it is done.
+
+Muni’s journal names the surface **Your sprint journal**, with the invitation *A small observation
+now. A better conversation later.* The composer labels the category as optional, gives its prompt
+control a clear name, and shows remaining characters near the limit. On a phone the save action
+has its own full-width row. On desktop a fine vertical rule separates writing from the collection.
+Empty collections offer an optional three-part explanation of capture, reveal and experiments.
+
+Personal and revealed collections expose a search after six thoughts. Search includes context,
+requires every search word to match, and preserves the list’s existing order. It stays on the
+device. An empty result always offers a way to clear both search and category filters.
+
+Sprint setup has named length presets and a plan review. Field errors link to the actual fields,
+including opening advanced options before focusing their controls. Form drafts are account-bound
+tab memory; sign-out, account changes and clearing local data erase them.
 
 ## Themes: the sorting table
 

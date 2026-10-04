@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { backoff, CLIENT_REVISION, flush, type SyncDeps } from './outbox'
+import { backoff, CLIENT_REVISION, flush, nextDue, type SyncDeps } from './outbox'
 import { emptyPayload, memoryStore, upgradeRecord, type LocalStore, type OutboxItem } from './store'
 
 /** A tiny stand-in for the Worker with the same rules the real one enforces. */
@@ -55,9 +55,39 @@ describe('outbox', () => {
     await store.enqueue(old)
     await store.putDraft({ accountId: 'acct-a', sprintId: 'sp-2', payload: { ...emptyPayload(), body: 'half a thought' }, updatedAt: clock })
     const moved = item({ sprintId: 'sp-2' })
-    await store.replace(old.id, moved)
+    expect(await store.replace(old.id, moved, old.revision)).toBe(true)
     expect((await store.listOutbox('acct-a')).map((i) => i.id)).toEqual([moved.id])
     expect((await store.getDraft('acct-a', 'sp-2'))?.payload.body).toBe('half a thought')
+  })
+
+  it('never moves a thought that another tab started sending, edited or already removed', async () => {
+    const store = memoryStore()
+    const old = item()
+    await store.enqueue(old)
+    const moved = item({ sprintId: 'sp-2' })
+    await store.updateOutbox(old.id, (c) => ({ ...c, status: 'sending', sendingSince: clock }))
+    expect(await store.replace(old.id, moved, old.revision)).toBe(false)
+    await store.updateOutbox(old.id, (c) => ({ ...c, status: 'queued', revision: 2, payload: { ...c.payload, body: 'New words' } }))
+    expect(await store.replace(old.id, moved, old.revision)).toBe(false)
+    expect((await store.listOutbox('acct-a'))[0].payload.body).toBe('New words')
+    await store.deleteOutbox(old.id)
+    expect(await store.replace(old.id, moved, 2)).toBe(false)
+    expect(await store.listOutbox('acct-a')).toHaveLength(0)
+  })
+
+  it('checks whether a thought is still unsent at the moment it is removed', async () => {
+    const store = memoryStore()
+    const queued = item()
+    await store.enqueue(queued)
+    await store.updateOutbox(queued.id, (c) => ({ ...c, status: 'sending', sendingSince: clock }))
+    expect(await store.deleteOutbox(queued.id, (c) => c.status !== 'sending')).toBe(false)
+    expect(await store.getOutbox(queued.id)).toMatchObject({ status: 'sending' })
+  })
+
+  it('schedules abandoned sends even when no queued thoughts remain', () => {
+    expect(nextDue([item({ status: 'sending', sendingSince: clock })])).toBe(clock + 2 * 60_000)
+    expect(nextDue([item({ status: 'attention' })])).toBeNull()
+    expect(nextDue([item({ nextAttemptAt: clock + 5000 }), item({ status: 'sending', sendingSince: clock })])).toBe(clock + 5000)
   })
 
   it('sends a queued thought and forgets it only after the server accepts', async () => {
@@ -80,6 +110,17 @@ describe('outbox', () => {
     const [kept] = await store.listOutbox('acct-a')
     expect(kept.status).toBe('queued')
     expect(kept.payload.body).toBe('Reviews waited three days')
+  })
+
+  it('treats an interrupted or malformed identity response as offline and keeps the queue', async () => {
+    for (const body of ['', '{}', '{"account_id":null}']) {
+      const store = memoryStore()
+      const queued = item()
+      await store.enqueue(queued)
+      const fetchImpl = (async () => new Response(body)) as typeof fetch
+      expect((await flush(deps(store, fetchImpl))).state).toBe('offline')
+      expect(await store.getOutbox(queued.id)).toMatchObject({ status: 'queued', attempts: 0 })
+    }
   })
 
   it('resolves a lost response to the one accepted entry on retry', async () => {
@@ -132,6 +173,46 @@ describe('outbox', () => {
     await flush(deps(store, fetchImpl))
     expect(s.posts).toBe(1)
     expect(await store.listOutbox('acct-a')).toHaveLength(0)
+  })
+
+  it('checks a recovered send’s current timestamp before claiming a stale list snapshot', async () => {
+    const store = memoryStore()
+    const { s, fetchImpl } = fakeServer()
+    const abandoned = item({ status: 'sending', sendingSince: clock - 3 * 60_000 })
+    await store.enqueue(abandoned)
+    const racing: LocalStore = {
+      ...store,
+      async listOutbox(a) {
+        const snapshot = await store.listOutbox(a)
+        // Another sender has already recovered this item by the time our list comes back.
+        await store.updateOutbox(abandoned.id, (c) => ({ ...c, sendingSince: clock }))
+        return snapshot
+      },
+    }
+    await flush(deps(racing, fetchImpl))
+    expect(s.posts).toBe(0)
+    expect(await store.getOutbox(abandoned.id)).toMatchObject({ status: 'sending', sendingSince: clock })
+  })
+
+  it('never lets a late response remove a thought claimed by a newer sender', async () => {
+    const store = memoryStore()
+    const queued = item()
+    await store.enqueue(queued)
+    let answer!: (response: Response) => void
+    let started!: () => void
+    const sending = new Promise<void>((resolve) => { started = resolve })
+    const fetchImpl = (async (url: string) => {
+      if (url === '/api/auth/me') return new Response(JSON.stringify({ account_id: 'acct-a' }))
+      started()
+      return new Promise<Response>((resolve) => { answer = resolve })
+    }) as unknown as typeof fetch
+    const pending = flush(deps(store, fetchImpl))
+    await sending
+    clock += 3 * 60_000
+    await store.updateOutbox(queued.id, (c) => ({ ...c, sendingSince: clock }))
+    answer(new Response(JSON.stringify({ id: 'accepted-entry' })))
+    expect((await pending).submitted).toEqual([])
+    expect(await store.getOutbox(queued.id)).toMatchObject({ status: 'sending', sendingSince: clock })
   })
 
   it('stops at a closed sprint and keeps the text for the person to decide', async () => {

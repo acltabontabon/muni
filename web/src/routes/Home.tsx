@@ -46,27 +46,32 @@ export function Home() {
   const [params] = useSearchParams()
   const [data, setData] = useState<Loaded | null>(null)
   const [sprints, setSprints] = useState<{ ws: string; list: SprintSummary[] | null } | null>(null)
-  const [experiments, setExperiments] = useState<Experiment[] | null>(null)
+  const [experiments, setExperiments] = useState<{ ws: string; list: Experiment[] | null } | null>(null)
   // "Write" asks for the field; anything else just opens the sprint.
   const write = !!(location.state as { write?: boolean } | null)?.write
 
   const localRef = useRef(local)
+  const loadSequence = useRef(0)
   useEffect(() => {
     localRef.current = local
   }, [local])
   const load = useCallback(async () => {
+    const sequence = ++loadSequence.current
     const cached = await localRef.current.cachedContexts().catch(() => [])
+    if (sequence !== loadSequence.current) return
     try {
       // Through the shared cache: the sprint page this usually leads to reads the same answer.
       const capture = await resources.load<CaptureTarget>('/api/me/capture-target')
-      setData({ capture, cached, offline: false })
+      if (sequence === loadSequence.current) setData({ capture, cached, offline: false })
     } catch {
-      setData({ capture: null, cached, offline: true })
+      if (sequence === loadSequence.current) setData({ capture: null, cached, offline: true })
     }
   }, [resources])
+  const cancelLoad = useCallback(() => { loadSequence.current++ }, [])
   useEffect(() => {
     load()
-  }, [load])
+    return cancelLoad
+  }, [load, cancelLoad])
   // Opened offline: try again as soon as the connection is back.
   useEffect(() => {
     window.addEventListener('online', load)
@@ -93,7 +98,7 @@ export function Home() {
     Promise.all([get<SprintSummary[]>(`/api/workspaces/${wsId}/sprints`).catch(() => null), get<Experiment[]>(`/api/workspaces/${wsId}/experiments`).catch(() => null)]).then(([list, exps]) => {
       if (!live) return
       setSprints({ ws: wsId, list })
-      setExperiments(exps)
+      setExperiments({ ws: wsId, list: exps })
     })
     return () => {
       live = false
@@ -118,11 +123,11 @@ export function Home() {
   const draft = list?.find((s) => s.status === 'draft' && s.is_participant)
   const target = dest ?? (collectingHere.length > 1 ? null : (live ?? closed ?? draft ?? null))
   if (target) return <Navigate to={`/sprints/${target.id}`} replace state={write ? { write: true } : undefined} />
-  if (needList && !sprints) return <Waiting ws={ws} />
+  if (needList && listed === undefined) return <Waiting ws={ws} />
 
   // ── Nothing to open by itself: say what there is.
   const lastDone = (list ?? []).find((s) => (s.status === 'completed' || s.status === 'archived') && s.is_participant)
-  const commitments = (experiments ?? []).filter((e) => e.owner_account_id === me.account_id && (e.status === 'proposed' || e.status === 'accepted'))
+  const commitments = (experiments?.ws === wsId ? experiments.list ?? [] : []).filter((e) => e.owner_account_id === me.account_id && (e.status === 'proposed' || e.status === 'accepted'))
   const several = collectingHere.length > 1
   const title = several ? <>Where should your thought <em>go</em>?</> : <>Nothing to write for <em>yet</em></>
   const body = several ? (

@@ -9,10 +9,10 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
   <title>Muni — Good retros start before the meeting</title>
-  <meta name="description" content="Capture thoughts throughout the sprint. Reflect together. Turn insights into action." />
-  <meta name="theme-color" content="#f5f5f8" />
+  <meta name="description" content="Capture the little things during your sprint. Reflect together, without names. Leave with something concrete to try." />
+  <meta name="theme-color" content="#f4efe6" />
   <meta property="og:title" content="Muni — Good retros start before the meeting" />
-  <meta property="og:description" content="Capture thoughts throughout the sprint. Reflect together. Turn insights into action." />
+  <meta property="og:description" content="Capture the little things during your sprint. Reflect together, without names. Leave with something concrete to try." />
   <meta property="og:type" content="website" />
   <meta property="og:site_name" content="Muni" />
   <meta property="og:image" content="https://munimuni.app/og.jpg" />
@@ -24,7 +24,7 @@
   <link rel="canonical" href="https://munimuni.app/" />
   <meta name="twitter:card" content="summary_large_image" />
   <meta name="twitter:title" content="Muni — Good retros start before the meeting" />
-  <meta name="twitter:description" content="Capture thoughts throughout the sprint. Reflect together. Turn insights into action." />
+  <meta name="twitter:description" content="Capture the little things during your sprint. Reflect together, without names. Leave with something concrete to try." />
   <meta name="twitter:image" content="https://munimuni.app/og.jpg" />
   <link rel="icon" href="favicon.svg" type="image/svg+xml" />
   <link rel="apple-touch-icon" href="apple-touch-icon.png" />
@@ -67,97 +67,109 @@
       <svg class="brand-mark" width="30" height="30"><use href="#mark" /></svg>
       <span class="wordmark">muni</span>
     </a>
-    <nav aria-label="Sections">
-      <a href="#problem">Why</a>
-      <a href="#how">How it works</a>
-      <a href="#room">The retro</a>
+    <nav id="site-navigation" aria-label="Sections">
+      <a href="#start">How it works</a>
+      <a href="#demo">Try the demo</a>
       <a href="#privacy">Privacy</a>
-      <a href="#source">Open source</a>
+      <a href="#questions">Questions</a>
     </nav>
+    <button class="nav-toggle" type="button" aria-expanded="false" aria-controls="site-navigation"><span>Menu</span><svg width="18" height="18" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16M4 12h16M4 17h16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" /></svg></button>
     <a class="btn btn-small app-link" href="https://act.munimuni.app" data-soon="Coming soon">Open Muni</a>
   </header>
 
   <main id="main">
-    <!-- ── Hero: the headline on still water ─────────────────────────── -->
-    <section class="hero" id="top" data-sky="day">
+    <!-- A real first impression: what Muni does, and a thought you can try. -->
+    <section class="hero" id="top" data-sky="day" aria-labelledby="hero-title">
       <div class="sinag" aria-hidden="true"></div>
       <div class="hero-inner">
-        <p class="kicker reveal-up">A retrospective tool for teams that want to get better</p>
-        <div class="waterline">
-          <h1 class="headline reveal-up" style="--d: 80ms">Good retros start <em>before</em> the&nbsp;meeting.</h1>
-          <div class="drops" aria-hidden="true"></div>
-        </div>
-        <div class="reflection" aria-hidden="true">
-          <div class="headline mirrored">Good retros start <em>before</em> the&nbsp;meeting.</div>
-        </div>
-        <div class="hero-foot reveal-up" style="--d: 220ms">
-          <p class="lede">Capture thoughts throughout the sprint. Reflect together. Turn insights into action.</p>
-          <div class="ctas">
-            <a class="btn btn-primary app-link" href="https://act.munimuni.app" data-soon="Coming soon">Open Muni <span aria-hidden="true">→</span></a>
-            <a class="btn btn-ghost" href="#how">See how it works</a>
+        <div class="hero-copy">
+          <p class="kicker reveal-up"><span class="live-dot" aria-hidden="true"></span> Reflection, while the work is happening</p>
+          <h1 id="hero-title" class="headline reveal-up" style="--d: 80ms">Small moments.<br /><em>Better sprints.</em></h1>
+          <p class="lede reveal-up" style="--d: 160ms">Good retros start before the meeting. Capture what helps and what hurts <strong>during your sprint</strong>, then turn it into a better next one, together.</p>
+          <div class="ctas reveal-up" style="--d: 220ms">
+            <a class="btn btn-primary app-link" href="https://act.munimuni.app" data-soon="Coming soon">Start with your team <span aria-hidden="true">→</span></a>
+            <a class="btn btn-ghost" href="#demo">Explore the retro</a>
           </div>
+          <p class="hero-trust">In your browser. On your phone. <a href="#source">Open source.</a></p>
+          <div class="hero-margin" aria-hidden="true"><span>Notice.</span><span>Reflect.</span><span>Try something.</span></div>
+        </div>
+        <div class="capture-preview">
+          <div class="preview-orbit" aria-hidden="true"><i></i><i></i><i></i></div>
+          <p class="preview-caption"><span>Tuesday, between tasks</span><em>A line is enough.</em></p>
+          <div class="preview-paper">
+            <div class="preview-top"><span><svg width="24" height="24" aria-hidden="true"><use href="#mark" /></svg> Harbor <i>/</i> Sprint 14</span><span class="preview-phase">Collecting</span></div>
+            <div id="sample-compose">
+              <h2>A thought for later.</h2>
+              <p class="preview-intro">Something good. A little friction. An idea to try.</p>
+              <form id="sample-form"><fieldset class="sample-fields" id="sample-fields" disabled>
+                <label for="sample-thought">What happened?</label>
+                <textarea id="sample-thought" name="thought" rows="3" maxlength="400" aria-describedby="sample-hint" required>Pairing on the tricky bug helped us find it in twenty minutes.</textarea>
+                <p class="preview-hint" id="sample-hint">A specific moment helps your team understand.</p>
+                <fieldset class="sample-categories"><legend>How would you frame it?</legend><label><input type="radio" name="category" value="Keep" checked /><span><i class="category-dot keep"></i>Keep</span></label><label><input type="radio" name="category" value="Improve" /><span><i class="category-dot improve"></i>Improve</span></label><label><input type="radio" name="category" value="Try" /><span><i class="category-dot try"></i>Try</span></label></fieldset>
+                <div class="sample-submit"><p><svg width="16" height="16" viewBox="0 0 24 24" aria-hidden="true"><rect x="5" y="10" width="14" height="11" rx="3" fill="none" stroke="currentColor" stroke-width="1.5" /><path d="M8 10V7a4 4 0 0 1 8 0v3" fill="none" stroke="currentColor" stroke-width="1.5" /></svg>Only you see it during collection</p><button class="btn btn-primary" type="submit">Try saving <span aria-hidden="true">→</span></button></div>
+              </fieldset></form><noscript><p class="preview-hint">Enable JavaScript to try this preview. No thought has been sent.</p></noscript>
+            </div>
+            <div id="sample-saved" hidden>
+              <div class="sample-check" aria-hidden="true">✓</div><h2>A moment, remembered.</h2>
+              <p class="preview-intro">In a real sprint, only you could read this until the facilitator closes collection.</p>
+              <div class="saved-thought"><span id="saved-category" class="saved-category">Keep</span><p id="saved-text"></p></div>
+              <p class="saved-explainer" id="saved-explainer">Then every thought appears together, without names.</p>
+              <div class="sample-actions"><button class="btn btn-primary" id="sample-reveal" type="button">Preview the reveal <span aria-hidden="true">→</span></button><button class="sample-edit" id="sample-edit" type="button">Edit thought</button></div>
+            </div>
+          </div>
+          <p class="preview-disclaimer" id="sample-status" role="status">Interactive preview · nothing is sent or stored</p>
+          <div class="preview-reflection" aria-hidden="true"></div>
         </div>
       </div>
-      <a class="scroll-cue" href="#how" aria-label="Scroll to how it works"><span></span></a>
     </section>
 
-    <!-- ── The problem: how a retro usually goes ───────────────────── -->
-    <section class="problem" id="problem" data-sky="day" aria-labelledby="problem-title">
+    <section class="start" id="start" data-sky="day" aria-labelledby="start-title">
       <div class="container">
-        <p class="kicker">The problem</p>
-        <h2 id="problem-title" class="display">Friday, 3 pm. <em>The retro.</em></h2>
-        <p class="lede">Two weeks of work, one hour, a grid of faces on a call. You’ve probably been in this one.</p>
-        <ol class="woes">
-          <li class="woe" id="woe-memory" data-woe="memory">
-            <div class="woe-art" aria-hidden="true">
-              <div class="fade-days">
-                <span style="--d:0"><i></i><i></i></span><span style="--d:1"><i></i></span><span style="--d:2"><i></i><i></i><i></i></span><span style="--d:3"><i></i></span><span style="--d:4"><i></i><i></i></span>
-                <span style="--d:5"><i></i></span><span style="--d:6"><i></i><i></i></span><span style="--d:7"><i></i></span><span style="--d:8"><i></i><i></i></span><span style="--d:9" class="today"><i></i></span>
-              </div>
-              <div class="fade-axis"><span>Week 1</span><span>Week 2</span><b>Retro</b></div>
-            </div>
-            <h3>Monday’s lesson is gone by Friday.</h3>
-            <p>Asked what went well, everyone remembers the last three days. The thing that actually hurt, in week one, never comes up.</p>
-            <p class="woe-fix"><span>With Muni</span> Write it down the moment it happens — a line is enough, on your phone.</p>
+        <div class="start-heading"><p class="kicker">A better rhythm for your team</p><h2 id="start-title">A sprint of noticing.<br /><em>A conversation that goes somewhere.</em></h2></div>
+        <ol class="rhythm">
+          <li><span class="rhythm-number">01 <i>during the sprint</i></span><h3>Catch it while it’s fresh.</h3><p>Write a thought when something happens. Keep it short. It stays private while the team is collecting.</p><a href="#how">See how thoughts work <span aria-hidden="true">↗</span></a></li>
+          <li><span class="rhythm-number">02 <i>when you meet</i></span><h3>Make room for every view.</h3><p>Reveal thoughts together, without names. Choose what matters, then talk through one topic at a time.</p><a href="#demo">Walk through the retro <span aria-hidden="true">↗</span></a></li>
+          <li><span class="rhythm-number">03 <i>the next sprint</i></span><h3>Try a small, real change.</h3><p>Agree on an experiment, an owner and a sign it helped. Bring it back next time and learn from it.</p><a href="#loop">Close the loop <span aria-hidden="true">↗</span></a></li>
+        </ol>
+      </div>
+    </section>
+
+    <!-- ── The sprint, played by scrolling ──────────────────────────── -->
+    <section class="scene" id="how" data-sky="day" aria-labelledby="how-title">
+      <div class="container scene-heading"><p class="kicker">Before the meeting</p><h2 id="how-title" class="display">Don’t lose <em>the little things.</em></h2><p class="lede">A quiet place to notice, all sprint long. Follow a thought from your pocket to the conversation.</p><div class="capture-steps" role="tablist" aria-label="How thoughts reach the retro"><button type="button" id="capture-t1" role="tab" aria-controls="capture-p1" aria-selected="true">1 · Capture</button><button type="button" id="capture-t2" role="tab" aria-controls="capture-p2" aria-selected="false" tabindex="-1">2 · Keep private</button><button type="button" id="capture-t3" role="tab" aria-controls="capture-p3" aria-selected="false" tabindex="-1">3 · Reveal</button><button type="button" id="capture-t4" role="tab" aria-controls="capture-p4" aria-selected="false" tabindex="-1">4 · Find themes</button></div></div>
+      <div class="scene-sticky">
+        <ol class="captions">
+          <li class="caption" data-step="0" role="tabpanel" id="capture-p1" aria-labelledby="capture-t1">
+            <p class="kicker"><span class="num">01</span> During the sprint</p>
+            <h3>Set it down while it’s <em>fresh</em>.</h3>
+            <p>A line on Tuesday is more useful than a vague memory on Friday. Write between tasks, on your phone or laptop. Muni tells you when it reaches the sprint; if the connection drops, it waits to send when you’re back.</p>
           </li>
-          <li class="woe" id="woe-voices" data-woe="voices">
-            <div class="woe-art" aria-hidden="true">
-              <div class="call">
-                <span class="call-tile talk">JW</span><span class="call-tile">AT</span><span class="call-tile">PN</span>
-                <span class="call-tile">SO</span><span class="call-tile talk">MR</span><span class="call-tile">TI</span>
-                <span class="call-tile">BO</span><span class="call-tile">ID</span><span class="call-tile">KL</span>
-              </div>
-            </div>
-            <h3>Two people talk. Seven are muted tiles.</h3>
-            <p>The others have something to say. There’s never a good moment to unmute and say it.</p>
-            <p class="woe-fix"><span>With Muni</span> Everyone answers a check-in in one tap, or adds a thought without taking the floor.</p>
+          <li class="caption" data-step="1" role="tabpanel" id="capture-p2" aria-labelledby="capture-t2" hidden>
+            <p class="kicker"><span class="num">02</span> Sealed</p>
+            <h3>Your team can’t read them <em>yet</em>.</h3>
+            <p>Not the facilitator, not your manager. Until collection closes, the only thoughts you can see are your own — and you can still change them.</p>
           </li>
-          <li class="woe" id="woe-names" data-woe="names">
-            <div class="woe-art" aria-hidden="true">
-              <div class="memo">
-                <p class="memo-said">Reviews here are a rubber stamp.</p>
-                <p class="memo-meant">Reviews could maybe be a bit faster?</p>
-                <span class="memo-name">— Ben, in front of his lead</span>
-              </div>
-            </div>
-            <h3>The hard thing gets softened.</h3>
-            <p>When everyone can see who said it, the candid version turns into something safe — or nothing at all.</p>
-            <p class="woe-fix"><span>With Muni</span> Thoughts stay sealed until collection closes, then show up together, without names.</p>
+          <li class="caption" data-step="2" role="tabpanel" id="capture-p3" aria-labelledby="capture-t3" hidden>
+            <p class="kicker"><span class="num">03</span> Collection closes</p>
+            <h3>One batch. Random order. <em>No names.</em></h3>
+            <p>When the facilitator closes collection, everyone’s thoughts appear at once on the sprint’s page, shuffled — so the team can read them before the retro. Nothing on screen says who wrote a thought, or ties one person’s thoughts together.</p>
           </li>
-          <li class="woe" id="woe-actions" data-woe="actions">
-            <div class="woe-art" aria-hidden="true">
-              <ul class="actions">
-                <li><i></i>Improve code reviews <span>Sprint 11</span></li>
-                <li><i></i>Improve code reviews <span>Sprint 12</span></li>
-                <li><i></i>Improve code reviews <span>Sprint 13</span></li>
-              </ul>
-            </div>
-            <h3>Agreed three times. Revisited never.</h3>
-            <p>Action items are vague, have no owner, and nobody looks at them again — so the same problem comes back every sprint.</p>
-            <p class="woe-fix"><span>With Muni</span> One to three experiments, each with an owner who said yes — and they open the next retro.</p>
+          <li class="caption" data-step="3" role="tabpanel" id="capture-p4" aria-labelledby="capture-t4" hidden>
+            <p class="kicker"><span class="num">04</span> Before the retro</p>
+            <h3>Thoughts become <em>themes</em>.</h3>
+            <p>If it helps, the facilitator ticks the thoughts that belong together and names them — a theme, with a question to open it. Every thought stays exactly as written, and whatever isn’t in a theme becomes one more topic: <i>Everything else</i>.</p>
           </li>
         </ol>
-        <p class="problem-bridge">So Muni starts the retro <em>before</em> the meeting, lets everyone in, and remembers what you agreed. <a href="#how">Here’s how <span aria-hidden="true">→</span></a></p>
+        <div class="field" aria-hidden="true">
+          <div class="axis">
+            <span class="axis-week">Week 1</span><span class="axis-week">Week 2</span>
+            <div class="axis-days"></div>
+          </div>
+          <div class="notes"></div>
+          <div class="tiles"></div>
+          <div class="field-status"><span class="lock"></span><span class="field-status-text"></span></div>
+        </div>
+        <div class="rail" aria-hidden="true"><i></i><i></i><i></i><i></i></div>
       </div>
     </section>
 
@@ -166,7 +178,8 @@
       <div class="container">
         <p class="kicker">A retro with Muni</p>
         <h2 id="duo-title" class="display">Two screens, <em>one conversation</em>.</h2>
-        <p class="lede">The facilitator runs the shared stage. Everyone else holds the private half on their phone. Here’s the same retro from both sides — and which problem each step answers.</p>
+        <p class="lede">One person guides the conversation. Everyone has a quiet way to join in. Explore a sample retro, from last sprint’s experiments to a plan for the next.</p>
+        <div class="duo-controls"><p>Interactive walkthrough <span>· sample content</span></p><button type="button" id="duo-play" aria-pressed="false">Play walkthrough <span aria-hidden="true">▶</span></button></div>
 
         <div class="duo-tabs" role="tablist" aria-label="The retro, step by step">
           <button role="tab" id="duo-t1" aria-controls="duo-p1" aria-selected="true"><span>1</span>Look back<i></i></button>
@@ -321,42 +334,63 @@
       </div>
     </section>
 
-    <!-- ── The sprint, played by scrolling ──────────────────────────── -->
-    <section class="scene" id="how" aria-labelledby="how-title">
-      <h2 id="how-title" class="sr-only">How Muni works</h2>
-      <div class="scene-sticky">
-        <ol class="captions">
-          <li class="caption" data-step="0">
-            <p class="kicker"><span class="num">01</span> During the sprint</p>
-            <h3>Set it down while it’s <em>fresh</em>.</h3>
-            <p>A thought takes ten seconds to write on Tuesday and is gone by Friday. Muni keeps a quiet place open all sprint — on your phone, between tasks, in a room of your own if you pick one of eight characters. If the signal drops, it waits and sends when you’re back, and tells you plainly when a thought has reached the sprint.</p>
+    <!-- ── The problem: how a retro usually goes ───────────────────── -->
+    <section class="problem" id="problem" data-sky="day" aria-labelledby="problem-title">
+      <div class="container">
+        <p class="kicker">The problem</p>
+        <h2 id="problem-title" class="display">Friday, 3 pm. <em>The retro.</em></h2>
+        <p class="lede">Two weeks of work, one hour, a grid of faces on a call. You’ve probably been in this one.</p>
+        <ol class="woes">
+          <li class="woe" id="woe-memory" data-woe="memory">
+            <div class="woe-art" aria-hidden="true">
+              <div class="fade-days">
+                <span style="--d:0"><i></i><i></i></span><span style="--d:1"><i></i></span><span style="--d:2"><i></i><i></i><i></i></span><span style="--d:3"><i></i></span><span style="--d:4"><i></i><i></i></span>
+                <span style="--d:5"><i></i></span><span style="--d:6"><i></i><i></i></span><span style="--d:7"><i></i></span><span style="--d:8"><i></i><i></i></span><span style="--d:9" class="today"><i></i></span>
+              </div>
+              <div class="fade-axis"><span>Week 1</span><span>Week 2</span><b>Retro</b></div>
+            </div>
+            <h3>Monday’s lesson is gone by Friday.</h3>
+            <p>Asked what went well, everyone remembers the last three days. The thing that actually hurt, in week one, never comes up.</p>
+            <p class="woe-fix"><span>With Muni</span> Write it down the moment it happens — a line is enough, on your phone.</p>
           </li>
-          <li class="caption" data-step="1">
-            <p class="kicker"><span class="num">02</span> Sealed</p>
-            <h3>Your team can’t read them <em>yet</em>.</h3>
-            <p>Not the facilitator, not your manager. Until collection closes, the only thoughts you can see are your own — and you can still change them.</p>
+          <li class="woe" id="woe-voices" data-woe="voices">
+            <div class="woe-art" aria-hidden="true">
+              <div class="call">
+                <span class="call-tile talk">JW</span><span class="call-tile">AT</span><span class="call-tile">PN</span>
+                <span class="call-tile">SO</span><span class="call-tile talk">MR</span><span class="call-tile">TI</span>
+                <span class="call-tile">BO</span><span class="call-tile">ID</span><span class="call-tile">KL</span>
+              </div>
+            </div>
+            <h3>Two people talk. Seven are muted tiles.</h3>
+            <p>The others have something to say. There’s never a good moment to unmute and say it.</p>
+            <p class="woe-fix"><span>With Muni</span> Everyone answers a check-in in one tap, or adds a thought without taking the floor.</p>
           </li>
-          <li class="caption" data-step="2">
-            <p class="kicker"><span class="num">03</span> Collection closes</p>
-            <h3>One batch. Random order. <em>No names.</em></h3>
-            <p>When the facilitator closes collection, everyone’s thoughts appear at once on the sprint’s page, shuffled — so the team can read them before the retro. Nothing on screen says who wrote a thought, or ties one person’s thoughts together.</p>
+          <li class="woe" id="woe-names" data-woe="names">
+            <div class="woe-art" aria-hidden="true">
+              <div class="memo">
+                <p class="memo-said">Reviews here are a rubber stamp.</p>
+                <p class="memo-meant">Reviews could maybe be a bit faster?</p>
+                <span class="memo-name">— Ben, in front of his lead</span>
+              </div>
+            </div>
+            <h3>The hard thing gets softened.</h3>
+            <p>When everyone can see who said it, the candid version turns into something safe — or nothing at all.</p>
+            <p class="woe-fix"><span>With Muni</span> Thoughts stay sealed until collection closes, then show up together, without names.</p>
           </li>
-          <li class="caption" data-step="3">
-            <p class="kicker"><span class="num">04</span> Before the retro</p>
-            <h3>Thoughts become <em>themes</em>.</h3>
-            <p>If it helps, the facilitator ticks the thoughts that belong together and names them — a theme, with a question to open it. Every thought stays exactly as written, and whatever isn’t in a theme becomes one more topic: <i>Everything else</i>.</p>
+          <li class="woe" id="woe-actions" data-woe="actions">
+            <div class="woe-art" aria-hidden="true">
+              <ul class="actions">
+                <li><i></i>Improve code reviews <span>Sprint 11</span></li>
+                <li><i></i>Improve code reviews <span>Sprint 12</span></li>
+                <li><i></i>Improve code reviews <span>Sprint 13</span></li>
+              </ul>
+            </div>
+            <h3>Agreed three times. Revisited never.</h3>
+            <p>Action items are vague, have no owner, and nobody looks at them again — so the same problem comes back every sprint.</p>
+            <p class="woe-fix"><span>With Muni</span> One to three experiments, each with an owner who said yes — and they open the next retro.</p>
           </li>
         </ol>
-        <div class="field" aria-hidden="true">
-          <div class="axis">
-            <span class="axis-week">Week 1</span><span class="axis-week">Week 2</span>
-            <div class="axis-days"></div>
-          </div>
-          <div class="notes"></div>
-          <div class="tiles"></div>
-          <div class="field-status"><span class="lock"></span><span class="field-status-text"></span></div>
-        </div>
-        <div class="rail" aria-hidden="true"><i></i><i></i><i></i><i></i></div>
+        <p class="problem-bridge">So Muni starts the retro <em>before</em> the meeting, lets everyone in, and remembers what you agreed. <a href="#how">Here’s how <span aria-hidden="true">→</span></a></p>
       </div>
     </section>
 
@@ -487,7 +521,7 @@
     </section>
 
     <!-- ── The loop ───────────────────────────────────────────────── -->
-    <section class="loop" data-sky="dawn" aria-labelledby="loop-title">
+    <section class="loop" id="loop" data-sky="dawn" aria-labelledby="loop-title">
       <div class="container">
         <p class="kicker"><span class="num">08</span> Next sprint</p>
         <h2 id="loop-title" class="display">And it begins again, with <em>“Last time, we said…”</em></h2>
@@ -522,7 +556,7 @@
         <p class="lede privacy-lede">Muni uses your account information and contributions to provide and protect the service. We don’t sell your personal data, use your contributions for advertising, or use them to train AI models.</p>
         <div class="facts">
           <div><h3>Sealed, then shared without names</h3><p>Until the facilitator closes collection, nobody on your team can read what you wrote — the facilitator included. Then the sprint sees every thought at once, in random order, without names.</p></div>
-          <div><h3>Encrypted on your team’s devices</h3><p>Sprints are encrypted in the browser by default, before anything reaches Muni’s servers, and the servers don’t hold the keys to read them. A facilitator can set a sprint up without encryption, and it says so. Muni still knows who wrote each thought and when, and your wording can still give you away.</p></div>
+          <div><h3>Encrypted on your team’s devices</h3><p>Sprint content is encrypted in your browser by default, before it reaches Muni’s servers. The servers don’t hold the keys to read that content. A facilitator can set a sprint up without encryption, and it says so. Names, dates and authorship still reach the server. Your wording or a small team can still give you away.</p></div>
           <div><h3>No password, no email sign-in</h3><p>You sign in with a passkey — your fingerprint, face or screen lock. It’s the only way in: there’s no password to steal, and no email that can sign you in. If a facilitator loses theirs mid-sprint, a workspace owner can take over running it.</p></div>
           <div><h3>No ads, no trackers, no AI</h3><p>The app has no analytics, ad trackers or session recording, and no thought is sent to an AI service.</p></div>
         </div>
@@ -635,6 +669,17 @@ if (typeof v !== 'string' || !ENVELOPE_RE.test(v))
       </div>
     </section>
 
+    <section class="questions" id="questions" data-sky="day" aria-labelledby="questions-title">
+      <div class="container questions-grid"><div><p class="kicker">Before your first sprint</p><h2 id="questions-title" class="display">A few things <em>to know.</em></h2><p class="lede">Keep the habit small. Give the conversation room.</p></div><div class="faq-list">
+        <details><summary>Is this a daily retro or a meeting tool?<span aria-hidden="true">+</span></summary><p>Both parts of one habit. Keep collection open during the sprint so people can write while a moment is fresh. When you’re ready, close collection, read the thoughts together and run a guided retro. Your team chooses when to meet.</p></details>
+        <details><summary>How do we start?<span aria-hidden="true">+</span></summary><p>Open Muni, create a passkey and name your team. Create a sprint, invite people with a link, QR code or email, then open collection. The first-use guide points to the next step.</p></details>
+        <details><summary>Can everyone see what I write?<span aria-hidden="true">+</span></summary><p>During collection, only you see your own thoughts. You can edit or delete them until collection closes. Then participants see all thoughts together, in random order, without names. Wording and context can still suggest who wrote something. <a href="https://act.munimuni.app/privacy">Read the privacy details.</a></p></details>
+        <details><summary>Does everyone need a laptop?<span aria-hidden="true">+</span></summary><p>No. Muni works in your browser on phone, tablet or desktop. The facilitator guides the stage; participants can vote, answer a check-in or add a thought on their own device. You can also install the app on your phone.</p></details>
+        <details><summary>What happens to our action items?<span aria-hidden="true">+</span></summary><p>Turn them into one to three experiments. Give each a willing owner, a sign it helped and a date to revisit. Last time’s experiments open your next retro, including the ones that didn’t help.</p></details>
+        <details><summary>Can we run Muni ourselves?<span aria-hidden="true">+</span></summary><p>Yes. Muni is open source under Apache 2.0, and can run on Cloudflare. <a href="https://github.com/acltabontabon/muni/blob/main/docs/deployment.md">Read the deployment guide.</a></p></details>
+      </div></div>
+    </section>
+
     <!-- ── Close ──────────────────────────────────────────────────── -->
     <section class="closing" data-sky="night" aria-labelledby="closing-title">
       <div class="container">
@@ -643,7 +688,7 @@ if (typeof v !== 'string' || !ENVELOPE_RE.test(v))
         <p class="closing-note">Join from your team’s QR code, a link or an emailed invitation, and sign in with a passkey — no password. Use it in the browser, or install it on your phone.</p>
         <div class="ctas center">
           <a class="btn btn-primary app-link" href="https://act.munimuni.app" data-soon="Coming soon">Open Muni <span aria-hidden="true">→</span></a>
-          <a class="btn btn-ghost" href="#how">Watch the sprint again</a>
+          <a class="btn btn-ghost" href="#demo">Explore the demo again</a>
         </div>
       </div>
     </section>

@@ -16,6 +16,35 @@ those as highlights. The app's About → What's new and each GitHub release are 
 
 ## [Unreleased]
 
+### Added
+
+- **Find the thought again.** Search your own collection or the team’s revealed thoughts, including
+  their context. Search and category filters work together, with an easy way to clear them.
+- **A sprint plan before you save.** One-, two-, and three-week presets, a readable plan review,
+  and unsaved setup recovery while you stay in the same tab.
+- A hands-on marketing preview: write a sample thought, reveal it, and explore the retro at your
+  own pace. Newcomer questions and mobile navigation are easier to find.
+
+### Changed
+
+- **A clearer everyday journal.** Write, Sprints, and People are visible on phones and desktops.
+  Writing has clearer optional controls, a character count near the limit, larger touch targets,
+  and a short explanation of how thoughts lead to a retro.
+- Workspaces show the next useful action, keep New sprint in reach, search older sprints, and link
+  experiments to their outcomes. The documentation, screenshots and demo reflect the new experience.
+
+### Fixed
+
+- Interrupted sends retry on their own. Multiple tabs cannot move or remove a thought while
+  another tab is sending it, or let an old response overwrite a recovered send.
+- Workspace switching no longer briefly shows another team’s experiments, settings or dialogs.
+  Lost access clears cached content, and late reads cannot bring forgotten content back.
+- Sprint times are previewed correctly around daylight-saving changes. Invalid calendar dates,
+  overly long sprints and fractional vote budgets are explained before saving and rejected by the API.
+- Unsaved setup and settings drafts leave with the account on sign-out or account changes.
+- Moving to the next retro step or topic brings its heading into view. Saving a note keeps your place.
+- Retrying a thought that was already submitted after collection closes correctly shows it as read-only.
+
 ## [1.0.0-rc.2] - 2026-09-30
 
 ### Added

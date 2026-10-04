@@ -1,5 +1,5 @@
-/* Muni marketing site. No dependencies. Everything that moves is driven by
-   scroll or by an element being on screen; nothing runs while it's hidden. */
+/* Muni marketing site. No dependencies. Interactive previews stay in this tab.
+   Motion is finite, respects reduced motion, and pauses when the page is hidden. */
 ;(() => {
   const root = document.documentElement
   const reduced = matchMedia('(prefers-reduced-motion: reduce)').matches
@@ -20,9 +20,69 @@
     }
   }
 
-  /* ── The sprint's thoughts: the demo team's 25, as the app stores them.
-        [author, category, when in the sprint, theme] — authors exist only
-        until the reveal, exactly as in the product. ─────────────────── */
+  // Mobile navigation stays available without taking space from the page.
+  const nav = document.querySelector('.nav')
+  const navToggle = document.querySelector('.nav-toggle')
+  const closeNav = () => {
+    navToggle.setAttribute('aria-expanded', 'false')
+    nav.classList.remove('is-open')
+  }
+  navToggle.addEventListener('click', () => {
+    const open = navToggle.getAttribute('aria-expanded') !== 'true'
+    navToggle.setAttribute('aria-expanded', String(open))
+    nav.classList.toggle('is-open', open)
+  })
+  nav.querySelectorAll('nav a').forEach((link) => link.addEventListener('click', closeNav))
+  document.addEventListener('keydown', (event) => {
+    if (event.key === 'Escape' && nav.classList.contains('is-open')) { closeNav(); navToggle.focus() }
+  })
+  document.addEventListener('click', (event) => { if (!nav.contains(event.target)) closeNav() })
+  matchMedia('(min-width: 761px)').addEventListener('change', closeNav)
+
+  // A hands-on sample, held only in this tab. User text is never interpolated as HTML.
+  const sampleForm = document.getElementById('sample-form')
+  const compose = document.getElementById('sample-compose')
+  const saved = document.getElementById('sample-saved')
+  const sampleText = document.getElementById('sample-thought')
+  const sampleStatus = document.getElementById('sample-status')
+  const revealButton = document.getElementById('sample-reveal')
+  const explainer = document.getElementById('saved-explainer')
+  sampleForm.addEventListener('submit', (event) => {
+    event.preventDefault()
+    const thought = sampleText.value.trim()
+    if (!thought) { sampleText.setCustomValidity('Write a small moment to try the preview.'); sampleText.reportValidity(); return }
+    document.getElementById('saved-text').textContent = thought
+    document.getElementById('saved-category').textContent = new FormData(sampleForm).get('category')
+    compose.hidden = true
+    saved.hidden = false
+    saved.classList.remove('is-revealed')
+    revealButton.hidden = false
+    explainer.textContent = 'Then every thought appears together, without names.'
+    saved.querySelector('h2').textContent = 'A moment, remembered.'
+    saved.querySelector('h2').tabIndex = -1
+    saved.querySelector('h2').focus({ preventScroll: true })
+    sampleStatus.textContent = 'Sample saved in this preview only · nothing sent or stored'
+  })
+  sampleText.addEventListener('input', () => sampleText.setCustomValidity(''))
+  document.getElementById('sample-edit').addEventListener('click', () => {
+    compose.hidden = false
+    saved.hidden = true
+    sampleText.focus({ preventScroll: true })
+    sampleStatus.textContent = 'Interactive preview · nothing is sent or stored'
+  })
+  revealButton.addEventListener('click', () => {
+    saved.classList.add('is-revealed')
+    saved.querySelector('h2').textContent = 'Ready for the conversation.'
+    explainer.textContent = 'A shared thought keeps its own words and category. Names, writing times and author links stay off the shared view.'
+    revealButton.hidden = true
+    saved.querySelector('h2').focus({ preventScroll: true })
+    sampleStatus.textContent = 'Reveal preview · your team would now see thoughts together'
+  })
+
+  document.getElementById('sample-fields').disabled = false
+
+  /* The sample sprint's 25 thoughts. The visual drops authorship at reveal;
+     the real service retains authorship, as explained on the Privacy page. */
   const PEOPLE = [
     ['A', '#6d5efc'], ['J', '#0e9f6e'], ['L', '#e0782f'], ['M', '#d9467a'],
     ['P', '#2f7fe0'], ['S', '#9a55e6'], ['T', '#c19a14'],
@@ -59,46 +119,6 @@
   })
   // The reveal order: a shuffle unrelated to author or time.
   const order = notes.map((n) => n.i).map((i) => ({ i, k: rand() })).sort((a, b) => a.k - b.k).map((o) => o.i)
-
-  /* ── Hero: thoughts dropping onto the water. ───────────────────── */
-  const drops = document.querySelector('.drops')
-  const hero = document.querySelector('.hero')
-  let heroVisible = true
-  if (drops && !reduced) {
-    const cats = ['proud', 'keep', 'improve', 'stop', 'try', 'improve', 'keep']
-    // A dozen thoughts land, then the water is still: nothing on the page moves forever.
-    let left = 12
-    const spawn = () => {
-      if (left <= 0) return clearInterval(dropping)
-      if (!heroVisible || document.hidden) return
-      left--
-      const d = document.createElement('span')
-      d.className = 'drop'
-      const x = 6 + Math.random() * 88
-      const t = 3 + Math.random() * 1.4
-      d.style.left = `${x}%`
-      d.style.setProperty('--t', `${t}s`)
-      d.style.setProperty('--from', `${34 + Math.random() * 16}vh`)
-      d.style.setProperty('--sway', `${(Math.random() - 0.5) * 60}px`)
-      d.style.setProperty('--r0', `${(Math.random() - 0.5) * 50}deg`)
-      d.style.setProperty('--r1', `${(Math.random() - 0.5) * 30}deg`)
-      d.style.setProperty('--cat', CAT(cats[Math.floor(Math.random() * cats.length)]))
-      drops.appendChild(d)
-      setTimeout(() => {
-        for (const late of [false, true]) {
-          const r = document.createElement('span')
-          r.className = late ? 'ripple late' : 'ripple'
-          r.style.left = `${x}%`
-          drops.appendChild(r)
-          setTimeout(() => r.remove(), 3000)
-        }
-      }, t * 940)
-      setTimeout(() => d.remove(), t * 1000 + 100)
-    }
-    setTimeout(spawn, 900)
-    const dropping = setInterval(spawn, 2600)
-    new IntersectionObserver(([e]) => (heroVisible = e.isIntersecting)).observe(hero)
-  }
 
   /* ── The scene ─────────────────────────────────────────────────── */
   const scene = document.querySelector('.scene')
@@ -277,8 +297,7 @@
       '25 thoughts · 5 themes + everything else'
     lock.style.opacity = s === 1 ? '1' : '0.35'
 
-    // The sky follows the sprint into the evening.
-    setSky(p < 0.44 ? 'day' : p < 0.8 ? 'dusk' : 'night')
+
   }
 
   /* ── The room: a slight tilt that settles as it comes into view. ─ */
@@ -323,7 +342,7 @@
   const timerEl = document.querySelector('[data-timer]')
   const deadline = Date.now() + (12 * 60 + 40) * 1000
   const countdown = setInterval(() => {
-    if (!stageVisible) return
+    if (!stageVisible || document.hidden || reduced) return
     const s = Math.max(0, Math.round((deadline - Date.now()) / 1000))
     timerEl.textContent = `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`
     if (s === 0) clearInterval(countdown) // time's up: 0:00 stays, and nothing ticks on
@@ -367,12 +386,8 @@
   const frame = () => {
     queued = false
     // Every layout read first, then every write: one layout per frame, never a forced one.
-    const r = scene.getBoundingClientRect()
     const sr = stage.getBoundingClientRect()
-    const total = r.height - innerHeight
-    const inScene = r.top <= innerHeight * 0.5 && r.bottom >= innerHeight * 0.5
-    const sky = inScene ? null : skyAt()
-    if (r.bottom > 0 && r.top < innerHeight) renderScene(clamp(-r.top / total))
+    const sky = skyAt()
     if (sky) setSky(sky)
     if (sr.bottom > 0 && sr.top < innerHeight) renderStage(sr)
   }
@@ -382,57 +397,92 @@
       requestAnimationFrame(frame)
     }
   }
-  /* ── Both sides of one retro: the steps as tabs, played through once while on screen. ──
-     Hover, focus or a click hands control to the reader; nothing runs while it's hidden. */
+  // Capture has four explicit steps: readers can explore at their own pace.
+  const captureTabs = [...document.querySelectorAll('.capture-steps [role=tab]')]
+  const capturePositions = [0.30, 0.42, 0.65, 0.91]
+  let captureAt = 0
+  const showCapture = (index, focus = false) => {
+    captureAt = (index + captureTabs.length) % captureTabs.length
+    captureTabs.forEach((tab, i) => {
+      tab.setAttribute('aria-selected', String(i === captureAt))
+      tab.tabIndex = i === captureAt ? 0 : -1
+      captions[i].hidden = i !== captureAt
+    })
+    renderScene(capturePositions[captureAt])
+    if (focus) captureTabs[captureAt].focus()
+  }
+  const tabKey = (event, at, count, show) => {
+    const keys = { ArrowRight: at + 1, ArrowLeft: at - 1, Home: 0, End: count - 1 }
+    if (!(event.key in keys)) return false
+    event.preventDefault()
+    show(keys[event.key], true)
+    return true
+  }
+  captureTabs.forEach((tab, i) => {
+    tab.addEventListener('click', () => showCapture(i))
+    tab.addEventListener('keydown', (event) => tabKey(event, captureAt, captureTabs.length, showCapture))
+  })
+  showCapture(0)
+
+  // The walkthrough starts only on request. Tabs always let readers choose a step.
   const duo = document.querySelector('.duo')
   if (duo) {
     const tabs = [...duo.querySelectorAll('[role=tab]')]
-    const panels = tabs.map((t) => document.getElementById(t.getAttribute('aria-controls')))
+    const panels = tabs.map((tab) => document.getElementById(tab.getAttribute('aria-controls')))
+    const playButton = document.getElementById('duo-play')
     const DUR = 7000
-    let at = 0, timer = 0, owned = 0, visible = false, held = false, stopped = reduced
+    let at = 0, timer = 0, owned = 0, visible = false, requested = false
     duo.style.setProperty('--dur', `${DUR}ms`)
-    const show = (i, focus = false) => {
-      at = (i + tabs.length) % tabs.length
-      tabs.forEach((t, j) => {
-        t.setAttribute('aria-selected', String(j === at))
-        t.tabIndex = j === at ? 0 : -1
-        panels[j].hidden = j !== at
-        panels[j].classList.remove('owned')
+    const schedule = () => {
+      clearTimeout(timer)
+      if (at === tabs.length - 1) requested = false
+      const playing = requested && visible && !document.hidden
+      duo.toggleAttribute('data-playing', playing)
+      playButton.setAttribute('aria-pressed', String(requested))
+      playButton.innerHTML = requested ? 'Pause walkthrough <span aria-hidden="true">Ⅱ</span>' : `${at === tabs.length - 1 ? 'Replay' : 'Play'} walkthrough <span aria-hidden="true">▶</span>`
+      if (playing) timer = setTimeout(() => show(at + 1), DUR)
+    }
+    const show = (index, focus = false) => {
+      at = (index + tabs.length) % tabs.length
+      tabs.forEach((tab, i) => {
+        tab.setAttribute('aria-selected', String(i === at))
+        tab.tabIndex = i === at ? 0 : -1
+        panels[i].hidden = i !== at
+        panels[i].classList.remove('owned')
       })
       clearTimeout(owned)
-      // Agree: after a moment, the owner says yes on their phone and the stage says so.
-      if (panels[at].querySelector('.ds-owner')) owned = setTimeout(() => panels[at].classList.add('owned'), reduced ? 0 : 2800)
+      const active = panels[at]
+      if (active.querySelector('.ds-owner')) {
+        if (reduced) active.classList.add('owned')
+        else owned = setTimeout(() => active.classList.add('owned'), 2800)
+      }
       if (focus) tabs[at].focus()
       schedule()
     }
-    const playing = () => visible && !held && !stopped
-    // It plays through once, to the recap, and rests there: nothing on the page moves forever.
-    const schedule = () => {
-      clearTimeout(timer)
-      if (at === tabs.length - 1) stopped = true
-      duo.toggleAttribute('data-playing', playing())
-      if (playing()) timer = setTimeout(() => show(at + 1), DUR)
-    }
-    tabs.forEach((t, i) => {
-      t.addEventListener('click', () => { stopped = true; show(i) })
-      t.addEventListener('keydown', (e) => {
-        const d = { ArrowRight: 1, ArrowLeft: -1 }[e.key]
-        if (e.key === 'Home' || e.key === 'End') { e.preventDefault(); stopped = true; show(e.key === 'Home' ? 0 : tabs.length - 1, true) }
-        else if (d) { e.preventDefault(); stopped = true; show(at + d, true) }
+    tabs.forEach((tab, i) => {
+      tab.addEventListener('click', () => { requested = false; show(i) })
+      tab.addEventListener('keydown', (event) => {
+        if (['ArrowRight', 'ArrowLeft', 'Home', 'End'].includes(event.key)) requested = false
+        tabKey(event, at, tabs.length, show)
       })
     })
-    const hold = (on) => () => { held = on; schedule() }
-    duo.addEventListener('pointerenter', hold(true))
-    duo.addEventListener('pointerleave', hold(false))
-    duo.addEventListener('focusin', hold(true))
-    duo.addEventListener('focusout', (e) => { if (!duo.contains(e.relatedTarget)) hold(false)() })
-    new IntersectionObserver(([e]) => { visible = e.isIntersecting; schedule() }, { threshold: 0.35 }).observe(duo)
+    playButton.addEventListener('click', () => {
+      requested = !requested
+      if (requested && at === tabs.length - 1) show(0)
+      else schedule()
+    })
+    duo.addEventListener('focusin', (event) => {
+      if (event.target !== playButton && requested) { requested = false; schedule() }
+    })
+    document.addEventListener('visibilitychange', schedule)
+    new IntersectionObserver(([entry]) => { visible = entry.isIntersecting; schedule() }, { threshold: 0.2 }).observe(duo)
     show(0)
   }
 
   addEventListener('scroll', queue, { passive: true })
-  addEventListener('resize', () => { layout(); queue() })
-  if (document.fonts) document.fonts.ready.then(() => { layout(); queue() })
+  addEventListener('resize', () => { layout(); showCapture(captureAt); queue() })
+  if (document.fonts) document.fonts.ready.then(() => { layout(); showCapture(captureAt); queue() })
   layout()
+  showCapture(captureAt)
   frame()
 })()

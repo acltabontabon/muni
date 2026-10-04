@@ -28,6 +28,7 @@ import { Button, ErrorText, Kbd } from '@/ui'
 import { CategoryField, Choices, CollectionLook, useWriting, Writing } from '@/ui/capture'
 import { invitationFor } from './characters'
 import { useWorld } from './world'
+import { ThoughtLength } from '@/ui/capture-help'
 
 const MOD = typeof navigator !== 'undefined' && /Mac|iPhone|iPad/.test(navigator.platform) ? '⌘' : 'Ctrl'
 const finePointer = () => typeof window !== 'undefined' && window.matchMedia('(pointer: fine)').matches
@@ -456,6 +457,7 @@ export function Writer({ closed, fieldId = 'thought-field', level = 1 }: { /** S
           onKeyDown={onKey}
           placeholder="Something that happened, helped, or got in the way…"
           aria-keyshortcuts="Meta+Enter Control+Enter"
+          aria-describedby={`${uid}-draft`}
           maxLength={2000}
           enterKeyHint="enter"
         />
@@ -465,9 +467,10 @@ export function Writer({ closed, fieldId = 'thought-field', level = 1 }: { /** S
           ) : (
             <span />
           )}
-          <p className="room-draft" aria-live="polite">
+          <p id={`${uid}-draft`} className="room-draft" aria-live="polite">
             {typing && dest ? (restored ? 'Draft restored' : 'Draft') + (storage === 'device' ? ' · on this device, not sent yet' : ' · in this tab, not sent yet') : null}
           </p>
+          <ThoughtLength text={p.body} />
         </div>
 
         {more ? (

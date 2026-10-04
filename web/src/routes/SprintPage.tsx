@@ -329,9 +329,11 @@ function SprintView({ sprintId }: { sprintId: string }) {
           <>
             <JournalScene bubble={empty} respond className="journal-scene--under-bar">
               <MoveDraft choices={choices} current={sprintId} />
+              <p className="journal-eyebrow">Your sprint journal</p>
               <h2 className="journal-title mt-2">
                 <label htmlFor="thought-field">What’s worth <em>remembering</em>?</label>
               </h2>
+              <p className="journal-invitation">A small observation now. A better conversation later.</p>
             </JournalScene>
             <div className="journal-body" data-empty={empty || undefined}>
               <div className="home-compose min-w-0 self-start">
@@ -447,7 +449,7 @@ function SprintView({ sprintId }: { sprintId: string }) {
 
   // In a character's room the bar is part of the room's own composition; in Muni's journal it heads the page.
   return (
-    <AppShell wide>
+    <AppShell wide section={writing ? 'write' : 'sprints'}>
       {world ? null : header}
       {body}
       {s ? <About s={s} /> : null}

@@ -85,7 +85,14 @@ async function flushLocked(deps: SyncDeps, opts: { force?: boolean }): Promise<F
   if (me.status === 401) return { ...res, state: 'signed_out' }
   if (me.status === 426) return { ...res, state: 'upgrade' }
   if (!me.ok) return { ...res, state: 'offline' }
-  const accountId = ((await me.json()) as { account_id: string }).account_id
+  let identity: unknown
+  try {
+    identity = await me.json()
+  } catch {
+    return { ...res, state: 'offline' }
+  }
+  if (!identity || typeof identity !== 'object' || !('account_id' in identity) || typeof identity.account_id !== 'string' || !identity.account_id) return { ...res, state: 'offline' }
+  const accountId = identity.account_id
   res.accountId = accountId
   const csrf = await deps.csrf()
   if (!csrf) return { ...res, state: 'signed_out' }
@@ -93,16 +100,18 @@ async function flushLocked(deps: SyncDeps, opts: { force?: boolean }): Promise<F
   const items = await deps.store.listOutbox(accountId)
   for (const item of items) {
     const t = now()
-    const interrupted = item.status === 'sending' && (item.sendingSince ?? 0) < t - STALE_SENDING_MS
+    const interrupted = item.status === 'sending' && (item.sendingSince ?? 0) <= t - STALE_SENDING_MS
     const due = item.status === 'queued' && (opts.force || item.nextAttemptAt <= t)
     if (!due && !interrupted) continue
     // Without a sealer (the service worker), only thoughts known to be for an unencrypted sprint go.
     if (item.encrypted !== false && !deps.seal) continue
     // Claim it: only this exact revision, still queued (or abandoned mid-send), becomes 'sending'.
     const claimed = await deps.store.updateOutbox(item.id, (cur) =>
-      cur.revision === item.revision && (cur.status === 'queued' || (cur.status === 'sending' && interrupted)) ? { ...cur, status: 'sending', sendingSince: t, updatedAt: t } : null,
+      cur.revision === item.revision && (cur.status === 'queued' || (cur.status === 'sending' && (cur.sendingSince ?? 0) <= t - STALE_SENDING_MS)) ? { ...cur, status: 'sending', sendingSince: t, updatedAt: t } : null,
     )
     if (!claimed) continue
+    // A stale request can finish after another sender recovered it. Only this claim may change it.
+    const ownsClaim = (cur: OutboxItem) => cur.revision === claimed.revision && cur.status === 'sending' && cur.sendingSince === claimed.sendingSince
     deps.notify?.()
     let status: number
     let body: { id?: string; code?: string; error?: string } = {}
@@ -125,16 +134,17 @@ async function flushLocked(deps: SyncDeps, opts: { force?: boolean }): Promise<F
         const { code, status } = e as { code?: string; status?: number }
         // Removed from the workspace, or the sprint is gone: it needs the person, as a refused send would.
         if (status === 403 || status === 404) {
-          await deps.store.updateOutbox(claimed.id, (cur) => ({ ...cur, status: 'attention', reason: 'no_access', message: null, sendingSince: null, updatedAt: now() }))
+          await deps.store.updateOutbox(claimed.id, (cur) => ownsClaim(cur) ? { ...cur, status: 'attention', reason: 'no_access', message: null, sendingSince: null, updatedAt: now() } : null)
           await deps.store.forgetWorkspace(claimed.accountId, claimed.workspaceId)
           res.attention.push(claimed.id)
           deps.notify?.()
           continue
         }
         const waiting = code === 'no-key'
-        await deps.store.updateOutbox(claimed.id, (cur) => ({ ...cur, status: 'queued', sendingSince: null, message: waiting ? WAITING_KEY : cur.message, nextAttemptAt: now() + (waiting ? 60_000 : backoff(cur.attempts + 1)), attempts: waiting ? cur.attempts : cur.attempts + 1, updatedAt: now() }))
+        await deps.store.updateOutbox(claimed.id, (cur) => ownsClaim(cur) ? { ...cur, status: 'queued', sendingSince: null, message: waiting ? WAITING_KEY : cur.message, nextAttemptAt: now() + (waiting ? 60_000 : backoff(cur.attempts + 1)), attempts: waiting ? cur.attempts : cur.attempts + 1, updatedAt: now() } : null)
         deps.notify?.()
         if (status === 401) return { ...res, state: 'signed_out' }
+        if (status === 426) return { ...res, state: 'upgrade' }
         if (!waiting) return { ...res, state: 'offline' }
         continue
       }
@@ -155,22 +165,22 @@ async function flushLocked(deps: SyncDeps, opts: { force?: boolean }): Promise<F
     const verdict = status === 0 ? ({ kind: 'retry' } as const) : classify(status, body.code)
     const at = now()
     if (verdict.kind === 'done') {
-      await deps.store.deleteOutbox(claimed.id)
-      res.submitted.push({ id: claimed.id, entryId: body.id ?? '' })
+      const removed = await deps.store.deleteOutbox(claimed.id, ownsClaim)
+      if (removed) res.submitted.push({ id: claimed.id, entryId: body.id ?? '' })
     } else if (verdict.kind === 'attention') {
-      await deps.store.updateOutbox(claimed.id, (cur) => ({ ...cur, status: 'attention', reason: verdict.reason, message: body.error ?? null, sendingSince: null, updatedAt: at }))
+      await deps.store.updateOutbox(claimed.id, (cur) => ownsClaim(cur) ? { ...cur, status: 'attention', reason: verdict.reason, message: body.error ?? null, sendingSince: null, updatedAt: at } : null)
       if (verdict.reason === 'no_access') await deps.store.forgetWorkspace(claimed.accountId, claimed.workspaceId)
       res.attention.push(claimed.id)
     } else {
       // Back to the queue without losing anything; transient failures wait longer each time.
-      await deps.store.updateOutbox(claimed.id, (cur) => ({
+      await deps.store.updateOutbox(claimed.id, (cur) => ownsClaim(cur) ? {
         ...cur,
         status: 'queued',
         sendingSince: null,
         attempts: verdict.kind === 'retry' ? cur.attempts + 1 : cur.attempts,
         nextAttemptAt: verdict.kind === 'retry' ? at + backoff(cur.attempts + 1) : cur.nextAttemptAt,
         updatedAt: at,
-      }))
+      } : null)
       deps.notify?.()
       if (verdict.kind === 'stop') return { ...res, state: verdict.state }
       if (status === 0) return { ...res, state: 'offline' } // no point trying the rest now
@@ -180,8 +190,8 @@ async function flushLocked(deps: SyncDeps, opts: { force?: boolean }): Promise<F
   return res
 }
 
-/** When the next queued item becomes due (for a timer while the page is open). */
+/** When the next retry or abandoned send becomes due (for a timer while the page is open). */
 export function nextDue(items: OutboxItem[]): number | null {
-  const due = items.filter((i) => i.status === 'queued').map((i) => i.nextAttemptAt)
+  const due = items.flatMap((i) => i.status === 'queued' ? [i.nextAttemptAt] : i.status === 'sending' ? [(i.sendingSince ?? 0) + STALE_SENDING_MS] : [])
   return due.length ? Math.min(...due) : null
 }

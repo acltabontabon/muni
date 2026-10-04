@@ -11,6 +11,7 @@ import { useKeysEpoch } from '@/lib/e2ee/E2eeProvider'
 import { Button } from '@/ui'
 import { Choices } from '@/ui/capture'
 import { Thought } from '@/ui/retro'
+import { matchesThought, ThoughtSearch } from '@/ui/thought-search'
 
 const PAGE = 30
 
@@ -19,6 +20,7 @@ export function TeamThoughts({ sprintId, refresh = 0, lead }: { sprintId: string
   const [error, setError] = useState('')
   const [filter, setFilter] = useState<string | null>(null)
   const [shown, setShown] = useState(PAGE)
+  const [query, setQuery] = useState('')
   const keysEpoch = useKeysEpoch()
   // Reads overlap (hints, unlocking): only the newest one's answer is shown.
   const seq = useRef(0)
@@ -35,6 +37,8 @@ export function TeamThoughts({ sprintId, refresh = 0, lead }: { sprintId: string
   }, [sprintId])
   useEffect(() => {
     load()
+    const pending = seq
+    return () => { pending.current++ }
   }, [load, keysEpoch, refresh])
 
   const cats = useMemo(() => {
@@ -42,7 +46,9 @@ export function TeamThoughts({ sprintId, refresh = 0, lead }: { sprintId: string
     for (const e of entries ?? []) n.set(e.category ?? 'unsorted', (n.get(e.category ?? 'unsorted') ?? 0) + 1)
     return [...n]
   }, [entries])
-  const visible = (entries ?? []).filter((e) => !filter || (e.category ?? 'unsorted') === filter)
+  const filtering = !!entries && entries.length > 8 && cats.length > 1
+  const active = filtering && filter && cats.some(([category]) => category === filter) ? filter : null
+  const visible = (entries ?? []).filter((e) => (!active || (e.category ?? 'unsorted') === active) && matchesThought(e, query))
 
   return (
     <section className="team" aria-labelledby={`team-${sprintId}`}>
@@ -53,11 +59,14 @@ export function TeamThoughts({ sprintId, refresh = 0, lead }: { sprintId: string
         <p className="mt-0.5 text-sm text-ink-soft">{lead ?? 'In no particular order — yours are in here too.'}</p>
       </header>
       {error && !entries ? <p className="mt-3 text-sm text-ink-soft" role="status">{error}</p> : null}
+      {!entries && !error ? <p className="mt-3 text-sm text-ink-faint" role="status">Gathering the team’s thoughts…</p> : null}
+      {error && !entries ? <Button size="sm" variant="quiet" onClick={load}>Try again</Button> : null}
       {entries && !entries.length ? <p className="mt-3 text-sm text-ink-soft">Nobody wrote anything in this sprint.</p> : null}
-      {entries && entries.length > 8 && cats.length > 1 ? (
+      {(entries && entries.length > 6) || query ? <div className="thought-search-wrap"><ThoughtSearch value={query} onChange={(value) => { setQuery(value); setShown(PAGE) }} label="Find in the team’s thoughts" /></div> : null}
+      {filtering ? (
         <div className="mt-4">
           <Choices
-            value={filter}
+            value={active}
             onChange={(v) => { setFilter(v); setShown(PAGE) }}
             allowNone
             label="Show one category"
@@ -66,6 +75,8 @@ export function TeamThoughts({ sprintId, refresh = 0, lead }: { sprintId: string
         </div>
       ) : null}
       {visible.length ? <ul className="retro-thoughts team-list">{visible.slice(0, shown).map((e) => <Thought key={e.id} e={e} />)}</ul> : null}
+      {query.trim() ? <p className="thought-results" role="status">{visible.length} {visible.length === 1 ? 'thought matches' : 'thoughts match'} your search.</p> : null}
+      {entries && (active || query.trim()) && !visible.length ? <p className="mt-3 text-sm text-ink-soft">Try another word or category. <button type="button" className="underline underline-offset-4" onClick={() => { setQuery(''); setFilter(null); setShown(PAGE) }}>Clear filters</button></p> : null}
       {visible.length > shown ? (
         <div className="mt-2">
           <Button size="sm" variant="ghost" onClick={() => setShown((n) => n + PAGE)}>Show {Math.min(PAGE, visible.length - shown)} more</Button>

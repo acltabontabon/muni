@@ -4,7 +4,7 @@ This folder holds the two films that every release attaches: the demo reel and t
 
 | File | What it is |
 | --- | --- |
-| `muni-demo.mp4`, `muni-demo.gif` | A 73-second reel of the real app. The MP4 is 1920×1200 at 60 fps; the GIF is 620 px wide, for the release page. |
+| `muni-demo.mp4`, `muni-demo.gif` | A roughly 75-second reel of the real app. The MP4 is 1920×1200 at 60 fps; the GIF is 620 px wide, for the release page. |
 | `muni-journey.mp4`, `muni-journey.gif` | A 30-second film of the retro's four steps and the recap, with the stage and a phone side by side. The MP4 is 1920×1080 at 30 fps; the GIF is 720 px wide. |
 
 Every app frame in the reel is this build of Muni running locally, driven through its own UI and never retouched. The reel adds the framing: Muni's paper, a title per chapter, the app in a window (with a phone beside it where one was filmed), a slow camera, a horizon with the sun travelling it, and the closing card. The team (Harbor) and everything they write are made up.
@@ -15,7 +15,11 @@ Every app frame in the reel is this build of Muni running locally, driven throug
 2. [`web/e2e/demo-reel.mjs`](../../web/e2e/demo-reel.mjs) renders 2560×1600 frames at 60 a second. Each output frame is drawn for its moment and screenshotted, so pacing is identical every time, and captured frames are crossfaded by timestamp so motion stays smooth. Titles, timings and camera moves are in the `CHAPTERS` list at the top of the script. `REEL_FPS` changes the rate.
 3. [`export.sh`](export.sh) encodes the frames to the MP4 and GIF.
 
-Between runs, only the order of randomly drawn lines and the clock times change.
+Between captures, randomly drawn lines, clock times and small differences in UI response time
+can change. Rendering the same captured footage keeps its pacing identical.
+
+The committed films were refreshed on 4 October 2026 for the journal/navigation and marketing
+updates. Current unretouched desktop and mobile stills are in [screenshots/](../screenshots/README.md).
 
 ## Rebuilding the reel
 
@@ -67,6 +71,10 @@ You need Node, the web dependencies (`cd web && npm ci`), Playwright's Chromium 
 python3 -m http.server 4321 --directory site
 cd web && node e2e/journey-film.mjs      # SITE_URL and STEP_S change the source and the pace
 ```
+
+The site’s Play/Pause controls are hidden only for the film; the recording itself chooses each
+step. To inspect the framing without exporting, add `PEEK=1 OUT=/tmp/muni-journey-check`, then
+open `/tmp/muni-journey-check/peek.png`. The normal preview remains fully interactive.
 
 ## Size limit
 

@@ -69,11 +69,12 @@ export interface LocalStore {
   getOutbox(id: string): Promise<OutboxItem | null>
   /** Atomically stores a new submission and removes the draft it came from. */
   enqueue(item: OutboxItem): Promise<void>
-  /** Atomically swaps one submission for another (moved to another sprint); drafts are left alone. */
-  replace(oldId: string, item: OutboxItem): Promise<void>
+  /** Swaps an unsent submission only if it still exists at the revision the person saw. */
+  replace(oldId: string, item: OutboxItem, expectedRevision: number): Promise<boolean>
   /** Read-modify-write inside one transaction. Returning null leaves the record unchanged. */
   updateOutbox(id: string, fn: (item: OutboxItem) => OutboxItem | null): Promise<OutboxItem | null>
-  deleteOutbox(id: string): Promise<void>
+  /** An optional condition is checked atomically with deletion (e.g. it is still unsent). */
+  deleteOutbox(id: string, where?: (item: OutboxItem) => boolean): Promise<boolean>
   getContext(accountId: string, sprintId: string): Promise<ContextRecord | null>
   putContext(c: Omit<ContextRecord, 'key' | 'v'>): Promise<void>
   listContexts(accountId: string): Promise<ContextRecord[]>
@@ -112,7 +113,13 @@ export function memoryStore(): LocalStore {
     async listOutbox(a) { return [...outbox.values()].filter((i) => i.accountId === a).sort((x, y) => x.createdAt - y.createdAt).map(clone) },
     async getOutbox(id) { const i = outbox.get(id); return i ? clone(i) : null },
     async enqueue(item) { outbox.set(item.id, clone(item)); drafts.delete(draftKey(item.accountId, item.sprintId)) },
-    async replace(oldId, item) { outbox.set(item.id, clone(item)); outbox.delete(oldId) },
+    async replace(oldId, item, expectedRevision) {
+      const cur = outbox.get(oldId)
+      if (!cur || cur.accountId !== item.accountId || cur.status === 'sending' || cur.revision !== expectedRevision) return false
+      outbox.set(item.id, clone(item))
+      outbox.delete(oldId)
+      return true
+    },
     async updateOutbox(id, fn) {
       const cur = outbox.get(id)
       if (!cur) return null
@@ -121,7 +128,11 @@ export function memoryStore(): LocalStore {
       outbox.set(id, clone(next))
       return clone(next)
     },
-    async deleteOutbox(id) { outbox.delete(id) },
+    async deleteOutbox(id, where) {
+      const cur = outbox.get(id)
+      if (!cur || (where && !where(clone(cur)))) return false
+      return outbox.delete(id)
+    },
     async getContext(a, s) { const c = context.get(draftKey(a, s)); return c ? clone(c) : null },
     async listContexts(a) { return [...context.values()].filter((c) => c.accountId === a).map(clone) },
     async putContext(c) { context.set(draftKey(c.accountId, c.sprint.id), { ...clone(c), key: draftKey(c.accountId, c.sprint.id), v: RECORD_VERSION }) },
@@ -228,10 +239,14 @@ export function deviceStore(): LocalStore {
         t.objectStore('drafts').delete(draftKey(item.accountId, item.sprintId))
       })
     },
-    async replace(oldId, item) {
-      await tx(['outbox'], 'readwrite', (t) => {
-        t.objectStore('outbox').add(item)
-        t.objectStore('outbox').delete(oldId)
+    async replace(oldId, item, expectedRevision) {
+      return tx(['outbox'], 'readwrite', async (t) => {
+        const s = t.objectStore('outbox')
+        const cur = (await result(s.get(oldId))) as OutboxItem | undefined
+        if (!cur || cur.accountId !== item.accountId || cur.status === 'sending' || cur.revision !== expectedRevision) return false
+        s.add(item)
+        s.delete(oldId)
+        return true
       })
     },
     async updateOutbox(id, fn) {
@@ -245,7 +260,15 @@ export function deviceStore(): LocalStore {
         return next
       })
     },
-    async deleteOutbox(id) { await tx(['outbox'], 'readwrite', (t) => { t.objectStore('outbox').delete(id) }) },
+    async deleteOutbox(id, where) {
+      return tx(['outbox'], 'readwrite', async (t) => {
+        const s = t.objectStore('outbox')
+        const cur = (await result(s.get(id))) as OutboxItem | undefined
+        if (!cur || (where && !where(upgradeRecord(cur)))) return false
+        s.delete(id)
+        return true
+      })
+    },
     async getContext(a, s) { const r = await tx(['context'], 'readonly', (t) => result(t.objectStore('context').get(draftKey(a, s)))); return r ? upgradeRecord(r as ContextRecord) : null },
     async listContexts(a) { return (await byAccount<ContextRecord>('context', a)).map(upgradeRecord) },
     async putContext(c) { await tx(['context'], 'readwrite', (t) => { t.objectStore('context').put({ ...c, key: draftKey(c.accountId, c.sprint.id), v: RECORD_VERSION }) }) },

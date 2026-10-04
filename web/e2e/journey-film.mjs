@@ -24,7 +24,7 @@ mkdirSync(`${OUT}/frames`, { recursive: true })
 
 // Only the journey, centred on the page's paper; an end card is drawn over it at the close.
 const ISOLATE = `
-  .nav, .footer, main > section:not(#demo), .duo-film, .scroll-cue { display: none !important; }
+  .nav, .footer, main > section:not(#demo), .duo-film, .duo-controls, .scroll-cue { display: none !important; }
   html, body { overflow: hidden !important; }
   #demo { min-height: 100vh; padding: 44px 0 0 !important; }
   #demo .lede { display: none; }
@@ -55,7 +55,7 @@ await page.evaluate(() => document.fonts.ready)
 // Take the journey out of its autoplay: the film sets its own pace.
 await page.evaluate(() => document.getElementById('duo-t1').click())
 await sleep(1200)
-if (process.env.PEEK) { await page.screenshot({ path: `${OUT}/peek.png` }); process.exit(0) }
+if (process.env.PEEK) { await page.screenshot({ path: `${OUT}/peek.png` }); await browser.close(); process.exit(0) }
 
 // Film: sharp 2× frames taken back to back, each stamped with its moment (as e2e/demo.mjs does).
 const cdp = await page.context().newCDPSession(page)

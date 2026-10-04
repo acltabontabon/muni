@@ -10,6 +10,7 @@ import { flush, nextDue, type FlushResult } from './outbox'
 import { serialPasses } from './passes'
 import { keyring } from '@/lib/e2ee/keyring'
 import { clearRetroDrafts } from '@/lib/retro-drafts'
+import { clearFormDrafts } from '@/lib/form-drafts'
 import { deviceStore, destroyDeviceStore, emptyPayload, hasText, memoryStore, RECORD_VERSION, StorageError, type ContextSprint, type Draft, type LocalStore, type OutboxItem, type Payload } from './store'
 
 export type SyncState = 'idle' | 'sending' | 'offline' | 'signed_out' | 'upgrade'
@@ -263,7 +264,8 @@ export function LocalProvider({ accountId, children }: { accountId: string | nul
       async remove(id) {
         const cur = await store.getOutbox(id)
         if (cur?.status === 'sending') throw new StorageError('This thought is being sent right now. Try again in a moment.')
-        await guard(() => store.deleteOutbox(id))
+        const removed = await guard(() => store.deleteOutbox(id, (c) => c.accountId === accountId && c.status !== 'sending'))
+        if (!removed && await store.getOutbox(id)) throw new StorageError('This thought is being sent right now. Try again in a moment.')
         await reload()
         channel?.postMessage('changed')
       },
@@ -278,7 +280,8 @@ export function LocalProvider({ accountId, children }: { accountId: string | nul
           // A new submission for the new destination, never backdated, never silently redirected; it
           // takes the old one's place in one step, and the draft being written there stays.
           const item: OutboxItem = { ...cur, id: crypto.randomUUID(), workspaceId: dest.workspaceId, sprintId: dest.sprintId, sprintName: dest.sprintName, encrypted: dest.encrypted, revision: 1, status: 'queued', attempts: 0, nextAttemptAt: 0, sendingSince: null, reason: null, message: null, createdAt: now, updatedAt: now, v: RECORD_VERSION }
-          await guard(() => store.replace(id, item))
+          const replaced = await guard(() => store.replace(id, item, cur.revision))
+          if (!replaced) throw new StorageError('This thought changed or is being sent. Try again in a moment.')
           await reload()
           channel?.postMessage('changed')
         } finally {
@@ -287,7 +290,7 @@ export function LocalProvider({ accountId, children }: { accountId: string | nul
         await run(true)
       },
       async retry() {
-        if (accountId) for (const i of await store.listOutbox(accountId)) if (i.status === 'queued') await store.updateOutbox(i.id, (c) => ({ ...c, nextAttemptAt: 0 }))
+        if (accountId) for (const i of await store.listOutbox(accountId)) if (i.status === 'queued') await store.updateOutbox(i.id, (c) => c.status === 'queued' ? { ...c, nextAttemptAt: 0 } : null)
         await run(true)
       },
       async cacheContext(sprint, workspaceName) {
@@ -302,6 +305,7 @@ export function LocalProvider({ accountId, children }: { accountId: string | nul
         if (!accountId) return
         generation++
         clearRetroDrafts()
+        clearFormDrafts()
         await memory.clearAccount(accountId)
         if (device) await device.clearAccount(accountId).catch(() => {})
         setCleared((n) => n + 1)
@@ -320,6 +324,7 @@ export function LocalProvider({ accountId, children }: { accountId: string | nul
         if (!accountId) return
         generation++
         clearRetroDrafts()
+        clearFormDrafts()
         await memory.clearAccount(accountId)
         if (device) await device.clearAccount(accountId).catch(() => {})
         setKeepsLocal(accountId, false)

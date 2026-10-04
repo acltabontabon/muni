@@ -21,3 +21,4 @@ To report a vulnerability, see [SECURITY.md](../SECURITY.md).
 - [design.md](design.md): brand and design direction.
 - [third-party.md](third-party.md): licences of what Muni ships.
 - [demo/](demo/README.md): how the release demo videos are made.
+- [screenshots/](screenshots/README.md): current desktop and mobile screens, and how to reproduce them.

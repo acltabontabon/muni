@@ -308,7 +308,9 @@ function FireflyLayer({ firefly }: { firefly: Firefly | null }) {
     const light = outside(r, vw, vh)
     const away = r.bottom < 56 || r.top > vh - 24
     // On a phone the note docks at the bottom, unless the control is down there itself.
-    const low = r.bottom > vh * 0.62
+    // The writer can sit lower below the mobile navigation; dock whenever the note still fits
+    // below it. Typing folds the note away, so it never competes with the keyboard.
+    const low = field ? r.bottom > vh - (noteRef.current?.offsetHeight ?? 200) - 24 : r.bottom > vh * 0.62
     const docked = away || (narrow && !low)
     let note: Geometry['note'] = null
     const n = noteRef.current

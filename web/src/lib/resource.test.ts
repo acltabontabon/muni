@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { ResourceStore } from './resource'
+import { ApiError } from '@/api/client'
 
 function deferred<T>() {
   let resolve!: (v: T) => void
@@ -120,5 +121,43 @@ describe('resource store', () => {
     store.drop('/api/workspaces/w1')
     expect(store.read('/api/workspaces/w1').data).toBeUndefined()
     expect(store.read('/api/workspaces/w1/sprints').data).toBeUndefined()
+  })
+
+  it('never restores or rereads dropped content when an old request completes', async () => {
+    const { store, calls } = setup()
+    const pending = store.load('/api/workspaces/w1/sprints')
+    const rejected = expect(pending).rejects.toThrow('forgotten')
+    store.drop('/api/workspaces/w1')
+    calls[0].d.resolve('content from before access ended')
+    await rejected
+    expect(calls).toHaveLength(1)
+    expect(store.read('/api/workspaces/w1/sprints').data).toBeUndefined()
+  })
+
+  it('keeps a new request independent of a dropped request that answers later', async () => {
+    const { store, calls } = setup()
+    const pending = store.load('/p')
+    const rejected = expect(pending).rejects.toThrow('forgotten')
+    store.drop('/p')
+    const current = store.load('/p')
+    calls[0].d.reject(new Error('old failure'))
+    await rejected
+    expect(store.load('/p')).toBe(current)
+    expect(calls).toHaveLength(2)
+    calls[1].d.resolve('new content')
+    expect(await current).toBe('new content')
+    expect(store.read('/p').data).toBe('new content')
+  })
+
+  it('removes kept content when a refresh says access ended', async () => {
+    for (const status of [401, 403, 404]) {
+      const { store, calls } = setup()
+      store.set('/p', 'previously visible content')
+      const refresh = store.load('/p')
+      const error = new ApiError(status, 'forbidden', 'Access ended')
+      calls[0].d.reject(error)
+      await expect(refresh).rejects.toBe(error)
+      expect(store.read('/p')).toMatchObject({ data: undefined, error, fetching: false, at: 0 })
+    }
   })
 })

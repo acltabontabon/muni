@@ -1,13 +1,16 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent, type ReactNode } from 'react'
 import { Link, useNavigate, useParams } from 'react-router'
-import { ChevronDown } from 'lucide-react'
+import { Check, ChevronDown } from 'lucide-react'
 import { clsx } from 'clsx'
 import { ApiError, del, get, patch, post } from '@/api/client'
 import { useResources } from '@/lib/resource'
 import type { SprintDetail, WorkspaceDetail } from '@/api/types'
 import { resync } from '@/lib/forms'
-import { describeRetro, zoneName } from '@/lib/schedule'
+import { dateRange, describeRetro, zoneName } from '@/lib/schedule'
 import { planSetup, setupSteps, setupValues, type SetupValues } from '@/lib/setup-plan'
+import { realDate, setupInstant, setupProblems, sprintLength } from '@/lib/sprint-setup'
+import { useAuth } from '@/lib/auth'
+import { accountFormDrafts } from '@/lib/form-drafts'
 import { Button, ErrorText, Help, Input, Label, Select, Spinner, Switch, useDocumentTitle, useToast } from '@/ui'
 import { AppShell } from '@/ui/shell'
 import { isLocked, keyring } from '@/lib/e2ee/keyring'
@@ -15,6 +18,7 @@ import { b64u } from '@/lib/e2ee/crypto'
 import { useDeviceKeys } from '@/lib/e2ee/E2eeProvider'
 import { DeviceKeyNotice } from '@/ui/keys'
 import { useGuidePage } from '@/guide/GuideProvider'
+import '@/workspace-ux.css'
 
 const tzOptions = () => {
   try {
@@ -30,40 +34,13 @@ function plusDays(d: Date, n: number) {
   return `${x.getFullYear()}-${String(x.getMonth() + 1).padStart(2, '0')}-${String(x.getDate()).padStart(2, '0')}`
 }
 
-/** A wall time in a timezone → an instant (for the preview only; the server resolves the real one). */
-function instant(date: string, time: string, tz: string): number | null {
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(date) || !/^\d{2}:\d{2}$/.test(time)) return null
-  const guess = Date.parse(`${date}T${time}:00Z`)
-  try {
-    const parts = new Intl.DateTimeFormat('en-US', { timeZone: tz, hourCycle: 'h23', year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' }).formatToParts(new Date(guess))
-    const g = (t: string) => Number(parts.find((p) => p.type === t)?.value)
-    const asUtc = Date.UTC(g('year'), g('month') - 1, g('day'), g('hour'), g('minute'))
-    return guess - (asUtc - guess)
-  } catch {
-    return guess
-  }
-}
-
 type Form = SetupValues & { encrypt: boolean }
-
-/** What's missing or inconsistent, by field — the same rules the server applies. */
-function problems(f: Form): Partial<Record<keyof Form, string>> {
-  const p: Partial<Record<keyof Form, string>> = {}
-  if (!f.name.trim()) p.name = 'Give the sprint a name people will recognise.'
-  if (!f.starts_on) p.starts_on = 'Choose when the sprint starts.'
-  if (!f.ends_on) p.ends_on = 'Choose when it ends.'
-  else if (f.starts_on && f.ends_on < f.starts_on) p.ends_on = 'The sprint can’t end before it starts.'
-  if (!f.retro_date) p.retro_date = 'Choose a day for the retro.'
-  else if (f.starts_on && f.retro_date < f.starts_on) p.retro_date = 'The retro can’t be before the sprint starts.'
-  if (!f.retro_time) p.retro_time = 'Choose a time.'
-  if (!(f.retro_duration_min >= 10 && f.retro_duration_min <= 240)) p.retro_duration_min = 'Between 10 and 240 minutes.'
-  if (!(f.vote_budget >= 1 && f.vote_budget <= 10)) p.vote_budget = 'Between 1 and 10.'
-  return p
-}
+/** Kept only in this tab's memory, per account and sprint/workspace. Never written to storage. */
+const drafts = accountFormDrafts<{ form: Form; saved: SetupValues | null }>()
 
 function Section({ n, title, lead, children }: { n: number; title: string; lead?: ReactNode; children: ReactNode }) {
   return (
-    <section className="grid gap-4 border-t border-line/70 pt-7 first:border-0 first:pt-0 md:grid-cols-[13rem_minmax(0,1fr)] md:gap-10" aria-labelledby={`sec-${n}`}>
+    <section id={`setup-${n}`} className="setup-section grid gap-4 border-t border-line/70 pt-7 first:border-0 first:pt-0 md:grid-cols-[13rem_minmax(0,1fr)] md:gap-10" aria-labelledby={`sec-${n}`}>
       <div>
         <p className="eyebrow">Step {n}</p>
         <h2 id={`sec-${n}`} className="font-display mt-1 text-lg">{title}</h2>
@@ -82,7 +59,14 @@ function Problem({ id, children }: { id: string; children?: string }) {
 
 /** Create (workspace route) or edit (sprint route) a sprint. */
 export function SprintSetup() {
+  const { workspaceId, sprintId } = useParams()
+  return <SprintSetupForm key={sprintId ?? workspaceId} />
+}
+
+function SprintSetupForm() {
   const { workspaceId: wsParam, sprintId } = useParams()
+  const { me } = useAuth()
+  const draftKey = `${me?.account_id}:${sprintId ?? `new:${wsParam}`}`
   const nav = useNavigate()
   const toast = useToast()
   const resources = useResources()
@@ -92,8 +76,17 @@ export function SprintSetup() {
   const [busy, setBusy] = useState<'draft' | 'open' | 'save' | null>(null)
   const [tried, setTried] = useState(false)
   const [advanced, setAdvanced] = useState(false)
+  const waitingFocus = useRef<string | null>(null)
+  useEffect(() => {
+    if (advanced && waitingFocus.current) {
+      document.getElementById(`f-${waitingFocus.current}`)?.focus()
+      waitingFocus.current = null
+    }
+  }, [advanced])
+  const kept = useRef(drafts.get(draftKey))
+  const [resumed, setResumed] = useState(!!kept.current)
   const today = useMemo(() => new Date(), [])
-  const [f, setF] = useState<Form>({
+  const freshSetup = useMemo<Form>(() => ({
     name: '',
     external_ref: '',
     goal: '',
@@ -109,12 +102,14 @@ export function SprintSetup() {
     reminders_enabled: true,
     vote_budget: 3,
     encrypt: true,
-  })
+  }), [today])
+  const [f, setF] = useState<Form>(() => kept.current?.form ?? freshSetup)
+  const initial = useRef<Form | null>(null)
   useDocumentTitle(existing ? `Setup · ${existing.name}` : 'New sprint')
   const { state: deviceKeys, keysEpoch } = useDeviceKeys()
   const [keyProblem, setKeyProblem] = useState('')
   /** The server's setup the form was last filled from: fields still as they were follow newer values. */
-  const loaded = useRef<SetupValues | null>(null)
+  const loaded = useRef<SetupValues | null>(kept.current?.saved ?? null)
   const loadSprint = useCallback(async (id: string) => {
     const s = await get<SprintDetail>(`/api/sprints/${id}`)
     const fresh = setupValues(s)
@@ -133,13 +128,17 @@ export function SprintSetup() {
         setWs(w)
         if (!sprintId) {
           const me = w.members.find((m) => m.is_you)
-          setF((p) => ({ ...p, facilitator_id: me?.account_id ?? '', participant_ids: w.members.map((m) => m.account_id) }))
+          setF((p) => {
+            const fresh = { ...freshSetup, facilitator_id: me?.account_id ?? '', participant_ids: w.members.map((m) => m.account_id) }
+            initial.current = fresh
+            return kept.current ? p : fresh
+          })
         }
       } catch (err) {
         setError(err instanceof ApiError ? err.message : 'Couldn’t load')
       }
     })()
-  }, [wsParam, sprintId, loadSprint])
+  }, [wsParam, sprintId, loadSprint, freshSetup])
   // This device just unlocked: an opening question it couldn't show can be shown (and edited) now.
   const epochSeen = useRef(keysEpoch)
   useEffect(() => {
@@ -148,14 +147,32 @@ export function SprintSetup() {
     loadSprint(sprintId).catch(() => {})
   }, [sprintId, keysEpoch, loadSprint])
 
-  const set = <K extends keyof Form>(k: K, v: Form[K]) => setF((p) => ({ ...p, [k]: v }))
+  const editForm = (change: Partial<Form>) => setF((p) => {
+    const next = { ...p, ...change }
+    drafts.set(draftKey, { form: next, saved: loaded.current })
+    return next
+  })
+  const set = <K extends keyof Form>(k: K, v: Form[K]) => editForm({ [k]: v })
   // This device's zone, or the sprint's, may be spelled in a way the list doesn't carry (UTC,
   // Asia/Calcutta): it's added, so the select never shows a different zone than the one kept.
   const zones = useMemo(() => tzOptions(), [])
   const zoneList = useMemo(() => (zones.includes(f.timezone) ? zones : [...zones, f.timezone].sort()), [zones, f.timezone])
-  const issues = problems(f)
-  const shown = (k: keyof Form) => (tried ? issues[k] : undefined)
-  const invalid = (k: keyof Form) => (shown(k) ? { 'aria-invalid': true, 'aria-describedby': `p-${k}` } : {})
+  const issues = setupProblems(f)
+  const shown = (k: keyof SetupValues) => (tried ? issues[k] : undefined)
+  const invalid = (k: keyof SetupValues) => (shown(k) ? { 'aria-invalid': true, 'aria-describedby': `p-${k}` } : {})
+  const dirty = existing && loaded.current ? setupSteps(planSetup(loaded.current, f)).length > 0 : !!initial.current && JSON.stringify(f) !== JSON.stringify(initial.current)
+  useEffect(() => {
+    if (!dirty || busy) return
+    const warn = (e: BeforeUnloadEvent) => { e.preventDefault(); e.returnValue = '' }
+    window.addEventListener('beforeunload', warn)
+    return () => window.removeEventListener('beforeunload', warn)
+  }, [dirty, busy])
+  const focusProblem = (field: string) => {
+    if (field === 'vote_budget' && !advanced) {
+      waitingFocus.current = field
+      setAdvanced(true)
+    } else document.getElementById(`f-${field}`)?.focus()
+  }
 
   const submit = async (mode: 'draft' | 'open' | 'save', e?: FormEvent) => {
     e?.preventDefault()
@@ -164,8 +181,7 @@ export function SprintSetup() {
     setTried(true)
     if (Object.keys(issues).length) {
       const first = Object.keys(issues)[0]
-      document.getElementById(`f-${first}`)?.focus()
-      if (['vote_budget'].includes(first)) setAdvanced(true)
+      focusProblem(first)
       return
     }
     setBusy(mode)
@@ -220,6 +236,7 @@ export function SprintSetup() {
         toast(done.length ? 'Setup saved' : 'Nothing had changed')
         resources.invalidate(`/api/sprints/${existing.id}`)
         resources.invalidate(`/api/workspaces/${existing.workspace_id}`)
+        drafts.delete(draftKey)
         nav(`/sprints/${existing.id}`)
       } else {
         let enc: Record<string, unknown> = {}
@@ -249,6 +266,7 @@ export function SprintSetup() {
           }
         } else toast('Saved as a draft — open collection when you’re ready')
         resources.invalidate(`/api/workspaces/${wsParam}`)
+        drafts.delete(draftKey)
         nav(`/sprints/${s.id}`)
       }
     } catch (err) {
@@ -265,8 +283,8 @@ export function SprintSetup() {
         {error ? <ErrorText>{error}</ErrorText> : <div className="grid place-items-center py-20"><Spinner /></div>}
       </AppShell>
     )
-  const retroAt = instant(f.retro_date, f.retro_time, f.timezone)
-  const preview = retroAt ? describeRetro(retroAt, f.timezone) : null
+  const retroAt = setupInstant(f.retro_date, f.retro_time, f.timezone)
+  const preview = retroAt !== null ? describeRetro(retroAt, f.timezone) : null
   const facilitatorIsYou = ws.members.find((m) => m.is_you)?.account_id === f.facilitator_id
   // Whoever facilitates now stays in the sprint: handing over leaves them a participant (the new
   // facilitator can take them off it later).
@@ -279,18 +297,25 @@ export function SprintSetup() {
   // Cancel goes back within Muni; opened straight from a link, it goes to the workspace instead.
   const cancelNew = () => ((window.history.state as { idx?: number } | null)?.idx ?? 0) > 0 ? nav(-1) : nav(`/workspaces/${ws.workspace.id}`, { replace: true })
   const openNote = 'Opening collection lets everyone in the sprint start writing. Thoughts stay hidden — from you too — until you close it.'
+  const length = realDate(f.starts_on) && realDate(f.ends_on) ? Math.round((Date.parse(f.ends_on) - Date.parse(f.starts_on)) / 86_400_000) + 1 : null
 
   return (
     <AppShell>
-      <div className="mb-8">
+      <div className="setup-head mb-8">
         <nav aria-label="You are here" className="text-sm text-ink-soft">
           <Link to={`/workspaces/${ws.workspace.id}`} className="hover:text-ink hover:underline">{ws.workspace.name}</Link>
           {existing ? <> <span aria-hidden className="text-ink-faint">/</span> <Link to={`/sprints/${existing.id}`} className="hover:text-ink hover:underline">{existing.name}</Link></> : null}
         </nav>
-        <h1 className="font-display mt-1 text-2xl leading-tight sm:text-[30px]">{existing ? 'Sprint setup' : <>Set up a <em>sprint</em></>}</h1>
-        <p className="mt-2 max-w-prose text-ink-soft">{existing ? 'Changes apply straight away. People already writing keep their thoughts.' : 'Three things: a name, the dates, and who’s in. You can open collection now or save it as a draft.'}</p>
+        <p className="ws-eyebrow mt-5">{existing ? 'Make room for the team' : 'Good retros begin here'}</p>
+        <h1 className="setup-title">{existing ? 'Sprint setup' : <>A little space to <em>reflect.</em></>}</h1>
+        <p className="setup-intro">{existing ? 'Update the plan, then save your changes. People already writing keep their thoughts.' : 'Give this sprint a home. Your team can keep thoughts as the work happens, then bring them to the retro.'}</p>
+        <nav aria-label="Setup sections" className="setup-index">
+          {['Name', 'When', 'Who’s in', ...(!existing ? ['Privacy'] : [])].map((label, i) => <a key={label} href={`#setup-${i + 1}`}><span>{String(i + 1).padStart(2, '0')}</span> {label}</a>)}
+        </nav>
+        {resumed ? <div className="setup-resumed" role="status"><Check className="size-4" aria-hidden /><p>Your unsaved setup is still here. Carry on where you left off.</p><button type="button" className="ws-link" onClick={() => { drafts.delete(draftKey); setF(existing ? { ...setupValues(existing), encrypt: existing.encryption === 'e1' } : initial.current ?? freshSetup); setResumed(false); setTried(false); setError('') }}>Discard edits</button></div> : null}
       </div>
-      <form onSubmit={(e) => submit(existing ? 'save' : 'open', e)} noValidate className="space-y-8">
+      <form onSubmit={(e) => submit(existing ? 'save' : 'open', e)} noValidate className="sprint-setup space-y-8" aria-label={existing ? 'Sprint setup' : 'New sprint setup'} aria-busy={!!busy}>
+        <fieldset disabled={!!busy} className="setup-fields space-y-8">
         <Section n={1} title="Name">
           <div>
             <Label htmlFor="f-name">Sprint name</Label>
@@ -304,7 +329,8 @@ export function SprintSetup() {
           </div>
         </Section>
 
-        <Section n={2} title="When" lead="The retro time is kept in the timezone you choose, so daylight-saving changes don’t move it.">
+        <Section n={2} title="When" lead="Write throughout the sprint. Meet for the retro when your team is ready.">
+          {!existing ? <div className="setup-presets" role="group" aria-label="Sprint length"><span>Start with</span>{[1, 2, 3].map((weeks) => <button type="button" key={weeks} aria-pressed={length === weeks * 7} disabled={!realDate(f.starts_on)} onClick={() => editForm(sprintLength(f, weeks))}>{weeks} {weeks === 1 ? 'week' : 'weeks'}</button>)}</div> : null}
           <div className="grid gap-4 sm:grid-cols-2">
             <div>
               <Label htmlFor="f-starts_on">Sprint starts</Label>
@@ -313,16 +339,16 @@ export function SprintSetup() {
             </div>
             <div>
               <Label htmlFor="f-ends_on">Sprint ends</Label>
-              <Input id="f-ends_on" type="date" value={f.ends_on} onChange={(e) => set('ends_on', e.target.value)} {...invalid('ends_on')} />
+              <Input id="f-ends_on" type="date" min={f.starts_on || undefined} value={f.ends_on} onChange={(e) => editForm({ ends_on: e.target.value, ...(f.retro_date === f.ends_on ? { retro_date: e.target.value } : {}) })} {...invalid('ends_on')} />
               <Problem id="p-ends_on">{shown('ends_on')}</Problem>
             </div>
           </div>
-          <fieldset className="rounded-2xl bg-card-2/60 p-4">
-            <legend className="sr-only">Retro</legend>
+          <fieldset className="setup-retro">
+            <legend>Then, the conversation</legend>
             <div className="grid gap-4 sm:grid-cols-[1fr_1fr_8rem]">
               <div>
                 <Label htmlFor="f-retro_date">Retro day</Label>
-                <Input id="f-retro_date" type="date" value={f.retro_date} onChange={(e) => set('retro_date', e.target.value)} {...invalid('retro_date')} />
+                <Input id="f-retro_date" type="date" min={f.starts_on || undefined} value={f.retro_date} onChange={(e) => set('retro_date', e.target.value)} {...invalid('retro_date')} />
                 <Problem id="p-retro_date">{shown('retro_date')}</Problem>
               </div>
               <div>
@@ -332,9 +358,10 @@ export function SprintSetup() {
               </div>
               <div>
                 <Label htmlFor="f-retro_duration_min">Length</Label>
-                <Select id="f-retro_duration_min" value={String(f.retro_duration_min)} onChange={(e) => set('retro_duration_min', Number(e.target.value))}>
+                <Select id="f-retro_duration_min" value={String(f.retro_duration_min)} onChange={(e) => set('retro_duration_min', Number(e.target.value))} {...invalid('retro_duration_min')}>
                   {[...new Set([30, 45, 60, 75, 90, 120, f.retro_duration_min])].sort((a, b) => a - b).map((m) => <option key={m} value={m}>{m} min</option>)}
                 </Select>
+                <Problem id="p-retro_duration_min">{shown('retro_duration_min')}</Problem>
               </div>
             </div>
             <div className="mt-4">
@@ -357,11 +384,12 @@ export function SprintSetup() {
         <Section n={3} title="Who’s in" lead="Only people in the sprint can write, see the revealed thoughts, and join the retro.">
           <div>
             <Label htmlFor="f-facilitator_id">Facilitator</Label>
-            <Select id="f-facilitator_id" value={f.facilitator_id} onChange={(e) => set('facilitator_id', e.target.value)}>
+            <Select id="f-facilitator_id" value={f.facilitator_id} onChange={(e) => set('facilitator_id', e.target.value)} {...invalid('facilitator_id')}>
               {ws.members.map((m) => (
                 <option key={m.account_id} value={m.account_id}>{m.display_name}{m.is_you ? ' (you)' : ''}</option>
               ))}
             </Select>
+            <Problem id="p-facilitator_id">{shown('facilitator_id')}</Problem>
             {keyProblem ? <p className="mt-1.5 text-sm text-danger" role="alert">{keyProblem}</p> : <Help>Opens and closes collection, prepares the discussion and runs the retro. They also write and vote like everyone else.{!facilitatorIsYou ? ' Only they will be able to manage this sprint.' : ''}{f.encrypt ? ' While collecting, only their devices hold the key that reveals thoughts.' : ''}{handingOver ? ' You stay in the sprint as a participant.' : ''}</Help>}
           </div>
           <fieldset className="min-w-0">
@@ -376,7 +404,7 @@ export function SprintSetup() {
             <ul className="max-h-64 space-y-0.5 overflow-y-auto rounded-2xl bg-card p-1.5 shadow-[0_0_0_1px_var(--line)]">
               {ws.members.map((m) => (
                 <li key={m.account_id}>
-                  <label className="flex cursor-pointer items-center gap-3 rounded-xl px-2.5 py-2 hover:bg-ink/5">
+                  <label className="setup-person flex cursor-pointer items-center gap-3 rounded-xl px-2.5 py-2 hover:bg-ink/5">
                     <input type="checkbox" className="size-4 accent-[var(--accent)]" checked={f.participant_ids.includes(m.account_id) || stays(m.account_id)} disabled={stays(m.account_id)} onChange={(e) => set('participant_ids', e.target.checked ? [...f.participant_ids, m.account_id] : f.participant_ids.filter((x) => x !== m.account_id))} />
                     <span className="min-w-0 flex-1 truncate">{m.display_name}{m.is_you ? <span className="text-ink-faint"> (you)</span> : null}</span>
                     {m.account_id === f.facilitator_id ? <span className="text-xs text-ink-faint">facilitator</span> : handingOver && m.account_id === current ? <span className="text-xs text-ink-faint">stays in</span> : null}
@@ -430,24 +458,37 @@ export function SprintSetup() {
             </div>
           ) : null}
         </section>
+        </fieldset>
+        <section className="setup-review" aria-labelledby="setup-review-title">
+          <div>
+            <p className="ws-eyebrow">The plan at a glance</p>
+            <h2 id="setup-review-title">{f.name.trim() || 'Your next sprint'}</h2>
+          </div>
+          <dl>
+            <div><dt>Sprint</dt><dd>{length && length > 0 ? <>{dateRange(f.starts_on, f.ends_on)} <span>· {length} days</span></> : 'Choose the sprint dates'}</dd></div>
+            <div><dt>Retro</dt><dd>{preview ? <>{preview.date}, {preview.time} <span>· {preview.zone}</span></> : 'Choose the retro time'}</dd></div>
+            <div><dt>Team</dt><dd>{count} {count === 1 ? 'person' : 'people'} <span>· {ws.members.find((m) => m.account_id === f.facilitator_id)?.display_name ?? 'Choose a facilitator'} facilitates</span></dd></div>
+          </dl>
+          <p>{dirty ? 'Unsaved setup is kept while you move around Muni in this tab.' : existing ? 'The saved plan. Change something above to update it.' : 'You can change the plan later. Invite more people from the sprint once it’s created.'}</p>
+        </section>
         {/* On a phone the note sits here, at the end of the form, so the actions below stay small. */}
         {!existing ? <p className="text-sm text-ink-soft sm:hidden">{openNote}</p> : null}
 
         <div className="sticky bottom-0 z-10 -mx-4 border-t border-line/70 bg-paper/90 px-4 pb-[max(0.75rem,env(safe-area-inset-bottom))] pt-3 backdrop-blur sm:static sm:mx-0 sm:border-0 sm:bg-transparent sm:p-0 sm:backdrop-blur-none">
           <ErrorText>{error}</ErrorText>
-          {tried && Object.keys(issues).length ? <p className="mb-3 text-sm text-danger" role="alert">{Object.keys(issues).length === 1 ? 'One thing needs fixing' : `${Object.keys(issues).length} things need fixing`} — see the highlighted fields.</p> : null}
+          {tried && Object.keys(issues).length ? <div className="setup-errors" role="alert"><p>{Object.keys(issues).length === 1 ? 'One thing needs fixing' : `${Object.keys(issues).length} things need fixing`}</p><ul>{Object.entries(issues).map(([field, message]) => <li key={field}><button type="button" onClick={() => focusProblem(field)}>{message}</button></li>)}</ul></div> : null}
           {/* A phone: the main action across the width, then Cancel and "Save as draft" on one row. */}
           <div className="flex flex-wrap items-center gap-2 sm:flex-nowrap">
             {existing ? (
               <>
-                <Button type="button" variant="ghost" onClick={() => nav(`/sprints/${existing.id}`)}>Cancel</Button>
-                <Button type="submit" variant="primary" size="lg" busy={busy === 'save'} className="ml-auto max-sm:h-11!">Save changes</Button>
+                <Button type="button" variant="ghost" onClick={() => nav(`/sprints/${existing.id}`)} disabled={!!busy}>Back to sprint</Button>
+                <Button type="submit" variant="primary" size="lg" busy={busy === 'save'} disabled={!dirty || !!busy} className="ml-auto max-sm:h-11!">Save changes</Button>
               </>
             ) : (
               <>
-                <Button type="button" variant="ghost" className="order-2 max-sm:h-9! max-sm:px-2! sm:order-none" onClick={cancelNew}>Cancel</Button>
+                <Button type="button" variant="ghost" className="order-2 max-sm:px-2! sm:order-none" onClick={cancelNew} disabled={!!busy}>Back</Button>
                 <span className="hidden text-sm text-ink-soft sm:ml-auto sm:inline">{count} {count === 1 ? 'person' : 'people'}{preview ? ` · retro ${preview.date}` : ''}</span>
-                <Button type="button" className="order-3 ml-auto max-sm:h-9! sm:order-none sm:ml-0" busy={busy === 'draft'} disabled={!!busy} onClick={() => submit('draft')}>Save as draft</Button>
+                <Button type="button" className="order-3 ml-auto sm:order-none sm:ml-0" busy={busy === 'draft'} disabled={!!busy} onClick={() => submit('draft')}>Save as draft</Button>
                 <Button type="submit" variant="primary" size="lg" className="order-1 w-full max-sm:h-11! sm:order-none sm:w-auto" busy={busy === 'open'} disabled={!!busy} data-guide="create-open">Create and open collection</Button>
               </>
             )}

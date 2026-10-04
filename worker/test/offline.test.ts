@@ -24,6 +24,8 @@ describe('offline submissions', () => {
     expect(retry.status).toBe(200)
     expect(retry.body.id).toBe(first.body.id)
     expect(retry.body.created_at).toBe(first.body.created_at) // never backdated or re-created
+    expect(first.body.editable).toBe(true)
+    expect(retry.body.editable).toBe(false)
     expect(await count(s)).toBe(1)
   })
 

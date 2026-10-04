@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router'
 import * as Popover from '@radix-ui/react-popover'
 import { ArrowRight, MonitorPlay, Pause, Play } from 'lucide-react'
@@ -116,6 +116,17 @@ function StageRoom({ sprintId }: { sprintId: string }) {
 
   // Keys drive the room only while it's running (a paused or finished retro takes no commands).
   const running = !!stage && !stage.ended_at && !stage.cancelled && sprint?.status === 'live'
+  const phase = running ? stage.phase : null
+  const topic = phase === 'talk' ? stage?.current_theme_id ?? null : null
+  const shownPosition = useRef<{ phase: string; topic: string | null } | null>(null)
+  useLayoutEffect(() => {
+    if (!phase) return
+    const before = shownPosition.current
+    shownPosition.current = { phase, topic }
+    // A new question begins below the rail. Updates within that question leave readers and
+    // people typing exactly where they are; first load also keeps the browser's scroll position.
+    if (before && (before.phase !== phase || before.topic !== topic)) window.scrollTo({ top: 0, left: 0, behavior: 'instant' })
+  }, [phase, topic])
   // Another facilitator is leading: this screen follows, and its controls wait for "Take over".
   const leading = !!stage?.you_control || !!stage?.controller_stale
   const controls = fac && !presenting && leading
