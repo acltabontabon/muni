@@ -73,6 +73,9 @@ export function parseInline(s: string): Inline[] {
   // Each mark that finds nothing to close it searched the rest of the line. Past a couple of hundred
   // of those (no real line has them), the rest stay as written, so a line can't be made slow to show.
   let misses = 0
+  // With single marks only, a failed search also rules out later openings of that mark. Code,
+  // escapes and longer runs can change how a later search sees the suffix, so keep scanning those.
+  const noClosing = /[\\`]|\*\*|__/.test(s) ? null : new Set<string>()
   const flush = () => {
     for (const r of splitLinks(text)) out.push(r.href ? { t: 'link', href: r.href, c: [{ t: 'text', v: r.text }] } : { t: 'text', v: r.text })
     text = ''
@@ -99,8 +102,11 @@ export function parseInline(s: string): Inline[] {
       const after = s[i + mark.length]
       // Opens only before a word (and an underscore only at the start of one: snake_case stays as written).
       if (after && !/\s/.test(after) && (ch === '*' || !WORD.test(s[i - 1] ?? ''))) {
-        const end = misses < 200 ? closing(s, i + mark.length, mark) : -1
-        if (end < 0) misses++
+        const end = misses < 200 && !noClosing?.has(mark) ? closing(s, i + mark.length, mark) : -1
+        if (end < 0) {
+          misses++
+          noClosing?.add(mark)
+        }
         if (end > 0) {
           flush()
           out.push({ t: mark.length === 2 ? 'strong' : 'em', c: parseInline(s.slice(i + mark.length, end)) })

@@ -51,12 +51,27 @@ describe('recap Markdown', () => {
 })
 
 describe('a line full of marks that never close', () => {
-  it('stays quick to show, and reads as written', () => {
-    const line = '*a '.repeat(6000)
+  it.each(['*a ', '_a ', '*a _b '])('stays quick to show, and reads as written: %s', (marks) => {
+    const line = marks.repeat(6000)
     const t0 = performance.now()
     const out = parseInline(line)
     expect(performance.now() - t0).toBeLessThan(250)
     expect(out.every((n) => n.t === 'text')).toBe(true)
     expect(out.map((n) => (n.t === 'text' ? n.v : '')).join('')).toBe(line)
+  })
+
+  it('keeps later searches independent around code, escapes and longer runs', () => {
+    expect(parseInline('___```__`')).toEqual([
+      { t: 'text', v: '_' },
+      { t: 'strong', c: [{ t: 'text', v: '```' }] },
+      { t: 'text', v: '`' },
+    ])
+    expect(parseInline('(****a *****__b_a_')).toEqual([
+      { t: 'text', v: '(****a ' },
+      { t: 'strong', c: [{ t: 'text', v: '*' }] },
+      { t: 'text', v: '_' },
+      { t: 'em', c: [{ t: 'text', v: 'b_a' }] },
+    ])
+    expect(show(parseInline('\\*a *b* and \\_c _d_'))).toBe('*a _b_ and _c _d_')
   })
 })

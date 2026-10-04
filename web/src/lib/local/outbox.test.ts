@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { backoff, CLIENT_REVISION, flush, nextDue, type SyncDeps } from './outbox'
 import { emptyPayload, memoryStore, upgradeRecord, type LocalStore, type OutboxItem } from './store'
+import { serialPasses } from './passes'
 
 /** A tiny stand-in for the Worker with the same rules the real one enforces. */
 function fakeServer() {
@@ -99,6 +100,33 @@ describe('outbox', () => {
     expect(r.submitted).toHaveLength(1)
     expect(await store.listOutbox('acct-a')).toHaveLength(0)
     expect(s.entries.size).toBe(1)
+  })
+
+  it('can recover a routine pass’s transient failure before a waiting explicit save completes', async () => {
+    const store = memoryStore()
+    const { s, fetchImpl } = fakeServer()
+    let release!: () => void
+    let started!: () => void
+    const gate = new Promise<void>((resolve) => { release = resolve })
+    const checking = new Promise<void>((resolve) => { started = resolve })
+    let reads = 0
+    const fetchGated = (async (url: string, init?: RequestInit) => {
+      if (url === '/api/auth/me' && reads++ === 0) { started(); await gate }
+      return fetchImpl(url, init)
+    }) as unknown as typeof fetch
+    const run = serialPasses((force) => flush(deps(store, fetchGated), { force }))
+    const routine = run()
+    await checking
+    const queued = item()
+    await store.enqueue(queued)
+    s.nextStatus = 503
+    const saved = run(true)
+    release()
+    expect((await routine).submitted).toEqual([])
+    expect((await saved).submitted).toEqual([{ id: queued.id, entryId: 'entry-1' }])
+    expect(s.posts).toBe(2)
+    expect(s.entries.size).toBe(1)
+    expect(await store.listOutbox('acct-a')).toEqual([])
   })
 
   it('keeps the thought while offline and backs off, without losing text', async () => {

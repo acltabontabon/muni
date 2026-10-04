@@ -228,11 +228,19 @@ for (const W of WORLDS) try {
   {
     const { ctx, page } = await open(ana, ws.id)
     let failures = 0
-    await page.route('**/api/sprints/*/entries', (r) => (r.request().method() === 'POST' && failures++ < 1 ? r.fulfill({ status: 503, contentType: 'application/json', body: '{"error":"unavailable"}' }) : r.continue()))
+    let unavailable = true
+    // A routine pass can pick up the thought before its explicit send pass starts. Keep the server
+    // unavailable through the local receipt, so both passes exercise the failure and backoff path.
+    await page.route('**/api/sprints/*/entries', (r) => {
+      if (r.request().method() !== 'POST' || !unavailable) return r.continue()
+      failures++
+      return r.fulfill({ status: 503, contentType: 'application/json', body: '{"error":"unavailable"}' })
+    })
     await field(page).fill('Written while the server hiccups.')
     await page.locator('.room-save').click()
     await page.locator('.room-note[data-tone="local"]').waitFor({ timeout: 10000 })
-    check('A failed send: kept here, said plainly', /Kept in this tab|Saved on this device/.test(await page.locator('.room-note').innerText()) && (await page.locator('.passage[data-state="queued"], .passage[data-state="sending"]').count()) === 1)
+    check('A failed send: kept here, said plainly', failures > 0 && /Kept in this tab|Saved on this device/.test(await page.locator('.room-note').innerText()) && (await page.locator('.passage[data-state="queued"], .passage[data-state="sending"]').count()) === 1)
+    unavailable = false
     const sent = await page.waitForFunction(() => !document.querySelector('.passage[data-state="queued"], .passage[data-state="sending"]'), null, { timeout: 25000 }).then(() => true).catch(() => false)
     const now = await mine(ana, s.id)
     check('…then sent once, on the retry', sent && now.filter((e) => e.body === 'Written while the server hiccups.').length === 1, `${now.length} in the sprint`)

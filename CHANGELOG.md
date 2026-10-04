@@ -44,6 +44,7 @@ those as highlights. The app's About → What's new and each GitHub release are 
 - Unsaved setup and settings drafts leave with the account on sign-out or account changes.
 - Moving to the next retro step or topic brings its heading into view. Saving a note keeps your place.
 - The sign-in scene’s moonlight stays beneath the moon on desktop and mobile.
+- Recaps stay responsive when a long line contains formatting marks that never close.
 - Retrying a thought that was already submitted after collection closes correctly shows it as read-only.
 
 ## [1.0.0-rc.2] - 2026-09-30
